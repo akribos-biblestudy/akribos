@@ -72,10 +72,40 @@ test('the help page is reachable from the site header', async ({ page }) => {
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('Hilfe');
 });
 
-test('the about page loads with a visible heading', async ({ page }) => {
-	const response = await page.goto('/about');
+test('chapter navigation and theme controls stay borderless at medium widths', async ({ page }) => {
+	await page.setViewportSize({ width: 1024, height: 768 });
+	await page.goto('/Gen2');
 
-	expect(response?.status()).toBe(200);
+	const controls = [
+		page.getByRole('link', { name: 'Vorheriges Kapitel' }),
+		page.getByRole('button', { name: 'Dunkles Design' })
+	];
+
+	for (const control of controls) {
+		await expect(control).toBeVisible();
+		await expect(control).toHaveCSS('border-top-width', '0px');
+		await expect(control).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+	}
+});
+
+test('the about page loads with a visible heading', async ({ page }) => {
+	await page.goto('/Joh3');
+	await page.getByRole('button', { name: 'Konto-Menü' }).click();
+	const anonymousAbout = page.getByRole('menuitem', { name: 'Über' });
+	await expect(anonymousAbout).toHaveAttribute('href', '/about');
+	await anonymousAbout.click();
+
+	await expect(page).toHaveURL(/\/about$/);
+	await expect(page.getByRole('heading', { level: 1 })).toContainText('Lies den Text');
+
+	await loginAsAdmin(page);
+	await page.goto('/Joh3');
+	await page.getByRole('button', { name: 'Konto-Menü' }).click();
+	const signedInAbout = page.getByRole('menuitem', { name: 'Über' });
+	await expect(signedInAbout).toHaveAttribute('href', '/about');
+	await signedInAbout.click();
+
+	await expect(page).toHaveURL(/\/about$/);
 	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('Lies den Text');
 });
