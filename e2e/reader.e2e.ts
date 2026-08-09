@@ -69,7 +69,9 @@ test('the help page is reachable from the site header', async ({ page }) => {
 	await page.getByRole('menuitem', { name: 'Hilfe' }).click();
 
 	await expect(page).toHaveURL(/\/help$/);
-	await expect(page.getByRole('heading', { level: 1 })).toContainText('Hilfe');
+	await expect(
+		page.getByRole('heading', { level: 1, name: 'Wie können wir dir helfen?' })
+	).toBeVisible();
 });
 
 test('chapter navigation and theme controls stay borderless at medium widths', async ({ page }) => {
