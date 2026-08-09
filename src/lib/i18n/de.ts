@@ -30,6 +30,7 @@ export const de = {
 	'nav.previousChapter': 'Vorheriges Kapitel',
 	'nav.nextChapter': 'Nächstes Kapitel',
 	'nav.help': 'Hilfe',
+	'nav.about': 'Über',
 	'nav.account': 'Mein Konto',
 	'nav.login': 'Anmelden',
 	'nav.logout': 'Abmelden',

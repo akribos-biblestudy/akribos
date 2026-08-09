@@ -403,9 +403,10 @@
 						>
 					{/if}
 					<hr />
-					<a href="/help" role="menuitem">{t('nav.help')}</a>
-				{:else}
-					<a href="/help" role="menuitem">{t('nav.help')}</a>
+				{/if}
+				<a href="/help" role="menuitem">{t('nav.help')}</a>
+				<a href="/about" role="menuitem">{t('nav.about')}</a>
+				{#if !user}
 					<hr />
 					<a href="/login" role="menuitem">{t('nav.login')}</a>
 				{/if}
@@ -577,12 +578,19 @@
 		}
 	}
 
-	/* E-ink tablets commonly report a desktop-sized viewport, but subtle translucent controls and
-	   hover-only boundaries are almost invisible on their low-contrast, slow-refresh displays. */
-	@media (min-width: 640px) and (max-width: 1280px), (update: slow), (monochrome) {
+	/* Medium-width screens need generous targets, but the regular header controls remain visually
+	   borderless. A viewport width alone does not mean that the device is an e-ink display. */
+	@media (min-width: 640px) and (max-width: 1280px) {
 		:global(.icon-button) {
 			min-width: 2.75rem;
 			min-height: 2.75rem;
+		}
+	}
+
+	/* On actual e-ink/monochrome displays, subtle translucent controls and hover-only boundaries are
+	   difficult to see, so those devices retain the deliberately stronger treatment. */
+	@media (update: slow), (monochrome) {
+		:global(.icon-button) {
 			border: 1px solid var(--color-stone-400);
 			background: var(--surface-raised);
 			color: var(--color-stone-800);
