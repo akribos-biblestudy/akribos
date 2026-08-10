@@ -1,4 +1,8 @@
 import { expect, test } from '@playwright/test';
+import { and, eq, inArray } from 'drizzle-orm';
+import { createDb } from '../src/lib/server/db/client.ts';
+import { resources, users, verseComments } from '../src/lib/server/db/schema.ts';
+import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
 import { lastMailLinkTo } from './lib/mail-outbox.ts';
 
 /**
@@ -359,14 +363,20 @@ test('an admin can see and edit resources', async ({ page }) => {
 	await expect(page.getByText('Bibelübersetzung')).toBeVisible();
 
 	await page.goto('/admin/resources');
-	await expect(page.getByText('SEEDDE')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'SEEDDE bearbeiten' })).toBeVisible();
+	const resourceSearch = page.getByLabel('Ressourcen durchsuchen');
+	await resourceSearch.fill('Testkommentar');
+	await expect(page.getByRole('button', { name: 'SEEDCOMMENTARY bearbeiten' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'SEEDDE bearbeiten' })).toHaveCount(0);
+	await resourceSearch.clear();
+	await expect(page.getByRole('button', { name: 'SEEDDE bearbeiten' })).toBeVisible();
 
-	// Editing the column title takes effect in the reader.
-	const abbrev = page.locator('#abbrev-SEEDDE');
-	await abbrev.fill('Umbenannt');
+	// Editing the tab title takes effect in the reader without changing the selection labels.
+	const tabTitle = page.locator('#tab-SEEDDE');
+	await tabTitle.fill('Umbenannt');
 	await page
 		.locator('form[action="?/save"]')
-		.filter({ has: abbrev })
+		.filter({ has: tabTitle })
 		.getByRole('button', { name: 'Speichern' })
 		.click();
 
@@ -375,10 +385,109 @@ test('an admin can see and edit resources', async ({ page }) => {
 
 	// Put it back, so the test can run again.
 	await page.goto('/admin/resources');
-	await page.locator('#abbrev-SEEDDE').fill('Testübersetzung');
+	await page.locator('#tab-SEEDDE').fill('Testübersetzung');
 	await page
 		.locator('form[action="?/save"]')
-		.filter({ has: page.locator('#abbrev-SEEDDE') })
+		.filter({ has: page.locator('#tab-SEEDDE') })
 		.getByRole('button', { name: 'Speichern' })
 		.click();
+});
+
+test('deleting a Bible transfers every comment without overwriting collisions', async ({
+	page
+}) => {
+	const suffix = Math.random().toString(36).slice(2, 9).toUpperCase();
+	const sourceId = `DELETE_${suffix}`;
+	const targetId = `TARGET_${suffix}`;
+	const databaseUrl =
+		process.env.E2E_DATABASE_URL ??
+		testDatabaseUrl(
+			process.env.DATABASE_URL ?? 'postgres://strongs:strongs@localhost:5432/strongs'
+		);
+	const { client, db } = createDb(databaseUrl, { max: 1 });
+
+	try {
+		const [admin] = await db
+			.select({ id: users.id })
+			.from(users)
+			.where(eq(users.email, 'admin@example.com'))
+			.limit(1);
+		expect(admin).toBeDefined();
+
+		await db.insert(resources).values([
+			{
+				id: sourceId,
+				kind: 'bible',
+				name: 'Zu löschende Testbibel',
+				abbrev: 'Quelle',
+				language: 'de',
+				isPublic: false,
+				status: 'ready'
+			},
+			{
+				id: targetId,
+				kind: 'bible',
+				name: 'Ziel-Testbibel',
+				abbrev: 'Ziel',
+				language: 'de',
+				isPublic: false,
+				status: 'ready'
+			}
+		]);
+		await db.insert(verseComments).values([
+			{
+				userId: admin!.id,
+				resourceId: sourceId,
+				bookId: 43,
+				chapter: 3,
+				verse: 16,
+				commentHtml: '<p>Kommentar aus der Quelle</p>'
+			},
+			{
+				userId: admin!.id,
+				resourceId: targetId,
+				bookId: 43,
+				chapter: 3,
+				verse: 16,
+				commentHtml: '<p>Kommentar am Ziel</p>'
+			},
+			{
+				userId: admin!.id,
+				resourceId: sourceId,
+				bookId: 43,
+				chapter: 3,
+				verse: 17,
+				commentHtml: '<p>Nur in der Quelle</p>'
+			}
+		]);
+
+		await page.goto('/login');
+		await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
+		await page.getByLabel('Passwort').fill('seed-admin-password');
+		await page.getByRole('button', { name: 'Anmelden' }).click();
+		await page.goto('/admin/resources');
+
+		await page.getByRole('button', { name: `${sourceId} bearbeiten` }).click();
+		const editor = page.locator('#resource-editor');
+		await editor.getByRole('button', { name: 'Ressource löschen' }).click();
+		await editor.getByLabel('Kommentare verschieben nach').selectOption(targetId);
+		await editor.getByText('Zur Bestätigung').locator('..').getByRole('textbox').fill(sourceId);
+		await editor.getByRole('button', { name: 'Endgültig löschen' }).click();
+		await expect(page.getByText(`${sourceId} wurde gelöscht.`)).toBeVisible();
+
+		const remaining = await db
+			.select({ verse: verseComments.verse, html: verseComments.commentHtml })
+			.from(verseComments)
+			.where(and(eq(verseComments.userId, admin!.id), eq(verseComments.resourceId, targetId)));
+		expect(remaining).toHaveLength(2);
+		const merged = remaining.find((comment) => comment.verse === 16)?.html ?? '';
+		expect(merged).toContain('Kommentar am Ziel');
+		expect(merged).toContain('Kommentar aus der Quelle');
+		expect(merged).toContain('Übertragen aus Quelle');
+		expect(remaining.find((comment) => comment.verse === 17)?.html).toContain('Nur in der Quelle');
+	} finally {
+		await db.delete(verseComments).where(inArray(verseComments.resourceId, [sourceId, targetId]));
+		await db.delete(resources).where(inArray(resources.id, [sourceId, targetId]));
+		await client.end();
+	}
 });

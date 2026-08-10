@@ -53,7 +53,7 @@
 					<span>
 						{t('search.inTranslation', {
 							count: formatNumber(countByResource.get(column.id) ?? 0),
-							translation: column.abbrev
+							translation: column.tabTitle
 						})}
 					</span>
 				{/each}
@@ -98,7 +98,7 @@
 										class:text-accent-600={hit.matchedIn.includes(data.columns[index]?.id ?? '')}
 										class:text-stone-400={!hit.matchedIn.includes(data.columns[index]?.id ?? '')}
 									>
-										{data.columns[index]?.abbrev}
+										{data.columns[index]?.tabTitle}
 									</p>
 									<p
 										class="scripture-sized font-serif leading-relaxed"

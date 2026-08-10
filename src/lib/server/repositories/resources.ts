@@ -6,7 +6,7 @@
  * {@link invalidateResourceCache}.
  */
 
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { resourceBooks, resources, type Resource } from '../db/schema.ts';
 
@@ -24,7 +24,12 @@ export type ReadableResource = Pick<
 	| 'hasMorphology'
 	| 'licenseHtml'
 	| 'usageNotesHtml'
->;
+> & {
+	coverTitle: string;
+	tabTitle: string;
+	selectionTitle: string;
+	selectionSubtitle: string | null;
+};
 
 const CACHE_TTL_MS = 30_000;
 
@@ -44,6 +49,12 @@ export async function listResources(db: Database): Promise<ReadableResource[]> {
 			kind: resources.kind,
 			name: resources.name,
 			abbrev: resources.abbrev,
+			coverTitle: sql<string>`coalesce(${resources.coverTitle}, ${resources.abbrev})`,
+			tabTitle: sql<string>`coalesce(${resources.tabTitle}, ${resources.abbrev})`,
+			selectionTitle: sql<string>`coalesce(${resources.selectionTitle}, ${resources.name})`,
+			selectionSubtitle: sql<
+				string | null
+			>`coalesce(${resources.selectionSubtitle}, ${resources.abbrev})`,
 			language: resources.language,
 			canon: resources.canon,
 			direction: resources.direction,

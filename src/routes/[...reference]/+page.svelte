@@ -954,7 +954,7 @@
 	<meta
 		name="description"
 		content="{data.fullTitle} in {data.columns
-			.map((column) => column.resource.abbrev)
+			.map((column) => column.resource.tabTitle)
 			.join(', ')} — mit Strong-Nummern, Grammatik und Wörterbuch."
 	/>
 	{#if previousPath}<link rel="prev" href={previousPath} />{/if}
@@ -995,7 +995,7 @@
 					<div
 						draggable="true"
 						role="group"
-						aria-label="{column.resource.abbrev}: {t('reader.dragColumn')}"
+						aria-label="{column.resource.tabTitle}: {t('reader.dragColumn')}"
 						class="min-w-0 rounded-lg border border-stone-200/80 bg-[color:var(--surface)] px-1 shadow-sm dark:border-white/8"
 						class:opacity-40={draggedColumn === column.index}
 						class:ring-2={dropColumn === column.index}
@@ -1073,21 +1073,21 @@
 								tabindex={mobileColumn === column.index ? 0 : -1}
 								class="shrink-0"
 								aria-label={mobileColumn === column.index
-									? `${t('reader.chooseTranslation')}: ${column.resource.abbrev}`
-									: column.resource.abbrev}
+									? `${t('reader.chooseTranslation')}: ${column.resource.tabTitle}`
+									: column.resource.tabTitle}
 								onclick={() => {
 									if (mobileColumn === column.index) openTranslationDialog(column.index);
 									else mobileColumn = column.index;
 								}}
 							>
-								{column.resource.abbrev}
+								{column.resource.tabTitle}
 							</button>
 							{#if data.columns.length > 1}
 								<form method="POST" action="?/removeColumn" use:enhance>
 									<input type="hidden" name="index" value={column.index} />
 									<button
 										type="submit"
-										aria-label="{t('reader.removeColumn')}: {column.resource.abbrev}"
+										aria-label="{t('reader.removeColumn')}: {column.resource.tabTitle}"
 										class="inline-flex size-5 shrink-0 items-center justify-center rounded-full opacity-70 hover:opacity-100"
 										onclick={(event) => {
 											if (mobileColumn === column.index)
@@ -1211,7 +1211,7 @@
 							role={isMobileViewport ? 'tabpanel' : 'region'}
 							id={isMobileViewport ? `mobile-tabpanel-${columnIndex}` : undefined}
 							aria-labelledby={isMobileViewport ? `mobile-tab-${columnIndex}` : undefined}
-							aria-label={isMobileViewport ? undefined : column.resource.name}
+							aria-label={isMobileViewport ? undefined : column.resource.selectionTitle}
 							aria-hidden={isMobileViewport && columnIndex !== mobileColumn}
 							onwheel={(event) => onFlowWheel(event, columnIndex)}
 							ontouchstart={() => makeFlowSource(columnIndex)}
@@ -1296,7 +1296,7 @@
 																		cell.verse,
 																		cell.verseEnd,
 																		cell.segments,
-																		{ id: column.resource.id, name: column.resource.abbrev }
+																		{ id: column.resource.id, name: column.resource.tabTitle }
 																	)}
 															>
 																{stream.reference.chapter}
@@ -1332,7 +1332,7 @@
 																		cell.verse,
 																		cell.verseEnd,
 																		cell.segments,
-																		{ id: column.resource.id, name: column.resource.abbrev }
+																		{ id: column.resource.id, name: column.resource.tabTitle }
 																	)}
 															>
 																{cell.verse}{#if cell.verseEnd && cell.verseEnd > cell.verse}-{cell.verseEnd}{/if}
@@ -1479,7 +1479,7 @@
 					{#each data.columns as column (column.resource.id)}
 						<div class:hidden-on-mobile={column.index !== mobileColumn}>
 							{#if column.resource.licenseHtml}
-								<p><strong>{column.resource.abbrev}:</strong> {column.resource.licenseHtml}</p>
+								<p><strong>{column.resource.tabTitle}:</strong> {column.resource.licenseHtml}</p>
 							{/if}
 						</div>
 					{/each}

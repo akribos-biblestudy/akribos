@@ -15,12 +15,20 @@
  * the complete, correctly numbered chapter.
  */
 
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import { bookById } from '../../bible/books.ts';
+import { sanitizeNoteHtml } from '../../notes/sanitize.ts';
 import { segmentsToText, wordsFromSegments } from '../../bible/segments.ts';
 import type { ParsedVerse, ParseStream, ResourceMetadata } from '../../bible/parse/types.ts';
 import type { Database } from '../db/client.ts';
-import { resourceBooks, resources, verses, verseWords, type NewVerseWord } from '../db/schema.ts';
+import {
+	resourceBooks,
+	resources,
+	verseComments,
+	verses,
+	verseWords,
+	type NewVerseWord
+} from '../db/schema.ts';
 import { resolveDuplicate } from './duplicates.ts';
 
 export type IngestProgress = {
@@ -305,7 +313,72 @@ function bookLabel(bookId: number): string {
 	return bookById(bookId)?.osisId ?? `Buch ${bookId}`;
 }
 
-/** Removes a resource; verses, words and statistics rows cascade with it. */
-export async function deleteResource(db: Database, resourceId: string): Promise<void> {
-	await db.delete(resources).where(eq(resources.id, resourceId));
+/**
+ * Removes a resource. Private comments belonging to a Bible are moved to another Bible in the same
+ * transaction. If a user already commented on the same verse in the destination translation, both
+ * notes are retained and separated visibly.
+ */
+export async function deleteResource(
+	db: Database,
+	resourceId: string,
+	replacementResourceId?: string
+): Promise<number> {
+	return db.transaction(async (tx) => {
+		const [resource] = await tx
+			.select({
+				kind: resources.kind,
+				abbrev: resources.abbrev,
+				tabTitle: resources.tabTitle
+			})
+			.from(resources)
+			.where(eq(resources.id, resourceId))
+			.limit(1);
+
+		if (!resource) throw new Error('resource not found');
+
+		let transferredComments = 0;
+		if (resource.kind === 'bible') {
+			if (!replacementResourceId) throw new Error('replacement Bible required');
+			const [replacement] = await tx
+				.select({ id: resources.id })
+				.from(resources)
+				.where(
+					and(
+						eq(resources.id, replacementResourceId),
+						eq(resources.kind, 'bible'),
+						ne(resources.id, resourceId)
+					)
+				)
+				.limit(1);
+			if (!replacement) throw new Error('invalid replacement Bible');
+			const transferLabel = sanitizeNoteHtml(
+				`<p><strong>Übertragen aus ${resource.tabTitle ?? resource.abbrev}</strong></p>`
+			);
+			const commentCounts = await tx
+				.select({ value: count() })
+				.from(verseComments)
+				.where(eq(verseComments.resourceId, resourceId));
+			transferredComments = commentCounts[0]?.value ?? 0;
+
+			await tx.execute(sql`
+				insert into verse_comments (
+					id, user_id, book_id, chapter, verse, resource_id, comment_html, created_at, updated_at
+				)
+				select
+					gen_random_uuid(), user_id, book_id, chapter, verse, ${replacementResourceId}, comment_html,
+					created_at, updated_at
+				from verse_comments
+				where resource_id = ${resourceId}
+				on conflict (user_id, resource_id, book_id, chapter, verse) do update
+				set comment_html = verse_comments.comment_html
+					|| ${transferLabel}
+					|| excluded.comment_html,
+					updated_at = greatest(verse_comments.updated_at, excluded.updated_at)
+			`);
+			await tx.delete(verseComments).where(eq(verseComments.resourceId, resourceId));
+		}
+
+		await tx.delete(resources).where(eq(resources.id, resourceId));
+		return transferredComments;
+	});
 }
