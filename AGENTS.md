@@ -16,9 +16,11 @@ Paketmanager ist `pnpm` (Node >= 24).
 - `pnpm test:e2e`: eigene Testdatenbank vorbereiten, Produktions-Build starten, Playwright ausführen
 - Einen Reader-Test gezielt ausführen: `pnpm test:e2e:only e2e/reader.e2e.ts -g "Testname"`
 
-Vor dem Abschluss mindestens `pnpm check` und die für den Change relevanten Tests ausführen. Keine
-Migration manuell erfinden, wenn eine Schemaänderung mit Drizzle generiert werden kann. Bestehende,
-fremde Änderungen im Worktree nicht überschreiben.
+Vor dem Abschluss mindestens `pnpm check` und die für den Change relevanten Tests ausführen. Vor jedem
+Push beziehungsweise dem Erstellen oder Aktualisieren eines PR muss außerdem `pnpm test:e2e` vollständig
+lokal erfolgreich durchlaufen. Gezielte Aufrufe mit `pnpm test:e2e:only` helfen während der Entwicklung,
+ersetzen diesen vollständigen Lauf aber nicht. Keine Migration manuell erfinden, wenn eine Schemaänderung
+mit Drizzle generiert werden kann. Bestehende, fremde Änderungen im Worktree nicht überschreiben.
 
 ## Verzeichnis- und Schichtenmodell
 

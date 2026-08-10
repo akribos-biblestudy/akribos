@@ -105,7 +105,7 @@ test('the backup area is hidden from a normal account', async ({ page }) => {
 test('an admin can reach the backup page from the navigation', async ({ page }) => {
 	await loginAsAdmin(page);
 	await page.goto('/admin');
-	await page.getByRole('link', { name: 'Backup' }).click();
+	await page.getByRole('link', { name: 'Backup', exact: true }).click();
 	await expect(page).toHaveURL(/\/admin\/backup$/);
 	await expect(page.getByRole('heading', { name: 'Backup und Wiederherstellung' })).toBeVisible();
 });
