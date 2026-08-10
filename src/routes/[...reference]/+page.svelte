@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { replaceState } from '$app/navigation';
+	import { afterNavigate, beforeNavigate, pushState, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	import { tick } from 'svelte';
+	import { onDestroy, tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { formatReference, referencePath, type VerseRef } from '$lib/bible/reference';
 	import { segmentsToText, splitVerseLead } from '$lib/bible/segments';
@@ -382,9 +382,15 @@
 	/** Strong's number shown in the study sidebar, kept in the URL hash so it can be shared. */
 	let activeStrong = $state<{ strong: string; word: string; reference: string } | null>(null);
 
-	// Restore the sidebar from the hash on load and on navigation.
-	$effect(() => {
-		const hash = page.url.hash.replace(/^#/, '');
+	/**
+	 * Restores the sidebar from the browser's real URL after a navigation.
+	 *
+	 * The reader also changes its address with shallow `replaceState` calls. Those deliberately do not
+	 * make `page.url` reactive, so a later history traversal must read `window.location` rather than a
+	 * potentially stale route URL.
+	 */
+	function restoreStrongFromHash(hashValue: string) {
+		const hash = hashValue.replace(/^#/, '');
 		if (!hash) {
 			activeStrong = null;
 			return;
@@ -406,7 +412,9 @@
 				})
 			};
 		}
-	});
+	}
+
+	afterNavigate(() => restoreStrongFromHash(window.location.hash));
 
 	function openStrong(
 		strong: string,
@@ -424,15 +432,16 @@
 				verse
 			})
 		};
-		replaceState(
-			`${page.url.pathname}#${encodeURIComponent(strong)}/${encodeURIComponent(word)}/${verse}`,
-			page.state
-		);
+		const url = `${window.location.pathname}${window.location.search}#${encodeURIComponent(strong)}/${encodeURIComponent(word)}/${verse}`;
+		pushState(url, { ...page.state, studySidebar: true });
 	}
 
 	function closeStrong() {
 		activeStrong = null;
-		replaceState(page.url.pathname, page.state);
+		pushState(`${window.location.pathname}${window.location.search}`, {
+			...page.state,
+			studySidebar: false
+		});
 	}
 
 	const previousPath = $derived(
@@ -562,6 +571,8 @@
 	let streamSignature = '';
 	let streamColumnsKey = data.columns.map((column) => column.resource.id).join(',');
 	let jumpedSignature = '';
+	/** Invalidates chapter requests that were started for an earlier reader navigation. */
+	let streamGeneration = 0;
 	/**
 	 * Columns whose next scroll events were caused by our own alignment/prepend compensation.
 	 *
@@ -594,6 +605,10 @@
 		const columnsKey = data.columns.map((column) => column.resource.id).join(',');
 		const signature = `${data.reference.book}:${data.reference.chapter}:${columnsKey}`;
 		if (signature !== streamSignature) {
+			streamGeneration += 1;
+			loadingPrevious = false;
+			loadingNext = false;
+			cancelScheduledReaderWork();
 			const columnsChanged = columnsKey !== streamColumnsKey;
 			streamSignature = signature;
 			streamColumnsKey = columnsKey;
@@ -645,9 +660,11 @@
 	async function loadStreamPrevious() {
 		const reference = streamChapters[0]?.navigation.previous;
 		if (!reference || flowColumns.length === 0 || loadingPrevious) return;
+		const generation = streamGeneration;
 		loadingPrevious = true;
 		try {
 			const chapter = await fetchStreamChapter(reference);
+			if (generation !== streamGeneration) return;
 			// Capture immediately before the mutation, not before the request: touch momentum may continue
 			// while the chapter is in flight and that genuine user movement must not be rolled back.
 			const oldHeights = flowColumns.map((column) => column?.scrollHeight ?? 0);
@@ -667,20 +684,24 @@
 				}
 			}
 		} finally {
-			loadingPrevious = false;
+			if (generation === streamGeneration) loadingPrevious = false;
 		}
 	}
 
 	async function loadStreamNext() {
 		const reference = streamChapters.at(-1)?.navigation.next;
 		if (!reference || loadingNext) return;
+		const generation = streamGeneration;
 		loadingNext = true;
 		try {
-			streamChapters.push(await fetchStreamChapter(reference));
+			const chapter = await fetchStreamChapter(reference);
+			if (generation !== streamGeneration) return;
+			streamChapters.push(chapter);
 			await tick();
+			if (generation !== streamGeneration) return;
 			syncFlowColumns(activeFlowSource);
 		} finally {
-			loadingNext = false;
+			if (generation === streamGeneration) loadingNext = false;
 		}
 	}
 
@@ -718,10 +739,30 @@
 		addressBarTimer = setTimeout(() => {
 			addressBarTimer = undefined;
 			const path = referencePath({ book, chapter, verse });
-			if (path === page.url.pathname) return;
-			replaceState(`${path}${page.url.search}${page.url.hash}`, page.state);
+			if (path === window.location.pathname) return;
+			replaceState(`${path}${window.location.search}${window.location.hash}`, page.state);
 		}, 200);
 	}
+
+	/** Cancels delayed work before it can apply an old chapter's position to a new navigation. */
+	function cancelScheduledReaderWork() {
+		if (flowSyncTimer) clearTimeout(flowSyncTimer);
+		flowSyncTimer = undefined;
+		if (addressBarTimer) clearTimeout(addressBarTimer);
+		addressBarTimer = undefined;
+		for (const timer of suppressFlowTimers) {
+			if (timer) clearTimeout(timer);
+		}
+		suppressFlowTimers = [];
+		suppressedFlowColumns.clear();
+	}
+
+	beforeNavigate(() => {
+		streamGeneration += 1;
+		cancelScheduledReaderWork();
+	});
+
+	onDestroy(cancelScheduledReaderWork);
 
 	/**
 	 * Finds the element for a verse within a flow column, matching a ranged block (a commentary entry or
@@ -947,7 +988,11 @@
 	}
 </script>
 
-<svelte:window onpointermove={onColumnResizeMove} onpointerup={onColumnResizeEnd} />
+<svelte:window
+	onpointermove={onColumnResizeMove}
+	onpointerup={onColumnResizeEnd}
+	onpopstate={() => restoreStrongFromHash(window.location.hash)}
+/>
 
 <svelte:head>
 	<title>{data.fullTitle} — Akribos</title>

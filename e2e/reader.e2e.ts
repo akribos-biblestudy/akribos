@@ -454,6 +454,77 @@ test('clicking a tagged word opens the study sidebar', async ({ page }) => {
 	await expect(page).toHaveURL(/#G25\/geliebt\/16$/);
 });
 
+test('browser back restores a previously opened study sidebar', async ({ page }) => {
+	await page.goto('/Joh3');
+	await page.locator('button.strong[data-strong="G25"]').first().click();
+	await expect(page.getByRole('complementary')).toContainText('G25');
+
+	await page.getByRole('searchbox').fill('1Mo 1');
+	await page.getByRole('searchbox').press('Enter');
+	await expect(page).toHaveURL(/\/1Mo1$/);
+
+	await page.goBack();
+	await expect(page).toHaveURL(/\/Joh3#G25\/geliebt\/16$/);
+	await expect(page.getByRole('complementary')).toBeVisible();
+	await expect(page.getByRole('complementary')).toContainText('G25');
+});
+
+test('browser history tracks every Strong click and explicit sidebar close', async ({ page }) => {
+	await page.goto('/');
+	await page.locator('a.nav-cta').click();
+	await expect(page).toHaveURL(/\/Joh3$/);
+
+	await page.locator('button.strong[data-strong="G25"]').first().click();
+	await expect(page).toHaveURL(/#G25\/geliebt\/16$/);
+	await expect(page.getByRole('complementary')).toContainText('G25');
+
+	await page.locator('button.strong[data-strong="G2316"]').first().click();
+	await expect(page).toHaveURL(/#G2316\/Gott\/16$/);
+	await expect(page.getByRole('complementary')).toContainText('G2316');
+
+	await page.getByRole('complementary').getByRole('button', { name: 'Schließen' }).click();
+	await expect(page).toHaveURL(/\/Joh3$/);
+	await expect(page.getByRole('complementary')).not.toBeVisible();
+
+	await page.goBack();
+	await expect(page).toHaveURL(/#G2316\/Gott\/16$/);
+	await expect(page.getByRole('complementary')).toContainText('G2316');
+
+	await page.goBack();
+	await expect(page).toHaveURL(/#G25\/geliebt\/16$/);
+	await expect(page.getByRole('complementary')).toContainText('G25');
+
+	await page.goBack();
+	await expect(page).toHaveURL(/\/Joh3$/);
+	await expect(page.getByRole('complementary')).not.toBeVisible();
+
+	await page.goBack();
+	await expect(page).toHaveURL(/\/$/);
+	await expect(page.getByRole('heading', { level: 1 })).toContainText('Lies den Text');
+});
+
+test('a pending reader position update cannot overwrite a search navigation', async ({ page }) => {
+	await page.setViewportSize({ width: 900, height: 300 });
+	await page.goto('/Joh3');
+
+	const column = page.locator('.flow-column').first();
+	await column.evaluate((element) => {
+		const target = element.querySelector<HTMLElement>('[data-verse-key="43:3:17"]');
+		if (!target) throw new Error('fixture verse 17 is missing');
+		element.scrollTop = target.offsetTop;
+		element.dispatchEvent(new Event('scroll'));
+	});
+	// Cross-column alignment runs after 150 ms and then leaves a debounced address-bar update queued.
+	await page.waitForTimeout(175);
+
+	await page.getByRole('searchbox').fill('1Mo 1');
+	await page.getByRole('searchbox').press('Enter');
+	await expect(page).toHaveURL(/\/1Mo1$/);
+	await page.waitForTimeout(400);
+	// The new reader may add its visible first verse, but stale work from John must never take over.
+	await expect(page).toHaveURL(/\/1Mo1(?:,1)?$/);
+});
+
 test('clicking a footnote marker opens its note without relying on the Popover API', async ({
 	page
 }) => {

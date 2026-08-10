@@ -72,6 +72,15 @@ Wichtige Scroll-Invarianten:
   Berechnung aus dem nachträglichen Wert kompensiert doppelt und erzeugt Sprünge.
 - Die URL wird beim Lesen mit `replaceState` nachgeführt. `reader-location.svelte.ts` koppelt diese
   Position an das Suchfeld, ohne eine Servernavigation auszulösen.
+- Nach einer echten Reader-Navigation müssen verzögerte Scroll-/Adressleisten-Timer und noch laufende
+  Kapitel-Nachladungen verworfen werden; sie dürfen niemals den neuen Kapitelstream oder dessen URL
+  verändern. Die Strong-Seitenleiste wird nach History-Navigationen aus `window.location.hash`
+  restauriert, weil flache `replaceState`-Änderungen nicht zuverlässig in `page.url` reaktiv werden.
+- Jeder Klick auf ein Strong-Wort und jedes explizite Schließen der Strong-Seitenleiste legt mit
+  `pushState` einen eigenen History-Eintrag an. Dadurch kann Zurück/Vorwärts jeden einzelnen
+  Sidebar-Zustand wiederherstellen; Scroll-Aktionen aktualisieren die URL dagegen weiterhin nur mit
+  `replaceState`. Da Zurück/Vorwärts zwischen flachen History-Einträgen keine SvelteKit-Navigation
+  auslöst, synchronisiert zusätzlich ein `popstate`-Handler die Seitenleiste mit dem aktuellen Hash.
 - Vers 1 hat absichtlich keine sichtbare Versnummer. Die sichtbare `.flow-chapter-number` ist deshalb
   ein Link und öffnet über `onVerseNumberClick()` dasselbe `VerseMenu` für den ersten Vers. Sie darf
   nicht wieder in ein rein dekoratives `span` umgewandelt werden.
