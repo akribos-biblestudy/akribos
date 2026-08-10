@@ -65,7 +65,7 @@
 		aria-haspopup="dialog"
 		onclick={() => onOpenTranslation(index)}
 	>
-		<span class="truncate">{selected.abbrev}</span>
+		<span class="truncate">{selected.tabTitle}</span>
 		<svg
 			viewBox="0 0 20 20"
 			class="size-3.5 shrink-0 text-stone-400 transition-transform group-hover:translate-x-0.5"
@@ -90,7 +90,7 @@
 				<button
 					type="submit"
 					title={t('reader.removeColumn')}
-					aria-label="{t('reader.removeColumn')}: {selected.abbrev}"
+					aria-label="{t('reader.removeColumn')}: {selected.tabTitle}"
 					class="inline-flex size-7 items-center justify-center rounded text-stone-400 hover:bg-stone-100 hover:text-stone-700
 				       dark:hover:bg-stone-800 dark:hover:text-stone-200"
 				>
@@ -109,7 +109,7 @@
 				title={linked ? t('reader.flowSyncDisable') : t('reader.flowSyncEnable')}
 				aria-label="{linked
 					? t('reader.flowSyncDisable')
-					: t('reader.flowSyncEnable')}: {selected.abbrev}"
+					: t('reader.flowSyncEnable')}: {selected.tabTitle}"
 				aria-pressed={linked}
 				class="relative inline-flex size-7 shrink-0 items-center justify-center rounded hover:bg-stone-100
 			       dark:hover:bg-stone-800"

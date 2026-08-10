@@ -60,8 +60,10 @@
 			const needle = query.trim().toLowerCase();
 			if (!needle) return true;
 			return (
-				resource.name.toLowerCase().includes(needle) ||
-				resource.abbrev.toLowerCase().includes(needle)
+				resource.selectionTitle.toLowerCase().includes(needle) ||
+				(resource.selectionSubtitle?.toLowerCase().includes(needle) ?? false) ||
+				resource.coverTitle.toLowerCase().includes(needle) ||
+				resource.tabTitle.toLowerCase().includes(needle)
 			);
 		})
 	);
@@ -212,13 +214,15 @@
 										aria-hidden="true"
 									>
 										<span class="cover-mark" aria-hidden="true">✦</span>
-										<span class="cover-title">{resource.abbrev}</span>
+										<span class="cover-title">{resource.coverTitle}</span>
 										<span class="cover-rule"></span>
 										<span class="cover-kind">{activeGroup?.label}</span>
 									</span>
 									<span class="resource-meta">
-										<span class="resource-name">{resource.name}</span>
-										<span class="resource-abbrev">{resource.abbrev}</span>
+										<span class="resource-name">{resource.selectionTitle}</span>
+										{#if resource.selectionSubtitle}
+											<span class="resource-abbrev">{resource.selectionSubtitle}</span>
+										{/if}
 									</span>
 									{#if isSelected}
 										<svg

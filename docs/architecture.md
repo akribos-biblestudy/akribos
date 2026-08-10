@@ -71,6 +71,20 @@ consume the stream in batches. See [importing.md](importing.md) for the formats 
 The admin UI and `pnpm data:import` share the same dispatcher (`src/lib/server/import/index.ts`), so the
 two cannot drift apart.
 
+Resources keep imported `name` and `abbrev` metadata, but may override four presentation contexts:
+cover, reader tab, selection title and selection subtitle. Missing overrides fall back to the imported
+metadata in the resource repository. The admin groups works by kind and controls their selection order
+through `sortOrder`.
+
+The resource admin uses a client-side searchable master list and renders one editor at a time. Its
+selected resource is mirrored in the URL query so ordinary form submissions return to the same work;
+the list itself has a viewport-bound scroll area and never determines the page height.
+
+Private verse comments are protected from resource cascades by a restrictive foreign key. Deleting a
+Bible therefore requires a different Bible as its destination; `deleteResource()` transfers comments
+and deletes the source atomically. Where source and destination both have a comment for the same user
+and verse, their HTML is combined with a source label instead of choosing one.
+
 Imports run in the background because a full translation takes half a minute. The runner is in-process
 and serial — imports happen a few times a year, and a queue service would be more moving parts than the
 problem deserves. A job interrupted by a restart is marked failed at boot, not resumed.

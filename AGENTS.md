@@ -90,6 +90,23 @@ wechseln erst nach einem Klick von der Lese- in die Editoransicht.
 Der gemeinsame `NoteEditor.svelte` speichert mit Strg/Cmd+Enter und meldet Escape über `onCancel` an
 die Bubble; bei einem noch leeren Reader-Entwurf entfernt diese Rückmeldung auch die temporäre Ansicht.
 
+Der Fremdschlüssel von `verse_comments.resource_id` ist absichtlich `ON DELETE RESTRICT`. Bibeln
+werden ausschließlich über `deleteResource()` mit einer anderen Bibel als Pflichtziel entfernt; die
+Kommentare werden in derselben Transaktion verschoben. Existiert am Ziel bereits ein Kommentar für
+dieselbe Person und Bibelstelle, bleiben beide Texte mit einem Herkunftshinweis zusammen erhalten.
+
+Ressourcen besitzen getrennte optionale Darstellungstitel: `coverTitle`, `tabTitle`,
+`selectionTitle` und `selectionSubtitle`. Bei älteren/importierten Datensätzen fallen diese in
+`listResources()` auf `abbrev` beziehungsweise `name` zurück. `sortOrder` bestimmt die Reihenfolge
+innerhalb der Kategorien und damit auch in der Werkauswahl; die Administration normalisiert sie beim
+Verschieben in Zehnerschritten.
+
+Die Ressourcenadministration ist bewusst eine Master-Detail-Ansicht: Die linke, höhenbegrenzte Liste
+filtert clientseitig nach Kategorie und Suchtext, rechts wird immer nur eine Ressource bearbeitet. Die
+Auswahl steht als `resource`-Queryparameter in der URL, damit sie nach Speichern oder Sortieren erhalten
+bleibt. Auf schmalen Bildschirmen scrollt die Auswahl zum einzelnen Editor statt alle Formulare
+untereinander zu rendern.
+
 ## Daten, Suche und Sicherheit
 
 Die kanonischen 66 Bücher und Referenzregeln liegen in Code unter `src/lib/bible/`. `verses.segments`

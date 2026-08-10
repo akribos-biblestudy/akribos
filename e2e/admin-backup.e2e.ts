@@ -172,6 +172,7 @@ test('restore refuses a wrong confirmation phrase', async ({ page }) => {
 	await page.getByLabel('Backup-Datei (.dump)').setInputFiles(writeFakeDumpFile(dir));
 	await expect(page.getByText(/fake\.dump/)).toBeVisible();
 
+	await page.locator('#restore-confirm > summary').click();
 	await page.getByLabel(/Zur Bestätigung/).fill('falsch');
 	// The submit button is disabled client-side until the phrase matches; submitting the form
 	// directly is what proves the server enforces this independently of that convenience.
@@ -240,6 +241,7 @@ test('restoreLocal refuses a wrong confirmation phrase', async ({ page }) => {
 		const row = page.locator('li').filter({ hasText: name });
 		await expect(row).toBeVisible();
 
+		await page.locator('#restore-confirm > summary').click();
 		await page.getByLabel(/Zur Bestätigung/).fill('falsch');
 		// Same reasoning as the upload form's equivalent test: the disabled button is convenience
 		// only, so the direct `requestSubmit()` is what proves the server enforces this independently.
@@ -271,6 +273,7 @@ test('restoreLocal refuses a file that is not a valid pg_dump, without deleting 
 		const row = page.locator('li').filter({ hasText: name });
 		await expect(row).toBeVisible();
 
+		await page.locator('#restore-confirm > summary').click();
 		await page.getByLabel(/Zur Bestätigung/).fill('WIEDERHERSTELLEN');
 		await row
 			.locator('form[action="?/restoreLocal"]')

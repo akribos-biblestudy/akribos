@@ -95,6 +95,11 @@ is kept, so the same file can be run again from `/admin`.
 refreshed after an import; if one was interrupted they can be stale. "Statistiken neu berechnen" on
 `/admin/resources` rebuilds them and runs `ANALYZE`.
 
+**A Bible should be removed.** Open `/admin/resources`, expand its delete panel and choose another
+Bible as the comment destination. The delete action is unavailable for the last remaining Bible.
+Existing destination comments are combined with transferred comments; direct database deletion is
+blocked while comments still reference the resource.
+
 **Logins are refused with "Zu viele Versuche".** The throttle allows 8 failures per account and 30 per
 address in 15 minutes, and rows age out on their own. To clear it immediately:
 `delete from login_attempts;`.

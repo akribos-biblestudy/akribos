@@ -127,6 +127,13 @@
       "when": 1786205213927,
       "tag": "0017_known_fantastic_four",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786360194903,
+      "tag": "0018_unusual_shadow_king",
+      "breakpoints": true
     }
   ]
 }

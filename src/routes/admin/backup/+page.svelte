@@ -115,11 +115,34 @@
 
 <svelte:head><title>Backup — Akribos</title></svelte:head>
 
-<h1 class="mb-1 text-xl font-semibold">Backup und Wiederherstellung</h1>
+<h1 class="mb-1 text-2xl font-semibold tracking-tight">Backup und Wiederherstellung</h1>
 <p class="mb-5 max-w-2xl text-sm text-stone-600 dark:text-stone-300">
 	Sicherungen der gesamten Datenbank: sofort herunterladen oder automatisch nach S3-kompatiblem
 	Speicher hochladen.
 </p>
+
+<nav aria-label="Bereiche auf dieser Seite" class="mb-5 flex flex-wrap gap-2 text-sm">
+	<a
+		href="#manual-backup"
+		class="rounded-full bg-stone-100 px-3 py-1.5 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700"
+		>Sofort-Backup</a
+	>
+	<a
+		href="#automatic-backup"
+		class="rounded-full bg-stone-100 px-3 py-1.5 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700"
+		>Automatik</a
+	>
+	<a
+		href="#backup-history"
+		class="rounded-full bg-stone-100 px-3 py-1.5 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700"
+		>Verlauf</a
+	>
+	<a
+		href="#restore"
+		class="rounded-full bg-red-50 px-3 py-1.5 text-red-700 hover:bg-red-100 dark:bg-red-950 dark:text-red-300"
+		>Wiederherstellen</a
+	>
+</nav>
 
 {#if !data.pgToolsAvailable}
 	<p
@@ -134,33 +157,46 @@
 
 <!-- Bestätigung für Wiederherstellung — gilt für jede Wiederherstellen-Aktion auf dieser Seite: den
      Datei-Upload unten, sowie "direkt wiederherstellen" bei den lokalen Kopien und den S3-Objekten. -->
-<section class="mb-8 max-w-2xl rounded-lg border border-red-300 p-4 dark:border-red-900">
-	<h2 class="mb-2 text-sm font-semibold tracking-wide text-red-700 uppercase dark:text-red-300">
-		Bestätigung für Wiederherstellung
-	</h2>
-	<p class="mb-3 text-sm text-stone-600 dark:text-stone-300">
-		Gilt für jede Wiederherstellung auf dieser Seite. Eine Wiederherstellung ersetzt den gesamten
-		Inhalt der Datenbank durch den Inhalt der gewählten Backup-Datei; vorher wird automatisch eine
-		Sicherung des aktuellen Zustands erstellt.
-	</p>
-	<label class="mb-1 block text-xs font-medium" for="confirm-global">
-		Zur Bestätigung <span class="font-mono">{data.restorePhrase}</span> eingeben:
-	</label>
-	<input
-		id="confirm-global"
-		bind:value={confirmText}
-		autocomplete="off"
-		class="w-full max-w-sm rounded-md border border-stone-300 px-2 py-1.5 text-sm dark:border-stone-700 dark:bg-stone-900"
-	/>
-	{#if form?.restoreError === 'confirm'}
-		<p class="mt-2 text-sm text-red-700 dark:text-red-300" role="alert">
-			Die Bestätigung stimmt nicht überein.
+<details
+	id="restore-confirm"
+	open={form?.restoreError === 'confirm'}
+	class="group mb-5 max-w-2xl scroll-mt-24 rounded-xl border border-red-300 dark:border-red-900"
+>
+	<summary
+		class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-red-700 dark:text-red-300 [&::-webkit-details-marker]:hidden"
+	>
+		<span>Bestätigung für Wiederherstellung</span><span
+			class="transition-transform group-open:rotate-180">⌄</span
+		>
+	</summary>
+	<div class="border-t border-red-200 p-4 dark:border-red-900">
+		<p class="mb-3 text-sm text-stone-600 dark:text-stone-300">
+			Gilt für jede Wiederherstellung auf dieser Seite. Eine Wiederherstellung ersetzt den gesamten
+			Inhalt der Datenbank durch den Inhalt der gewählten Backup-Datei; vorher wird automatisch eine
+			Sicherung des aktuellen Zustands erstellt.
 		</p>
-	{/if}
-</section>
+		<label class="mb-1 block text-xs font-medium" for="confirm-global">
+			Zur Bestätigung <span class="font-mono">{data.restorePhrase}</span> eingeben:
+		</label>
+		<input
+			id="confirm-global"
+			bind:value={confirmText}
+			autocomplete="off"
+			class="w-full max-w-sm rounded-md border border-stone-300 px-2 py-1.5 text-sm dark:border-stone-700 dark:bg-stone-900"
+		/>
+		{#if form?.restoreError === 'confirm'}
+			<p class="mt-2 text-sm text-red-700 dark:text-red-300" role="alert">
+				Die Bestätigung stimmt nicht überein.
+			</p>
+		{/if}
+	</div>
+</details>
 
 <!-- Sofort-Backup -->
-<section class="mb-8 max-w-2xl rounded-lg border border-stone-200 p-4 dark:border-stone-800">
+<section
+	id="manual-backup"
+	class="mb-8 max-w-2xl scroll-mt-24 rounded-xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900"
+>
 	<h2 class="mb-2 text-sm font-semibold tracking-wide text-stone-500 uppercase">Sofort-Backup</h2>
 	<p class="mb-3 text-sm text-stone-600 dark:text-stone-300">
 		Erstellt einen vollständigen Dump der Datenbank (pg_dump, Custom-Format) und lädt ihn direkt
@@ -179,7 +215,10 @@
 </section>
 
 <!-- Automatisches Backup nach S3 -->
-<section class="mb-8 max-w-2xl rounded-lg border border-stone-200 p-4 dark:border-stone-800">
+<section
+	id="automatic-backup"
+	class="mb-8 max-w-4xl scroll-mt-24 rounded-xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900"
+>
 	<h2 class="mb-2 text-sm font-semibold tracking-wide text-stone-500 uppercase">
 		Automatisches Backup nach S3
 	</h2>
@@ -558,13 +597,16 @@
 </section>
 
 <!-- Verlauf -->
-<section class="mb-8 max-w-2xl">
+<section id="backup-history" class="mb-8 max-w-4xl scroll-mt-24">
 	<h2 class="mb-2 text-sm font-semibold tracking-wide text-stone-500 uppercase">Verlauf</h2>
 	<BackupJobList jobs={data.jobs} />
 </section>
 
 <!-- Wiederherstellen -->
-<section class="max-w-2xl rounded-lg border border-red-300 p-4 dark:border-red-900">
+<section
+	id="restore"
+	class="max-w-2xl scroll-mt-24 rounded-xl border border-red-300 p-4 dark:border-red-900"
+>
 	<h2 class="mb-2 text-sm font-semibold tracking-wide text-red-700 uppercase dark:text-red-300">
 		Wiederherstellen
 	</h2>
@@ -573,6 +615,11 @@
 		automatisch eine Sicherung des aktuellen Zustands erstellt; ohne diese Sicherung wird die
 		Wiederherstellung nicht ausgeführt. Alle Nutzerdaten, Listen und Notizen entsprechen danach dem
 		Stand des Backups. Möglicherweise musst du dich anschließend neu anmelden.
+	</p>
+	<p class="mb-3 text-xs text-stone-500">
+		Die Bestätigungsphrase wird im Abschnitt <a href="#restore-confirm" class="underline"
+			>Bestätigung für Wiederherstellung</a
+		> eingegeben.
 	</p>
 
 	{#if form?.restoreError && form.restoreError !== 'confirm' && typeof form.restoreError === 'string'}

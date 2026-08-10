@@ -23,6 +23,6 @@ export async function load({ params, setHeaders }) {
 		list: { title: list.title, introHtml: list.introHtml },
 		items: await loadVerseListItems(db, list.id, primary),
 		title: list.title,
-		translation: bibles[0]?.abbrev ?? null
+		translation: bibles[0]?.tabTitle ?? null
 	};
 }

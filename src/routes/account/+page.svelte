@@ -425,7 +425,7 @@
 										class="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs
 										       dark:border-stone-700 dark:bg-stone-800"
 									>
-										{resource.abbrev}
+										{resource.tabTitle}
 									</li>
 								{/if}
 							{/each}

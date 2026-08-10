@@ -31,7 +31,7 @@
 			</h1>
 		</div>
 		{#if data.resource}
-			<p class="mt-2 text-xs text-stone-500 dark:text-stone-400">{data.resource.abbrev}</p>
+			<p class="mt-2 text-xs text-stone-500 dark:text-stone-400">{data.resource.tabTitle}</p>
 		{/if}
 	</header>
 

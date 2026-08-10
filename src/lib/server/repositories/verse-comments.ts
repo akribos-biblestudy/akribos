@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { sanitizeNoteHtml } from '../../notes/sanitize.ts';
 import type { Database } from '../db/client.ts';
 import { resources, verseComments, verseListItems, verseLists } from '../db/schema.ts';
@@ -105,7 +105,7 @@ export async function listUserNotes(db: Database, userId: string): Promise<UserN
 				html: verseComments.commentHtml,
 				updatedAt: verseComments.updatedAt,
 				resourceId: verseComments.resourceId,
-				resourceName: resources.abbrev
+				resourceName: sql<string>`coalesce(${resources.tabTitle}, ${resources.abbrev})`
 			})
 			.from(verseComments)
 			.innerJoin(resources, eq(resources.id, verseComments.resourceId))

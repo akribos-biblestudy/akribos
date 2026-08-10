@@ -35,7 +35,7 @@ function loadChapterVerses(
 	return pending;
 }
 
-type ResourceLabel = { id: string; abbrev: string };
+type ResourceLabel = { id: string; tabTitle: string };
 
 /** Every readable resource's id and abbreviation, fetched once and shared across every popup. */
 let resourceLabelsPromise: Promise<ResourceLabel[]> | null = null;
@@ -145,7 +145,7 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 				loadResourceLabels().catch(() => [] as ResourceLabel[])
 			]);
 			if (token !== requestToken) return;
-			const translationLabel = labels.find((label) => label.id === bibleId)?.abbrev ?? '';
+			const translationLabel = labels.find((label) => label.id === bibleId)?.tabTitle ?? '';
 			renderContent(
 				box,
 				referenceLabel,

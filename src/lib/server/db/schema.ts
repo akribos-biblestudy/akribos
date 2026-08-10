@@ -58,6 +58,11 @@ export const resources = pgTable(
 		name: text('name').notNull(),
 		/** Short label for column headers, e.g. `Elberfelder 1905`. */
 		abbrev: text('abbrev').notNull(),
+		/** Optional presentation labels. Null keeps imported resources backwards-compatible. */
+		coverTitle: text('cover_title'),
+		tabTitle: text('tab_title'),
+		selectionTitle: text('selection_title'),
+		selectionSubtitle: text('selection_subtitle'),
 		/** BCP 47-ish tag: `de` for German, `grc` for Koine Greek, `hbo` for Biblical Hebrew. */
 		language: text('language').notNull(),
 		canon: text('canon', { enum: CANONS }).notNull().default('both'),
@@ -460,7 +465,10 @@ export const verseListItems = pgTable(
 	]
 );
 
-/** One private rich-text comment per user, verse and Bible translation. */
+/**
+ * One private rich-text comment per user, verse and Bible translation. Resources are only removed
+ * through `deleteResource()`, which first transfers these comments to another translation.
+ */
 export const verseComments = pgTable(
 	'verse_comments',
 	{
@@ -473,7 +481,7 @@ export const verseComments = pgTable(
 		verse: integer('verse').notNull(),
 		resourceId: text('resource_id')
 			.notNull()
-			.references(() => resources.id, { onDelete: 'cascade' }),
+			.references(() => resources.id, { onDelete: 'restrict' }),
 		/** Sanitised rich text. */
 		commentHtml: text('comment_html').notNull(),
 		...timestamps
