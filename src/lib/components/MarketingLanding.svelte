@@ -6,13 +6,6 @@
 		['"am Anfang"', 'findet genau diese Wortfolge'],
 		['gnade -gesetz', 'findet Gnade, schließt Gesetz aus']
 	];
-
-	const wordFacts = [
-		['λόγος', 'Originalform'],
-		['lógos', 'Umschrift'],
-		['Substantiv', 'Morphologie'],
-		['G3056', 'Strong-Nummer']
-	];
 </script>
 
 <svelte:head>
@@ -49,7 +42,7 @@
 					verbunden in einem ruhigen Arbeitsraum für sorgfältiges Bibelstudium.
 				</p>
 				<div class="actions">
-					<a class="button primary" href="/Johannes3">Kostenlos loslesen <span>→</span></a>
+					<a class="button primary hero-cta" href="/Johannes3">Jetzt lesen <span>→</span></a>
 					<a class="button ghost" href="#entdecken">Akribos entdecken</a>
 				</div>
 				<div class="proof">
@@ -74,57 +67,19 @@
 				</p>
 			</div>
 
-			<div class="app-window">
-				<div class="window-bar">
-					<div class="dots"><i></i><i></i><i></i></div>
-					<div class="searchbox">
-						<svg viewBox="0 0 24 24" aria-hidden="true"
-							><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg
-						>
-						Johannes 1,1
-					</div>
-					<span>Aa&nbsp;&nbsp; ···</span>
-				</div>
-				<div class="columns">
-					<article>
-						<header><b>Elberfelder 1905</b><span>▾</span></header>
-						<div class="chapter">1</div>
-						<p>
-							<sup>1</sup> Im Anfang war das <mark>Wort</mark>, und das Wort war bei Gott, und das
-							Wort war Gott.
-						</p>
-						<p><sup>2</sup> Dieses war im Anfang bei Gott.</p>
-						<p>
-							<sup>3</sup> Alles ward durch dasselbe, und ohne dasselbe ward auch nicht eines, das geworden
-							ist.
-						</p>
-					</article>
-					<article>
-						<header><b>Schlachter 1951</b><span>▾</span></header>
-						<div class="chapter">1</div>
-						<p>
-							<sup>1</sup> Im Anfang war das <mark>Wort</mark>, und das Wort war bei Gott, und das
-							Wort war Gott.
-						</p>
-						<p><sup>2</sup> Dieses war im Anfang bei Gott.</p>
-						<p>
-							<sup>3</sup> Alles ist durch dasselbe entstanden; und ohne dasselbe ist auch nicht eines
-							entstanden.
-						</p>
-					</article>
-					<article class="commentary">
-						<header><b>Kommentar</b><span>▾</span></header>
-						<div class="chapter">1</div>
-						<h3>Das ewige Wort</h3>
-						<p>
-							<sup>1</sup> Der Evangelist beginnt nicht bei der Geburt, sondern vor aller geschaffenen
-							Zeit.
-						</p>
-						<h3>Quelle des Lebens</h3>
-						<p><sup>3</sup> Die Schöpfung wird hier ganz auf das Wort bezogen.</p>
-					</article>
-				</div>
-			</div>
+			<figure class="product-shot reader-shot">
+				<img
+					src="/landing/reader.webp"
+					alt="Akribos-Reader mit zwei parallel geöffneten Bibelübersetzungen"
+					width="1440"
+					height="900"
+					loading="lazy"
+					decoding="async"
+				/>
+				<figcaption>
+					Der echte Akribos-Reader: zwei Übersetzungen, synchron am selben Vers.
+				</figcaption>
+			</figure>
 
 			<div class="benefits">
 				<div>
@@ -181,30 +136,17 @@
 				</ol>
 			</div>
 
-			<div class="lexicon">
-				<div class="lexicon-bar"><span>Wortstudie</span><span>×</span></div>
-				<div class="lexicon-title">
-					<small>G3056</small>
-					<h3>λόγος</h3>
-					<p>lógos · lo'-gos</p>
-				</div>
-				<div class="fact-grid">
-					{#each wordFacts as fact (fact[1])}
-						<div><strong>{fact[0]}</strong><span>{fact[1]}</span></div>
-					{/each}
-				</div>
-				<div class="definition">
-					<small>Bedeutung</small>
-					<p>Wort, Rede, Aussage; ein Gedanke, der Ausdruck gefunden hat.</p>
-				</div>
-				<div class="usage">
-					<header><span>Übersetzt mit</span><small>330 Vorkommen</small></header>
-					<div><span>Wort <b>218</b></span><i style="--width: 84%"></i></div>
-					<div><span>Rede <b>51</b></span><i style="--width: 48%"></i></div>
-					<div><span>Sache <b>34</b></span><i style="--width: 32%"></i></div>
-				</div>
-				<a href="/G3056">Vollständigen Lexikoneintrag öffnen <span>→</span></a>
-			</div>
+			<figure class="product-shot study-shot">
+				<img
+					src="/landing/strong-study.webp"
+					alt="Geöffnete Strong-Seitenleiste im Akribos-Reader"
+					width="1440"
+					height="900"
+					loading="lazy"
+					decoding="async"
+				/>
+				<figcaption>Ein echter Strong-Eintrag mit Bedeutung, Übersetzung und Vorkommen.</figcaption>
+			</figure>
 		</section>
 
 		<section class="search section">
@@ -235,23 +177,25 @@
 			<p class="kicker center">Dein Studium. Deine Spuren.</p>
 			<h2>Vom Lesen zum <em>Weiterdenken.</em></h2>
 			<p class="center-copy">Halte fest, was dir wichtig wird — direkt dort, wo du es entdeckst.</p>
+			<figure class="product-shot menu-shot">
+				<img
+					src="/landing/verse-menu.webp"
+					alt="Geöffnetes Versmenü im Akribos-Reader mit Markierungen, Kommentaren und Verslisten"
+					width="1440"
+					height="900"
+					loading="lazy"
+					decoding="async"
+				/>
+				<figcaption>Das echte Versmenü bündelt Markierungen, Kommentare und Verslisten.</figcaption>
+			</figure>
 			<div class="feature-grid">
-				<article class="wide highlights">
-					<div>
-						<span>Highlights</span>
-						<h3>Gedanken sichtbar machen</h3>
-						<p>
-							Markiere Verse mit eigenen Farben und finde deine Hervorhebungen gesammelt im Konto
-							wieder.
-						</p>
-					</div>
-					<div class="highlight-card">
-						<p>
-							<sup>16</sup> Denn so sehr hat Gott die Welt geliebt, daß er seinen eingeborenen Sohn gab
-							…
-						</p>
-						<div><i></i><i></i><i></i><i></i><i></i></div>
-					</div>
+				<article class="highlights">
+					<span>Highlights</span>
+					<h3>Gedanken sichtbar machen</h3>
+					<p>
+						Markiere Verse mit eigenen Farben und finde deine Hervorhebungen gesammelt im Konto
+						wieder.
+					</p>
 				</article>
 				<article class="notes">
 					<div class="round-icon">✎</div>
@@ -270,22 +214,14 @@
 						Ordne Verse nach Thema, ergänze Notizen und teile ausgewählte Listen per Link — auch
 						ohne Konto.
 					</p>
-					<div class="avatars"><i>M</i><i>J</i><i>S</i><small>Link kopieren ↗</small></div>
 				</article>
-				<article class="wide personal">
-					<div class="personal-ui">
-						<b>Aa</b>
-						<div><small>85</small><i></i><small>140</small></div>
-						<span>Hell</span><span>Dunkel</span>
-					</div>
-					<div>
-						<span>Dein Leseraum</span>
-						<h3>So lesen, wie es für dich passt</h3>
-						<p>
-							Schriftgröße, Hell- oder Dunkelmodus, Quellen und Spalten merkt sich Akribos für den
-							nächsten Besuch.
-						</p>
-					</div>
+				<article class="personal">
+					<span>Dein Leseraum</span>
+					<h3>So lesen, wie es für dich passt</h3>
+					<p>
+						Schriftgröße, Hell- oder Dunkelmodus, Quellen und Spalten merkt sich Akribos für den
+						nächsten Besuch.
+					</p>
 				</article>
 			</div>
 		</section>
@@ -303,14 +239,8 @@
 				</div>
 			</div>
 			<div class="code">
-				<header><i></i><i></i><i></i><span>GET /api/v1/strong/G3056</span></header>
-				<pre><code
-						>&#123;
-  "strong": "G3056",
-  "lemma": "λόγος",
-  "occurrences": 330
-&#125;</code
-					></pre>
+				<header><i></i><i></i><i></i><span>Strong-Lexikon abfragen</span></header>
+				<pre><code>curl /api/v1/strong/G3056</code></pre>
 			</div>
 			<a href="/api">API entdecken <span>↗</span></a>
 		</section>
