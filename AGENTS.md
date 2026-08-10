@@ -10,6 +10,11 @@ werden. Ausführlichere Hintergrundtexte liegen in `docs/architecture.md`, `docs
 Akribos ist eine SvelteKit-5-Anwendung (Runes) mit TypeScript, PostgreSQL/Drizzle und einem Node-Adapter.
 Paketmanager ist `pnpm` (Node >= 24).
 
+Das Produktionsimage wird nach erfolgreichen CI-Tests von GitHub Actions nach
+`ghcr.io/akribos-biblestudy/akribos` veröffentlicht. `compose.yaml` darf für den App-Service kein
+`build:` enthalten: Coolify zieht ausschließlich das vorgebaute Image und löst den Deploy erst über
+den nachgelagerten Actions-Webhook aus.
+
 - `pnpm check`: Svelte- und TypeScript-Prüfung
 - `pnpm lint`: Prettier-Check und ESLint
 - `pnpm test:unit --run`: Unit-Tests

@@ -90,21 +90,38 @@ jobs:
           retention-days: 7
 
   image:
-    name: Build container image
+    name: Build and publish container image
+    needs: [check, e2e]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
           context: .
-          push: false
+          # Pull requests and rewrite branches verify that the image builds. Only a successful push
+          # to main publishes deployable tags.
+          push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+          tags: |
+            ghcr.io/akribos-biblestudy/akribos:latest
+            ghcr.io/akribos-biblestudy/akribos:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   deploy:
     name: Deploy to Coolify
-    needs: [check, e2e, image]
+    needs: [image]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     # Set COOLIFY_WEBHOOK (the resource's deploy webhook URL) and COOLIFY_TOKEN as repository
