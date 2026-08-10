@@ -67,8 +67,8 @@ warnings the bundled files produce.
 
 ## Deployment
 
-`compose.yaml` is the production stack: the app and PostgreSQL. Backup and restore are handled by the
-app itself, from `/admin/backup` — see below.
+`compose.yaml` is the production stack: the prebuilt app image and PostgreSQL. Backup and restore are
+handled by the app itself, from `/admin/backup` — see below.
 
 In Coolify, add a **Docker Compose** resource pointing at this repository, assign a domain to the
 `app` service, and set these environment variables:
@@ -82,8 +82,11 @@ In Coolify, add a **Docker Compose** resource pointing at this repository, assig
 | `MAIL_FROM`                 | sender address, must be verified in Brevo                    |
 | `BOOTSTRAP_ADMIN_EMAIL`     | the first account registered with this address gets admin    |
 
-Migrations run automatically on container start. Pushes to `main` trigger a deploy through the
-Coolify webhook once `COOLIFY_WEBHOOK` and `COOLIFY_TOKEN` are set as repository secrets.
+Migrations run automatically on container start. After a push to `main` passes CI, GitHub Actions
+publishes `ghcr.io/akribos-biblestudy/akribos:latest` and only then triggers the Coolify webhook.
+Coolify pulls that image instead of building it on the production server. Set `COOLIFY_WEBHOOK` and
+`COOLIFY_TOKEN` as repository secrets; GHCR access and the complete first-time setup are documented in
+[docs/operations.md](docs/operations.md#container-registry-and-automatic-deployment).
 
 Backup, restore and upgrade procedures are in [docs/operations.md](docs/operations.md); the design and
 the reasoning behind it are in [docs/architecture.md](docs/architecture.md).

@@ -4,9 +4,10 @@
 # itself with `pnpm dev`.
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Built by GitHub Actions after the test suite passes. Coolify must only pull this image; keeping
+    # a `build:` section here would move the memory-intensive application build back onto the server.
+    image: ghcr.io/akribos-biblestudy/akribos:latest
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       db:

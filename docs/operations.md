@@ -2,8 +2,12 @@
 
 ## Deploying
 
-`compose.yaml` is the whole stack: the app and PostgreSQL 17. Add it in Coolify as a **Docker
-Compose** resource, assign a domain to the `app` service, and set:
+`compose.yaml` is the whole stack: the app and PostgreSQL 17. The application image is built on
+GitHub's runners and published as `ghcr.io/akribos-biblestudy/akribos:latest`; the production server
+never builds it itself.
+
+Add the repository in Coolify as a **Docker Compose** resource with branch `main`, base directory `/`
+and compose location `/compose.yaml`, then assign a domain to the `app` service and set:
 
 | Variable                    | Where it comes from                                                     |
 | --------------------------- | ----------------------------------------------------------------------- |
@@ -17,6 +21,36 @@ Compose** resource, assign a domain to the `app` service, and set:
 Migrations run in the container's entrypoint before the server starts, so a deploy that changes the
 schema needs nothing extra. A failed migration stops the boot, and the healthcheck keeps the old
 container serving.
+
+### Container registry and automatic deployment
+
+The `image` job in `.github/workflows/ci.yml` runs after lint, type, unit and end-to-end tests. On a
+push to `main` it publishes two GHCR tags: `latest` for Coolify and the full Git commit SHA for an
+immutable rollback reference. Only after that push succeeds does the `deploy` job call Coolify. Set
+these repository secrets under **Settings → Secrets and variables → Actions**:
+
+| Secret            | Value                                                         |
+| ----------------- | ------------------------------------------------------------- |
+| `COOLIFY_WEBHOOK` | the deploy webhook URL shown by this Coolify resource         |
+| `COOLIFY_TOKEN`   | a Coolify API token; API access must be enabled on the server |
+
+Do not add a `build:` section for `app` back to `compose.yaml`: that makes Coolify compile the app on
+the production server. `pull_policy: always` makes every deployment refresh the moving `latest` tag.
+Disable Coolify's direct auto-deploy-on-push integration if it is enabled; otherwise it can deploy
+once before GitHub Actions has published the new image. The Actions webhook is the intended trigger.
+
+GHCR packages are private when first created. Before the first deployment, authenticate Docker on
+the Coolify server with a GitHub personal access token (classic) that has only `read:packages`:
+
+```sh
+read -rsp "GHCR token: " GHCR_READ_TOKEN; echo
+printf '%s' "$GHCR_READ_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USER --password-stdin
+unset GHCR_READ_TOKEN
+```
+
+Alternatively, after the first successful publish, change the `akribos` package visibility to
+**Public** on GitHub; public GHCR images can be pulled anonymously. If the first automatic deployment
+ran before registry access was configured, use Coolify's **Redeploy** button once afterward.
 
 ### First deployment
 
@@ -64,7 +98,8 @@ uploads are archived in the `uploads` volume — back that up too, or keep the s
 
 ## Upgrading
 
-**Application**: push, and Coolify redeploys. Migrations run on boot.
+**Application**: merge to `main`. GitHub Actions tests the commit, builds and publishes the image, and
+then asks Coolify to redeploy it. Coolify pulls the image; migrations run on boot.
 
 **PostgreSQL major version**: the data directory is not compatible across major versions, so dump,
 recreate and restore:

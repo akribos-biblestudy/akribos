@@ -167,6 +167,10 @@ test('a verse list keeps its verses and notes', async ({ page }) => {
 	await editor.click();
 	await editor.fill('Der bekannteste Vers');
 	await noteForm.getByRole('button', { name: 'Speichern' }).click();
+	// The enhanced form action completes asynchronously; wait for its saved state before reloading.
+	await expect(page.getByRole('button', { name: 'Kommentar bearbeiten' })).toContainText(
+		'Der bekannteste Vers'
+	);
 
 	// The note survives a reload.
 	await page.reload();
