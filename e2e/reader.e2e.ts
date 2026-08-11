@@ -112,6 +112,33 @@ test('the about page loads with a visible heading', async ({ page }) => {
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('Lies den Text');
 });
 
+test('the landing page shows a prominent reader link and real product screenshots', async ({
+	page
+}) => {
+	await page.goto('/');
+
+	const readerLink = page.locator('.hero').getByRole('link', { name: /Jetzt lesen/ });
+	await expect(readerLink).toBeVisible();
+	await expect(readerLink).toHaveAttribute('href', '/Johannes3');
+	await expect
+		.poll(async () => (await readerLink.boundingBox())?.height ?? 0)
+		.toBeGreaterThanOrEqual(70);
+
+	await expect(
+		page.getByRole('img', {
+			name: 'Akribos-Reader mit zwei parallel geöffneten Bibelübersetzungen'
+		})
+	).toHaveAttribute('src', '/landing/reader.webp');
+	await expect(
+		page.getByRole('img', { name: 'Geöffnete Strong-Seitenleiste im Akribos-Reader' })
+	).toHaveAttribute('src', '/landing/strong-study.webp');
+	await expect(
+		page.getByRole('img', {
+			name: 'Geöffnetes Versmenü im Akribos-Reader mit Markierungen, Kommentaren und Verslisten'
+		})
+	).toHaveAttribute('src', '/landing/verse-menu.webp');
+});
+
 test('the search field opens a keyboard-accessible Bible book chooser', async ({ page }) => {
 	await page.goto('/Joh1');
 	await page.locator('#site-search').click();
