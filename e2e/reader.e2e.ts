@@ -838,14 +838,15 @@ test('a reference percent-encoded as Latin-1 does not crash the page', async ({ 
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('Könige');
 });
 
-test('the homepage link clears the remembered chapter instead of bouncing back to it', async ({
-	page
-}) => {
+test('the Akribos logo returns to the remembered reader location', async ({ page }) => {
 	await loginAsAdmin(page);
 	await page.goto('/Joh3');
 	await expect(page).toHaveURL(/\/Joh3$/);
+	await page.getByRole('button', { name: 'Konto-Menü' }).click();
+	await page.getByRole('menuitem', { name: 'Mein Konto' }).click();
+	await expect(page).toHaveURL(/\/account$/);
 
 	await page.getByRole('link', { name: 'Akribos – Startseite' }).click();
 
-	await expect(page).toHaveURL(/\/Joh1$/);
+	await expect(page).toHaveURL(/\/Joh3$/);
 });
