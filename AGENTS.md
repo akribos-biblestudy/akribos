@@ -65,7 +65,9 @@ Wichtige Scroll-Invarianten:
   zwingend **pro Spalte**: Eine Interaktion darf nur die Sperre ihrer eigenen Spalte aufheben, weil
   verspätete Scroll-Events automatisch ausgerichteter Nebenspalten sonst die Quelle übernehmen.
 - `syncFlowColumns()` richtet andere, verknüpfte Spalten am ersten sichtbaren
-  `[data-verse-key]` aus. Zusammengefasste Versbereiche werden über `data-verse-end` berücksichtigt.
+  `[data-verse-key]` aus. Die Ankerlinie liegt an der Unterkante des oberen Text-Fades, damit URL und
+  Suchfeld bereits beim Eintritt eines Verses in den Fade zum nächsten Vers wechseln. Zusammengefasste
+  Versbereiche werden über `data-verse-end` berücksichtigt.
 - Beim Voranstellen eines Kapitels müssen sowohl `scrollHeight` als auch `scrollTop` unmittelbar
   **vor** der DOM-Mutation (nach dem Fetch) gespeichert werden. So bleibt Touch-Momentum während des
   Fetches erhalten. Browser-Scroll-Anchoring kann `scrollTop` während `tick()` selbst verändern; eine

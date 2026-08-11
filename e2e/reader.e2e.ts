@@ -338,6 +338,40 @@ test('flowing text keeps columns scroll-synchronized', async ({ page }) => {
 	await expect(reader).toBeVisible();
 });
 
+test('the visible reference advances when a verse enters the top fade', async ({ page }) => {
+	await page.route('**/api/reader/**', (route) => route.abort());
+	await page.setViewportSize({ width: 900, height: 300 });
+	await page.goto('/Joh3');
+
+	const column = page.locator('.flow-column').first();
+	await page.waitForTimeout(120);
+	const position = await column.evaluate((element) => {
+		const verse = element.querySelector<HTMLElement>('[data-verse-key="43:3:16"]')!;
+		const fade = document.querySelector<HTMLElement>('.flow-fade-grid .flow-edge-fade.top')!;
+		const columnTop = element.getBoundingClientRect().top;
+		const fadeHeight = fade.getBoundingClientRect().height;
+		const distance = verse.getBoundingClientRect().bottom - (columnTop + fadeHeight - 2);
+		// Use the reader's wheel path to mark this column as the genuine source, then dispatch the
+		// resulting scroll synchronously so the regression does not depend on browser event timing.
+		element.dispatchEvent(
+			new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: distance / 0.55 })
+		);
+		element.dispatchEvent(new Event('scroll'));
+		return {
+			fadeHeight: fade.getBoundingClientRect().height,
+			verseBottom: verse.getBoundingClientRect().bottom - columnTop
+		};
+	});
+
+	// Verse 16 is still below the old 12px anchor, but already inside the 24px fade veil.
+	expect(position.fadeHeight).toBe(24);
+	expect(position.verseBottom).toBeGreaterThan(12);
+	expect(position.verseBottom).toBeLessThan(position.fadeHeight);
+	await expect(page.getByPlaceholder('Bibelstelle, Wort oder Strong-Nummer')).toHaveValue(
+		'Joh 3,17'
+	);
+});
+
 test('a delayed follower scroll event cannot steal a rapidly reused source column', async ({
 	page
 }) => {
