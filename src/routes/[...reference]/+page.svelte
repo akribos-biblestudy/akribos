@@ -150,6 +150,8 @@
 	 *  stream, this one only cares whether the *columns* changed. */
 	let columnWidthsKey = data.columns.map((column) => column.resource.id).join(',');
 	const MIN_COLUMN_FRACTION = 0.12;
+	/** The address/sync anchor sits at the inner edge of the top fade, not beneath its veil. */
+	const FLOW_EDGE_FADE_PX = 24;
 
 	$effect(() => {
 		const key = data.columns.map((column) => column.resource.id).join(',');
@@ -720,9 +722,8 @@
 	 * whatever chapter and verse are actually on screen while scrolling. A reload then lands back where
 	 * the reader left off, not at the chapter the click landed on.
 	 *
-	 * Debounced like `scheduleFlowSync`: rewriting the address bar on every scroll frame would be
-	 * needless churn (and fight with `history`'s own rate limits), so it only fires once scrolling has
-	 * settled for a moment.
+	 * The search field follows the visible anchor immediately. Only the actual address-bar rewrite is
+	 * debounced, avoiding needless churn and `history` rate limits while scrolling continues.
 	 */
 	function scheduleAddressBarUpdate(verseKey: string | undefined) {
 		if (!verseKey) return;
@@ -789,6 +790,13 @@
 		return null;
 	}
 
+	function firstVisibleVerse(source: HTMLElement): HTMLElement | undefined {
+		const sourceTop = source.getBoundingClientRect().top + FLOW_EDGE_FADE_PX;
+		return [...source.querySelectorAll<HTMLElement>('[data-verse-key]')].find(
+			(verse) => verse.getBoundingClientRect().bottom > sourceTop
+		);
+	}
+
 	/**
 	 * Scrolls straight to a reference already in the loaded stream, without a navigation — used both to
 	 * land on a deep-linked verse after a real navigation and, via `jumpToVerse`, to let the header's
@@ -819,7 +827,7 @@
 					column.scrollTop +
 					target.getBoundingClientRect().top -
 					column.getBoundingClientRect().top -
-					12;
+					FLOW_EDGE_FADE_PX;
 				suppressProgrammaticFlowScroll(index);
 				column.scrollTop = next;
 			}
@@ -851,11 +859,9 @@
 		// An unlinked source doesn't drag the others along, and an unlinked column isn't dragged by them
 		// — that decoupling is the whole point of the per-column link toggle.
 		if (unlinkedColumns.has(sourceIndex)) return;
-		const anchorInset = 12;
-		const sourceTop = source.getBoundingClientRect().top + anchorInset;
+		const anchorInset = FLOW_EDGE_FADE_PX;
 		updateVisibleChapter(source, anchorInset);
-		const verses = [...source.querySelectorAll<HTMLElement>('[data-verse-key]')];
-		const anchor = verses.find((verse) => verse.getBoundingClientRect().bottom > sourceTop);
+		const anchor = firstVisibleVerse(source);
 		if (!anchor?.dataset.verseKey) return;
 		if (trackAddress) scheduleAddressBarUpdate(anchor.dataset.verseKey);
 		const anchorVerse = Number(anchor.dataset.verseKey.split(':').at(-1));
@@ -940,9 +946,10 @@
 		// that would make it the sync source are skipped.
 		if (!unlinkedColumns.has(columnIndex)) {
 			activeFlowSource = columnIndex;
+			scheduleAddressBarUpdate(firstVisibleVerse(source)?.dataset.verseKey);
 			scheduleFlowSync(columnIndex);
 		}
-		updateVisibleChapter(source, 12);
+		updateVisibleChapter(source, FLOW_EDGE_FADE_PX);
 		if (source.scrollTop < 500) void loadStreamPrevious();
 		if (source.scrollHeight - source.scrollTop - source.clientHeight < 900) void loadStreamNext();
 	}
@@ -1181,6 +1188,7 @@
 					class="flow-reader"
 					style="--columns: {visibleColumnCount}"
 					style:--column-track={columnTrack}
+					style:--flow-edge-fade-height={`${FLOW_EDGE_FADE_PX}px`}
 					data-testid="flow-reader"
 				>
 					<!-- The splitter belongs to the text it resizes. Keeping its overlay outside the individual
@@ -1709,7 +1717,7 @@
 		position: absolute;
 		right: 1px;
 		left: 1px;
-		height: 1.5rem;
+		height: var(--flow-edge-fade-height);
 		opacity: 0;
 		transition: opacity 140ms ease;
 	}
