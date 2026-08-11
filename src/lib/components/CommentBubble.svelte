@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
+	import { linkBibleReferences } from '$lib/bible/link-references';
 	import NoteEditor from './NoteEditor.svelte';
 
 	let {
@@ -23,6 +24,7 @@
 	} = $props();
 
 	let editing = $state(false);
+	const linkedHtml = $derived(linkBibleReferences(html ?? ''));
 	let initialized = false;
 	$effect(() => {
 		if (!initialized) {
@@ -58,16 +60,16 @@
 			onCancel={closeEditor}
 		/>
 	{:else if html}
-		<button
-			type="button"
-			class="comment-display"
-			onclick={() => (editing = true)}
-			aria-label={t('comments.edit')}
-		>
+		<div class="comment-actions">
+			<button type="button" onclick={() => (editing = true)} aria-label={t('comments.edit')}>
+				{t('comments.edit')}
+			</button>
+		</div>
+		<div class="comment-display">
 			<!-- Saved comment HTML is sanitised by the server. -->
 			<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-			<span class="comment-html">{@html html ?? ''}</span>
-		</button>
+			<div class="comment-html">{@html linkedHtml}</div>
+		</div>
 	{:else}
 		<button type="button" class="add-comment" onclick={() => (editing = true)}>
 			{t('comments.add')}
@@ -83,14 +85,27 @@
 		border: 1px solid color-mix(in oklab, var(--color-accent-300) 48%, var(--color-stone-200));
 		background: color-mix(in oklab, var(--color-accent-50) 72%, var(--surface));
 		padding: 0.7rem 0.85rem 0.7rem 1rem;
-		font-family: ui-sans-serif, system-ui, sans-serif;
+		font-family: Georgia, 'Times New Roman', serif;
+		font-size: calc(1.08rem * var(--reader-font-scale, 1));
+		line-height: 1.65;
 	}
 	.comment-display {
-		width: 100%;
-		cursor: text;
-		text-align: left;
-		font-size: 0.875rem;
-		line-height: 1.45;
+		min-width: 0;
+	}
+	.comment-actions {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: 0.2rem;
+		font-family: ui-sans-serif, system-ui, sans-serif;
+	}
+	.comment-actions button {
+		border-radius: 0.3rem;
+		padding: 0.1rem 0.35rem;
+		color: var(--color-stone-500);
+		font-size: 0.7rem;
+	}
+	.comment-actions button:hover {
+		color: var(--color-accent-700);
 	}
 	.add-comment {
 		font-size: 0.8rem;
@@ -104,6 +119,34 @@
 	}
 	.comment-html :global(p:last-child) {
 		margin-bottom: 0;
+	}
+	.comment-html :global(h2),
+	.comment-html :global(h3) {
+		margin: 0.5em 0 0.25em;
+		font-weight: 700;
+	}
+	.comment-html :global(h2) {
+		font-size: 1.2em;
+	}
+	.comment-html :global(ul),
+	.comment-html :global(ol) {
+		padding-left: 1.25em;
+	}
+	.comment-html :global(ul) {
+		list-style: disc;
+	}
+	.comment-html :global(ol) {
+		list-style: decimal;
+	}
+	.comment-html :global(blockquote) {
+		border-left: 3px solid var(--color-stone-300);
+		padding-left: 0.7em;
+	}
+	.comment-html :global(.bible-reference) {
+		color: var(--color-accent-700);
+		text-decoration: underline;
+		text-decoration-thickness: 0.08em;
+		text-underline-offset: 0.12em;
 	}
 
 	:global(.dark) .comment-bubble {

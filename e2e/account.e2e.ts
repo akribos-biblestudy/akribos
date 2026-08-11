@@ -168,17 +168,14 @@ test('a verse list keeps its verses and notes', async ({ page }) => {
 	await editor.fill('Der bekannteste Vers');
 	await noteForm.getByRole('button', { name: 'Speichern' }).click();
 	// The enhanced form action completes asynchronously; wait for its saved state before reloading.
-	await expect(page.getByRole('button', { name: 'Kommentar bearbeiten' })).toContainText(
-		'Der bekannteste Vers'
-	);
+	await expect(page.locator('.comment-html')).toContainText('Der bekannteste Vers');
 
 	// The note survives a reload.
 	await page.reload();
 	await expect(page.getByRole('button', { name: 'Kommentar bearbeiten' })).toHaveCount(0);
 	await page.getByRole('button', { name: 'Kommentar anzeigen' }).click();
-	const savedComment = page.getByRole('button', { name: 'Kommentar bearbeiten' });
-	await expect(savedComment).toContainText('Der bekannteste Vers');
-	await savedComment.click();
+	await expect(page.locator('.comment-html')).toContainText('Der bekannteste Vers');
+	await page.getByRole('button', { name: 'Kommentar bearbeiten' }).click();
 	await expect(page.getByRole('textbox', { name: 'Kommentar' })).toContainText(
 		'Der bekannteste Vers'
 	);
@@ -204,10 +201,9 @@ test('reader comments belong to one verse and translation and become editable on
 	await page.getByRole('menuitem', { name: /Kommentar für .* hinzufügen/ }).click();
 	form = firstTranslation.locator('form[action="?/saveVerseComment"]');
 	const editor = form.getByRole('textbox', { name: 'Kommentar' });
-	await editor.evaluate((element) => {
-		element.innerHTML = '<div>Nur für diese Übersetzung</div><div>Zweite Zeile</div>';
-		element.dispatchEvent(new InputEvent('input', { bubbles: true }));
-	});
+	await expect(editor).toHaveClass(/ProseMirror/);
+	await editor.fill('Siehe Joh 3,16');
+	await form.getByRole('button', { name: 'Überschrift' }).click();
 	await editor.press('Control+Enter');
 	await expect(firstTranslation.locator('.verse-comment-row.with-comment')).toBeVisible();
 
@@ -221,17 +217,35 @@ test('reader comments belong to one verse and translation and become editable on
 	await expect(commentRow).toHaveCount(0);
 	await page.getByRole('button', { name: 'Kommentar anzeigen' }).first().click();
 	await expect(commentRow).toBeVisible();
-	const saved = page.getByRole('button', { name: 'Kommentar bearbeiten' });
-	await expect(saved.locator('.comment-html > div')).toHaveText([
-		'Nur für diese Übersetzung',
-		'Zweite Zeile'
-	]);
-	await saved.click();
+	const saved = commentRow.locator('.comment-html');
+	await expect(saved.locator('h2')).toHaveText('Siehe Joh 3,16');
+	await expect(saved.getByRole('link', { name: 'Joh 3,16' })).toHaveAttribute('href', '/Joh3,16');
+
+	const verseFontSize = await commentRow
+		.locator('.flow-verse')
+		.evaluate((element) => getComputedStyle(element).fontSize);
+	await expect(commentRow.locator('.comment-bubble')).toHaveCSS('font-size', verseFontSize);
+	const previousCommentSize = Number.parseFloat(verseFontSize);
+	await page.getByRole('button', { name: 'Bibeltext vergrößern' }).click();
+	await expect
+		.poll(() =>
+			commentRow
+				.locator('.comment-bubble')
+				.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))
+		)
+		.toBeGreaterThan(previousCommentSize);
+
+	await page.getByRole('button', { name: 'Kommentar bearbeiten' }).click();
 	const reopenedEditor = page.getByRole('textbox', { name: 'Kommentar' });
-	await expect(reopenedEditor).toContainText('Nur für diese Übersetzung');
+	await expect(reopenedEditor).toContainText('Siehe Joh 3,16');
 	await reopenedEditor.press('Escape');
 	await expect(reopenedEditor).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Kommentar bearbeiten' })).toBeVisible();
+
+	await page.getByRole('button', { name: 'Kommentar bearbeiten' }).click();
+	await page.getByRole('button', { name: 'Löschen', exact: true }).click();
+	await page.getByRole('button', { name: 'Löschen bestätigen' }).click();
+	await expect(commentRow).toHaveCount(0);
 });
 
 test('a shared list is readable without an account', async ({ page, browser }) => {

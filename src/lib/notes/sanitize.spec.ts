@@ -12,6 +12,9 @@ describe('sanitizeNoteHtml', () => {
 		expect(sanitizeNoteHtml('<div>erste Zeile</div><div>zweite Zeile</div>')).toBe(
 			'<div>erste Zeile</div><div>zweite Zeile</div>'
 		);
+		expect(sanitizeNoteHtml('<h2><u>Überschrift</u></h2><p><s>veraltet</s></p>')).toBe(
+			'<h2><u>Überschrift</u></h2><p><s>veraltet</s></p>'
+		);
 	});
 
 	it('removes scripts', () => {
