@@ -72,10 +72,15 @@
 	);
 	const visibleColumnCount = $derived(data.columns.length);
 	const chosenResourceIds = $derived(data.columns.map((column) => column.resource.id));
+	function currentReaderUrl(): string {
+		const path = referencePath(readerLocation.reference ?? data.reference);
+		return `${path}${window.location.search}${window.location.hash}`;
+	}
 
 	function openTranslationDialog(index: number) {
 		translationDialog?.openAt({
 			action: '?/setColumn',
+			readerUrl: currentReaderUrl(),
 			index,
 			selectedId: data.columns[index]?.resource.id,
 			chosen: chosenResourceIds
@@ -83,7 +88,11 @@
 	}
 
 	function openAddDialog() {
-		translationDialog?.openAt({ action: '?/addColumn', chosen: chosenResourceIds });
+		translationDialog?.openAt({
+			action: '?/addColumn',
+			readerUrl: currentReaderUrl(),
+			chosen: chosenResourceIds
+		});
 	}
 
 	function commentaryAt(

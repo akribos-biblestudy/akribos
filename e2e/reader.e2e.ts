@@ -669,6 +669,35 @@ test('the column selection persists across navigations', async ({ page }) => {
 	await expect(page.locator('#column-0')).toContainText('Schlicht');
 });
 
+test('switching a translation keeps the currently visible chapter', async ({ page }) => {
+	await page.setViewportSize({ width: 900, height: 300 });
+	await page.goto('/1Mo1');
+
+	const column = page.locator('.flow-column').first();
+	const nextChapter = column.locator('[data-chapter-key="1:2"]');
+	await expect(nextChapter).toBeAttached();
+	await column.dispatchEvent('pointerdown');
+	await column.evaluate(
+		(element, scrollTop) => {
+			element.scrollTop = scrollTop;
+		},
+		await nextChapter.evaluate((element) => (element as HTMLElement).offsetTop)
+	);
+	await expect(page).toHaveURL(/\/1Mo2,1$/);
+
+	await page.locator('#column-0').click();
+	await page.getByRole('button', { name: 'Bibeln' }).click();
+	await page
+		.locator('form[action="?/setColumn"]')
+		.filter({ has: page.locator('input[name="resource"][value="SEEDPLAIN"]') })
+		.getByRole('button')
+		.click();
+
+	await expect(page.locator('#column-0')).toContainText('Schlicht');
+	await expect(page).toHaveURL(/\/1Mo2,1$/);
+	await expect(column.locator('[data-chapter-key="1:2"]')).toBeAttached();
+});
+
 test('a closed column can be opened again', async ({ page }) => {
 	await page.goto('/Joh3');
 	await expect(page.locator('button[id^="column-"]')).toHaveCount(2);

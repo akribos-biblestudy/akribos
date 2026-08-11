@@ -72,6 +72,10 @@ Wichtige Scroll-Invarianten:
   Berechnung aus dem nachträglichen Wert kompensiert doppelt und erzeugt Sprünge.
 - Die URL wird beim Lesen mit `replaceState` nachgeführt. `reader-location.svelte.ts` koppelt diese
   Position an das Suchfeld, ohne eine Servernavigation auszulösen.
+- Nach dem Wechsel oder Hinzufügen einer Ressource navigiert der Reader explizit zu der in
+  `readerLocation` sichtbaren Referenz. Die flache `replaceState`-URL allein ändert SvelteKits intern
+  geladene Route nicht; ein bloßes Invalidieren würde deshalb wieder das ursprünglich geladene Kapitel
+  anzeigen.
 - Nach einer echten Reader-Navigation müssen verzögerte Scroll-/Adressleisten-Timer und noch laufende
   Kapitel-Nachladungen verworfen werden; sie dürfen niemals den neuen Kapitelstream oder dessen URL
   verändern. Die Strong-Seitenleiste wird nach History-Navigationen aus `window.location.hash`

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import { t } from '$lib/i18n';
 	import type { ReadableResource } from '$lib/server/repositories/resources';
 
@@ -23,6 +24,7 @@
 
 	type Context = {
 		action: '?/setColumn' | '?/addColumn';
+		readerUrl: string;
 		index?: number;
 		selectedId?: string;
 		chosen: string[];
@@ -196,11 +198,16 @@
 							<form
 								method="POST"
 								action={context.action}
-								use:enhance={() =>
-									async ({ update }) => {
+								use:enhance={() => {
+									const readerUrl = context?.readerUrl;
+									return async ({ result, update }) => {
 										close();
-										await update({ reset: false });
-									}}
+										await update({ reset: false, invalidateAll: result.type !== 'success' });
+										if (result.type === 'success' && readerUrl) {
+											await goto(readerUrl, { replaceState: true, invalidateAll: true });
+										}
+									};
+								}}
 							>
 								{#if context.index !== undefined}
 									<input type="hidden" name="index" value={context.index} />
