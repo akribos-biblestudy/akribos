@@ -105,6 +105,11 @@ ihrer Liste in `verse_list_items.note_html`; beide Oberflächen verwenden `Comme
 wechseln erst nach einem Klick von der Lese- in die Editoransicht.
 Der gemeinsame `NoteEditor.svelte` speichert mit Strg/Cmd+Enter und meldet Escape über `onCancel` an
 die Bubble; bei einem noch leeren Reader-Entwurf entfernt diese Rückmeldung auch die temporäre Ansicht.
+Der Editor basiert auf Tiptap/ProseMirror; seine erlaubten Formatierungen müssen mit der Allowlist in
+`src/lib/notes/sanitize.ts` synchron bleiben. Gespeicherte Kommentare werden erst bei der Darstellung
+über `linkBibleReferences()` mit internen Bibelstellen-Links angereichert, damit ausschließlich das
+serverseitig bereinigte Original gespeichert wird. Kommentaranzeige und -editor übernehmen dieselbe
+`--reader-font-scale`-Skalierung wie der Bibeltext.
 
 Der Fremdschlüssel von `verse_comments.resource_id` ist absichtlich `ON DELETE RESTRICT`. Bibeln
 werden ausschließlich über `deleteResource()` mit einer anderen Bibel als Pflichtziel entfernt; die

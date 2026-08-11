@@ -77,6 +77,7 @@ export const de = {
 	'comments.add': 'Kommentar hinzufügen',
 	'comments.addForTranslation': 'Kommentar für {translation} hinzufügen',
 	'comments.edit': 'Kommentar bearbeiten',
+	'comments.deleteConfirm': 'Löschen bestätigen',
 	'comments.show': 'Kommentar anzeigen',
 	'comments.hide': 'Kommentar ausblenden',
 	'comments.placeholder': 'Deine Gedanken zu diesem Vers …',
@@ -253,7 +254,15 @@ export const de = {
 	'lists.deleteConfirm': 'Diese Versliste mit allen Kommentaren wirklich löschen?',
 	'lists.noteBold': 'Fett',
 	'lists.noteItalic': 'Kursiv',
+	'lists.noteUnderline': 'Unterstrichen',
+	'lists.noteStrike': 'Durchgestrichen',
+	'lists.noteHeading': 'Überschrift',
 	'lists.noteList': 'Liste',
+	'lists.noteOrderedList': 'Nummerierte Liste',
+	'lists.noteQuote': 'Zitat',
+	'lists.noteUndo': 'Rückgängig',
+	'lists.noteRedo': 'Wiederholen',
+	'lists.noteFormatting': 'Kommentar formatieren',
 
 	// --- errors -------------------------------------------------------------
 	'error.notFound.title': 'Seite nicht gefunden',
