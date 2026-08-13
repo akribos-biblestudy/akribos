@@ -193,9 +193,9 @@
 				<h3>Buchauswahl öffnen</h3>
 				<p>
 					Setze den Fokus in das Suchfeld. Auf größeren Bildschirmen erscheint eine Übersicht aller
-					66 Bücher, nach Altem und Neuem Testament sowie nach Buchgruppen geordnet. Ein Klick auf
-					ein Buch öffnet dessen erstes Kapitel. Auf kleinen Bildschirmen gibst du das Kürzel direkt
-					ein.
+					66 Bücher, nach Altem und Neuem Testament sowie nach Buchgruppen geordnet. Wähle zuerst
+					ein Buch und danach das gewünschte Kapitel. Erst die Kapitelwahl öffnet die Bibelstelle.
+					Auf kleinen Bildschirmen gibst du das Kürzel direkt ein.
 				</p>
 
 				<h3>Zwischen Kapiteln wechseln</h3>

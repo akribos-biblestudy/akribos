@@ -139,18 +139,32 @@ test('the landing page shows a prominent reader link and real product screenshot
 	).toHaveAttribute('src', '/landing/verse-menu.webp');
 });
 
-test('the search field opens a keyboard-accessible Bible book chooser', async ({ page }) => {
-	await page.goto('/Joh1');
+test('the search field opens a keyboard-accessible book and chapter chooser', async ({ page }) => {
+	await page.goto('/Joh3');
 	await page.locator('#site-search').click();
 
 	const chooser = page.getByRole('dialog', { name: 'Bibelstelle wählen' });
 	await expect(chooser).toBeVisible();
-	await expect(chooser.getByRole('link', { name: /Matthäus/ })).toBeVisible();
+	const genesis = chooser.getByRole('button', { name: '1.Mose' });
+	await expect(genesis).toBeVisible();
 
-	await chooser.getByRole('link', { name: /Matthäus/ }).focus();
-	await expect(chooser.getByRole('link', { name: /Matthäus/ })).toBeFocused();
+	await genesis.focus();
+	await expect(genesis).toBeFocused();
 	await page.keyboard.press('Enter');
-	await expect(page).toHaveURL(/\/Mt1$/);
+
+	// Choosing the book only opens the second step; it must not load a chapter yet.
+	await expect(page).toHaveURL(/\/Joh3$/);
+	await expect(chooser.getByRole('heading', { name: '1.Mose' })).toBeVisible();
+	await expect(chooser.getByRole('link', { name: '1.Mose 1', exact: true })).toBeFocused();
+	const chapterTwo = chooser.getByRole('link', { name: '1.Mose 2', exact: true });
+	await expect(chapterTwo).toBeVisible();
+
+	await chapterTwo.focus();
+	await expect(chapterTwo).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(page).toHaveURL(/\/1Mo2$/);
+	await expect(chooser).toBeHidden();
+	await expect(page.getByText('Und so wurden Himmel und Erde vollendet')).toBeVisible();
 });
 
 test('a reference shows the chapter in parallel columns', async ({ page }) => {
