@@ -60,6 +60,10 @@ Der Reader zeigt jede Ressource in einer eigenen `.flow-column`. Alle geladenen 
 `flowColumns` enthält die Scrollcontainer in Spaltenreihenfolge. Ein Kapitel vor oder hinter dem
 aktuellen wird nahe der Scrollkante nachgeladen.
 
+Die Bibelstellenauswahl im Suchfeld ist auf größeren Bildschirmen zweistufig: Eine Buchwahl zeigt
+zunächst nur die kanonischen Kapitel dieses Buchs und darf noch nicht navigieren. Erst die anschließende
+Kapitelwahl lädt die Stelle; eine Versauswahl gehört bewusst nicht zu diesem Dialog.
+
 Wichtige Scroll-Invarianten:
 
 - Nur echte Nutzerscrolls dürfen eine Spalte zur Quelle machen und die URL aktualisieren.

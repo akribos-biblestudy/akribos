@@ -129,9 +129,12 @@ export const de = {
 		'Setze mehrere Wörter in Anführungszeichen, um genau diese Folge zu suchen.',
 	'search.hint.strong': 'Urtextsuche: Gib zum Beispiel G26 oder H430 ein.',
 	'search.help.title': 'Bibelstelle wählen',
-	'search.help.subtitle': 'Wähle ein Buch oder gib Kapitel und Vers direkt in das Suchfeld ein.',
+	'search.help.subtitle': 'Wähle ein Buch und danach ein Kapitel oder gib die Stelle direkt ein.',
 	'search.help.oldTestament': 'Altes Testament',
 	'search.help.newTestament': 'Neues Testament',
+	'search.help.chooseChapter': 'Wähle ein Kapitel.',
+	'search.help.chaptersFor': 'Kapitel in {book}',
+	'search.help.backToBooks': 'Zurück zur Buchauswahl',
 	'search.help.strong': 'Nach einem Urtextwort suchen',
 	'search.help.phrase': 'Nach einer genauen Wortfolge suchen',
 

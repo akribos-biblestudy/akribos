@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { allBookNames } from '$lib/bible/book-names';
+	import { bookById } from '$lib/bible/books';
 	import { parseReference, referencePath } from '$lib/bible/reference';
 	import { jumpToVerse } from '$lib/reader-location.svelte';
 	import { t } from '$lib/i18n';
+	import { tick } from 'svelte';
 	import Menu from './Menu.svelte';
 	import ReaderViewMenu from './ReaderViewMenu.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
@@ -40,13 +42,18 @@
 	});
 	let input: HTMLInputElement | undefined = $state();
 	let searchHelper: HTMLDivElement | undefined = $state();
+	let selectedBookId: number | null = $state(null);
 	let userMenu: Menu | undefined = $state();
 	const userInitial = $derived(
 		(user?.displayName?.trim() || user?.email || '').charAt(0).toLocaleUpperCase('de')
 	);
-	const books = allBookNames();
+	const books = allBookNames().map((book) => ({
+		...book,
+		chapters: bookById(book.book)?.chapters ?? 1
+	}));
 	const oldTestament = books.slice(0, 39);
 	const newTestament = books.slice(39);
+	const selectedBook = $derived(books.find((book) => book.book === selectedBookId) ?? null);
 	type BookCategory = {
 		label: string;
 		tone: string;
@@ -80,8 +87,38 @@
 		return 'revelation';
 	}
 
-	function keepSearchHelpFor(next: EventTarget | null): void {
-		focused = next === input || (next instanceof Node && searchHelper?.contains(next) === true);
+	async function keepSearchHelpFor(next: EventTarget | null): Promise<void> {
+		// Switching from books to chapters replaces the focused button. Wait for that DOM update and the
+		// new focus target before deciding whether focus really left the chooser.
+		await tick();
+		const active = document.activeElement;
+		focused =
+			active === input ||
+			(active instanceof Node && searchHelper?.contains(active) === true) ||
+			next === input ||
+			(next instanceof Node && searchHelper?.contains(next) === true);
+	}
+
+	function openBookChooser(): void {
+		focused = true;
+		selectedBookId = null;
+	}
+
+	async function selectBook(book: (typeof books)[number]): Promise<void> {
+		selectedBookId = book.book;
+		value = book.names.short;
+		focused = true;
+		await tick();
+		searchHelper?.querySelector<HTMLAnchorElement>('.chapter-link')?.focus();
+	}
+
+	async function showBookChooser(): Promise<void> {
+		const bookId = selectedBookId;
+		selectedBookId = null;
+		value = query;
+		focused = true;
+		await tick();
+		searchHelper?.querySelector<HTMLButtonElement>(`[data-book="${bookId}"]`)?.focus();
 	}
 
 	async function submit(event: SubmitEvent) {
@@ -190,7 +227,8 @@
 					<input
 						bind:this={input}
 						bind:value
-						onfocus={() => (focused = true)}
+						onfocus={openBookChooser}
+						oninput={() => (selectedBookId = null)}
 						onblur={(event) => keepSearchHelpFor(event.relatedTarget)}
 						id="site-search"
 						type="search"
@@ -210,6 +248,7 @@
 							class="absolute top-1/2 right-1.5 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-stone-400 transition-colors hover:bg-stone-200/70 hover:text-stone-700 dark:hover:bg-white/8 dark:hover:text-stone-200"
 							onclick={() => {
 								value = '';
+								selectedBookId = null;
 								input?.focus();
 							}}
 						>
@@ -236,75 +275,133 @@
 						onfocusout={(event) => keepSearchHelpFor(event.relatedTarget)}
 					>
 						<div class="border-b border-stone-200/80 px-4 py-3.5 sm:px-5 dark:border-white/8">
-							<h2 class="text-sm font-semibold text-stone-900 dark:text-stone-100">
-								{t('search.help.title')}
-							</h2>
-							<p class="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-								{t('search.help.subtitle')}
-							</p>
+							{#if selectedBook}
+								<div class="flex items-center gap-3">
+									<button
+										type="button"
+										class="back-to-books"
+										aria-label={t('search.help.backToBooks')}
+										onclick={showBookChooser}
+									>
+										<svg
+											viewBox="0 0 20 20"
+											class="size-4"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.7"
+											aria-hidden="true"
+										>
+											<path d="m12.5 5-5 5 5 5" stroke-linecap="round" stroke-linejoin="round" />
+										</svg>
+									</button>
+									<div>
+										<h2 class="text-sm font-semibold text-stone-900 dark:text-stone-100">
+											{selectedBook.names.name}
+										</h2>
+										<p class="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
+											{t('search.help.chooseChapter')}
+										</p>
+									</div>
+								</div>
+							{:else}
+								<h2 class="text-sm font-semibold text-stone-900 dark:text-stone-100">
+									{t('search.help.title')}
+								</h2>
+								<p class="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
+									{t('search.help.subtitle')}
+								</p>
+							{/if}
 						</div>
 
 						<div
 							class="max-h-[calc(100dvh-var(--header-height)-1.25rem)] overflow-y-auto p-4 sm:p-5"
 						>
-							<div class="grid gap-5 lg:grid-cols-2 lg:gap-8">
-								<section>
-									<h3 class="search-help-heading">{t('search.help.oldTestament')}</h3>
-									<div class="book-legend" aria-label="Buchgruppen">
-										{#each oldTestamentCategories as category (category.tone)}
-											<span data-category={category.tone}>{category.label}</span>
-										{/each}
-									</div>
-									<div class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
-										{#each oldTestament as book (book.book)}
-											<a
-												class="book-link"
-												data-category={bookCategory(book.book)}
-												href={referencePath({ book: book.book, chapter: 1 })}
-											>
-												<strong>{book.names.short}</strong>
-												{#if book.names.name !== book.names.short}
-													<small>{book.names.name}</small>
-												{/if}
-											</a>
-										{/each}
-									</div>
-								</section>
+							{#if selectedBook}
+								<div
+									class="chapter-picker grid grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-10"
+									data-category={bookCategory(selectedBook.book)}
+									aria-label={t('search.help.chaptersFor', { book: selectedBook.names.name })}
+								>
+									{#each Array.from({ length: selectedBook.chapters }, (_, index) => index + 1) as chapter (chapter)}
+										<a
+											class="chapter-link"
+											href={referencePath({ book: selectedBook.book, chapter })}
+											aria-label={`${selectedBook.names.name} ${chapter}`}
+											onclick={() => {
+												focused = false;
+												selectedBookId = null;
+											}}
+										>
+											{chapter}
+										</a>
+									{/each}
+								</div>
+							{:else}
+								<div class="grid gap-5 lg:grid-cols-2 lg:gap-8">
+									<section>
+										<h3 class="search-help-heading">{t('search.help.oldTestament')}</h3>
+										<div class="book-legend" aria-label="Buchgruppen">
+											{#each oldTestamentCategories as category (category.tone)}
+												<span data-category={category.tone}>{category.label}</span>
+											{/each}
+										</div>
+										<div class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
+											{#each oldTestament as book (book.book)}
+												<button
+													type="button"
+													class="book-link"
+													data-book={book.book}
+													data-category={bookCategory(book.book)}
+													aria-label={book.names.name}
+													onclick={() => selectBook(book)}
+												>
+													<strong>{book.names.short}</strong>
+													{#if book.names.name !== book.names.short}
+														<small>{book.names.name}</small>
+													{/if}
+												</button>
+											{/each}
+										</div>
+									</section>
 
-								<section>
-									<h3 class="search-help-heading">{t('search.help.newTestament')}</h3>
-									<div class="book-legend" aria-label="Buchgruppen">
-										{#each newTestamentCategories as category (category.tone)}
-											<span data-category={category.tone}>{category.label}</span>
-										{/each}
-									</div>
-									<div class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-										{#each newTestament as book (book.book)}
-											<a
-												class="book-link"
-												data-category={bookCategory(book.book)}
-												href={referencePath({ book: book.book, chapter: 1 })}
-											>
-												<strong>{book.names.short}</strong>
-												{#if book.names.name !== book.names.short}
-													<small>{book.names.name}</small>
-												{/if}
-											</a>
-										{/each}
-									</div>
-								</section>
-							</div>
+									<section>
+										<h3 class="search-help-heading">{t('search.help.newTestament')}</h3>
+										<div class="book-legend" aria-label="Buchgruppen">
+											{#each newTestamentCategories as category (category.tone)}
+												<span data-category={category.tone}>{category.label}</span>
+											{/each}
+										</div>
+										<div class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+											{#each newTestament as book (book.book)}
+												<button
+													type="button"
+													class="book-link"
+													data-book={book.book}
+													data-category={bookCategory(book.book)}
+													aria-label={book.names.name}
+													onclick={() => selectBook(book)}
+												>
+													<strong>{book.names.short}</strong>
+													{#if book.names.name !== book.names.short}
+														<small>{book.names.name}</small>
+													{/if}
+												</button>
+											{/each}
+										</div>
+									</section>
+								</div>
 
-							<div
-								class="mt-5 grid gap-2 border-t border-stone-200/80 pt-4 text-xs sm:grid-cols-2 dark:border-white/8"
-							>
-								<p class="search-tip">
-									<strong>G26 / H430</strong><span>{t('search.help.strong')}</span>
-								</p>
-								<p class="search-tip">
-									<strong>„Gott liebt“</strong><span>{t('search.help.phrase')}</span>
-								</p>
-							</div>
+								<div
+									class="mt-5 grid gap-2 border-t border-stone-200/80 pt-4 text-xs sm:grid-cols-2 dark:border-white/8"
+								>
+									<p class="search-tip">
+										<strong>G26 / H430</strong><span>{t('search.help.strong')}</span>
+									</p>
+									<p class="search-tip">
+										<strong>„Gott liebt“</strong><span>{t('search.help.phrase')}</span>
+									</p>
+								</div>
+							{/if}
 						</div>
 					</div>
 				{/if}
@@ -430,7 +527,10 @@
 		border-radius: 0.5rem;
 		background: color-mix(in oklab, var(--book-tone) 4%, var(--surface-raised));
 		color: var(--color-stone-700);
+		font: inherit;
+		text-align: left;
 		text-decoration: none;
+		cursor: pointer;
 		transition:
 			background 120ms ease,
 			border-color 120ms ease,
@@ -458,6 +558,54 @@
 		background: color-mix(in oklab, var(--book-tone) 10%, var(--surface-raised));
 		transform: translateY(-1px);
 	}
+	.book-link:focus-visible,
+	.chapter-link:focus-visible,
+	.back-to-books:focus-visible {
+		outline: 2px solid var(--color-accent-500);
+		outline-offset: 2px;
+	}
+
+	.back-to-books {
+		display: inline-flex;
+		width: 2rem;
+		height: 2rem;
+		flex: 0 0 auto;
+		align-items: center;
+		justify-content: center;
+		border-radius: 0.5rem;
+		color: var(--color-stone-500);
+		cursor: pointer;
+	}
+	.back-to-books:hover {
+		background: var(--color-stone-100);
+		color: var(--color-stone-800);
+	}
+
+	.chapter-picker {
+		--book-tone: var(--color-stone-400);
+	}
+	.chapter-link {
+		display: inline-flex;
+		min-height: 2.65rem;
+		align-items: center;
+		justify-content: center;
+		border: 1px solid color-mix(in oklab, var(--book-tone) 20%, var(--color-stone-200));
+		border-radius: 0.55rem;
+		background: color-mix(in oklab, var(--book-tone) 5%, var(--surface-raised));
+		color: var(--color-stone-700);
+		font-size: 0.78rem;
+		font-weight: 700;
+		text-decoration: none;
+		transition:
+			background 120ms ease,
+			border-color 120ms ease,
+			transform 120ms ease;
+	}
+	.chapter-link:hover {
+		border-color: color-mix(in oklab, var(--book-tone) 48%, var(--color-stone-200));
+		background: color-mix(in oklab, var(--book-tone) 12%, var(--surface-raised));
+		transform: translateY(-1px);
+	}
 
 	.book-legend {
 		display: flex;
@@ -483,42 +631,52 @@
 	}
 
 	.book-link[data-category='law'],
+	.chapter-picker[data-category='law'],
 	.book-legend span[data-category='law'] {
 		--book-tone: #b58a37;
 	}
 	.book-link[data-category='history'],
+	.chapter-picker[data-category='history'],
 	.book-legend span[data-category='history'] {
 		--book-tone: #b97855;
 	}
 	.book-link[data-category='poetry'],
+	.chapter-picker[data-category='poetry'],
 	.book-legend span[data-category='poetry'] {
 		--book-tone: #b65f70;
 	}
 	.book-link[data-category='major-prophets'],
+	.chapter-picker[data-category='major-prophets'],
 	.book-legend span[data-category='major-prophets'] {
 		--book-tone: #9a6c91;
 	}
 	.book-link[data-category='minor-prophets'],
+	.chapter-picker[data-category='minor-prophets'],
 	.book-legend span[data-category='minor-prophets'] {
 		--book-tone: #7669a4;
 	}
 	.book-link[data-category='gospels'],
+	.chapter-picker[data-category='gospels'],
 	.book-legend span[data-category='gospels'] {
 		--book-tone: #668f70;
 	}
 	.book-link[data-category='acts'],
+	.chapter-picker[data-category='acts'],
 	.book-legend span[data-category='acts'] {
 		--book-tone: #478d87;
 	}
 	.book-link[data-category='pauline'],
+	.chapter-picker[data-category='pauline'],
 	.book-legend span[data-category='pauline'] {
 		--book-tone: #5d8796;
 	}
 	.book-link[data-category='general'],
+	.chapter-picker[data-category='general'],
 	.book-legend span[data-category='general'] {
 		--book-tone: #5f7fa8;
 	}
 	.book-link[data-category='revelation'],
+	.chapter-picker[data-category='revelation'],
 	.book-legend span[data-category='revelation'] {
 		--book-tone: #397fa4;
 	}
@@ -541,6 +699,20 @@
 		border-color: color-mix(in oklab, var(--book-tone) 24%, rgb(255 255 255 / 0.08));
 		background: color-mix(in oklab, var(--book-tone) 7%, var(--surface-raised));
 		color: var(--color-stone-300);
+	}
+	:global(.dark) .chapter-link {
+		border-color: color-mix(in oklab, var(--book-tone) 28%, rgb(255 255 255 / 0.08));
+		background: color-mix(in oklab, var(--book-tone) 8%, var(--surface-raised));
+		color: var(--color-stone-300);
+	}
+	:global(.dark) .chapter-link:hover {
+		border-color: color-mix(in oklab, var(--book-tone) 55%, rgb(255 255 255 / 0.1));
+		background: color-mix(in oklab, var(--book-tone) 18%, var(--surface-raised));
+		color: var(--color-stone-100);
+	}
+	:global(.dark) .back-to-books:hover {
+		background: rgb(255 255 255 / 0.08);
+		color: var(--color-stone-100);
 	}
 	:global(.dark) .book-link small {
 		color: var(--color-stone-500);
