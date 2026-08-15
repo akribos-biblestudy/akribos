@@ -1,6 +1,6 @@
 {
-  "id": "2a5d138b-20db-43b7-9bb8-252be4b48f8b",
-  "prevId": "89da3c92-039c-4740-817f-165627cee8bd",
+  "id": "b8da3c65-a402-46ab-902d-fb20c491264f",
+  "prevId": "841508bc-2080-4b43-9cfa-ad425800260f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1562,6 +1562,12 @@
         },
         "last_login_at": {
           "name": "last_login_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tour_completed_at": {
+          "name": "tour_completed_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

@@ -178,12 +178,12 @@ Eigentümer, nicht nur den Autor (leichte Moderation, konsistent mit der Vers-L�
 `addComment()` prüft beides gegen die übergebene `listId`, bevor irgendetwas eingefügt wird, damit
 weder eine fremde Liste noch ein anderer Vers-Eintrag über erratene UUIDs adressiert werden kann. Das
 Löschen eines Kommentars löscht über den selbstreferenzierenden Fremdschlüssel (`ON DELETE CASCADE`)
-auch alle Antworten darunter. Migration `drizzle/0020_special_secret_warriors.sql` fügt die neuen
+auch alle Antworten darunter. Migration `drizzle/0021_warm_slayback.sql` fügt die neuen
 Tabellen sowie `verse_list_items.added_by_user_id` (zunächst nullable) hinzu und enthält direkt im
 Anschluss an die generierte DDL zwei handgeschriebene Backfills (nach demselben Muster wie
 `drizzle/0016_normalize_note_divs.sql`): jeder bestehende Eintrag bekommt als `added_by_user_id` den
 Listeneigentümer, und jedes nicht-leere `note_html` wird ein Root-Kommentar (`parent_comment_id = null`),
-ebenfalls vom Eigentümer verfasst. Migration `drizzle/0021_wealthy_hydra.sql` macht die Spalte danach
+ebenfalls vom Eigentümer verfasst. Migration `drizzle/0022_demonic_photon.sql` macht die Spalte danach
 `NOT NULL` und löscht `note_html`. Wer an diesem Bereich weiterarbeitet: eine Schema-Änderung, die eine
 Spalte gleichzeitig hinzufügt und eine andere entfernt, lässt `drizzle-kit generate` interaktiv nach
 Umbenennen-oder-nicht fragen (nicht scriptbar) — deshalb der Zwischenschritt mit einer vorübergehend
