@@ -110,7 +110,8 @@
 		<button
 			type="button"
 			class="strong"
-			class:active={matchesStrong(item.segment, activeStrong) || matchesStrong(item.segment, hoverStrong)}
+			class:active={matchesStrong(item.segment, activeStrong) ||
+				matchesStrong(item.segment, hoverStrong)}
 			data-strong={item.segment.strong}
 			title={item.segment.morph ?? undefined}
 			style:background-color={item.color}
@@ -120,8 +121,7 @@
 			}}
 			onpointerleave={(event) => {
 				if (isMouseHover(event)) onStrongHover?.(null);
-			}}
-			>{item.segment.text}</button
+			}}>{item.segment.text}</button
 		>
 	{:else if item.kind === 'em'}
 		<em style:background-color={item.color}>{item.text}</em>
