@@ -25,12 +25,12 @@ async function loginAsAdmin(page: Page): Promise<void> {
 	await page.getByRole('button', { name: 'Anmelden' }).click();
 }
 
-test('the root shows the landing page to signed-out visitors', async ({ page }) => {
+test('the root shows the reader to signed-out visitors', async ({ page }) => {
 	const response = await page.goto('/');
 
 	expect(response?.status()).toBe(200);
-	await expect(page).toHaveURL(/\/$/);
-	await expect(page.getByRole('heading', { level: 1 })).toContainText('Lies den Text');
+	await expect(page).toHaveURL(/\/Joh1$/);
+	await expect(page.getByRole('heading', { level: 1 })).toContainText('Johannes 1');
 });
 
 test('the root resumes the reader for a signed-in user', async ({ page }) => {
@@ -115,7 +115,7 @@ test('the about page loads with a visible heading', async ({ page }) => {
 test('the landing page shows a prominent reader link and real product screenshots', async ({
 	page
 }) => {
-	await page.goto('/');
+	await page.goto('/about');
 
 	const readerLink = page.locator('.hero').getByRole('link', { name: /Jetzt lesen/ });
 	await expect(readerLink).toBeVisible();
@@ -545,8 +545,9 @@ test('browser back restores a previously opened study sidebar', async ({ page })
 });
 
 test('browser history tracks every Strong click and explicit sidebar close', async ({ page }) => {
-	await page.goto('/');
-	await page.locator('a.nav-cta').click();
+	await page.goto('/Joh1');
+	await page.getByRole('searchbox').fill('Joh3');
+	await page.getByRole('searchbox').press('Enter');
 	await expect(page).toHaveURL(/\/Joh3$/);
 
 	await page.locator('button.strong[data-strong="G25"]').first().click();
@@ -574,8 +575,8 @@ test('browser history tracks every Strong click and explicit sidebar close', asy
 	await expect(page.getByRole('complementary')).not.toBeVisible();
 
 	await page.goBack();
-	await expect(page).toHaveURL(/\/$/);
-	await expect(page.getByRole('heading', { level: 1 })).toContainText('Lies den Text');
+	await expect(page).toHaveURL(/\/Joh1$/);
+	await expect(page.getByRole('heading', { level: 1 })).toContainText('Johannes 1');
 });
 
 test('a pending reader position update cannot overwrite a search navigation', async ({ page }) => {

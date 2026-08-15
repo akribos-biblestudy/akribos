@@ -50,10 +50,11 @@ test('registration, sign out and sign in again', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'Einstellungen' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Abmelden' }).click();
-	await expect(page).toHaveURL(/\/$/);
-	await expect(page.getByRole('heading', { level: 1 })).toContainText('Lies den Text');
+	await expect(page).toHaveURL(/\/Joh1$/);
+	await expect(page.getByRole('heading', { level: 1 })).toContainText('Johannes 1');
 
-	// The public landing page proves the session is gone; protected pages must still redirect.
+	// Landing back at the reader's John 1 fallback proves the session is gone; protected pages must
+	// still redirect.
 	await page.goto('/account');
 	await expect(page).toHaveURL(/\/login/);
 
