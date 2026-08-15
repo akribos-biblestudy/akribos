@@ -140,6 +140,15 @@ Auswahl steht als `resource`-Queryparameter in der URL, damit sie nach Speichern
 bleibt. Auf schmalen Bildschirmen scrollt die Auswahl zum einzelnen Editor statt alle Formulare
 untereinander zu rendern.
 
+Das Benutzer-Menü (`/account`) zeigt seine Abschnitte (Profil & Sicherheit, Verslisten & Kommentare,
+Darstellung) ebenfalls ohne eigene Server-Navigation, hält den aktiven Abschnitt aber im
+`tab`-Queryparameter statt in reinem lokalem State: `activeSection` ist von `page.url.searchParams`
+abgeleitet, ein Klick ruft `goto()` mit `replaceState: false` auf. Dadurch bekommt jeder Tabwechsel
+einen echten Browser-History-Eintrag (Vor/Zurück wechselt zwischen Abschnitten) und ein Neuladen zeigt
+denselben Abschnitt wieder, ohne dass das Server-Load der Seite den `tab`-Parameter lesen muss. Der
+Standardabschnitt (`profileSecurity`) führt keinen `tab`-Parameter in der URL; Links auf einen
+bestimmten Abschnitt nennen ihn deshalb explizit, z. B. `/account?tab=lists`.
+
 ## Daten, Suche und Sicherheit
 
 Die kanonischen 66 Bücher und Referenzregeln liegen in Code unter `src/lib/bible/`. `verses.segments`
