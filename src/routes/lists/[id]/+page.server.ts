@@ -221,7 +221,7 @@ export const actions = {
 		const { db, userId, access } = await collaboratorAccess(locals, params.id);
 		if (access.isOwner) return fail(400, { error: 'owner' as const });
 		await leaveVerseList(db, access.list.id, userId);
-		redirect(303, '/account#lists');
+		redirect(303, '/account?tab=lists');
 	},
 
 	comment: async ({ params, request, locals }) => {

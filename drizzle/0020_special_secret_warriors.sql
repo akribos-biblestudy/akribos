@@ -58,8 +58,8 @@ ALTER TABLE "verse_list_items" ADD CONSTRAINT "verse_list_items_added_by_user_id
 -- Data backfill for collaboration (issue #129), hand-added to the generated DDL above.
 --
 -- Every verse-list item predates collaboration, so it was added by the list's owner: that is the
--- only sensible author to backfill. `added_by_user_id` is made NOT NULL in migration 0020, once this
--- has run.
+-- only sensible author to backfill. `added_by_user_id` is made NOT NULL in the next migration, once
+-- this has run.
 UPDATE "verse_list_items" AS "item"
 SET "added_by_user_id" = "list"."user_id"
 FROM "verse_lists" AS "list"
@@ -68,7 +68,7 @@ WHERE "list"."id" = "item"."list_id"
 --> statement-breakpoint
 -- Every non-empty `note_html` becomes a root comment (no parent), authored by the list's owner —
 -- the only person who could have written it before this feature existed. `note_html` itself is
--- dropped in migration 0020, once this has run.
+-- dropped in the next migration, once this has run.
 INSERT INTO "verse_list_item_comments" ("item_id", "parent_comment_id", "author_user_id", "body_html", "created_at", "updated_at")
 SELECT "item"."id", NULL, "list"."user_id", "item"."note_html", "item"."created_at", "item"."updated_at"
 FROM "verse_list_items" AS "item"

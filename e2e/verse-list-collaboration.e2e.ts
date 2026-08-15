@@ -194,3 +194,43 @@ test('a member can only remove verses they added themselves; the owner can remov
 	await ownerContext.close();
 	await memberContext.close();
 });
+
+test('a member can leave a shared list, landing back on their own lists tab', async ({
+	browser
+}) => {
+	const ownerEmail = uniqueEmail('owner3');
+	const memberEmail = uniqueEmail('member3');
+
+	const ownerContext = await browser.newContext();
+	const ownerPage = await ownerContext.newPage();
+	await register(ownerPage, ownerEmail, 'Owner3');
+
+	const memberContext = await browser.newContext();
+	const memberPage = await memberContext.newPage();
+	await register(memberPage, memberEmail, 'Member3');
+
+	await ownerPage.goto('/account');
+	await ownerPage.getByRole('button', { name: 'Verslisten & Kommentare' }).click();
+	await ownerPage.getByPlaceholder('Neue Versliste').fill('Dritte gemeinsame Liste');
+	await ownerPage.getByRole('button', { name: 'Neue Versliste' }).click();
+	await expect(ownerPage).toHaveURL(/\/lists\//);
+
+	await ownerPage.getByLabel('E-Mail-Adresse einladen').fill(memberEmail);
+	await ownerPage.getByRole('button', { name: 'Einladen' }).click();
+	await expect(ownerPage.getByText('Einladung verschickt.')).toBeVisible();
+
+	await memberPage.goto(await lastMailLinkTo(memberEmail));
+	await memberPage.getByRole('button', { name: 'Einladung annehmen' }).click();
+	await expect(memberPage).toHaveURL(/\/lists\//);
+
+	// "Liste verlassen" is a <details>/<summary> disclosure: the summary reveals a confirm button of
+	// the same name.
+	await memberPage.locator('summary', { hasText: 'Liste verlassen' }).click();
+	await memberPage.getByRole('button', { name: 'Liste verlassen' }).click();
+	// Redirects to the account settings' verse-lists tab, not the old #lists hash (see issue #132).
+	await expect(memberPage).toHaveURL(/\/account\?tab=lists$/);
+	await expect(memberPage.getByText('Dritte gemeinsame Liste')).toHaveCount(0);
+
+	await ownerContext.close();
+	await memberContext.close();
+});

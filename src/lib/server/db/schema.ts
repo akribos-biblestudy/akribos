@@ -455,7 +455,7 @@ export const verseListItems = pgTable(
 		/**
 		 * Who added this verse. A member may only remove verses they added themselves; the list's
 		 * owner (`verse_lists.user_id`) may always remove any of them. Rows predating collaboration
-		 * were backfilled to the list owner (migration 0019, made required in 0020).
+		 * were backfilled to the list owner (migration 0020, made required in 0021).
 		 */
 		addedByUserId: uuid('added_by_user_id')
 			.notNull()
@@ -537,7 +537,7 @@ export type VerseListInvite = typeof verseListInvites.$inferSelect;
  * `parent_comment_id` nests replies one or more levels deep, Reddit-style; a null parent is a
  * top-level comment on the verse itself. Deleting a comment cascades to its replies.
  *
- * Existing `note_html` values were migrated into a root comment per item (migration 0019), authored
+ * Existing `note_html` values were migrated into a root comment per item (migration 0020), authored
  * by the list's owner, so no note was lost.
  */
 export const verseListItemComments = pgTable(
