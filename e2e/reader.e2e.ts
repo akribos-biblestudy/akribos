@@ -529,6 +529,80 @@ test('clicking a tagged word opens the study sidebar', async ({ page }) => {
 	await expect(page).toHaveURL(/#G25\/geliebt\/16$/);
 });
 
+test('hovering a tagged word highlights every occurrence without opening the sidebar', async ({
+	page
+}) => {
+	// "Gott" (G2316) occurs in both verse 16 and verse 17.
+	await page.goto('/Joh3');
+
+	const verse16Word = page.locator('#Joh3_16 button.strong[data-strong="G2316"]').first();
+	const verse17Word = page.locator('#Joh3_17 button.strong[data-strong="G2316"]').first();
+
+	await expect(verse16Word).not.toHaveClass(/active/);
+	await expect(verse17Word).not.toHaveClass(/active/);
+
+	await verse16Word.hover();
+	await expect(verse16Word).toHaveClass(/active/);
+	await expect(verse17Word).toHaveClass(/active/);
+
+	// A hover is a pure visual highlight: no sidebar, no URL/history change.
+	await expect(page.getByRole('complementary')).not.toBeVisible();
+	await expect(page).toHaveURL(/\/Joh3$/);
+
+	// Moving away removes the highlight again.
+	await page.getByRole('heading', { level: 1 }).hover();
+	await expect(verse16Word).not.toHaveClass(/active/);
+	await expect(verse17Word).not.toHaveClass(/active/);
+});
+
+test('a hover highlight and a click highlight on the same word coexist without cancelling', async ({
+	page
+}) => {
+	await page.goto('/Joh3');
+
+	const verse16Word = page.locator('#Joh3_16 button.strong[data-strong="G2316"]').first();
+	const verse17Word = page.locator('#Joh3_17 button.strong[data-strong="G2316"]').first();
+
+	await verse16Word.click();
+	await expect(page.getByRole('complementary')).toContainText('G2316');
+	await expect(verse17Word).toHaveClass(/active/);
+
+	// Hovering the already-clicked word, and leaving it again, must not clear the click highlight.
+	await verse16Word.hover();
+	await expect(verse17Word).toHaveClass(/active/);
+
+	await page.getByRole('heading', { level: 1 }).hover();
+	await expect(verse16Word).toHaveClass(/active/);
+	await expect(verse17Word).toHaveClass(/active/);
+	await expect(page.getByRole('complementary')).toContainText('G2316');
+});
+
+test('tapping a tagged word on a touch device does not leave a stray hover highlight behind', async ({
+	browser
+}) => {
+	// Touch taps synthesize a pointerenter before the click; if that were mistaken for a real mouse
+	// hover, the highlight would never clear because a tap has no matching "leave" event.
+	const context = await browser.newContext({ hasTouch: true });
+	const page = await context.newPage();
+	await page.goto('/Joh3');
+
+	const verse16Word = page.locator('#Joh3_16 button.strong[data-strong="G2316"]').first();
+	const verse17Word = page.locator('#Joh3_17 button.strong[data-strong="G2316"]').first();
+
+	await verse16Word.tap();
+	await expect(page.getByRole('complementary')).toContainText('G2316');
+	await expect(verse17Word).toHaveClass(/active/);
+
+	await page.getByRole('complementary').getByRole('button', { name: 'Schließen' }).click();
+	await expect(page.getByRole('complementary')).not.toBeVisible();
+	// A stray hover highlight from the tap would keep this active even after the click highlight
+	// is gone.
+	await expect(verse16Word).not.toHaveClass(/active/);
+	await expect(verse17Word).not.toHaveClass(/active/);
+
+	await context.close();
+});
+
 test('browser back restores a previously opened study sidebar', async ({ page }) => {
 	await page.goto('/Joh3');
 	await page.locator('button.strong[data-strong="G25"]').first().click();

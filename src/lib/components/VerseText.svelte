@@ -15,14 +15,39 @@
 	let {
 		segments,
 		onStrongClick,
-		activeStrong = null
+		onStrongHover,
+		activeStrong = null,
+		hoverStrong = null
 	}: {
 		segments: VerseSegment[];
 		/** Called when a tagged word is activated; the reader opens the study sidebar. */
 		onStrongClick?: (strong: string, word: string) => void;
+		/**
+		 * Called with a Strong's number while the mouse hovers a tagged word, and with `null` once it
+		 * leaves. Only real mouse hovers are reported (see `isMouseHover` below), so a tap on touch
+		 * devices never leaves a highlight stuck on until something else is tapped.
+		 */
+		onStrongHover?: (strong: string | null) => void;
 		/** Highlights every occurrence of the Strong's number currently shown in the sidebar. */
 		activeStrong?: string | null;
+		/** Highlights every occurrence of the Strong's number currently hovered, same as `activeStrong`. */
+		hoverStrong?: string | null;
 	} = $props();
+
+	/**
+	 * Pointer events (not `mouseenter`/`mouseleave`) carry `pointerType`, which is what lets a tap on
+	 * touch devices be told apart from an actual mouse hover. Without this check a tap would set the
+	 * hover highlight and nothing would ever clear it, since there is no "leave" for a tap.
+	 */
+	function isMouseHover(event: PointerEvent) {
+		return event.pointerType === 'mouse';
+	}
+
+	function matchesStrong(segment: Extract<VerseSegment, { kind: 'w' }>, strong: string | null) {
+		return (
+			strong !== null && (segment.strong === strong || (segment.strongs?.includes(strong) ?? false))
+		);
+	}
 
 	type RenderPart = { segment: VerseSegment; suffix: string };
 
@@ -62,11 +87,16 @@
 			>{#if segment.kind === 'w'}<button
 					type="button"
 					class="strong"
-					class:active={activeStrong !== null &&
-						(segment.strong === activeStrong || segment.strongs?.includes(activeStrong))}
+					class:active={matchesStrong(segment, activeStrong) || matchesStrong(segment, hoverStrong)}
 					data-strong={segment.strong}
 					title={segment.morph ?? undefined}
-					onclick={() => onStrongClick?.(segment.strong, segment.text)}>{segment.text}</button
+					onclick={() => onStrongClick?.(segment.strong, segment.text)}
+					onpointerenter={(event) => {
+						if (isMouseHover(event)) onStrongHover?.(segment.strong);
+					}}
+					onpointerleave={(event) => {
+						if (isMouseHover(event)) onStrongHover?.(null);
+					}}>{segment.text}</button
 				>{:else if segment.kind === 'em'}<em>{segment.text}</em
 				>{:else if segment.kind === 'note'}<Footnote
 					marker={segment.marker}
@@ -75,7 +105,9 @@
 					><VerseText
 						segments={segment.children as VerseSegment[]}
 						{onStrongClick}
+						{onStrongHover}
 						{activeStrong}
+						{hoverStrong}
 					/></span
 				>{/if}{part.suffix}</span
 		>
