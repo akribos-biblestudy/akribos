@@ -284,7 +284,18 @@ function emitRuns(
 	const out: { text: string; color: string | null }[] = [];
 	for (const piece of pieces) {
 		if (/^\s+$/.test(piece)) {
-			out.push({ text: piece, color: null });
+			// Whitespace between two words of the same highlight is part of one continuous marked
+			// phrase and should paint too, so the highlight does not visibly break at every word
+			// boundary; whitespace at the edge of a highlight, or between two differently-coloured
+			// ones, stays uncoloured. `cursor.word + 1` is always the index the next word will get
+			// (whitespace only ever closes the current token), so this can look ahead before that
+			// word is actually reached.
+			const previousColor = colorAt(cursor.word, ranges);
+			const nextColor = colorAt(cursor.word + 1, ranges);
+			out.push({
+				text: piece,
+				color: previousColor && previousColor === nextColor ? previousColor : null
+			});
 			cursor.open = false;
 			continue;
 		}

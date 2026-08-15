@@ -179,6 +179,35 @@ describe('highlightSegments', () => {
 		]);
 	});
 
+	it('colours the whitespace between two adjacent words of the same highlight', () => {
+		const ranges: HighlightRange[] = [{ start: 1, end: 2, color: '#ff0' }];
+		const cursor = initHighlightCursor();
+		const chunks = highlightSegments(['eins zwei drei vier'], ranges, cursor);
+		expect(chunks).toEqual([
+			{ kind: 'text', text: 'eins', color: null },
+			{ kind: 'text', text: ' ', color: null },
+			{ kind: 'text', text: 'zwei', color: '#ff0' },
+			{ kind: 'text', text: ' ', color: '#ff0' },
+			{ kind: 'text', text: 'drei', color: '#ff0' },
+			{ kind: 'text', text: ' ', color: null },
+			{ kind: 'text', text: 'vier', color: null }
+		]);
+	});
+
+	it('does not bridge whitespace between two differently-coloured highlights', () => {
+		const ranges: HighlightRange[] = [
+			{ start: 0, end: 0, color: '#ff0' },
+			{ start: 1, end: 1, color: '#0f0' }
+		];
+		const cursor = initHighlightCursor();
+		const chunks = highlightSegments(['eins zwei'], ranges, cursor);
+		expect(chunks).toEqual([
+			{ kind: 'text', text: 'eins', color: '#ff0' },
+			{ kind: 'text', text: ' ', color: null },
+			{ kind: 'text', text: 'zwei', color: '#0f0' }
+		]);
+	});
+
 	it('keeps a word and its glued punctuation the same colour', () => {
 		const ranges: HighlightRange[] = [{ start: 0, end: 0, color: '#ff0' }];
 		const cursor = initHighlightCursor();

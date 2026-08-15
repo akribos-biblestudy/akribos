@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { formatReference, referencePath } from '$lib/bible/reference';
 	import { t } from '$lib/i18n';
@@ -43,18 +44,39 @@
 
 	type Section = 'lists' | 'profileSecurity' | 'appearance';
 
-	function isSection(value: string): value is Section {
+	const DEFAULT_SECTION: Section = 'profileSecurity';
+
+	function isSection(value: string | null): value is Section {
 		return value === 'lists' || value === 'profileSecurity' || value === 'appearance';
 	}
 
 	/**
-	 * Which settings section is showing. Pure client-side state — every section already lives on this
-	 * one page, so switching between them does not need a round trip, only a different section visible.
-	 * A link here can still point straight at a section (e.g. the verse list detail page's "back" link
-	 * uses `/account#lists`) by naming it in the hash.
+	 * Which settings section is showing. Every section already lives on this one page, so switching
+	 * between them does not need fresh server data — only a different section visible. The section is
+	 * nonetheless tracked in the `tab` query parameter (not just local state), so reloading the page
+	 * shows the same section again and the browser's back/forward buttons step between sections. A
+	 * link here can point straight at a section (e.g. the verse list detail page's "back" link uses
+	 * `/account?tab=lists`) by naming it in that parameter.
 	 */
-	const initialHash = page.url.hash.slice(1);
-	let activeSection = $state<Section>(isSection(initialHash) ? initialHash : 'profileSecurity');
+	const activeSection = $derived<Section>(
+		(() => {
+			const requested = page.url.searchParams.get('tab');
+			return isSection(requested) ? requested : DEFAULT_SECTION;
+		})()
+	);
+
+	function selectSection(id: Section): void {
+		if (id === activeSection) return;
+		const url = new URL(page.url);
+		if (id === DEFAULT_SECTION) {
+			url.searchParams.delete('tab');
+		} else {
+			url.searchParams.set('tab', id);
+		}
+		// A real (non-shallow) client-side navigation, so the browser gets a history entry and
+		// back/forward reliably updates `page.url` — no full page reload since the route is unchanged.
+		void goto(url, { replaceState: false, keepFocus: true, noScroll: true });
+	}
 
 	const sections = [
 		{ id: 'profileSecurity' as const, label: t('account.nav.profileSecurity') },
@@ -80,7 +102,7 @@
 					type="button"
 					class="settings-nav-item"
 					class:active={activeSection === section.id}
-					onclick={() => (activeSection = section.id)}
+					onclick={() => selectSection(section.id)}
 				>
 					{section.label}
 				</button>

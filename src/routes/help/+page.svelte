@@ -300,7 +300,7 @@
 					Mit <strong>A−</strong> und <strong>A+</strong> im Kopfbereich verkleinerst oder
 					vergrößerst du den Bibeltext. Das Sonnensymbol beziehungsweise Mondsymbol wechselt
 					zwischen heller und dunkler Darstellung. Angemeldete Nutzer finden dieselben Optionen
-					unter <a href="/account#appearance">Konto → Darstellung</a>.
+					unter <a href="/account?tab=appearance">Konto → Darstellung</a>.
 				</p>
 			</section>
 
@@ -489,7 +489,7 @@
 
 				<h3>Eigene Markierungsfarben verwalten</h3>
 				<p>
-					Unter <a href="/account#appearance">Konto → Darstellung</a> kannst du Farben benennen, neue
+					Unter <a href="/account?tab=appearance">Konto → Darstellung</a> kannst du Farben benennen, neue
 					Farben anlegen und zu jeder Farbe alle markierten Verse anzeigen. Die Namen helfen dir, ein
 					eigenes System zu entwickeln, etwa „Verheißung“, „Frage“ oder „Gebet“.
 				</p>
@@ -529,7 +529,7 @@
 				<h3>Eine Liste anlegen und füllen</h3>
 				<ul class="feature-list">
 					<li>
-						Öffne <a href="/account#lists">Konto → Verslisten</a>, gib einen Namen ein und wähle
+						Öffne <a href="/account?tab=lists">Konto → Verslisten</a>, gib einen Namen ein und wähle
 						<strong>Neue Liste</strong>.
 					</li>
 					<li>
@@ -615,7 +615,7 @@
 							Verwalte Hell-/Dunkelmodus, Reader-Schriftgröße, deine gespeicherte Spaltenauswahl und
 							Markierungsfarben.
 						</p>
-						<a href="/account#appearance">Darstellung öffnen →</a>
+						<a href="/account?tab=appearance">Darstellung öffnen →</a>
 					</article>
 				</div>
 

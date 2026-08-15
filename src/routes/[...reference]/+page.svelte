@@ -553,6 +553,13 @@
 	let activeStrong = $state<{ strong: string; word: string; reference: string } | null>(null);
 
 	/**
+	 * Strong's number currently under the mouse, highlighted the same way as `activeStrong` but
+	 * without opening the sidebar or touching the URL/history. Cleared again on pointer leave; see
+	 * `VerseText.svelte` for why this uses pointer events rather than `mouseenter`/`mouseleave`.
+	 */
+	let hoverStrong = $state<string | null>(null);
+
+	/**
 	 * Restores the sidebar from the browser's real URL after a navigation.
 	 *
 	 * The reader also changes its address with shallow `replaceState` calls. Those deliberately do not
@@ -1655,6 +1662,8 @@
 																	)}
 																activeStrong={activeStrong?.strong ?? null}
 																highlights={partial}
+																{hoverStrong}
+																onStrongHover={(strong) => (hoverStrong = strong)}
 															/></span
 														></span
 													><span
@@ -1675,6 +1684,8 @@
 															activeStrong={activeStrong?.strong ?? null}
 															highlights={partial}
 															wordOffset={leadWordCount}
+															{hoverStrong}
+															onStrongHover={(strong) => (hoverStrong = strong)}
 														/>
 													</span>
 													{#if data.user && comment}
