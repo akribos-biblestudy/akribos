@@ -227,6 +227,20 @@ Auswahl steht als `resource`-Queryparameter in der URL, damit sie nach Speichern
 bleibt. Auf schmalen Bildschirmen scrollt die Auswahl zum einzelnen Editor statt alle Formulare
 untereinander zu rendern.
 
+Die Produkt-Tour (`ProductTour.svelte`, Schritte in `src/lib/tour/steps.ts`, Laufzustand in
+`tour-state.svelte.ts`) ist eine schlanke Eigenimplementierung (Spotlight per CSS-`box-shadow`, kein
+Tour-Framework) und wird von `SiteHeader` ausschließlich gemountet, solange `readerPreferences` gesetzt
+ist — die erklärten Ziele (Chooser, Wortstudie, Spaltenkopf, Verknüpfung, `.flow-chapter-number`) gibt es
+nur im Reader. Der neue Menüpunkt „Produkt-Tour" erscheint deshalb ebenfalls nur dort. Ein Schritt, dessen
+Zielelement fehlt oder unsichtbar ist, wird übersprungen statt auf nichts zu zeigen. Fortschritt wird als
+"erledigt" verstanden, sobald die Tour beendet oder aktiv geschlossen wurde: nicht angemeldet über das
+Cookie `tour-guest-done` (wie `theme`/`reader-font-scale`, nicht `httpOnly`), angemeldet über
+`users.tour_completed_at` (per `POST /api/tour`, analog zu `/api/theme`) — geräteübergreifend. Meldet sich
+jemand an, der die Tour bereits als Gast beendet hat, zeigt die erste Ausführung im Reader nur noch die
+zusätzlichen, angemeldeten Schritte (`MEMBER_TOUR_STEPS`); sonst die vollständige Sequenz. Da Login und
+Registrierung standardmäßig auf `/account` weiterleiten, nicht in den Reader, erscheint die Tour für
+diese Fälle beim nächsten Reader-Besuch automatisch, nicht zwingend unmittelbar nach dem Einloggen.
+
 Das Benutzer-Menü (`/account`) zeigt seine Abschnitte (Profil & Sicherheit, Verslisten & Kommentare,
 Darstellung) ebenfalls ohne eigene Server-Navigation, hält den aktiven Abschnitt aber im
 `tab`-Queryparameter statt in reinem lokalem State: `activeSection` ist von `page.url.searchParams`

@@ -21,7 +21,14 @@ const RENEW_AFTER_MS = SESSION_DURATION_MS / 2;
 
 export type SessionUser = Pick<
 	User,
-	'id' | 'email' | 'displayName' | 'role' | 'readerColumns' | 'readerFontScale' | 'theme'
+	| 'id'
+	| 'email'
+	| 'displayName'
+	| 'role'
+	| 'readerColumns'
+	| 'readerFontScale'
+	| 'theme'
+	| 'tourCompletedAt'
 >;
 
 function tokenToId(token: string): string {
@@ -86,6 +93,7 @@ export async function resolveSession(
 			readerColumns: users.readerColumns,
 			readerFontScale: users.readerFontScale,
 			theme: users.theme,
+			tourCompletedAt: users.tourCompletedAt,
 			disabledAt: users.disabledAt
 		})
 		.from(sessions)
@@ -116,7 +124,8 @@ export async function resolveSession(
 			role: row.role,
 			readerColumns: row.readerColumns,
 			readerFontScale: row.readerFontScale,
-			theme: row.theme
+			theme: row.theme,
+			tourCompletedAt: row.tourCompletedAt
 		}
 	};
 }

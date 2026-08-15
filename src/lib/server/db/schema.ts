@@ -306,6 +306,13 @@ export const users = pgTable(
 		theme: text('theme', { enum: THEMES }),
 		emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
 		lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+		/**
+		 * Set once the product tour has been finished or actively closed while signed in, so it never
+		 * shows again on any device. Null means "not yet" — either never seen, or only seen (and possibly
+		 * dismissed) while signed out, which is tracked in the `tour-guest-done` cookie instead, because
+		 * that state has no account to attach to yet.
+		 */
+		tourCompletedAt: timestamp('tour_completed_at', { withTimezone: true }),
 		/** Set instead of deleting, so verse lists and notes survive a lockout. */
 		disabledAt: timestamp('disabled_at', { withTimezone: true }),
 		...timestamps

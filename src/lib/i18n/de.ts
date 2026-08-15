@@ -41,6 +41,7 @@ export const de = {
 	'nav.impressum': 'Impressum',
 	'nav.datenschutz': 'Datenschutz',
 	'nav.userMenu': 'Konto-Menü',
+	'nav.tour': 'Produkt-Tour',
 
 	// --- reader -------------------------------------------------------------
 	'reader.chooseTranslation': 'Übersetzung wählen',
@@ -429,5 +430,36 @@ export const de = {
 	'resource.kind.lexicon': 'Wörterbuch',
 	'resource.kind.commentary': 'Kommentar',
 	'resource.kind.xrefs': 'Parallelstellen',
-	'resource.kind.morphology': 'Grammatikdaten'
+	'resource.kind.morphology': 'Grammatikdaten',
+
+	// --- product tour --------------------------------------------------------
+	'tour.progress': 'Schritt {index} von {total}',
+	'tour.skip': 'Tour überspringen',
+	'tour.back': 'Zurück',
+	'tour.next': 'Weiter',
+	'tour.finish': 'Fertig',
+	'tour.searchChooser.title': 'Buch- und Kapitelauswahl',
+	'tour.searchChooser.body':
+		'Klicke ins Suchfeld: Zuerst wählst du ein Buch, dann ein Kapitel. Du kannst eine Stelle auch direkt eintippen, z.B. „Joh3,16“.',
+	'tour.searchSyntax.title': 'Nach Wörtern suchen',
+	'tour.searchSyntax.body':
+		'Suche nach einer genauen Wortfolge in Anführungszeichen, etwa „Gott liebt“, und schließe Wörter mit einem vorangestellten „-“ aus, z.B. „liebe -Welt“.',
+	'tour.wordStudy.title': 'Wortstudie',
+	'tour.wordStudy.body':
+		'Unterstrichene Wörter tragen eine Strong-Nummer. Klicke darauf, um die Grundbedeutung, verwandte Stellen und die Grammatik dieses Urtextworts zu sehen.',
+	'tour.resourcePicker.title': 'Bibel- und Kommentarauswahl',
+	'tour.resourcePicker.body':
+		'Über den Spaltentitel wählst du, welche Übersetzung oder welcher Kommentar in dieser Spalte angezeigt wird.',
+	'tour.columnLink.title': 'Spalten verknüpfen',
+	'tour.columnLink.body':
+		'Standardmäßig scrollen alle Spalten gemeinsam. Über dieses Symbol lässt sich eine Spalte entkoppeln, damit sie unabhängig von den anderen scrollt.',
+	'tour.columnAdd.title': 'Spalte hinzufügen',
+	'tour.columnAdd.body':
+		'Mit diesem Symbol fügst du eine weitere Übersetzung oder einen Kommentar als neue Spalte hinzu.',
+	'tour.verseMenu.title': 'Versmenü',
+	'tour.verseMenu.body':
+		'Klicke auf eine Versnummer, um sie hervorzuheben, einen Kommentar zu schreiben oder sie einer Versliste zuzuordnen.',
+	'tour.userMenu.title': 'Dein Konto',
+	'tour.userMenu.body':
+		'Unter „Mein Konto“ findest du deine Verslisten und Kommentare sowie die Einstellungen für Textgröße und Design.'
 } as const;
