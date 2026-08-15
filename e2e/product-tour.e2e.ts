@@ -127,8 +127,15 @@ test('someone who already finished the guest tour only sees the signed-in-only s
 
 	await page.getByRole('button', { name: 'Weiter' }).click();
 	await expect(page.getByRole('dialog', { name: 'Dein Konto' })).toBeVisible();
+	// `complete()` fires the account-level "done" request without the click handler waiting for it
+	// (see the `keepalive` comment in `ProductTour.svelte`), so it can still be in flight when this
+	// test moves on. Waiting for it here — something a real reader idly would too, just by not
+	// reloading the very same instant — is what makes the next navigation's server-side read of
+	// `tourCompletedAt` deterministic.
+	const completed = page.waitForResponse('/api/tour');
 	await page.getByRole('button', { name: 'Fertig' }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
+	await completed;
 
 	await page.goto('/Joh3');
 	await expect(page.getByRole('dialog')).toHaveCount(0);
