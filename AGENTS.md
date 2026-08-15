@@ -48,12 +48,13 @@ Der zentrale Reader ist `src/routes/[...reference]/+page.svelte`; sein Server-Lo
 liegen in der gleichnamigen `+page.server.ts`. Die REST-Nachladung für Endless Scrolling erfolgt über
 `src/routes/api/reader/[book]/[chapter]/+server.ts`.
 
-Die Root-Route `/` zeigt nicht angemeldeten Besuchern die Marketing-Landingpage. Angemeldete Leser
-werden dort unmittelbar zu ihrer im `location`-Cookie gespeicherten letzten Lesestelle weitergeleitet,
-mit Johannes 1 als Fallback. Das Akribos-Logo verlinkt unverändert auf `/` und darf das `location`-Cookie
-nicht löschen, damit es auch von Konto- und Verwaltungsseiten zur letzten Lesestelle zurückführt.
-`/about` bleibt als direkte Adresse derselben Landingpage erhalten. Weil das Root-Verhalten vom
-Session-Cookie abhängt, darf die Antwort nicht öffentlich gecacht werden.
+Die Root-Route `/` leitet jeden Besucher unmittelbar zum Bibeltext weiter, nicht mehr nur angemeldete.
+Angemeldete Leser landen an ihrer im `location`-Cookie gespeicherten letzten Lesestelle, alle anderen
+(auch nicht angemeldete Besucher) an Johannes 1 als Fallback. Das Akribos-Logo verlinkt unverändert auf
+`/` und darf das `location`-Cookie nicht löschen, damit es auch von Konto- und Verwaltungsseiten zur
+letzten Lesestelle zurückführt. Die Marketing-Landingpage wird auf `/` nicht mehr angezeigt, bleibt aber
+unter `/about` unverändert erreichbar. Weil das Root-Verhalten vom Session-Cookie abhängt, darf die
+Antwort nicht öffentlich gecacht werden.
 
 Der Reader zeigt jede Ressource in einer eigenen `.flow-column`. Alle geladenen Kapitel stehen in
 `streamChapters`; DOM-Schlüssel sind `book:chapter` beziehungsweise für Verse `book:chapter:verse`.
@@ -106,6 +107,23 @@ Text und Highlight-Zustand an `openAt()`; so werden nicht hunderte Menüs und Fo
 gerendert. Highlights werden optimistisch in `streamChapters` aktualisiert, Listenmarkierungen im
 reaktiven `marks`-Set.
 
+Eine Markierung (`verse_highlights`) gilt entweder für den ganzen Vers und damit für alle
+Übersetzungen (`resource_id`, `start_word`, `end_word` alle `NULL` — das ist auch die Form, in der
+jede Markierung aus der Zeit vor dieser Unterscheidung existiert und weiterhin funktioniert), oder für
+einen Wortbereich innerhalb genau einer Übersetzung (`resource_id` gesetzt, `start_word`/`end_word`
+inklusiv und 0-basiert). Zwei sich überlappende, aber nicht exakt gleiche Bereiche sind unabhängige
+Zeilen und malen sich beim Rendern einfach übereinander; es findet keine Zusammenführung statt. Ein
+Wort ist dabei kein eigenes Segment, sondern ein Lauf ohne Leerzeichen in der von `segmentsToText()`
+erzeugten Reihenfolge — `countVerseWords()`/`highlightSegment()` in `src/lib/bible/segments.ts` zählen
+und färben danach, damit ein direkt angehängtes Satzzeichen zum selben Wort wie das Tag-Wort davor
+zählt. `VerseMenu.openForSelection()` öffnet dieselbe Menü-Instanz für eine Wortauswahl statt für einen
+Versnummer-Klick; sie zeigt dann nur die Farbfelder, skaliert auf genau diesen Bereich. Deckt die
+Auswahl den kompletten Vers ab, behandelt der Reader sie wie den bisherigen Versnummer-Klick
+(`resource_id` bleibt `NULL`) — das entscheidet sowohl der Client (`+page.svelte`) als auch, erneut,
+der Server in `setVerseHighlight()`, der eine Auswahl nie ungeprüft persistiert. `VerseText.svelte`
+erhält dafür optional `highlights` (Bereiche mit Farbe) und `wordOffset`; letzteres hält den
+Wortindex über `splitVerseLead()`s Aufteilung in Vers-Anfang und -Rest hinweg konsistent.
+
 Private Kommentare hängen eindeutig an Benutzer, Vers und Bibelressource (`verse_comments`); pro
 Kombination existiert höchstens einer. Sie werden mit den endlos nachgeladenen Kapiteln geladen und
 erscheinen innerhalb ihrer `.verse-comment-row` unterhalb des Verses. `CommentToggle.svelte` steht am
@@ -153,6 +171,15 @@ jemand an, der die Tour bereits als Gast beendet hat, zeigt die erste Ausführun
 zusätzlichen, angemeldeten Schritte (`MEMBER_TOUR_STEPS`); sonst die vollständige Sequenz. Da Login und
 Registrierung standardmäßig auf `/account` weiterleiten, nicht in den Reader, erscheint die Tour für
 diese Fälle beim nächsten Reader-Besuch automatisch, nicht zwingend unmittelbar nach dem Einloggen.
+
+Das Benutzer-Menü (`/account`) zeigt seine Abschnitte (Profil & Sicherheit, Verslisten & Kommentare,
+Darstellung) ebenfalls ohne eigene Server-Navigation, hält den aktiven Abschnitt aber im
+`tab`-Queryparameter statt in reinem lokalem State: `activeSection` ist von `page.url.searchParams`
+abgeleitet, ein Klick ruft `goto()` mit `replaceState: false` auf. Dadurch bekommt jeder Tabwechsel
+einen echten Browser-History-Eintrag (Vor/Zurück wechselt zwischen Abschnitten) und ein Neuladen zeigt
+denselben Abschnitt wieder, ohne dass das Server-Load der Seite den `tab`-Parameter lesen muss. Der
+Standardabschnitt (`profileSecurity`) führt keinen `tab`-Parameter in der URL; Links auf einen
+bestimmten Abschnitt nennen ihn deshalb explizit, z. B. `/account?tab=lists`.
 
 ## Daten, Suche und Sicherheit
 

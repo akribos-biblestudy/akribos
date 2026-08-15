@@ -14,7 +14,7 @@
 
 <main class="mx-auto w-full max-w-3xl space-y-6 px-4 py-8">
 	<nav class="text-sm">
-		<Button href="/account#appearance" size="sm" variant="secondary">
+		<Button href="/account?tab=appearance" size="sm" variant="secondary">
 			← {t('highlights.back')}
 		</Button>
 	</nav>
@@ -57,7 +57,12 @@
 					</a>
 					{#if item.segments}
 						<p class="scripture-sized mt-1 font-serif leading-relaxed">
-							<VerseText segments={item.segments} />
+							<VerseText
+								segments={item.segments}
+								highlights={item.startWord !== null && item.endWord !== null
+									? [{ start: item.startWord, end: item.endWord, color: data.style.color }]
+									: []}
+							/>
 						</p>
 					{/if}
 				</li>

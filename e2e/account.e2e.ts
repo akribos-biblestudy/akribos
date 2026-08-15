@@ -56,10 +56,11 @@ test('registration, sign out and sign in again', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'Einstellungen' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Abmelden' }).click();
-	await expect(page).toHaveURL(/\/$/);
-	await expect(page.getByRole('heading', { level: 1 })).toContainText('Lies den Text');
+	await expect(page).toHaveURL(/\/Joh1$/);
+	await expect(page.getByRole('heading', { level: 1 })).toContainText('Johannes 1');
 
-	// The public landing page proves the session is gone; protected pages must still redirect.
+	// Landing back at the reader's John 1 fallback proves the session is gone; protected pages must
+	// still redirect.
 	await page.goto('/account');
 	await expect(page).toHaveURL(/\/login/);
 
@@ -67,6 +68,53 @@ test('registration, sign out and sign in again', async ({ page }) => {
 	await page.getByLabel('Passwort').fill(PASSWORD);
 	await page.getByRole('button', { name: 'Anmelden' }).click();
 	await expect(page).toHaveURL(/\/account$/);
+});
+
+test('user menu tabs update the URL, survive a reload and support browser back/forward', async ({
+	page
+}) => {
+	await register(page, uniqueEmail());
+
+	// Starts on the default "Profil & Sicherheit" section without a `tab` parameter.
+	await expect(page).toHaveURL(/\/account$/);
+	await expect(page.getByRole('heading', { name: 'Profil' })).toBeVisible();
+
+	// A flag that only a full page reload would clear, to prove the tab switch below is a
+	// client-side navigation rather than a hard reload.
+	await page.evaluate(() => {
+		(window as unknown as { __noReload?: boolean }).__noReload = true;
+	});
+
+	await page.getByRole('button', { name: 'Verslisten & Kommentare' }).click();
+	await expect(page).toHaveURL(/\/account\?tab=lists$/);
+	await expect(page.getByPlaceholder('Neue Versliste')).toBeVisible();
+	expect(
+		await page.evaluate(() => (window as unknown as { __noReload?: boolean }).__noReload)
+	).toBe(true);
+	// Documents the `tab` query parameter and the active section for issue #132.
+	await page.screenshot({ path: 'docs/screenshots/issue-132-tab-lists.png' });
+
+	await page.getByRole('button', { name: 'Darstellung' }).click();
+	await expect(page).toHaveURL(/\/account\?tab=appearance$/);
+	await expect(page.getByRole('heading', { name: 'Darstellung' })).toBeVisible();
+	await page.screenshot({ path: 'docs/screenshots/issue-132-tab-appearance.png' });
+
+	// Reloading the page evaluates the `tab` parameter again on the server, keeping this tab active.
+	await page.reload();
+	await expect(page.getByRole('heading', { name: 'Darstellung' })).toBeVisible();
+
+	// The browser's back/forward buttons step between the tabs previously visited.
+	await page.goBack();
+	await expect(page).toHaveURL(/\/account\?tab=lists$/);
+	await expect(page.getByPlaceholder('Neue Versliste')).toBeVisible();
+
+	await page.goBack();
+	await expect(page).toHaveURL(/\/account$/);
+	await expect(page.getByRole('heading', { name: 'Profil' })).toBeVisible();
+
+	await page.goForward();
+	await expect(page).toHaveURL(/\/account\?tab=lists$/);
+	await expect(page.getByPlaceholder('Neue Versliste')).toBeVisible();
 });
 
 test('an API key can be created, shown once and revoked', async ({ page }) => {
@@ -309,7 +357,7 @@ test('a signed-in reader can highlight a verse with a colour and clear it', asyn
 
 	// The account links to a complete list for this colour, and the same data is available through
 	// the personal API using the style id from that link.
-	await page.goto('/account#appearance');
+	await page.goto('/account?tab=appearance');
 	await page.getByRole('button', { name: 'Darstellung' }).click();
 	const showVerses = page.getByRole('link', { name: 'Verse anzeigen' }).first();
 	const href = await showVerses.getAttribute('href');
