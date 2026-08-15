@@ -540,7 +540,21 @@ export const highlightStyles = pgTable(
 
 export type HighlightStyle = typeof highlightStyles.$inferSelect;
 
-/** One verse marked with one style. A verse holds at most one at a time — picking another replaces it. */
+/**
+ * One coloured section of a verse.
+ *
+ * `resourceId`, `startWord` and `endWord` are null together for a highlight that covers the whole
+ * verse, matching the original design: it applies in every translation, and a verse holds at most one
+ * of these (picking another colour replaces it, like a physical highlighter). That shape is also what
+ * every row from before this feature already has, so an old highlight keeps working unchanged.
+ *
+ * When they are set instead, the highlight covers only `startWord..endWord` (inclusive, 0-based,
+ * counted by `countVerseWords` in `src/lib/bible/segments.ts`) of that one `resourceId`'s rendering —
+ * a translation-specific selection can only ever mean something for that translation's own text. A
+ * verse may carry several of these at once (different sections, possibly different translations or
+ * colours), so only the exact same range replaces its own colour; two overlapping-but-different
+ * ranges are independent rows and simply paint over one another where they overlap.
+ */
 export const verseHighlights = pgTable(
 	'verse_highlights',
 	{
@@ -554,16 +568,38 @@ export const verseHighlights = pgTable(
 		bookId: integer('book_id').notNull(),
 		chapter: integer('chapter').notNull(),
 		verse: integer('verse').notNull(),
+		/** Null for a whole-verse highlight; the translation a partial one belongs to otherwise. */
+		resourceId: text('resource_id').references(() => resources.id, { onDelete: 'cascade' }),
+		/** Inclusive word range within `resourceId`'s rendering; null together with `resourceId`. */
+		startWord: integer('start_word'),
+		endWord: integer('end_word'),
 		...timestamps
 	},
 	(table) => [
-		uniqueIndex('verse_highlights_verse_idx').on(
-			table.userId,
-			table.bookId,
-			table.chapter,
-			table.verse
-		),
-		index('verse_highlights_style_idx').on(table.styleId)
+		// At most one whole-verse highlight per verse, exactly as before this feature existed.
+		uniqueIndex('verse_highlights_verse_idx')
+			.on(table.userId, table.bookId, table.chapter, table.verse)
+			.where(sql`${table.resourceId} is null`),
+		// Re-picking the same section replaces its colour; a different range is a separate section.
+		uniqueIndex('verse_highlights_range_idx')
+			.on(
+				table.userId,
+				table.resourceId,
+				table.bookId,
+				table.chapter,
+				table.verse,
+				table.startWord,
+				table.endWord
+			)
+			.where(sql`${table.resourceId} is not null`),
+		index('verse_highlights_style_idx').on(table.styleId),
+		check(
+			'verse_highlights_range_check',
+			sql`(${table.resourceId} is null and ${table.startWord} is null and ${table.endWord} is null)
+				or (${table.resourceId} is not null and ${table.startWord} is not null
+					and ${table.endWord} is not null and ${table.startWord} >= 0
+					and ${table.endWord} >= ${table.startWord})`
+		)
 	]
 );
 

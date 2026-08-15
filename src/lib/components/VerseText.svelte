@@ -1,8 +1,11 @@
 <script lang="ts">
-	import type { VerseSegment } from '$lib/bible/segments';
-	// Imported for the recursive case (words of Jesus can contain tagged words). Svelte 5 prefers a
-	// self-import over <svelte:self>.
-	import VerseText from './VerseText.svelte';
+	import {
+		highlightSegment,
+		initHighlightCursor,
+		type DisplayChunk,
+		type HighlightRange,
+		type VerseSegment
+	} from '$lib/bible/segments';
 	import Footnote from './Footnote.svelte';
 
 	/**
@@ -15,13 +18,20 @@
 	let {
 		segments,
 		onStrongClick,
-		activeStrong = null
+		activeStrong = null,
+		highlights = [],
+		wordOffset = 0
 	}: {
 		segments: VerseSegment[];
 		/** Called when a tagged word is activated; the reader opens the study sidebar. */
 		onStrongClick?: (strong: string, word: string) => void;
 		/** Highlights every occurrence of the Strong's number currently shown in the sidebar. */
 		activeStrong?: string | null;
+		/** Translation-specific highlighted word ranges to paint within `segments`, if any. */
+		highlights?: HighlightRange[];
+		/** Global word index of `segments[0]`, so a verse split into a lead and a remainder (see
+		 *  `splitVerseLead`) keeps `highlights` ranges aligned across both calls. */
+		wordOffset?: number;
 	} = $props();
 
 	type RenderPart = { segment: VerseSegment; suffix: string };
@@ -49,35 +59,65 @@
 	}
 
 	const renderParts = $derived(keepClosingPunctuation(segments));
+
+	/**
+	 * Per part: its own chunks, plus the (rare) glued-punctuation suffix's own chunks. Threaded
+	 * through one shared cursor, in the same order the parts render, so word indices line up exactly
+	 * as they would if `highlights` were applied to the original, unsplit `segments`.
+	 */
+	const displayParts = $derived.by(() => {
+		const cursor = initHighlightCursor(wordOffset);
+		return renderParts.map((part) => ({
+			main: highlightSegment(part.segment, highlights, cursor),
+			suffix: part.suffix ? highlightSegment(part.suffix, highlights, cursor) : []
+		}));
+	});
 </script>
+
+{#snippet chunk(item: DisplayChunk)}
+	{#if item.kind === 'text'}
+		{#if item.color}<span class="partial-highlight" style:background-color={item.color}
+				>{item.text}</span
+			>{:else}{item.text}{/if}
+	{:else if item.kind === 'br'}
+		<br />
+	{:else if item.kind === 'w'}
+		<button
+			type="button"
+			class="strong"
+			class:active={activeStrong !== null &&
+				(item.segment.strong === activeStrong || item.segment.strongs?.includes(activeStrong))}
+			data-strong={item.segment.strong}
+			title={item.segment.morph ?? undefined}
+			style:background-color={item.color}
+			onclick={() => onStrongClick?.(item.segment.strong, item.segment.text)}
+			>{item.segment.text}</button
+		>
+	{:else if item.kind === 'em'}
+		<em style:background-color={item.color}>{item.text}</em>
+	{:else if item.kind === 'note'}
+		<Footnote marker={item.segment.marker} text={item.segment.text} />
+	{:else if item.kind === 'wj'}
+		<span class="words-of-jesus"
+			>{#each item.children as child, index (index)}{@render chunk(child)}{/each}</span
+		>
+	{/if}
+{/snippet}
 
 {#each renderParts as part, index (index)}
 	{@const segment = part.segment}
+	{@const display = displayParts[index]!}
 	{#if typeof segment === 'string'}
-		{segment}
+		{#each display.main as item, itemIndex (itemIndex)}{@render chunk(item)}{/each}
 	{:else if segment.kind === 'br'}
 		<br />
 	{:else}
 		<span class:keep-punctuation={segment.kind === 'w' || segment.kind === 'em'}
-			>{#if segment.kind === 'w'}<button
-					type="button"
-					class="strong"
-					class:active={activeStrong !== null &&
-						(segment.strong === activeStrong || segment.strongs?.includes(activeStrong))}
-					data-strong={segment.strong}
-					title={segment.morph ?? undefined}
-					onclick={() => onStrongClick?.(segment.strong, segment.text)}>{segment.text}</button
-				>{:else if segment.kind === 'em'}<em>{segment.text}</em
-				>{:else if segment.kind === 'note'}<Footnote
-					marker={segment.marker}
-					text={segment.text}
-				/>{:else if segment.kind === 'wj'}<span class="words-of-jesus"
-					><VerseText
-						segments={segment.children as VerseSegment[]}
-						{onStrongClick}
-						{activeStrong}
-					/></span
-				>{/if}{part.suffix}</span
+			>{#each display.main as item, itemIndex (itemIndex)}{@render chunk(
+					item
+				)}{/each}{#each display.suffix as item, itemIndex (itemIndex)}{@render chunk(
+					item
+				)}{/each}</span
 		>
 	{/if}
 {/each}
@@ -92,6 +132,7 @@
 		display: inline;
 		padding: 0;
 		border: 0;
+		border-radius: 0.2rem;
 		background: none;
 		font: inherit;
 		color: inherit;
@@ -120,5 +161,11 @@
 
 	:global(.dark) .words-of-jesus {
 		color: oklch(0.72 0.15 25);
+	}
+
+	/* A translation-specific highlight, painted directly on the run of text it covers rather than the
+	   whole `.flow-verse`, which is what a whole-verse highlight still uses. */
+	.partial-highlight {
+		border-radius: 0.15rem;
 	}
 </style>

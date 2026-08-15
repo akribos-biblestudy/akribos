@@ -217,6 +217,179 @@ export function pushText(segments: VerseSegment[], text: string): void {
 	else segments.push(text);
 }
 
+// --- partial highlighting ----------------------------------------------------
+
+/**
+ * A highlighted section of a verse, addressed by inclusive "word" indices — the same tokens
+ * `countVerseWords` counts, in reading order across the whole verse. A verse rendered as a lead and a
+ * remainder (see `splitVerseLead`) still shares one index space; `wordOffset` on `VerseText` is what
+ * lets the remainder continue counting where the lead left off.
+ */
+export type HighlightRange = { start: number; end: number; color: string };
+
+/**
+ * The running state threaded through a verse's segments while assigning word indices: which index is
+ * currently open, and whether the previous character was non-whitespace (so the next run continues
+ * the same word rather than starting a new one, e.g. a `,` glued to the tagged word before it).
+ */
+export type HighlightCursor = { word: number; open: boolean };
+
+export function initHighlightCursor(wordOffset = 0): HighlightCursor {
+	return { word: wordOffset - 1, open: false };
+}
+
+/**
+ * Rendering-only view of a verse's segments, split at word boundaries so a `HighlightRange` can paint
+ * part of a plain-text or emphasis run without touching a tagged word, footnote or line break — those
+ * stay whole tokens, matching how a reader actually selects "one or more words".
+ */
+export type DisplayChunk =
+	| { kind: 'text'; text: string; color: string | null }
+	| { kind: 'w'; segment: WordSegment; color: string | null }
+	| { kind: 'em'; text: string; color: string | null }
+	| { kind: 'note'; segment: NoteSegment }
+	| { kind: 'br' }
+	| { kind: 'wj'; children: DisplayChunk[] };
+
+function colorAt(word: number, ranges: readonly HighlightRange[]): string | null {
+	let color: string | null = null;
+	for (const range of ranges) {
+		if (word >= range.start && word <= range.end) color = range.color;
+	}
+	return color;
+}
+
+/**
+ * Splits `text` into whitespace-delimited runs, advancing `cursor` by one word for every run that
+ * does not continue the token open from a previous call (which is how a plain run glued directly
+ * after a tagged word, with no separating space, stays part of that same word).
+ *
+ * `atomic` is for tagged words and emphasis-as-one-token cases where the text must never be split
+ * even if it happens to contain internal whitespace — the whole string is one run, one word index.
+ */
+function emitRuns(
+	text: string,
+	ranges: readonly HighlightRange[],
+	cursor: HighlightCursor,
+	atomic: boolean
+): { text: string; color: string | null }[] {
+	if (atomic) {
+		if (!text) return [];
+		if (!cursor.open) cursor.word += 1;
+		cursor.open = true;
+		return [{ text, color: colorAt(cursor.word, ranges) }];
+	}
+
+	const pieces = text.split(/(\s+)/).filter((piece) => piece !== '');
+	const out: { text: string; color: string | null }[] = [];
+	for (const piece of pieces) {
+		if (/^\s+$/.test(piece)) {
+			out.push({ text: piece, color: null });
+			cursor.open = false;
+			continue;
+		}
+		if (!cursor.open) cursor.word += 1;
+		out.push({ text: piece, color: colorAt(cursor.word, ranges) });
+		cursor.open = true;
+	}
+	return out;
+}
+
+/**
+ * Rebuilds one segment as `DisplayChunk`s, colouring the runs whose word index falls inside one of
+ * `ranges`. Notes are excluded from the word count, the same way they are excluded from
+ * `segmentsToText`; a line break closes the current token like whitespace does.
+ */
+export function highlightSegment(
+	segment: VerseSegment,
+	ranges: readonly HighlightRange[],
+	cursor: HighlightCursor
+): DisplayChunk[] {
+	if (typeof segment === 'string') {
+		return emitRuns(segment, ranges, cursor, false).map(
+			(run) => ({ kind: 'text', text: run.text, color: run.color }) as const
+		);
+	}
+
+	if (segment.kind === 'w') {
+		const [run] = emitRuns(segment.text, ranges, cursor, true);
+		return [{ kind: 'w', segment, color: run?.color ?? null }];
+	}
+
+	if (segment.kind === 'em') {
+		return emitRuns(segment.text, ranges, cursor, false).map(
+			(run) => ({ kind: 'em', text: run.text, color: run.color }) as const
+		);
+	}
+
+	if (segment.kind === 'note') return [{ kind: 'note', segment }];
+
+	if (segment.kind === 'br') {
+		cursor.open = false;
+		return [{ kind: 'br' }];
+	}
+
+	// 'wj': words of Jesus recurse, sharing the same running cursor.
+	return [{ kind: 'wj', children: highlightSegments(segment.children, ranges, cursor) }];
+}
+
+export function highlightSegments(
+	segments: readonly VerseSegment[],
+	ranges: readonly HighlightRange[],
+	cursor: HighlightCursor
+): DisplayChunk[] {
+	const out: DisplayChunk[] = [];
+	for (const segment of segments) out.push(...highlightSegment(segment, ranges, cursor));
+	return out;
+}
+
+/**
+ * Total number of highlightable words in a verse, in the same index space `HighlightRange` uses.
+ * Selecting the full range (`{ start: 0, end: countVerseWords(segments) - 1 }`) is how the reader
+ * decides a selection covers the whole verse and should behave like the existing verse-wide highlight
+ * instead of a translation-specific one.
+ */
+export function countVerseWords(segments: readonly VerseSegment[]): number {
+	const cursor = initHighlightCursor();
+	highlightSegments(segments, [], cursor);
+	return cursor.word + 1;
+}
+
+/**
+ * Locates the inclusive word-index range that overlaps a character span within a verse's flattened
+ * text (as produced by `segmentsToText`), using the same whitespace tokenisation as
+ * `highlightSegment`. Used to turn a browser text selection — which only knows character offsets —
+ * into the word range a highlight is stored against. Returns `null` when the span does not overlap
+ * any word, e.g. a selection that landed entirely on whitespace.
+ */
+export function wordRangeForCharSpan(
+	text: string,
+	charStart: number,
+	charEnd: number
+): { start: number; end: number } | null {
+	const pieces = text.split(/(\s+)/).filter((piece) => piece !== '');
+	let pos = 0;
+	let word = -1;
+	let start: number | null = null;
+	let end: number | null = null;
+
+	for (const piece of pieces) {
+		const isWhitespace = /^\s+$/.test(piece);
+		const pieceStart = pos;
+		const pieceEnd = pos + piece.length;
+		if (!isWhitespace) {
+			word += 1;
+			if (pieceEnd > charStart && pieceStart < charEnd) {
+				if (start === null) start = word;
+				end = word;
+			}
+		}
+		pos = pieceEnd;
+	}
+
+	return start === null || end === null ? null : { start, end };
+}
+
 /** Drops empty runs and trims the leading and trailing whitespace of a finished verse. */
 export function finalizeSegments(segments: VerseSegment[]): VerseSegment[] {
 	const out = segments.filter(

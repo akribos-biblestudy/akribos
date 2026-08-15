@@ -195,6 +195,7 @@ export const de = {
 	'highlights.back': 'Zurück zu Versmarkierungen',
 	'highlights.versesTitle': 'Markierte Verse: {name}',
 	'highlights.versesEmpty': 'Mit dieser Farbe ist noch kein Vers markiert.',
+	'highlights.selectionLabel': 'Auswahl markieren',
 	'auth.login.title': 'Anmelden',
 	'auth.login.submit': 'Anmelden',
 	'auth.login.failed': 'E-Mail-Adresse oder Passwort ist falsch.',

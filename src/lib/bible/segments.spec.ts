@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+	countVerseWords,
 	finalizeSegments,
+	highlightSegments,
+	initHighlightCursor,
 	splitVerseLead,
 	segmentsToText,
 	tidySegmentSpacing,
+	wordRangeForCharSpan,
 	wordsFromSegments,
+	type HighlightRange,
 	type VerseSegment
 } from './segments.ts';
 
@@ -107,6 +112,138 @@ describe('finalizeSegments', () => {
 			' ',
 			{ kind: 'w', text: 'b', strong: 'G2' }
 		]);
+	});
+});
+
+describe('countVerseWords', () => {
+	it('counts plain runs and tagged words as separate words', () => {
+		expect(
+			countVerseWords(['Im ', { kind: 'w', text: 'Anfang', strong: 'H7225' }, ' schuf Gott.'])
+		).toBe(4);
+	});
+
+	it('keeps punctuation glued with no separating space as part of the same word', () => {
+		expect(countVerseWords([{ kind: 'w', text: 'Jesus', strong: 'G2424' }, '?'])).toBe(1);
+	});
+
+	it('splits an emphasis run into its own words', () => {
+		expect(countVerseWords([{ kind: 'em', text: 'ist der Weg' }])).toBe(3);
+	});
+
+	it('excludes footnotes and treats a line break like whitespace', () => {
+		expect(
+			countVerseWords([
+				'eins',
+				{ kind: 'note', marker: '1', text: 'a note' },
+				{ kind: 'br' },
+				'zwei'
+			])
+		).toBe(2);
+	});
+
+	it('descends into words of Jesus, continuing the same count', () => {
+		expect(countVerseWords(['Er sagte: ', { kind: 'wj', children: ['Ich bin ', 'der Weg'] }])).toBe(
+			6
+		);
+	});
+});
+
+describe('highlightSegments', () => {
+	it('colours only the words inside range, leaving the rest uncoloured', () => {
+		const ranges: HighlightRange[] = [{ start: 1, end: 1, color: '#ff0' }];
+		const cursor = initHighlightCursor();
+		const chunks = highlightSegments(
+			['Im ', { kind: 'w', text: 'Anfang', strong: 'H7225' }, ' schuf'],
+			ranges,
+			cursor
+		);
+		expect(chunks).toEqual([
+			{ kind: 'text', text: 'Im', color: null },
+			{ kind: 'text', text: ' ', color: null },
+			{ kind: 'w', segment: { kind: 'w', text: 'Anfang', strong: 'H7225' }, color: '#ff0' },
+			{ kind: 'text', text: ' ', color: null },
+			{ kind: 'text', text: 'schuf', color: null }
+		]);
+	});
+
+	it('splits a plain run at the word boundary instead of colouring the whole segment', () => {
+		const ranges: HighlightRange[] = [{ start: 1, end: 1, color: '#ff0' }];
+		const cursor = initHighlightCursor();
+		const chunks = highlightSegments(['eins zwei drei'], ranges, cursor);
+		expect(chunks).toEqual([
+			{ kind: 'text', text: 'eins', color: null },
+			{ kind: 'text', text: ' ', color: null },
+			{ kind: 'text', text: 'zwei', color: '#ff0' },
+			{ kind: 'text', text: ' ', color: null },
+			{ kind: 'text', text: 'drei', color: null }
+		]);
+	});
+
+	it('keeps a word and its glued punctuation the same colour', () => {
+		const ranges: HighlightRange[] = [{ start: 0, end: 0, color: '#ff0' }];
+		const cursor = initHighlightCursor();
+		const chunks = highlightSegments(
+			[{ kind: 'w', text: 'Jesus', strong: 'G2424' }, '?'],
+			ranges,
+			cursor
+		);
+		expect(chunks).toEqual([
+			{ kind: 'w', segment: { kind: 'w', text: 'Jesus', strong: 'G2424' }, color: '#ff0' },
+			{ kind: 'text', text: '?', color: '#ff0' }
+		]);
+	});
+
+	it('continues the word index across a wordOffset, for a verse split into lead and remainder', () => {
+		const ranges: HighlightRange[] = [{ start: 1, end: 1, color: '#ff0' }];
+		const cursor = initHighlightCursor(1);
+		const chunks = highlightSegments(['schuf'], ranges, cursor);
+		expect(chunks).toEqual([{ kind: 'text', text: 'schuf', color: '#ff0' }]);
+	});
+
+	it('never colours a footnote or a line break', () => {
+		const ranges: HighlightRange[] = [{ start: 0, end: 5, color: '#ff0' }];
+		const cursor = initHighlightCursor();
+		const chunks = highlightSegments(
+			['eins', { kind: 'note', marker: '1', text: 'x' }, { kind: 'br' }, 'zwei'],
+			ranges,
+			cursor
+		);
+		expect(chunks).toEqual([
+			{ kind: 'text', text: 'eins', color: '#ff0' },
+			{ kind: 'note', segment: { kind: 'note', marker: '1', text: 'x' } },
+			{ kind: 'br' },
+			{ kind: 'text', text: 'zwei', color: '#ff0' }
+		]);
+	});
+});
+
+describe('wordRangeForCharSpan', () => {
+	const text = 'Im Anfang schuf Gott Himmel und Erde.';
+
+	it('maps a single selected word to its own index', () => {
+		const start = text.indexOf('Anfang');
+		expect(wordRangeForCharSpan(text, start, start + 'Anfang'.length)).toEqual({
+			start: 1,
+			end: 1
+		});
+	});
+
+	it('expands to every word the character span touches', () => {
+		const start = text.indexOf('schuf');
+		const end = text.indexOf('Himmel') + 'Himmel'.length;
+		expect(wordRangeForCharSpan(text, start, end)).toEqual({ start: 2, end: 4 });
+	});
+
+	it('returns null for a span that only covers whitespace', () => {
+		const start = text.indexOf('Im') + 'Im'.length;
+		expect(wordRangeForCharSpan(text, start, start + 1)).toBeNull();
+	});
+
+	it('covers the whole verse when the span is the full text', () => {
+		expect(wordRangeForCharSpan(text, 0, text.length)).toEqual({
+			start: 0,
+			end: countVerseWords([text]) - 1
+		});
 	});
 });
 
