@@ -107,6 +107,23 @@ Text und Highlight-Zustand an `openAt()`; so werden nicht hunderte Menüs und Fo
 gerendert. Highlights werden optimistisch in `streamChapters` aktualisiert, Listenmarkierungen im
 reaktiven `marks`-Set.
 
+Eine Markierung (`verse_highlights`) gilt entweder für den ganzen Vers und damit für alle
+Übersetzungen (`resource_id`, `start_word`, `end_word` alle `NULL` — das ist auch die Form, in der
+jede Markierung aus der Zeit vor dieser Unterscheidung existiert und weiterhin funktioniert), oder für
+einen Wortbereich innerhalb genau einer Übersetzung (`resource_id` gesetzt, `start_word`/`end_word`
+inklusiv und 0-basiert). Zwei sich überlappende, aber nicht exakt gleiche Bereiche sind unabhängige
+Zeilen und malen sich beim Rendern einfach übereinander; es findet keine Zusammenführung statt. Ein
+Wort ist dabei kein eigenes Segment, sondern ein Lauf ohne Leerzeichen in der von `segmentsToText()`
+erzeugten Reihenfolge — `countVerseWords()`/`highlightSegment()` in `src/lib/bible/segments.ts` zählen
+und färben danach, damit ein direkt angehängtes Satzzeichen zum selben Wort wie das Tag-Wort davor
+zählt. `VerseMenu.openForSelection()` öffnet dieselbe Menü-Instanz für eine Wortauswahl statt für einen
+Versnummer-Klick; sie zeigt dann nur die Farbfelder, skaliert auf genau diesen Bereich. Deckt die
+Auswahl den kompletten Vers ab, behandelt der Reader sie wie den bisherigen Versnummer-Klick
+(`resource_id` bleibt `NULL`) — das entscheidet sowohl der Client (`+page.svelte`) als auch, erneut,
+der Server in `setVerseHighlight()`, der eine Auswahl nie ungeprüft persistiert. `VerseText.svelte`
+erhält dafür optional `highlights` (Bereiche mit Farbe) und `wordOffset`; letzteres hält den
+Wortindex über `splitVerseLead()`s Aufteilung in Vers-Anfang und -Rest hinweg konsistent.
+
 Private Kommentare hängen eindeutig an Benutzer, Vers und Bibelressource (`verse_comments`); pro
 Kombination existiert höchstens einer. Sie werden mit den endlos nachgeladenen Kapiteln geladen und
 erscheinen innerhalb ihrer `.verse-comment-row` unterhalb des Verses. `CommentToggle.svelte` steht am

@@ -57,7 +57,12 @@
 					</a>
 					{#if item.segments}
 						<p class="scripture-sized mt-1 font-serif leading-relaxed">
-							<VerseText segments={item.segments} />
+							<VerseText
+								segments={item.segments}
+								highlights={item.startWord !== null && item.endWord !== null
+									? [{ start: item.startWord, end: item.endWord, color: data.style.color }]
+									: []}
+							/>
 						</p>
 					{/if}
 				</li>
