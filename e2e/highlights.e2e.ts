@@ -111,6 +111,16 @@ test('a partial highlight applies only in the translation it was selected in', a
 	);
 	await expect(seeddeHighlight.first()).toHaveCSS('background-color', 'rgb(255, 241, 198)');
 
+	// "er seinen" is two words plus the space between them; the space must be its own highlighted
+	// run too ("er", " ", "seinen"), so the highlight reads as one continuous phrase instead of two
+	// separate words with a gap.
+	await expect(seeddeHighlight).toHaveCount(3);
+	for (const color of await seeddeHighlight.evaluateAll((elements) =>
+		elements.map((element) => getComputedStyle(element).backgroundColor)
+	)) {
+		expect(color).toBe('rgb(255, 241, 198)');
+	}
+
 	const seedplainHighlight = page.locator(
 		'.flow-column[data-resource-id="SEEDPLAIN"] [data-verse-key="43:3:16"] .partial-highlight'
 	);
