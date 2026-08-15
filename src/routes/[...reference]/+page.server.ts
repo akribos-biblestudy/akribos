@@ -51,7 +51,8 @@ import { listHighlightStyles } from '$lib/server/repositories/highlight-styles';
 import {
 	loadChapterHighlights,
 	removeVerseHighlight,
-	setVerseHighlight
+	setVerseHighlight,
+	type WordRange
 } from '$lib/server/repositories/verse-highlights';
 
 /**
@@ -388,8 +389,15 @@ export const actions = {
 		return { removed: true, listId: access.list.id };
 	},
 
-	/** Picking a colour from the verse menu's swatches. Silently ignored for a style that is not the
-	 *  signed-in reader's own — there is nothing a reader could usefully be told there. */
+	/**
+	 * Picking a colour from the verse menu's swatches. Silently ignored for a style that is not the
+	 * signed-in reader's own — there is nothing a reader could usefully be told there.
+	 *
+	 * `resourceId`/`startWord`/`endWord` are present only when the swatch was picked for a text
+	 * selection rather than the whole verse; `wordRangeFromForm()` also re-validates them, so a
+	 * tampered request can at worst end up a no-op or a whole-verse highlight, never an out-of-bounds
+	 * one.
+	 */
 	setHighlight: async ({ request, locals }) => {
 		if (!locals.user) redirect(303, '/login');
 
@@ -402,12 +410,13 @@ export const actions = {
 			getDb(),
 			locals.user.id,
 			{ ...reference, verse: reference.verse },
-			styleId
+			styleId,
+			wordRangeFromForm(form)
 		);
 		return { highlighted: true };
 	},
 
-	/** Clicking an already-active swatch again, to clear the verse's highlight. */
+	/** Clicking an already-active swatch again, to clear the verse's (or the selected section's) highlight. */
 	removeHighlight: async ({ request, locals }) => {
 		if (!locals.user) redirect(303, '/login');
 
@@ -415,10 +424,27 @@ export const actions = {
 		const reference = parseReference(String(form.get('reference') ?? ''));
 		if (!reference?.verse) return fail(400, { error: 'reference' });
 
-		await removeVerseHighlight(getDb(), locals.user.id, { ...reference, verse: reference.verse });
+		await removeVerseHighlight(
+			getDb(),
+			locals.user.id,
+			{ ...reference, verse: reference.verse },
+			wordRangeFromForm(form)
+		);
 		return { highlighted: true };
 	}
 };
+
+/** Reads the optional partial-highlight fields the verse menu sends for a text selection. */
+function wordRangeFromForm(form: FormData): WordRange | null {
+	const resourceId = form.get('resourceId');
+	if (resourceId === null) return null;
+
+	const start = Number(form.get('startWord'));
+	const end = Number(form.get('endWord'));
+	if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) return null;
+
+	return { resourceId: String(resourceId), start, end };
+}
 
 /**
  * Some old browsers and bookmarked links percent-encode non-ASCII characters as Latin-1 (e.g. "ö" as

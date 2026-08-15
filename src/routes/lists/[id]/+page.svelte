@@ -47,7 +47,7 @@
 
 <main class="mx-auto w-full max-w-3xl space-y-6 px-4 py-8">
 	<nav class="text-sm">
-		<Button href="/account#lists" size="sm" variant="secondary">
+		<Button href="/account?tab=lists" size="sm" variant="secondary">
 			← {t('lists.backToOverview')}
 		</Button>
 	</nav>

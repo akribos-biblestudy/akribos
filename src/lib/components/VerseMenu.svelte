@@ -47,6 +47,9 @@
 	let onHighlightChange: ((styleId: string | null) => void) | undefined;
 	let commentResource: { id: string; name: string } | null = $state(null);
 	let onAddComment: (() => void) | undefined;
+	/** Set only when the menu was opened for a text selection rather than a verse-number click; then
+	 *  it shows nothing but the highlight swatches, scoped to this one translation's word range. */
+	let selection = $state<{ resourceId: string; start: number; end: number } | null>(null);
 
 	/**
 	 * `highlight` is the style currently on this verse, if any (null for none); `onChange` fires
@@ -70,6 +73,32 @@
 		onHighlightChange = onChange;
 		commentResource = resource;
 		onAddComment = addComment;
+		selection = null;
+		menu?.openAt(anchor);
+	}
+
+	/**
+	 * Opens the menu for a word range selected inside one translation's own text — everything except
+	 * the highlight swatches would be meaningless here (there is no single verse to show/copy/list),
+	 * so the template hides it while `selection` is set. `highlight` is the style already on this
+	 * exact range, if any; a selection that does not match a stored range shows no active swatch,
+	 * since picking a colour then creates a new section rather than replacing an unrelated one.
+	 */
+	export function openForSelection(
+		anchor: HTMLElement,
+		next: VerseContext,
+		range: { resourceId: string; start: number; end: number },
+		highlight: string | null,
+		onChange: (styleId: string | null) => void
+	): void {
+		context = next;
+		verse = 0;
+		copied = null;
+		activeStyleId = highlight;
+		onHighlightChange = onChange;
+		commentResource = null;
+		onAddComment = undefined;
+		selection = range;
 		menu?.openAt(anchor);
 	}
 
@@ -107,33 +136,37 @@
 
 <Menu bind:this={menu} label={context ? t('verse.menu', { reference: context.label }) : ''}>
 	{#if context}
-		<p class="menu-label">{context.label}</p>
+		{#if selection}
+			<p class="menu-label">{t('highlights.selectionLabel')}</p>
+		{:else}
+			<p class="menu-label">{context.label}</p>
 
-		<button
-			type="button"
-			role="menuitem"
-			onclick={() => {
-				menu?.close();
-				void goto(context!.path);
-			}}
-		>
-			{t('verse.showOnly')}
-		</button>
+			<button
+				type="button"
+				role="menuitem"
+				onclick={() => {
+					menu?.close();
+					void goto(context!.path);
+				}}
+			>
+				{t('verse.showOnly')}
+			</button>
 
-		<button
-			type="button"
-			role="menuitem"
-			onclick={() => copy('text', `${context!.label}\n${context!.text}`)}
-		>
-			{copied === 'text' ? t('action.copied') : t('verse.copyText')}
-		</button>
+			<button
+				type="button"
+				role="menuitem"
+				onclick={() => copy('text', `${context!.label}\n${context!.text}`)}
+			>
+				{copied === 'text' ? t('action.copied') : t('verse.copyText')}
+			</button>
 
-		<button type="button" role="menuitem" onclick={() => copy('link', linkUrl)}>
-			{copied === 'link' ? t('action.copied') : t('verse.copyLink')}
-		</button>
+			<button type="button" role="menuitem" onclick={() => copy('link', linkUrl)}>
+				{copied === 'link' ? t('action.copied') : t('verse.copyLink')}
+			</button>
+		{/if}
 
 		{#if signedIn && highlightStyles.length > 0}
-			<hr />
+			{#if !selection}<hr />{/if}
 			<p class="menu-label">{t('highlights.menuLabel')}</p>
 			<div class="swatches" role="none">
 				{#each highlightStyles as style (style.id)}
@@ -148,6 +181,11 @@
 						}}
 					>
 						<input type="hidden" name="reference" value={context.reference} />
+						{#if selection}
+							<input type="hidden" name="resourceId" value={selection.resourceId} />
+							<input type="hidden" name="startWord" value={selection.start} />
+							<input type="hidden" name="endWord" value={selection.end} />
+						{/if}
 						{#if !active}<input type="hidden" name="styleId" value={style.id} />{/if}
 						<button
 							type="submit"
@@ -163,7 +201,9 @@
 			</div>
 		{/if}
 
-		{#if signedIn && commentResource}
+		{#if selection}
+			<!-- Nothing else applies to a bare word selection: no single verse to show/copy/list. -->
+		{:else if signedIn && commentResource}
 			<hr />
 			<button
 				type="button"
@@ -177,76 +217,78 @@
 			</button>
 		{/if}
 
-		<hr />
+		{#if !selection}
+			<hr />
 
-		{#if !signedIn}
-			<a role="menuitem" href="/login?redirectTo={encodeURIComponent(page.url.pathname)}">
-				{t('verse.signInToSave')}
-			</a>
-		{:else}
-			<p class="menu-label">{t('lists.title')}</p>
+			{#if !signedIn}
+				<a role="menuitem" href="/login?redirectTo={encodeURIComponent(page.url.pathname)}">
+					{t('verse.signInToSave')}
+				</a>
+			{:else}
+				<p class="menu-label">{t('lists.title')}</p>
 
-			{#each lists as list (list.id)}
-				{@const present = inList.has(list.id)}
+				{#each lists as list (list.id)}
+					{@const present = inList.has(list.id)}
+					<form
+						method="POST"
+						action={present ? '?/removeFromList' : '?/addToList'}
+						role="none"
+						use:enhance={() => {
+							mark(list.id, !present);
+							menu?.close();
+							// The chapter itself has not changed, so nothing needs re-fetching.
+							return async ({ update }) => update({ reset: false, invalidateAll: false });
+						}}
+					>
+						<input type="hidden" name="listId" value={list.id} />
+						<input type="hidden" name="reference" value={context.reference} />
+						<button
+							type="submit"
+							role="menuitem"
+							title={present ? t('lists.removeVerse') : t('lists.addVerse')}
+						>
+							<span class="truncate">{list.title}</span>
+							{#if present}
+								<svg
+									viewBox="0 0 20 20"
+									class="menu-check size-4 shrink-0"
+									fill="currentColor"
+									aria-hidden="true"
+								>
+									<path
+										fill-rule="evenodd"
+										d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0l-3.5-3.5a1 1 0 0 1 1.4-1.4l2.8 2.8 6.8-6.8a1 1 0 0 1 1.4 0Z"
+									/>
+								</svg>
+							{/if}
+						</button>
+					</form>
+				{/each}
+
+				<!-- The first verse a reader wants to keep is the moment they need a list, so the list is
+			     created here rather than on the settings page. -->
 				<form
 					method="POST"
-					action={present ? '?/removeFromList' : '?/addToList'}
+					action="?/addToList"
 					role="none"
 					use:enhance={() => {
-						mark(list.id, !present);
 						menu?.close();
-						// The chapter itself has not changed, so nothing needs re-fetching.
-						return async ({ update }) => update({ reset: false, invalidateAll: false });
+						return async ({ update }) => update({ reset: false });
 					}}
 				>
-					<input type="hidden" name="listId" value={list.id} />
+					<input type="hidden" name="listId" value="" />
 					<input type="hidden" name="reference" value={context.reference} />
-					<button
-						type="submit"
-						role="menuitem"
-						title={present ? t('lists.removeVerse') : t('lists.addVerse')}
-					>
-						<span class="truncate">{list.title}</span>
-						{#if present}
-							<svg
-								viewBox="0 0 20 20"
-								class="menu-check size-4 shrink-0"
-								fill="currentColor"
-								aria-hidden="true"
-							>
-								<path
-									fill-rule="evenodd"
-									d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0l-3.5-3.5a1 1 0 0 1 1.4-1.4l2.8 2.8 6.8-6.8a1 1 0 0 1 1.4 0Z"
-								/>
-							</svg>
-						{/if}
+					<input type="hidden" name="title" value={context.label} />
+					<button type="submit" role="menuitem" class="new-list">
+						<svg viewBox="0 0 20 20" class="size-4 shrink-0" fill="currentColor" aria-hidden="true">
+							<path
+								d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"
+							/>
+						</svg>
+						{t('lists.newWithVerse')}
 					</button>
 				</form>
-			{/each}
-
-			<!-- The first verse a reader wants to keep is the moment they need a list, so the list is
-			     created here rather than on the settings page. -->
-			<form
-				method="POST"
-				action="?/addToList"
-				role="none"
-				use:enhance={() => {
-					menu?.close();
-					return async ({ update }) => update({ reset: false });
-				}}
-			>
-				<input type="hidden" name="listId" value="" />
-				<input type="hidden" name="reference" value={context.reference} />
-				<input type="hidden" name="title" value={context.label} />
-				<button type="submit" role="menuitem" class="new-list">
-					<svg viewBox="0 0 20 20" class="size-4 shrink-0" fill="currentColor" aria-hidden="true">
-						<path
-							d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"
-						/>
-					</svg>
-					{t('lists.newWithVerse')}
-				</button>
-			</form>
+			{/if}
 		{/if}
 	{/if}
 </Menu>

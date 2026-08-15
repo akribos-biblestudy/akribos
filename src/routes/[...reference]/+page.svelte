@@ -5,7 +5,12 @@
 	import { onDestroy, tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { formatReference, referencePath, type VerseRef } from '$lib/bible/reference';
-	import { segmentsToText, splitVerseLead } from '$lib/bible/segments';
+	import {
+		countVerseWords,
+		segmentsToText,
+		splitVerseLead,
+		wordRangeForCharSpan
+	} from '$lib/bible/segments';
 	import { readerLocation, setJumpToVerse } from '$lib/reader-location.svelte';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
 	import { t } from '$lib/i18n';
@@ -295,6 +300,39 @@
 		widthsForm.requestSubmit();
 	}
 
+	/** Opens the whole-verse menu (verse-number click, or a selection covering the entire verse). */
+	function openVerseMenuForWholeVerse(
+		anchor: HTMLElement,
+		book: number,
+		chapter: number,
+		verse: number,
+		verseEnd: number | null,
+		segments: Parameters<typeof segmentsToText>[0],
+		resource: { id: string; name: string }
+	) {
+		const reference = {
+			book,
+			chapter,
+			verse,
+			...(verseEnd && verseEnd > verse ? { verseEnd } : {})
+		};
+
+		verseMenu?.openAt(
+			anchor,
+			verse,
+			{
+				reference: formatReference(reference),
+				label: formatReference(reference, { style: 'full' }),
+				path: referencePath(reference),
+				text: segmentsToText(segments)
+			},
+			highlightByKey.get(`${book}:${chapter}:${verse}`)?.styleId ?? null,
+			(styleId) => updateStreamHighlight(book, chapter, verse, styleId),
+			resource,
+			() => openVerseComment(book, chapter, verse, resource.id)
+		);
+	}
+
 	/**
 	 * Opens the verse menu, unless the reader meant to use the link.
 	 *
@@ -315,28 +353,149 @@
 		}
 
 		event.preventDefault();
+		openVerseMenuForWholeVerse(
+			event.currentTarget,
+			book,
+			chapter,
+			verse,
+			verseEnd,
+			segments,
+			resource
+		);
+	}
+
+	/** A throwaway, invisible element positioned over the current text selection, so `VerseMenu` (which
+	 *  anchors to a real element) can open next to a selection instead of a clicked verse number. */
+	let selectionAnchorEl: HTMLElement | null = null;
+
+	function anchorSelectionRect(rect: DOMRect): HTMLElement {
+		selectionAnchorEl?.remove();
+		const el = document.createElement('span');
+		el.style.position = 'fixed';
+		el.style.left = `${rect.left}px`;
+		el.style.top = `${rect.top}px`;
+		el.style.width = `${Math.max(rect.width, 1)}px`;
+		el.style.height = `${Math.max(rect.height, 1)}px`;
+		el.style.pointerEvents = 'none';
+		el.tabIndex = -1;
+		el.setAttribute('aria-hidden', 'true');
+		document.body.appendChild(el);
+		selectionAnchorEl = el;
+		return el;
+	}
+
+	/**
+	 * Turns a mouse or touch text selection inside one translation's verse text into a highlight menu.
+	 *
+	 * A selection covering the whole verse behaves exactly like clicking the verse number (applies to
+	 * every translation); anything narrower opens the selection-only menu, scoped to that one
+	 * translation's word range. Selections that are collapsed, land outside a verse, span more than one
+	 * verse, or cannot be matched back onto the verse's own text (e.g. they touch only whitespace) are
+	 * silently ignored — a reader can still use the verse-number menu for anything this misses.
+	 */
+	function onVerseTextSelection() {
+		if (!data.user) return;
+		const selection = window.getSelection();
+		if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+
+		const rawSelectedText = selection.toString();
+		const selectedText = rawSelectedText.replace(/\s+/g, ' ').trim();
+		if (!selectedText) return;
+
+		const range = selection.getRangeAt(0);
+		const container = range.commonAncestorContainer;
+		const element = container instanceof Element ? container : container.parentElement;
+		const verseEl = element?.closest<HTMLElement>('.flow-verse[data-verse-key]');
+		const columnEl = element?.closest<HTMLElement>('.flow-column[data-resource-id]');
+		if (!verseEl || !columnEl) return;
+
+		const [rawBook, rawChapter, rawVerse] = (verseEl.dataset.verseKey ?? '').split(':');
+		const book = Number(rawBook);
+		const chapter = Number(rawChapter);
+		const verse = Number(rawVerse);
+		const resourceId = columnEl.dataset.resourceId ?? '';
+		if (![book, chapter, verse].every(Number.isInteger) || !resourceId) return;
+
+		const stream = streamChapters.find(
+			(candidate) => candidate.reference.book === book && candidate.reference.chapter === chapter
+		);
+		const column = data.columns.find((candidate) => candidate.resource.id === resourceId);
+		const row = stream?.chapter.rows.find((candidate) => candidate.verse === verse);
+		const cell =
+			column?.bibleCellIndex != null ? (row?.cells[column.bibleCellIndex] ?? null) : null;
+		if (!stream || !column || !cell) return;
+
+		const flattened = segmentsToText(cell.segments);
+		const charStart = flattened.indexOf(selectedText);
+		if (charStart < 0) return;
+		const wordRange = wordRangeForCharSpan(flattened, charStart, charStart + selectedText.length);
+		if (!wordRange) return;
+
+		const rect = range.getBoundingClientRect();
+		if (rect.width === 0 && rect.height === 0) return;
+		const anchor = anchorSelectionRect(rect);
+		selection.removeAllRanges();
+
+		const resource = { id: column.resource.id, name: column.resource.tabTitle };
+		const wordCount = countVerseWords(cell.segments);
+		if (wordRange.start === 0 && wordRange.end === wordCount - 1) {
+			openVerseMenuForWholeVerse(
+				anchor,
+				book,
+				chapter,
+				verse,
+				cell.verseEnd,
+				cell.segments,
+				resource
+			);
+			return;
+		}
+
 		const reference = {
 			book,
 			chapter,
 			verse,
-			...(verseEnd && verseEnd > verse ? { verseEnd } : {})
+			...(cell.verseEnd && cell.verseEnd > verse ? { verseEnd: cell.verseEnd } : {})
 		};
+		const activeStyleId =
+			partialHighlightsByKey
+				.get(`${book}:${chapter}:${verse}:${resourceId}`)
+				?.find((entry) => entry.start === wordRange.start && entry.end === wordRange.end)
+				?.styleId ?? null;
 
-		verseMenu?.openAt(
-			event.currentTarget,
-			verse,
+		verseMenu?.openForSelection(
+			anchor,
 			{
 				reference: formatReference(reference),
 				label: formatReference(reference, { style: 'full' }),
 				path: referencePath(reference),
-				text: segmentsToText(segments)
+				text: rawSelectedText
 			},
-			highlightByKey.get(`${book}:${chapter}:${verse}`)?.styleId ?? null,
-			(styleId) => updateStreamHighlight(book, chapter, verse, styleId),
-			resource,
-			() => openVerseComment(book, chapter, verse, resource.id)
+			{ resourceId, start: wordRange.start, end: wordRange.end },
+			activeStyleId,
+			(styleId) =>
+				updatePartialHighlight(
+					book,
+					chapter,
+					verse,
+					resourceId,
+					wordRange.start,
+					wordRange.end,
+					styleId
+				)
 		);
 	}
+
+	$effect(() => {
+		document.addEventListener('mouseup', onVerseTextSelection);
+		document.addEventListener('touchend', onVerseTextSelection);
+		return () => {
+			document.removeEventListener('mouseup', onVerseTextSelection);
+			document.removeEventListener('touchend', onVerseTextSelection);
+		};
+	});
+
+	onDestroy(() => selectionAnchorEl?.remove());
 
 	/** Which column a reader is looking at on a phone, where only one fits. */
 	let mobileColumn = $state(0);
@@ -392,6 +551,13 @@
 
 	/** Strong's number shown in the study sidebar, kept in the URL hash so it can be shared. */
 	let activeStrong = $state<{ strong: string; word: string; reference: string } | null>(null);
+
+	/**
+	 * Strong's number currently under the mouse, highlighted the same way as `activeStrong` but
+	 * without opening the sidebar or touching the URL/history. Cleared again on pointer leave; see
+	 * `VerseText.svelte` for why this uses pointer events rather than `mouseenter`/`mouseleave`.
+	 */
+	let hoverStrong = $state<string | null>(null);
 
 	/**
 	 * Restores the sidebar from the browser's real URL after a navigation.
@@ -539,20 +705,45 @@
 		);
 	}
 
-	/** Every highlighted verse across every loaded chapter, keyed like `data-verse-key`. */
+	/** Every whole-verse highlight across every loaded chapter, keyed like `data-verse-key`. Partial,
+	 *  translation-specific highlights are looked up separately through `partialHighlightsByKey`. */
 	const highlightByKey = $derived(
 		new Map(
 			streamChapters.flatMap((stream) =>
-				stream.highlights.map(
-					(highlight) =>
-						[
-							`${stream.reference.book}:${stream.reference.chapter}:${highlight.verse}`,
-							highlight
-						] as const
-				)
+				stream.highlights
+					.filter((highlight) => highlight.resourceId === null)
+					.map(
+						(highlight) =>
+							[
+								`${stream.reference.book}:${stream.reference.chapter}:${highlight.verse}`,
+								highlight
+							] as const
+					)
 			)
 		)
 	);
+
+	/** Translation-specific highlighted word ranges, keyed like `data-verse-key` plus the resource id,
+	 *  each verse+resource possibly carrying several distinct coloured sections. */
+	const partialHighlightsByKey = $derived.by(() => {
+		const grouped: Record<
+			string,
+			{ start: number; end: number; color: string; styleId: string }[]
+		> = {};
+		for (const stream of streamChapters) {
+			for (const highlight of stream.highlights) {
+				if (highlight.resourceId === null) continue;
+				const key = `${stream.reference.book}:${stream.reference.chapter}:${highlight.verse}:${highlight.resourceId}`;
+				(grouped[key] ??= []).push({
+					start: highlight.startWord!,
+					end: highlight.endWord!,
+					color: highlight.color,
+					styleId: highlight.styleId
+				});
+			}
+		}
+		return new Map(Object.entries(grouped));
+	});
 
 	/** Applies a verse-menu highlight pick to whichever loaded chapter the verse belongs to, so the
 	 *  colour appears at once instead of after a reload. */
@@ -567,12 +758,62 @@
 		);
 		if (!stream) return;
 
-		stream.highlights = stream.highlights.filter((highlight) => highlight.verse !== verse);
+		stream.highlights = stream.highlights.filter(
+			(highlight) => !(highlight.verse === verse && highlight.resourceId === null)
+		);
 		const style = styleId
 			? data.highlightStyles.find((candidate) => candidate.id === styleId)
 			: undefined;
 		if (style)
-			stream.highlights.push({ verse, styleId: style.id, color: style.color, name: style.name });
+			stream.highlights.push({
+				verse,
+				styleId: style.id,
+				color: style.color,
+				name: style.name,
+				resourceId: null,
+				startWord: null,
+				endWord: null
+			});
+	}
+
+	/** Same idea as `updateStreamHighlight`, but for one translation-specific word range, which does
+	 *  not replace any other section of the same verse — only the exact same range. */
+	function updatePartialHighlight(
+		book: number,
+		chapter: number,
+		verse: number,
+		resourceId: string,
+		start: number,
+		end: number,
+		styleId: string | null
+	): void {
+		const stream = streamChapters.find(
+			(candidate) => candidate.reference.book === book && candidate.reference.chapter === chapter
+		);
+		if (!stream) return;
+
+		stream.highlights = stream.highlights.filter(
+			(highlight) =>
+				!(
+					highlight.verse === verse &&
+					highlight.resourceId === resourceId &&
+					highlight.startWord === start &&
+					highlight.endWord === end
+				)
+		);
+		const style = styleId
+			? data.highlightStyles.find((candidate) => candidate.id === styleId)
+			: undefined;
+		if (style)
+			stream.highlights.push({
+				verse,
+				styleId: style.id,
+				color: style.color,
+				name: style.name,
+				resourceId,
+				startWord: start,
+				endWord: end
+			});
 	}
 	let flowColumns = $state<HTMLElement[]>([]);
 	let loadingPrevious = $state(false);
@@ -1268,6 +1509,7 @@
 						<div
 							bind:this={flowColumns[columnIndex]}
 							data-flow-column-index={columnIndex}
+							data-resource-id={column.resource.id}
 							class="flow-column"
 							class:hidden-on-mobile={columnIndex !== mobileColumn}
 							role={isMobileViewport ? 'tabpanel' : 'region'}
@@ -1298,9 +1540,14 @@
 										{/if}
 										{#if column.resource.kind === 'bible' && cell}
 											{@const [leadSegments, remainingSegments] = splitVerseLead(cell.segments)}
+											{@const leadWordCount = countVerseWords(leadSegments)}
 											{@const mark = highlightByKey.get(
 												`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}`
 											)}
+											{@const partial =
+												partialHighlightsByKey.get(
+													`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}:${column.resource.id}`
+												) ?? []}
 											{@const comment = verseCommentAt(stream, column.resource.id, cell.verse)}
 											{@const commentKey = verseCommentKey(
 												stream.reference.book,
@@ -1414,6 +1661,9 @@
 																		stream.reference.chapter
 																	)}
 																activeStrong={activeStrong?.strong ?? null}
+																highlights={partial}
+																{hoverStrong}
+																onStrongHover={(strong) => (hoverStrong = strong)}
 															/></span
 														></span
 													><span
@@ -1432,6 +1682,10 @@
 																	stream.reference.chapter
 																)}
 															activeStrong={activeStrong?.strong ?? null}
+															highlights={partial}
+															wordOffset={leadWordCount}
+															{hoverStrong}
+															onStrongHover={(strong) => (hoverStrong = strong)}
 														/>
 													</span>
 													{#if data.user && comment}
