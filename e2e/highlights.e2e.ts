@@ -163,6 +163,52 @@ test('selecting an entire verse highlights it for every translation, like the ve
 	await expect(seedplainVerse).toHaveCSS('background-color', 'rgb(255, 241, 198)');
 });
 
+/**
+ * Perceptual lightness (0 dark, 1 light) of a computed `color` value, whichever notation the browser
+ * serialized it in — recent Chromium reports `oklch(L C H)` for colors declared via modern CSS color
+ * functions, where `L` already is that lightness, rather than `rgb(r g b)`.
+ */
+function lightness(color: string): number {
+	const oklch = /^oklch\(([\d.]+)/.exec(color);
+	if (oklch) return Number(oklch[1]);
+	const [r, g, b] = color
+		.match(/\d+/g)!
+		.slice(0, 3)
+		.map((value) => Number(value) / 255);
+	return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+}
+
+test('highlighted text stays dark, readable ink in dark mode, not the light body text color', async ({
+	page
+}) => {
+	await register(page, uniqueEmail());
+
+	await page.goto('/Joh3');
+	await selectVerseText(page, 'SEEDDE', '43:3:16', 'er seinen');
+	await page.locator('.swatches .swatch').first().click();
+
+	const partialHighlight = page
+		.locator('.flow-column[data-resource-id="SEEDDE"] [data-verse-key="43:3:16"] .partial-highlight')
+		.first();
+	const wholeVerse = page.locator(
+		'.flow-column[data-resource-id="SEEDDE"] [data-verse-key="43:3:17"]'
+	);
+	await selectVerseText(page, 'SEEDDE', '43:3:17');
+	await page.locator('.swatches .swatch').first().click();
+
+	await page.getByRole('button', { name: 'Dunkles Design' }).click();
+
+	// The dark-mode body text color is light; a highlighted run must not inherit it, since the
+	// highlighter palette stays light pastel backgrounds in every theme.
+	const bodyColor = await page.evaluate(() => getComputedStyle(document.body).color);
+	expect(lightness(bodyColor)).toBeGreaterThan(0.7);
+
+	const partialColor = await partialHighlight.evaluate((el) => getComputedStyle(el).color);
+	const wholeVerseColor = await wholeVerse.evaluate((el) => getComputedStyle(el).color);
+	expect(lightness(partialColor)).toBeLessThan(0.4);
+	expect(lightness(wholeVerseColor)).toBeLessThan(0.4);
+});
+
 test('a whole-verse highlight created before partial highlights existed keeps applying to every translation', async ({
 	page
 }) => {

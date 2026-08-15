@@ -112,6 +112,7 @@
 			class="strong"
 			class:active={matchesStrong(item.segment, activeStrong) ||
 				matchesStrong(item.segment, hoverStrong)}
+			class:has-highlight={item.color}
 			data-strong={item.segment.strong}
 			title={item.segment.morph ?? undefined}
 			style:background-color={item.color}
@@ -124,7 +125,7 @@
 			}}>{item.segment.text}</button
 		>
 	{:else if item.kind === 'em'}
-		<em style:background-color={item.color}>{item.text}</em>
+		<em class:has-highlight={item.color} style:background-color={item.color}>{item.text}</em>
 	{:else if item.kind === 'note'}
 		<Footnote marker={item.segment.marker} text={item.segment.text} />
 	{:else if item.kind === 'wj'}
@@ -194,8 +195,13 @@
 	}
 
 	/* A translation-specific highlight, painted directly on the run of text it covers rather than the
-	   whole `.flow-verse`, which is what a whole-verse highlight still uses. */
-	.partial-highlight {
+	   whole `.flow-verse`, which is what a whole-verse highlight still uses. The highlighter palette is
+	   made of light pastel backgrounds, so the text on top must stay dark ink in both themes — it must
+	   not follow the dark-mode body text color, which would turn light-on-light and unreadable. */
+	.partial-highlight,
+	.strong.has-highlight,
+	em.has-highlight {
 		border-radius: 0.15rem;
+		color: oklch(0.28 0.02 90);
 	}
 </style>
