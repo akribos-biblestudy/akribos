@@ -145,7 +145,7 @@ test('a wrong password is refused', async ({ page }) => {
 	await expect(page.getByRole('alert')).toContainText('falsch');
 });
 
-test('a verse list keeps its verses and notes', async ({ page }) => {
+test('a verse list keeps its verses and comments', async ({ page }) => {
 	await register(page, uniqueEmail());
 
 	// Create a list from the settings dashboard's "Verslisten & Kommentare" section.
@@ -160,25 +160,25 @@ test('a verse list keeps its verses and notes', async ({ page }) => {
 	await expect(page.getByRole('link', { name: 'Johannes 3,16' })).toBeVisible();
 	await expect(page.getByText('Denn also hat Gott', { exact: false })).toBeVisible();
 
-	// An empty list comment starts as a small bubble beside the verse and expands only on demand.
+	// A comment starts as a small "add" link beside the verse and becomes an editor on demand.
 	await page.getByRole('button', { name: 'Kommentar hinzufügen' }).click();
-	const noteForm = page.locator('form[action="?/saveNote"]');
-	const editor = noteForm.getByRole('textbox', { name: 'Kommentar' });
+	const commentForm = page.locator('form[action="?/comment"]');
+	const editor = commentForm.getByRole('textbox', { name: 'Kommentar' });
 	await editor.click();
 	await editor.fill('Der bekannteste Vers');
-	await noteForm.getByRole('button', { name: 'Speichern' }).click();
-	// The enhanced form action completes asynchronously; wait for its saved state before reloading.
-	await expect(page.locator('.comment-html')).toContainText('Der bekannteste Vers');
+	await commentForm.getByRole('button', { name: 'Speichern' }).click();
+	// The enhanced form action completes asynchronously; wait for the comment to render before
+	// reloading.
+	await expect(page.getByText('Der bekannteste Vers')).toBeVisible();
 
-	// The note survives a reload.
+	// The comment survives a reload, with its author's name attached.
 	await page.reload();
-	await expect(page.getByRole('button', { name: 'Kommentar bearbeiten' })).toHaveCount(0);
-	await page.getByRole('button', { name: 'Kommentar anzeigen' }).click();
-	await expect(page.locator('.comment-html')).toContainText('Der bekannteste Vers');
-	await page.getByRole('button', { name: 'Kommentar bearbeiten' }).click();
-	await expect(page.getByRole('textbox', { name: 'Kommentar' })).toContainText(
-		'Der bekannteste Vers'
-	);
+	await expect(page.getByText('Der bekannteste Vers')).toBeVisible();
+	await expect(page.getByText('E2E').first()).toBeVisible();
+
+	// Its author can delete it; only the author or the list's owner may (see AGENTS.md).
+	await page.getByRole('button', { name: 'Kommentar löschen' }).click();
+	await expect(page.getByText('Der bekannteste Vers')).toHaveCount(0);
 });
 
 test('reader comments belong to one verse and translation and become editable on click', async ({

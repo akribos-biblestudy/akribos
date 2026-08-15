@@ -22,6 +22,7 @@ import {
 	bigserial,
 	boolean,
 	check,
+	foreignKey,
 	index,
 	integer,
 	jsonb,
@@ -33,6 +34,7 @@ import {
 	uuid
 } from 'drizzle-orm/pg-core';
 import type { VerseSegment } from '../../bible/segments.ts';
+import { COMMENT_REACTION_EMOJIS } from '../../notes/reactions.ts';
 import { tsvector } from './types.ts';
 
 const timestamps = {
@@ -450,8 +452,14 @@ export const verseListItems = pgTable(
 		verse: integer('verse').notNull(),
 		/** Manual ordering within the list. */
 		position: integer('position').notNull().default(0),
-		/** Sanitised rich text. */
-		noteHtml: text('note_html'),
+		/**
+		 * Who added this verse. A member may only remove verses they added themselves; the list's
+		 * owner (`verse_lists.user_id`) may always remove any of them. Rows predating collaboration
+		 * were backfilled to the list owner (migration 0019, made required in 0020).
+		 */
+		addedByUserId: uuid('added_by_user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
 		...timestamps
 	},
 	(table) => [
@@ -464,6 +472,126 @@ export const verseListItems = pgTable(
 		)
 	]
 );
+
+/**
+ * Who else can see and add to a shared list, beyond its owner.
+ *
+ * The owner is not a row here — ownership is `verse_lists.user_id`, checked directly. A row appears
+ * only once an invite (`verse_list_invites`) has been accepted.
+ */
+export const verseListMembers = pgTable(
+	'verse_list_members',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		listId: uuid('list_id')
+			.notNull()
+			.references(() => verseLists.id, { onDelete: 'cascade' }),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		invitedByUserId: uuid('invited_by_user_id').references(() => users.id, {
+			onDelete: 'set null'
+		}),
+		...timestamps
+	},
+	(table) => [
+		uniqueIndex('verse_list_members_unique_idx').on(table.listId, table.userId),
+		index('verse_list_members_user_idx').on(table.userId)
+	]
+);
+
+export type VerseListMember = typeof verseListMembers.$inferSelect;
+
+/**
+ * A pending invitation to collaborate on a shared list, mailed to an address that may or may not
+ * already have an account. Same shape as `email_verifications` and `password_resets`: only the
+ * token's hash is stored, so the mailed link is the only copy.
+ */
+export const verseListInvites = pgTable(
+	'verse_list_invites',
+	{
+		/** SHA-256 of the token that was mailed out. */
+		id: text('id').primaryKey(),
+		listId: uuid('list_id')
+			.notNull()
+			.references(() => verseLists.id, { onDelete: 'cascade' }),
+		/** Stored lower-cased, same normalisation as `users.email`. */
+		email: text('email').notNull(),
+		invitedByUserId: uuid('invited_by_user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => [
+		index('verse_list_invites_list_idx').on(table.listId),
+		index('verse_list_invites_email_idx').on(table.email)
+	]
+);
+
+export type VerseListInvite = typeof verseListInvites.$inferSelect;
+
+/**
+ * A comment on a verse-list item, replacing the single `note_html` field a list item used to carry.
+ * `parent_comment_id` nests replies one or more levels deep, Reddit-style; a null parent is a
+ * top-level comment on the verse itself. Deleting a comment cascades to its replies.
+ *
+ * Existing `note_html` values were migrated into a root comment per item (migration 0019), authored
+ * by the list's owner, so no note was lost.
+ */
+export const verseListItemComments = pgTable(
+	'verse_list_item_comments',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		itemId: uuid('item_id')
+			.notNull()
+			.references(() => verseListItems.id, { onDelete: 'cascade' }),
+		parentCommentId: uuid('parent_comment_id'),
+		authorUserId: uuid('author_user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		/** Sanitised rich text, same allowlist as private verse comments. */
+		bodyHtml: text('body_html').notNull(),
+		...timestamps
+	},
+	(table) => [
+		index('verse_list_item_comments_item_idx').on(table.itemId, table.createdAt),
+		index('verse_list_item_comments_parent_idx').on(table.parentCommentId),
+		foreignKey({
+			columns: [table.parentCommentId],
+			foreignColumns: [table.id],
+			name: 'verse_list_item_comments_parent_fk'
+		}).onDelete('cascade')
+	]
+);
+
+export type VerseListItemComment = typeof verseListItemComments.$inferSelect;
+
+/**
+ * One reaction, one emoji, one user, one comment. The composite primary key is what makes "react
+ * again with the same emoji" a toggle: the app tries an insert and deletes the row instead when it
+ * already exists (see `toggleCommentReaction`).
+ */
+export const verseListItemCommentReactions = pgTable(
+	'verse_list_item_comment_reactions',
+	{
+		commentId: uuid('comment_id')
+			.notNull()
+			.references(() => verseListItemComments.id, { onDelete: 'cascade' }),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		emoji: text('emoji', { enum: COMMENT_REACTION_EMOJIS }).notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => [
+		primaryKey({ columns: [table.commentId, table.userId, table.emoji] }),
+		index('verse_list_item_comment_reactions_comment_idx').on(table.commentId)
+	]
+);
+
+export type VerseListItemCommentReaction = typeof verseListItemCommentReactions.$inferSelect;
 
 /**
  * One private rich-text comment per user, verse and Bible translation. Resources are only removed

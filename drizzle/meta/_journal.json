@@ -134,6 +134,27 @@
       "when": 1786360194903,
       "tag": "0018_unusual_shadow_king",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786782982577,
+      "tag": "0019_handy_prowler",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786782627447,
+      "tag": "0020_fast_venus",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1786782657155,
+      "tag": "0021_windy_sasquatch",
+      "breakpoints": true
     }
   ]
 }

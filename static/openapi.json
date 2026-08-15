@@ -929,26 +929,28 @@
 			},
 			"VerseListSummary": {
 				"type": "object",
-				"required": ["id", "title", "isPublic", "slug", "itemCount", "updatedAt"],
+				"required": ["id", "title", "isPublic", "slug", "itemCount", "updatedAt", "role", "ownerName"],
 				"properties": {
 					"id": { "type": "string", "format": "uuid" },
 					"title": { "type": "string" },
 					"isPublic": { "type": "boolean" },
 					"slug": { "type": ["string", "null"], "description": "Unguessable slug for the public link at `/l/{slug}`, set only while shared." },
 					"itemCount": { "type": "integer" },
-					"updatedAt": { "type": "string", "format": "date-time" }
+					"updatedAt": { "type": "string", "format": "date-time" },
+					"role": { "type": "string", "enum": ["owner", "member"], "description": "Whether the caller owns this list or was invited to collaborate on it." },
+					"ownerName": { "type": ["string", "null"], "description": "The owner's display name (or email), only set when `role` is `member`." }
 				}
 			},
 			"VerseListItem": {
 				"type": "object",
-				"required": ["id", "book", "chapter", "verse", "position", "noteHtml", "segments"],
+				"required": ["id", "book", "chapter", "verse", "position", "addedByUserId", "segments"],
 				"properties": {
 					"id": { "type": "string", "format": "uuid" },
 					"book": { "type": "integer" },
 					"chapter": { "type": "integer" },
 					"verse": { "type": "integer" },
 					"position": { "type": "integer" },
-					"noteHtml": { "type": ["string", "null"] },
+					"addedByUserId": { "type": "string", "format": "uuid", "description": "Who added this verse; only the list's owner may remove one they did not add themselves." },
 					"segments": {
 						"oneOf": [
 							{ "type": "array", "items": { "$ref": "#/components/schemas/VerseSegment" } },

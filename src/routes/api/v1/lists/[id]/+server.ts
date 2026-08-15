@@ -1,13 +1,19 @@
 import { json } from '@sveltejs/kit';
 import { getDb } from '$lib/server/db';
 import { listBibles } from '$lib/server/repositories/resources';
-import { findVerseList, loadVerseListItems } from '$lib/server/repositories/verse-lists';
+import {
+	findVerseList,
+	isListCollaborator,
+	loadVerseListItems
+} from '$lib/server/repositories/verse-lists';
 import { resolveApiIdentity } from '$lib/server/api/identity';
 import { apiError } from '$lib/server/api/errors';
 
 /**
- * One verse list's items. Readable by its owner (session or `personal`-scope key), or by anyone at
- * all once its owner has turned public sharing on — the same rule the `/l/{slug}` page follows.
+ * One verse list's items. Readable by its owner or an invited member (session or `personal`-scope
+ * key), or by anyone at all once its owner has turned public sharing on — the same rule the `/l/{slug}`
+ * page follows. Comments and reactions are not exposed through this endpoint yet, only the verses
+ * themselves; see AGENTS.md.
  *
  * Query parameters:
  *   bible  which translation's text to attach to each verse; defaults to the first available one
@@ -18,8 +24,11 @@ export async function GET({ params, url, locals }) {
 	if (!list) return apiError(404, 'list_not_found', 'No verse list with this id.');
 
 	const identity = resolveApiIdentity(locals);
-	const isOwner = identity.scope === 'personal' && identity.userId === list.userId;
-	if (!list.isPublic && !isOwner) {
+	const hasPersonalAccess =
+		identity.scope === 'personal' &&
+		!!identity.userId &&
+		(identity.userId === list.userId || (await isListCollaborator(db, list.id, identity.userId)));
+	if (!list.isPublic && !hasPersonalAccess) {
 		return apiError(404, 'list_not_found', 'No verse list with this id.');
 	}
 
