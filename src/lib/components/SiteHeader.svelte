@@ -7,8 +7,11 @@
 	import { t } from '$lib/i18n';
 	import { tick } from 'svelte';
 	import Menu from './Menu.svelte';
+	import ProductTour from './ProductTour.svelte';
 	import ReaderViewMenu from './ReaderViewMenu.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
+	import { startTour } from '$lib/tour/tour-state.svelte';
+	import { tourStepsFor, GUEST_TOUR_STEPS, MEMBER_TOUR_STEPS } from '$lib/tour/steps';
 
 	/**
 	 * The single input that accepts everything: a reference, a word, or a Strong's number. Submitting
@@ -20,14 +23,40 @@
 		previous = null,
 		next = null,
 		user = null,
-		readerPreferences = null
+		readerPreferences = null,
+		guestTourDone = false
 	}: {
 		query?: string;
 		previous?: string | null;
 		next?: string | null;
-		user?: { displayName: string | null; email: string; role: string } | null;
+		user?: {
+			displayName: string | null;
+			email: string;
+			role: string;
+			tourCompletedAt: Date | string | null;
+		} | null;
 		readerPreferences?: { fontScale: number } | null;
+		/** Whether this device already finished (or dismissed) the tour while signed out. */
+		guestTourDone?: boolean;
 	} = $props();
+
+	/**
+	 * The tour only has something to point at in the reader, so it mounts and auto-starts only there
+	 * (`readerPreferences` is the same "are we on the reader" signal `ReaderViewMenu` uses). A signed-in
+	 * reader who never finished it sees the full sequence, unless this device already finished the
+	 * signed-out part — then only the signed-in-only steps are new. `tourCompletedAt` is the durable,
+	 * cross-device record; the cookie only ever shortens what a *first* sign-in shows.
+	 */
+	const autoStartTourSteps = $derived.by(() => {
+		if (user)
+			return user.tourCompletedAt ? [] : guestTourDone ? MEMBER_TOUR_STEPS : tourStepsFor(true);
+		return guestTourDone ? [] : GUEST_TOUR_STEPS;
+	});
+
+	function restartTour(): void {
+		userMenu?.close();
+		startTour(tourStepsFor(!!user), !!user);
+	}
 
 	/**
 	 * Follows `query` as the reader navigates or scrolls — but only while the field is not focused.
@@ -268,6 +297,7 @@
 				{#if focused}
 					<div
 						bind:this={searchHelper}
+						data-tour-target="search-chooser"
 						class="search-helper absolute top-[calc(100%+0.55rem)] left-1/2 z-50 w-[min(56rem,calc(100vw-1rem))] -translate-x-1/2 overflow-hidden rounded-2xl border border-stone-200/80 bg-[color:var(--surface-raised)] shadow-[0_18px_50px_rgb(28_25_23/0.16)] dark:border-white/10 dark:shadow-black/35"
 						role="dialog"
 						tabindex="-1"
@@ -392,6 +422,7 @@
 								</div>
 
 								<div
+									data-tour-target="search-syntax"
 									class="mt-5 grid gap-2 border-t border-stone-200/80 pt-4 text-xs sm:grid-cols-2 dark:border-white/8"
 								>
 									<p class="search-tip">
@@ -432,12 +463,14 @@
 		<nav class="flex shrink-0 items-center gap-0.5 sm:gap-1">
 			{#if readerPreferences}
 				<ReaderViewMenu fontScale={readerPreferences.fontScale} />
+				<ProductTour signedIn={!!user} autoStart={autoStartTourSteps} />
 			{:else}
 				<ThemeToggle />
 			{/if}
 
 			<button
 				type="button"
+				data-tour-target="user-menu"
 				aria-label={t('nav.userMenu')}
 				aria-haspopup="menu"
 				class="group ml-3 flex min-h-9 items-center gap-2 rounded-lg p-1 text-stone-600 transition-colors hover:bg-stone-200/65
@@ -483,6 +516,9 @@
 						>
 					{/if}
 					<hr />
+				{/if}
+				{#if readerPreferences}
+					<button type="button" role="menuitem" onclick={restartTour}>{t('nav.tour')}</button>
 				{/if}
 				<a href="/help" role="menuitem">{t('nav.help')}</a>
 				<a href="/about" role="menuitem">{t('nav.about')}</a>

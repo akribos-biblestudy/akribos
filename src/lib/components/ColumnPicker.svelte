@@ -57,6 +57,7 @@
 	<button
 		id="column-{index}"
 		type="button"
+		data-tour-target={index === 0 ? 'resource-picker' : undefined}
 		class="group flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 text-left text-sm
 		       font-semibold text-stone-700 transition-colors hover:bg-accent-50/80 hover:text-accent-800
 		       focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 dark:text-stone-200
@@ -106,6 +107,7 @@
 		{#if linked !== undefined}
 			<button
 				type="button"
+				data-tour-target={index === 0 ? 'column-link' : undefined}
 				title={linked ? t('reader.flowSyncDisable') : t('reader.flowSyncEnable')}
 				aria-label="{linked
 					? t('reader.flowSyncDisable')
@@ -142,6 +144,7 @@
 		{#if canAdd}
 			<button
 				type="button"
+				data-tour-target="column-add"
 				title={t('reader.addColumn')}
 				aria-label={t('reader.addColumn')}
 				class="inline-flex size-7 shrink-0 items-center justify-center rounded text-stone-400 hover:bg-stone-100 hover:text-accent-600

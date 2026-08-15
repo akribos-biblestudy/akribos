@@ -36,6 +36,12 @@ async function register(page: import('@playwright/test').Page, email: string): P
 	await page.goto(await lastMailLinkTo(email));
 	await page.getByRole('button', { name: 'Konto aktivieren' }).click();
 	await expect(page).toHaveURL(/\/account$/);
+
+	// Every test in this file cares about lists, notes, highlights and the admin area, not the product
+	// tour — which would otherwise auto-open the first time this fresh account visits the reader and
+	// sit on top of exactly the elements these tests click. Marking it done is the same request the
+	// tour itself makes when closed.
+	await page.evaluate(() => fetch('/api/tour', { method: 'POST' }));
 }
 
 /** Verse lists live under their own section of the settings dashboard now, not a page of their own. */

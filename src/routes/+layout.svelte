@@ -48,6 +48,7 @@
 			next={reader?.next ? referencePath(reader.next) : null}
 			user={data?.user ?? null}
 			readerPreferences={reader ? { fontScale: data.readerFontScale } : null}
+			guestTourDone={data.tourGuestDone}
 		/>
 
 		{@render children()}

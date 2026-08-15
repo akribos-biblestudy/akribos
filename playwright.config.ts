@@ -20,7 +20,27 @@ export default defineConfig({
 	retries: process.env.CI ? 1 : 0,
 	use: {
 		baseURL: 'http://localhost:4173',
-		trace: 'retain-on-failure'
+		trace: 'retain-on-failure',
+		// Every suite except `product-tour.e2e.ts` exercises ordinary reader/account behaviour and does
+		// not expect the product tour's overlay to be sitting over the page — exactly what a genuinely
+		// new visitor would trigger by default. Starting every context as if it had already dismissed
+		// the signed-out tour keeps those suites unaffected; the tour's own tests explicitly reset to a
+		// cookie-less context to get a first-time visitor.
+		storageState: {
+			cookies: [
+				{
+					name: 'tour-guest-done',
+					value: '1',
+					domain: 'localhost',
+					path: '/',
+					expires: -1,
+					httpOnly: false,
+					secure: false,
+					sameSite: 'Lax'
+				}
+			],
+			origins: []
+		}
 	},
 	webServer: {
 		command: 'pnpm run build && pnpm run preview --port 4173',

@@ -8,6 +8,7 @@ import {
 	writeFontScale,
 	writeTheme
 } from '$lib/server/reader-preferences';
+import { readTourGuestDone } from '$lib/server/tour-preferences';
 
 /**
  * Data every page needs: the available translations and the reader's column selection.
@@ -39,6 +40,7 @@ export async function load({ cookies, locals }) {
 		// The limit lives in $lib/server, so the reader cannot import it to decide whether to offer a
 		// further column.
 		maxColumns: MAX_COLUMNS,
-		user: locals.user
+		user: locals.user,
+		tourGuestDone: readTourGuestDone(cookies)
 	};
 }

@@ -134,6 +134,13 @@
       "when": 1786360194903,
       "tag": "0018_unusual_shadow_king",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786782955901,
+      "tag": "0019_futuristic_mentallo",
+      "breakpoints": true
     }
   ]
 }
