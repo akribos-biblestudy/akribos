@@ -486,12 +486,32 @@
 		);
 	}
 
+	/**
+	 * On Android, a long-press-to-select gesture is consumed by the browser's own selection UI
+	 * (handles plus a copy/share bubble); the gesture's own `touchend` never reaches this document
+	 * listener, so `onVerseTextSelection` only used to run on the *next* touch — typically the tap a
+	 * reader makes to dismiss that native bubble. `selectionchange` fires reliably the instant the
+	 * selection is created, native long-press included, so it is debounced in as an additional trigger
+	 * that does not depend on `touchend` being delivered. The debounce also covers a mouse drag, where
+	 * `selectionchange` fires on every character crossed: by the time it settles, `mouseup` has already
+	 * opened the menu and cleared the selection, so the delayed call below is a harmless no-op.
+	 */
+	let selectionChangeTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function onSelectionChangeDebounced() {
+		clearTimeout(selectionChangeTimer);
+		selectionChangeTimer = setTimeout(onVerseTextSelection, 120);
+	}
+
 	$effect(() => {
 		document.addEventListener('mouseup', onVerseTextSelection);
 		document.addEventListener('touchend', onVerseTextSelection);
+		document.addEventListener('selectionchange', onSelectionChangeDebounced);
 		return () => {
 			document.removeEventListener('mouseup', onVerseTextSelection);
 			document.removeEventListener('touchend', onVerseTextSelection);
+			document.removeEventListener('selectionchange', onSelectionChangeDebounced);
+			clearTimeout(selectionChangeTimer);
 		};
 	});
 

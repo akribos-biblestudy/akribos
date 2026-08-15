@@ -48,15 +48,20 @@ function databaseUrl(): string {
  *
  * `needle` names an exact substring to select; omitting it selects the verse's entire rendered text,
  * which is how a reader would highlight the whole verse (in every translation) by dragging across it.
+ *
+ * `dispatchMouseup: false` leaves the synthetic `mouseup` out, the way a native Android long-press
+ * selection never delivers one to the page — only the browser's own, real `selectionchange` event
+ * follows, which is what the reader's debounced fallback listener has to pick up instead.
  */
 async function selectVerseText(
 	page: Page,
 	resourceId: string,
 	verseKey: string,
-	needle?: string
+	needle?: string,
+	{ dispatchMouseup = true }: { dispatchMouseup?: boolean } = {}
 ): Promise<void> {
 	await page.evaluate(
-		({ resourceId, verseKey, needle }) => {
+		({ resourceId, verseKey, needle, dispatchMouseup }) => {
 			const column = document.querySelector(`.flow-column[data-resource-id="${resourceId}"]`);
 			const verseEl = column?.querySelector<HTMLElement>(`[data-verse-key="${verseKey}"]`);
 			if (!verseEl) throw new Error(`verse not found: ${resourceId} ${verseKey}`);
@@ -88,9 +93,9 @@ async function selectVerseText(
 			const selection = window.getSelection();
 			selection?.removeAllRanges();
 			selection?.addRange(range);
-			verseEl.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+			if (dispatchMouseup) verseEl.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
 		},
-		{ resourceId, verseKey, needle }
+		{ resourceId, verseKey, needle, dispatchMouseup }
 	);
 }
 
@@ -139,6 +144,19 @@ test('a partial highlight applies only in the translation it was selected in', a
 	await page.reload();
 	await expect(seeddeHighlight.first()).toHaveCSS('background-color', 'rgb(255, 241, 198)');
 	await expect(seedplainHighlight).toHaveCount(0);
+});
+
+test('a selection made without a mouseup/touchend still opens the menu, via selectionchange', async ({
+	page
+}) => {
+	await register(page, uniqueEmail());
+
+	await page.goto('/Joh3');
+	// No synthetic `mouseup` here — this is the native-long-press case from issue #142, where the
+	// gesture's own `touchend` never reaches the page and only a real `selectionchange` follows.
+	await selectVerseText(page, 'SEEDDE', '43:3:16', 'er seinen', { dispatchMouseup: false });
+
+	await expect(page.locator('.swatches .swatch')).toHaveCount(10);
 });
 
 test('selecting an entire verse highlights it for every translation, like the verse-number menu', async ({
