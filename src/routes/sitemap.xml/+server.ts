@@ -18,7 +18,9 @@ export async function GET({ setHeaders }) {
 	const resourceIds = bibles.map((bible) => bible.id);
 	const origin = config().ORIGIN.replace(/\/$/, '');
 
-	const urls: string[] = [`${origin}/`, `${origin}/help`];
+	// "/" is now always a personalized, private redirect (never public content), so it must not be
+	// advertised as an indexable URL; "/about" carries the marketing landing page instead.
+	const urls: string[] = [`${origin}/about`, `${origin}/help`];
 
 	for (const book of BOOKS) {
 		const chapters = await chapterCount(db, resourceIds, book.id);

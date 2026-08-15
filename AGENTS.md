@@ -48,12 +48,13 @@ Der zentrale Reader ist `src/routes/[...reference]/+page.svelte`; sein Server-Lo
 liegen in der gleichnamigen `+page.server.ts`. Die REST-Nachladung für Endless Scrolling erfolgt über
 `src/routes/api/reader/[book]/[chapter]/+server.ts`.
 
-Die Root-Route `/` zeigt nicht angemeldeten Besuchern die Marketing-Landingpage. Angemeldete Leser
-werden dort unmittelbar zu ihrer im `location`-Cookie gespeicherten letzten Lesestelle weitergeleitet,
-mit Johannes 1 als Fallback. Das Akribos-Logo verlinkt unverändert auf `/` und darf das `location`-Cookie
-nicht löschen, damit es auch von Konto- und Verwaltungsseiten zur letzten Lesestelle zurückführt.
-`/about` bleibt als direkte Adresse derselben Landingpage erhalten. Weil das Root-Verhalten vom
-Session-Cookie abhängt, darf die Antwort nicht öffentlich gecacht werden.
+Die Root-Route `/` leitet jeden Besucher unmittelbar zum Bibeltext weiter, nicht mehr nur angemeldete.
+Angemeldete Leser landen an ihrer im `location`-Cookie gespeicherten letzten Lesestelle, alle anderen
+(auch nicht angemeldete Besucher) an Johannes 1 als Fallback. Das Akribos-Logo verlinkt unverändert auf
+`/` und darf das `location`-Cookie nicht löschen, damit es auch von Konto- und Verwaltungsseiten zur
+letzten Lesestelle zurückführt. Die Marketing-Landingpage wird auf `/` nicht mehr angezeigt, bleibt aber
+unter `/about` unverändert erreichbar. Weil das Root-Verhalten vom Session-Cookie abhängt, darf die
+Antwort nicht öffentlich gecacht werden.
 
 Der Reader zeigt jede Ressource in einer eigenen `.flow-column`. Alle geladenen Kapitel stehen in
 `streamChapters`; DOM-Schlüssel sind `book:chapter` beziehungsweise für Verse `book:chapter:verse`.
