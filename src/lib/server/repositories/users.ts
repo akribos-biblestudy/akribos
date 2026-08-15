@@ -115,6 +115,17 @@ export async function updateTheme(
 	await db.update(users).set({ theme, updatedAt: new Date() }).where(eq(users.id, userId));
 }
 
+/**
+ * Marks the product tour as done for this account — finished or actively closed, which count the
+ * same — so it stops offering itself automatically on every device this person signs in on.
+ */
+export async function completeTour(db: Database, userId: string): Promise<void> {
+	await db
+		.update(users)
+		.set({ tourCompletedAt: new Date(), updatedAt: new Date() })
+		.where(eq(users.id, userId));
+}
+
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 
 /**
