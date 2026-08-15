@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { formatReference, referencePath } from '$lib/bible/reference';
+	import CommentThread from '$lib/components/CommentThread.svelte';
 	import VerseText from '$lib/components/VerseText.svelte';
 
 	let { data } = $props();
@@ -21,6 +22,7 @@
 
 	<ol class="space-y-5">
 		{#each data.items as item (item.id)}
+			{@const itemComments = data.comments[item.id] ?? []}
 			<li>
 				<a
 					class="text-sm font-semibold text-accent-600 hover:underline dark:text-accent-400"
@@ -38,11 +40,9 @@
 					</p>
 				{/if}
 
-				{#if item.noteHtml}
-					<!-- Sanitised when saved; see src/lib/notes/sanitize.ts. -->
-					<div class="note mt-1 border-l-2 border-accent-300 pl-3 text-sm dark:border-accent-800">
-						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-						{@html item.noteHtml}
+				{#if itemComments.length > 0}
+					<div class="note mt-1 border-l-2 border-accent-300 pl-3 dark:border-accent-800">
+						<CommentThread itemId={item.id} comments={itemComments} currentUserId={null} />
 					</div>
 				{/if}
 			</li>

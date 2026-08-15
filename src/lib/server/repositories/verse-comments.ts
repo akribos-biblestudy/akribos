@@ -1,7 +1,13 @@
-import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { sanitizeNoteHtml } from '../../notes/sanitize.ts';
 import type { Database } from '../db/client.ts';
-import { resources, verseComments, verseListItems, verseLists } from '../db/schema.ts';
+import {
+	resources,
+	verseComments,
+	verseListItemComments,
+	verseListItems,
+	verseLists
+} from '../db/schema.ts';
 
 export type ChapterVerseComment = {
 	resourceId: string;
@@ -89,11 +95,19 @@ export type UserNoteOverview = {
 	updatedAt: Date;
 	listId: string | null;
 	listTitle: string | null;
+	/** The verse-list item this comment is attached to, for the anchor `/lists/{listId}#note-{itemId}`. */
+	itemId: string | null;
 	resourceId: string | null;
 	resourceName: string | null;
 };
 
-/** Every translation comment and verse-list comment owned by a user, newest first. */
+/**
+ * Every translation comment and verse-list comment written by a user, newest first.
+ *
+ * "List" here means every comment (root note or reply) the user has authored on any list they belong
+ * to — their own or one shared with them — not only lists they own: collaborating on someone else's
+ * list is still worth surfacing in this personal overview.
+ */
 export async function listUserNotes(db: Database, userId: string): Promise<UserNoteOverview[]> {
 	const [translations, lists] = await Promise.all([
 		db
@@ -113,19 +127,21 @@ export async function listUserNotes(db: Database, userId: string): Promise<UserN
 			.orderBy(desc(verseComments.updatedAt)),
 		db
 			.select({
-				id: verseListItems.id,
+				id: verseListItemComments.id,
+				itemId: verseListItems.id,
 				book: verseListItems.bookId,
 				chapter: verseListItems.chapter,
 				verse: verseListItems.verse,
-				html: verseListItems.noteHtml,
-				updatedAt: verseListItems.updatedAt,
+				html: verseListItemComments.bodyHtml,
+				updatedAt: verseListItemComments.updatedAt,
 				listId: verseLists.id,
 				listTitle: verseLists.title
 			})
-			.from(verseListItems)
+			.from(verseListItemComments)
+			.innerJoin(verseListItems, eq(verseListItems.id, verseListItemComments.itemId))
 			.innerJoin(verseLists, eq(verseLists.id, verseListItems.listId))
-			.where(and(eq(verseLists.userId, userId), isNotNull(verseListItems.noteHtml)))
-			.orderBy(desc(verseListItems.updatedAt))
+			.where(eq(verseListItemComments.authorUserId, userId))
+			.orderBy(desc(verseListItemComments.updatedAt))
 	]);
 
 	return [
@@ -133,20 +149,14 @@ export async function listUserNotes(db: Database, userId: string): Promise<UserN
 			...comment,
 			kind: 'translation' as const,
 			listId: null,
-			listTitle: null
+			listTitle: null,
+			itemId: null
 		})),
-		...lists.flatMap((comment) =>
-			comment.html
-				? [
-						{
-							...comment,
-							kind: 'list' as const,
-							resourceId: null,
-							resourceName: null,
-							html: comment.html
-						}
-					]
-				: []
-		)
+		...lists.map((comment) => ({
+			...comment,
+			kind: 'list' as const,
+			resourceId: null,
+			resourceName: null
+		}))
 	].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 }

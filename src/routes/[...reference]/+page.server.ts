@@ -42,7 +42,7 @@ import {
 import {
 	addVerseToList,
 	createVerseList,
-	findVerseList,
+	findListAccess,
 	listVerseLists,
 	markedVersesByList,
 	removeVerseFromList
@@ -339,7 +339,8 @@ export const actions = {
 	 *
 	 * An empty `listId` means "a new list for this verse": the first verse a reader wants to keep is
 	 * the moment they need a list, and making them go to the settings page first to create one was the
-	 * reason the feature went unused.
+	 * reason the feature went unused. An existing `listId` may be a list the reader was invited to
+	 * rather than one they own — `findListAccess` allows either, matching `markedVersesByList` above.
 	 */
 	addToList: async ({ request, locals }) => {
 		if (!locals.user) redirect(303, '/login');
@@ -350,18 +351,19 @@ export const actions = {
 		if (!reference?.verse) return fail(400, { error: 'reference' });
 
 		const db = getDb();
-		const list = listId
-			? await findVerseList(db, { id: listId, userId: locals.user.id })
-			: await createVerseList(db, locals.user.id, String(form.get('title') ?? ''));
-		if (!list) return fail(404, { error: 'list' });
+		const access = listId
+			? await findListAccess(db, listId, locals.user.id)
+			: { list: await createVerseList(db, locals.user.id, String(form.get('title') ?? '')) };
+		if (!access?.list) return fail(404, { error: 'list' });
 
-		await addVerseToList(db, list.id, {
-			book: reference.book,
-			chapter: reference.chapter,
-			verse: reference.verse
-		});
+		await addVerseToList(
+			db,
+			access.list.id,
+			{ book: reference.book, chapter: reference.chapter, verse: reference.verse },
+			locals.user.id
+		);
 
-		return { added: true, listId: list.id };
+		return { added: true, listId: access.list.id };
 	},
 
 	/** The other half of the verse menu: a list the verse is already in can be unticked. */
@@ -374,16 +376,17 @@ export const actions = {
 		if (!reference?.verse) return fail(400, { error: 'reference' });
 
 		const db = getDb();
-		const list = await findVerseList(db, { id: listId, userId: locals.user.id });
-		if (!list) return fail(404, { error: 'list' });
+		const access = await findListAccess(db, listId, locals.user.id);
+		if (!access) return fail(404, { error: 'list' });
 
-		await removeVerseFromList(db, list.id, {
-			book: reference.book,
-			chapter: reference.chapter,
-			verse: reference.verse
-		});
+		await removeVerseFromList(
+			db,
+			access.list.id,
+			{ book: reference.book, chapter: reference.chapter, verse: reference.verse },
+			{ userId: locals.user.id, isOwner: access.isOwner }
+		);
 
-		return { removed: true, listId: list.id };
+		return { removed: true, listId: access.list.id };
 	},
 
 	/**

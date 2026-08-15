@@ -268,6 +268,50 @@ export const de = {
 	'lists.noteUndo': 'Rückgängig',
 	'lists.noteRedo': 'Wiederholen',
 	'lists.noteFormatting': 'Kommentar formatieren',
+	'lists.sharedByOwner': 'Geteilt von {owner}',
+	'lists.addedBy': 'Hinzugefügt von {name}',
+
+	// --- verse list collaboration -------------------------------------------
+	'lists.members': 'Mitglieder',
+	'lists.membersHint':
+		'Mitglieder können Verse hinzufügen, eigene Verse wieder entfernen und Kommentare schreiben.',
+	'lists.inviteEmailLabel': 'E-Mail-Adresse einladen',
+	'lists.inviteEmailPlaceholder': 'name@beispiel.de',
+	'lists.inviteSubmit': 'Einladen',
+	'lists.inviteSent': 'Einladung verschickt.',
+	'lists.inviteErrorInvalidEmail': 'Bitte eine gültige E-Mail-Adresse angeben.',
+	'lists.inviteErrorIsOwner': 'Diese Adresse gehört bereits dir als Eigentümer:in der Liste.',
+	'lists.inviteErrorAlreadyMember': 'Diese Person ist bereits Mitglied dieser Liste.',
+	'lists.inviteErrorThrottled': 'Zu viele Einladungen. Bitte versuche es später erneut.',
+	'lists.memberPending': 'Ausstehend',
+	'lists.memberJoinedAt': 'Beigetreten am {date}',
+	'lists.memberInvitedAt': 'Eingeladen am {date}',
+	'lists.memberRevoke': 'Einladung zurückziehen',
+	'lists.memberRemove': 'Entfernen',
+	'lists.leaveList': 'Liste verlassen',
+	'lists.leaveListConfirm': 'Diese Versliste wirklich verlassen? Du verlierst den Zugriff darauf.',
+
+	// --- verse list comment threads ------------------------------------------
+	'comments.reply': 'Antworten',
+	'comments.replyPlaceholder': 'Antwort schreiben …',
+	'comments.react': 'Mit Emoji reagieren',
+	'comments.threadEmpty': 'Noch keine Kommentare zu diesem Vers.',
+	'comments.deleteThread': 'Kommentar löschen',
+
+	// --- verse list invites ---------------------------------------------------
+	'invites.title': 'Einladung zur Versliste',
+	'invites.invalidTitle': 'Einladung ungültig',
+	'invites.invalid': 'Diese Einladung ist ungültig oder bereits abgelaufen.',
+	'invites.body': '{inviter} lädt dich ein, gemeinsam an der Versliste „{list}“ zu arbeiten.',
+	'invites.accept': 'Einladung annehmen',
+	'invites.emailMismatchTitle': 'Falsches Konto angemeldet',
+	'invites.emailMismatch':
+		'Diese Einladung ist für {email} bestimmt. Bitte melde dich mit diesem Konto an.',
+	'invites.signInWithThatAccount': 'Mit anderem Konto anmelden',
+	'invites.needAccount': 'Noch kein Konto?',
+	'invites.registerCta': 'Konto erstellen',
+	'invites.loginCta': 'Anmelden',
+	'invites.reopenAfterSignIn': 'Öffne danach diesen Einladungslink aus deiner E-Mail erneut.',
 
 	// --- errors -------------------------------------------------------------
 	'error.notFound.title': 'Seite nicht gefunden',

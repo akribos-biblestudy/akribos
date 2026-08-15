@@ -1,17 +1,25 @@
 /**
- * Verse lists and their comments.
+ * Verse lists and their items.
  *
- * A list is an ordered set of verses, each of which may carry a comment. Comments are sanitised HTML from a
- * small editor rather than the CKEditor build the old site shipped, and a list can be shared by
- * turning on an unguessable slug.
+ * A list is an ordered set of verses. It always has exactly one owner (`verse_lists.user_id`), who can
+ * rename it, delete it, toggle the public share link and manage its members. Once shared with other
+ * accounts (see `verse-list-members.ts`), any member can add verses of their own, but a member may only
+ * remove verses they themselves added — the owner alone may remove any of them. Comments and reactions
+ * on each verse live in `verse-list-comments.ts`.
  */
 
 import { randomBytes } from 'node:crypto';
-import { and, asc, eq, max, sql } from 'drizzle-orm';
-import { sanitizeNoteHtml } from '../../notes/sanitize.ts';
+import { and, asc, eq, max, or, sql } from 'drizzle-orm';
 import type { VerseSegment } from '../../bible/segments.ts';
 import type { Database } from '../db/client.ts';
-import { verseListItems, verseLists, verses, type VerseList } from '../db/schema.ts';
+import {
+	users,
+	verseListItems,
+	verseListMembers,
+	verseLists,
+	verses,
+	type VerseList
+} from '../db/schema.ts';
 
 export type VerseListSummary = {
 	id: string;
@@ -20,6 +28,10 @@ export type VerseListSummary = {
 	slug: string | null;
 	itemCount: number;
 	updatedAt: Date;
+	/** Whether the caller owns this list or only belongs to it as an invited member. */
+	role: 'owner' | 'member';
+	/** The owner's display name (falling back to their email), only set for `role: 'member'`. */
+	ownerName: string | null;
 };
 
 export type VerseListItemWithText = {
@@ -28,11 +40,13 @@ export type VerseListItemWithText = {
 	chapter: number;
 	verse: number;
 	position: number;
-	noteHtml: string | null;
+	addedByUserId: string;
+	addedByName: string;
 	/** The verse text in the reader's first translation, so a list reads on its own. */
 	segments: VerseSegment[] | null;
 };
 
+/** Every list the caller owns or has been invited into, newest first. */
 export async function listVerseLists(db: Database, userId: string): Promise<VerseListSummary[]> {
 	const rows = await db.execute<{
 		id: string;
@@ -41,12 +55,20 @@ export async function listVerseLists(db: Database, userId: string): Promise<Vers
 		slug: string | null;
 		item_count: number;
 		updated_at: string;
+		role: 'owner' | 'member';
+		owner_name: string | null;
 	}>(sql`
-		select l.id, l.title, l.is_public, l.slug, l.updated_at, count(i.id)::int as item_count
+		select
+			l.id, l.title, l.is_public, l.slug, l.updated_at,
+			count(i.id)::int as item_count,
+			case when l.user_id = ${userId} then 'owner' else 'member' end as role,
+			case when l.user_id = ${userId} then null else coalesce(owner.display_name, owner.email) end as owner_name
 		from verse_lists l
 		left join verse_list_items i on i.list_id = l.id
-		where l.user_id = ${userId}
-		group by l.id
+		left join verse_list_members m on m.list_id = l.id and m.user_id = ${userId}
+		join users owner on owner.id = l.user_id
+		where l.user_id = ${userId} or m.user_id is not null
+		group by l.id, owner.display_name, owner.email
 		order by l.updated_at desc
 	`);
 
@@ -56,7 +78,9 @@ export async function listVerseLists(db: Database, userId: string): Promise<Vers
 		isPublic: row.is_public,
 		slug: row.slug,
 		itemCount: Number(row.item_count),
-		updatedAt: new Date(row.updated_at)
+		updatedAt: new Date(row.updated_at),
+		role: row.role,
+		ownerName: row.owner_name
 	}));
 }
 
@@ -90,11 +114,66 @@ export async function findVerseList(
 	return row;
 }
 
-/** A list's verses with their text, for the list page and the public share view. */
+/** The owner's display name (falling back to their email), for a member's view of a shared list. */
+export async function findListOwnerName(db: Database, ownerUserId: string): Promise<string> {
+	const [row] = await db
+		.select({ name: sql<string>`coalesce(${users.displayName}, ${users.email})` })
+		.from(users)
+		.where(eq(users.id, ownerUserId))
+		.limit(1);
+	return row?.name ?? '';
+}
+
+export type VerseListAccess = { list: VerseList; isOwner: boolean };
+
+/**
+ * Finds a list the caller may read and collaborate on: either as its owner, or as an accepted member.
+ * Returns `undefined` for anyone else, exactly like `findVerseList` does for a non-owner today — a
+ * list id belonging to someone else, or that the caller was never invited to, is simply not found.
+ */
+export async function findListAccess(
+	db: Database,
+	id: string,
+	userId: string
+): Promise<VerseListAccess | undefined> {
+	const list = await findVerseList(db, { id });
+	if (!list) return undefined;
+	if (list.userId === userId) return { list, isOwner: true };
+
+	const [membership] = await db
+		.select({ id: verseListMembers.id })
+		.from(verseListMembers)
+		.where(and(eq(verseListMembers.listId, id), eq(verseListMembers.userId, userId)))
+		.limit(1);
+	if (!membership) return undefined;
+
+	return { list, isOwner: false };
+}
+
+/** True when `userId` may read this list, either as its owner or as an accepted member. */
+export async function isListCollaborator(
+	db: Database,
+	listId: string,
+	userId: string
+): Promise<boolean> {
+	const access = await findListAccess(db, listId, userId);
+	return access !== undefined;
+}
+
+/**
+ * A list's verses with their text, for the list page and the public share view.
+ *
+ * `redactEmail` covers the one caller with an audience that never proved anything about who it is:
+ * the public `/l/{slug}` link. Everywhere else, "who added this" is shown to people who are already
+ * the list's owner or an invited collaborator — they know each other's addresses from the invite
+ * itself — so the real display name or email is fine. An anonymous visitor of the public link gets a
+ * generic placeholder instead of a fellow collaborator's email address.
+ */
 export async function loadVerseListItems(
 	db: Database,
 	listId: string,
-	resourceId: string | null
+	resourceId: string | null,
+	options: { redactEmail?: boolean } = {}
 ): Promise<VerseListItemWithText[]> {
 	const rows = await db
 		.select({
@@ -103,10 +182,13 @@ export async function loadVerseListItems(
 			chapter: verseListItems.chapter,
 			verse: verseListItems.verse,
 			position: verseListItems.position,
-			noteHtml: verseListItems.noteHtml,
+			addedByUserId: verseListItems.addedByUserId,
+			addedByDisplayName: users.displayName,
+			addedByEmail: users.email,
 			segments: verses.segments
 		})
 		.from(verseListItems)
+		.innerJoin(users, eq(users.id, verseListItems.addedByUserId))
 		.leftJoin(
 			verses,
 			and(
@@ -119,13 +201,19 @@ export async function loadVerseListItems(
 		.where(eq(verseListItems.listId, listId))
 		.orderBy(asc(verseListItems.position), asc(verseListItems.bookId));
 
-	return rows.map((row) => ({ ...row, segments: row.segments ?? null }));
+	return rows.map(({ addedByDisplayName, addedByEmail, ...row }) => ({
+		...row,
+		segments: row.segments ?? null,
+		addedByName:
+			addedByDisplayName ?? (options.redactEmail ? 'Ein Mitglied der Liste' : addedByEmail)
+	}));
 }
 
 export async function addVerseToList(
 	db: Database,
 	listId: string,
-	reference: { book: number; chapter: number; verse: number }
+	reference: { book: number; chapter: number; verse: number },
+	addedByUserId: string
 ): Promise<void> {
 	const [row] = await db
 		.select({ highest: max(verseListItems.position) })
@@ -139,7 +227,8 @@ export async function addVerseToList(
 			bookId: reference.book,
 			chapter: reference.chapter,
 			verse: reference.verse,
-			position: (row?.highest ?? -1) + 1
+			position: (row?.highest ?? -1) + 1,
+			addedByUserId
 		})
 		// Adding a verse twice is a no-op rather than an error: the reader offers the action per verse
 		// and a double click should not fail.
@@ -148,35 +237,40 @@ export async function addVerseToList(
 	await touch(db, listId);
 }
 
+/**
+ * Whether `userId` may remove a verse item they did or did not add themselves.
+ *
+ * The rule from the issue: a collaborator may only remove verses they added themselves; the list's
+ * owner may remove any of them. Exported mainly so it can be unit-tested without a database.
+ */
+export function canDeleteItem(
+	item: { addedByUserId: string },
+	access: { userId: string; isOwner: boolean }
+): boolean {
+	return access.isOwner || item.addedByUserId === access.userId;
+}
+
+/**
+ * Removes a verse from a list, but only the rows `userId` is allowed to remove (see `canDeleteItem`).
+ * An attempt to remove someone else's verse without owning the list therefore matches no row rather
+ * than failing loudly — the caller only ever passes a reference it already showed a delete control
+ * for, so this is a last-line-of-defence check, not user-facing feedback.
+ */
 export async function removeVerseFromList(
 	db: Database,
 	listId: string,
-	reference: { book: number; chapter: number; verse: number }
+	reference: { book: number; chapter: number; verse: number },
+	access: { userId: string; isOwner: boolean }
 ): Promise<void> {
-	await db
-		.delete(verseListItems)
-		.where(
-			and(
-				eq(verseListItems.listId, listId),
-				eq(verseListItems.bookId, reference.book),
-				eq(verseListItems.chapter, reference.chapter),
-				eq(verseListItems.verse, reference.verse)
-			)
-		);
-	await touch(db, listId);
-}
+	const conditions = [
+		eq(verseListItems.listId, listId),
+		eq(verseListItems.bookId, reference.book),
+		eq(verseListItems.chapter, reference.chapter),
+		eq(verseListItems.verse, reference.verse)
+	];
+	if (!access.isOwner) conditions.push(eq(verseListItems.addedByUserId, access.userId));
 
-export async function saveNote(
-	db: Database,
-	listId: string,
-	itemId: string,
-	html: string
-): Promise<void> {
-	const clean = sanitizeNoteHtml(html);
-	await db
-		.update(verseListItems)
-		.set({ noteHtml: clean || null, updatedAt: new Date() })
-		.where(and(eq(verseListItems.id, itemId), eq(verseListItems.listId, listId)));
+	await db.delete(verseListItems).where(and(...conditions));
 	await touch(db, listId);
 }
 
@@ -195,7 +289,8 @@ export async function deleteVerseList(db: Database, listId: string): Promise<voi
  * Turns sharing on or off.
  *
  * Sharing mints a fresh slug every time it is enabled, so a link that was once shared stops working
- * when sharing is turned off and on again.
+ * when sharing is turned off and on again. This is the read-only public link and is independent of
+ * the email-invited members in `verse_list_members`: a list can have both, or either, at once.
  */
 export async function setVerseListSharing(
 	db: Database,
@@ -211,7 +306,8 @@ export async function setVerseListSharing(
 }
 
 /**
- * Which verses of a chapter are in which of a reader's lists.
+ * Which verses of a chapter are in which of the reader's lists — their own, and any shared list they
+ * belong to as a member.
  *
  * The reader's verse menu offers every list at once and has to show which ones already hold the
  * verse, so one query over all of them beats one query per list.
@@ -226,9 +322,13 @@ export async function markedVersesByList(
 		.select({ listId: verseListItems.listId, verse: verseListItems.verse })
 		.from(verseListItems)
 		.innerJoin(verseLists, eq(verseLists.id, verseListItems.listId))
+		.leftJoin(
+			verseListMembers,
+			and(eq(verseListMembers.listId, verseLists.id), eq(verseListMembers.userId, userId))
+		)
 		.where(
 			and(
-				eq(verseLists.userId, userId),
+				or(eq(verseLists.userId, userId), sql`${verseListMembers.id} is not null`),
 				eq(verseListItems.bookId, book),
 				eq(verseListItems.chapter, chapter)
 			)

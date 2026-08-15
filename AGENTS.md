@@ -129,10 +129,9 @@ Kombination existiert höchstens einer. Sie werden mit den endlos nachgeladenen 
 erscheinen innerhalb ihrer `.verse-comment-row` unterhalb des Verses. `CommentToggle.svelte` steht am
 Versende, wird nur für einen gespeicherten Kommentar gerendert und blendet diesen ein oder aus. Neue
 Reader-Kommentare werden ausschließlich über das `VerseMenu` begonnen. Ein leer gespeicherter
-Kommentar wird gelöscht; gespeicherte Kommentare sind nach dem Laden zunächst zugeklappt. Kommentare
-an Verslisteneinträgen bleiben dagegen im Kontext
-ihrer Liste in `verse_list_items.note_html`; beide Oberflächen verwenden `CommentBubble.svelte` und
-wechseln erst nach einem Klick von der Lese- in die Editoransicht.
+Kommentar wird gelöscht; gespeicherte Kommentare sind nach dem Laden zunächst zugeklappt. Beide
+Oberflächen verwenden `CommentBubble.svelte`/`NoteEditor.svelte` und wechseln erst nach einem Klick von
+der Lese- in die Editoransicht.
 Der gemeinsame `NoteEditor.svelte` speichert mit Strg/Cmd+Enter und meldet Escape über `onCancel` an
 die Bubble; bei einem noch leeren Reader-Entwurf entfernt diese Rückmeldung auch die temporäre Ansicht.
 Der Editor basiert auf Tiptap/ProseMirror; seine erlaubten Formatierungen müssen mit der Allowlist in
@@ -140,6 +139,76 @@ Der Editor basiert auf Tiptap/ProseMirror; seine erlaubten Formatierungen müsse
 über `linkBibleReferences()` mit internen Bibelstellen-Links angereichert, damit ausschließlich das
 serverseitig bereinigte Original gespeichert wird. Kommentaranzeige und -editor übernehmen dieselbe
 `--reader-font-scale`-Skalierung wie der Bibeltext.
+
+### Zusammenarbeit an Verslisten (issue #129)
+
+Eine Versliste hat genau einen Eigentümer (`verse_lists.user_id`), der sie umbenennen, löschen, den
+öffentlichen Teilen-Link umschalten und Mitglieder verwalten darf. Der öffentliche Link (`slug`) bleibt
+unverändert bestehen und ist unabhängig von der neuen, E-Mail-basierten Mitgliedschaft: eine Liste kann
+beides, nur eines oder keins von beidem haben. Mitgliedschaft läuft über zwei Tabellen, nach demselben
+Muster wie `email_verifications`/`password_resets` — nur der Hash des Einladungstokens wird
+gespeichert:
+
+- `verse_list_invites`: eine ausstehende Einladung an eine E-Mail-Adresse, 7 Tage gültig, einmal
+  verwendbar. `createVerseListInvite()` (`src/lib/server/repositories/verse-list-members.ts`) ersetzt
+  eine bereits ausstehende Einladung an dieselbe Adresse durch eine neue, statt eine zweite
+  nebenherlaufen zu lassen — wie das erneute Einschalten des Teilen-Links einen neuen `slug` erzeugt.
+  Die Landing-Page `/invites/[token]` liest den Token nur lesend (`peekVerseListInvite`), damit
+  E-Mail-Client-Prefetching ihn nicht verbraucht; erst ein expliziter Klick löst `acceptVerseListInvite()`
+  aus. Diese Funktion verlangt zusätzlich, dass die normalisierte E-Mail-Adresse des angemeldeten Kontos
+  mit der eingeladenen Adresse übereinstimmt — der Token allein genügt nicht, falls die Mail
+  weitergeleitet wurde oder in einem geteilten Postfach landet.
+- `verse_list_members`: eine akzeptierte Mitgliedschaft (Liste, Nutzer, wer eingeladen hat). Der
+  Eigentümer selbst steht hier nicht drin; Besitz wird immer direkt über `verse_lists.user_id` geprüft.
+  `findListAccess()` ist die einzige Stelle, die "Eigentümer oder Mitglied" gemeinsam prüft, und liefert
+  `{ list, isOwner }` oder `undefined` — eine fremde oder nie eingeladene Liste ist damit ebenso
+  "nicht gefunden" wie bei einer reinen Eigentümerprüfung.
+
+**Löschregel für Vers-Einträge:** Jedes Mitglied darf Verse hinzufügen (`addVerseToList()`, mit
+`addedByUserId`). Beim Entfernen (`removeVerseFromList()`) darf ein Mitglied nur einen selbst
+hinzugefügten Vers löschen; der Eigentümer darf jeden Eintrag löschen. Die reine Regel steht als
+`canDeleteItem()` in `verse-lists.ts` und wird sowohl serverseitig in der Form Action als auch beim
+Laden der Seite (Anzeige des Lösch-Buttons) verwendet — eine einzige Quelle für beide Stellen.
+Kommentare kennen dieselbe Ausnahme zugunsten des Eigentümers: `deleteComment()` erlaubt Autor _oder_
+Eigentümer, nicht nur den Autor (leichte Moderation, konsistent mit der Vers-Löschregel).
+
+**Kommentare** ersetzen das frühere einzelne `verse_list_items.note_html`-Feld durch echte Threads in
+`verse_list_item_comments` (`item_id`, `parent_comment_id` nullable für Antworten, `author_user_id`,
+`body_html`). Eine Antwort muss zum selben `item_id` gehören wie ihr `parent_comment_id` —
+`addComment()` prüft beides gegen die übergebene `listId`, bevor irgendetwas eingefügt wird, damit
+weder eine fremde Liste noch ein anderer Vers-Eintrag über erratene UUIDs adressiert werden kann. Das
+Löschen eines Kommentars löscht über den selbstreferenzierenden Fremdschlüssel (`ON DELETE CASCADE`)
+auch alle Antworten darunter. Migration `drizzle/0021_warm_slayback.sql` fügt die neuen
+Tabellen sowie `verse_list_items.added_by_user_id` (zunächst nullable) hinzu und enthält direkt im
+Anschluss an die generierte DDL zwei handgeschriebene Backfills (nach demselben Muster wie
+`drizzle/0016_normalize_note_divs.sql`): jeder bestehende Eintrag bekommt als `added_by_user_id` den
+Listeneigentümer, und jedes nicht-leere `note_html` wird ein Root-Kommentar (`parent_comment_id = null`),
+ebenfalls vom Eigentümer verfasst. Migration `drizzle/0022_demonic_photon.sql` macht die Spalte danach
+`NOT NULL` und löscht `note_html`. Wer an diesem Bereich weiterarbeitet: eine Schema-Änderung, die eine
+Spalte gleichzeitig hinzufügt und eine andere entfernt, lässt `drizzle-kit generate` interaktiv nach
+Umbenennen-oder-nicht fragen (nicht scriptbar) — deshalb der Zwischenschritt mit einer vorübergehend
+nullable Spalte.
+
+**Reaktionen** (`verse_list_item_comment_reactions`) sind auf die 8 GitHub-Issue-Emojis festgelegt
+(👍 👎 😄 🎉 😕 ❤️ 🚀 👀, `src/lib/notes/reactions.ts` — bewusst außerhalb von `src/lib/server/`, damit
+sowohl das Schema als auch die client-seitige Reaktionsleiste dieselbe Konstante importieren, ohne
+Server-Code ins Client-Bundle zu ziehen). Zusammengesetzter Primärschlüssel
+(`comment_id`, `user_id`, `emoji`) macht "erneut mit demselben Emoji reagieren" zu einem Toggle:
+`toggleCommentReaction()` löscht die Zeile, falls sie existiert, sonst fügt sie sie ein.
+
+**Sichtbarkeit personenbezogener Daten:** Wer wen eingeladen hat und wer welchen Vers/Kommentar verfasst
+hat, wird Eigentümer und Mitgliedern gegenseitig mit Namen (Fallback: E-Mail-Adresse) angezeigt — sie
+kennen sich bereits über die Einladung. Der anonyme, öffentliche `/l/{slug}`-Link bekommt dagegen nie
+eine rohe E-Mail-Adresse zu sehen: `loadVerseListItems()`/`loadCommentsForList()` ersetzen einen
+fehlenden Anzeigenamen dort durch einen generischen Platzhalter (`redactEmail`-Option bzw.
+`currentUserId === null`). Ausstehende Einladungen (mit E-Mail-Adresse) werden im `load()` von
+`/lists/[id]` nur an den Eigentümer ausgeliefert, nicht an andere Mitglieder — SvelteKit schickt die
+komplette `load()`-Rückgabe zum Browser, unabhängig davon, was die Vorlage tatsächlich rendert.
+
+Die Vers-Menü-Schnellwahl im Reader (`VerseMenu.svelte`, `markedVersesByList()`, `addToList`/
+`removeFromList` in `[...reference]/+page.server.ts`) funktioniert bewusst sowohl für eigene als auch
+für geteilte Listen (`findListAccess()` statt reiner Eigentümerprüfung); ein Vers dort abzuhaken legt
+ihn mit `addedByUserId` des angemeldeten Kontos an.
 
 Der Fremdschlüssel von `verse_comments.resource_id` ist absichtlich `ON DELETE RESTRICT`. Bibeln
 werden ausschließlich über `deleteResource()` mit einer anderen Bibel als Pflichtziel entfernt; die

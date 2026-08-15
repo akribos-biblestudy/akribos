@@ -6,10 +6,11 @@
 	import { StarterKit } from '@tiptap/starter-kit';
 	import { onMount } from 'svelte';
 
-	/** Shared Tiptap editor for private verse comments and verse-list comments. */
+	/** Shared Tiptap editor for private verse comments, verse-list comments and their replies. */
 	let {
 		itemId,
 		resourceId,
+		parentCommentId,
 		html = null,
 		action = '?/saveNote',
 		reference,
@@ -20,6 +21,8 @@
 	}: {
 		itemId?: string;
 		resourceId?: string;
+		/** Set when this editor posts a reply rather than a top-level verse-list comment. */
+		parentCommentId?: string;
 		html?: string | null;
 		action?: string;
 		reference?: string;
@@ -123,6 +126,7 @@
 >
 	{#if itemId}<input type="hidden" name="itemId" value={itemId} />{/if}
 	{#if resourceId}<input type="hidden" name="resourceId" value={resourceId} />{/if}
+	{#if parentCommentId}<input type="hidden" name="parentCommentId" value={parentCommentId} />{/if}
 	{#if reference}<input type="hidden" name="reference" value={reference} />{/if}
 	<input type="hidden" name="note" value={html ?? ''} />
 

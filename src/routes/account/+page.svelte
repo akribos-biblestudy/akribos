@@ -144,14 +144,24 @@
 									<a href="/lists/{list.id}" class="block px-4 py-3">
 										<span class="flex items-baseline justify-between gap-2">
 											<span class="truncate font-medium">{list.title}</span>
-											{#if list.isPublic}
-												<span
-													class="shrink-0 rounded-full bg-accent-50 px-2 py-0.5 text-xs text-accent-700
-													       dark:bg-accent-900/40 dark:text-accent-300"
-												>
-													{t('lists.isPublic')}
-												</span>
-											{/if}
+											<span class="flex shrink-0 gap-1">
+												{#if list.role === 'member'}
+													<span
+														class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-600
+														       dark:bg-stone-800 dark:text-stone-300"
+													>
+														{t('lists.sharedByOwner', { owner: list.ownerName ?? '' })}
+													</span>
+												{/if}
+												{#if list.isPublic}
+													<span
+														class="rounded-full bg-accent-50 px-2 py-0.5 text-xs text-accent-700
+														       dark:bg-accent-900/40 dark:text-accent-300"
+													>
+														{t('lists.isPublic')}
+													</span>
+												{/if}
+											</span>
 										</span>
 										<span class="mt-1 block text-xs text-stone-500 dark:text-stone-400">
 											{verseCount(list.itemCount)}
@@ -185,7 +195,7 @@
 															chapter: note.chapter,
 															verse: note.verse
 														})
-													: `/lists/${note.listId}#note-${note.id}`}
+													: `/lists/${note.listId}#note-${note.itemId}`}
 											>
 												{formatReference({
 													book: note.book,
