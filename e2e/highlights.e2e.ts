@@ -206,7 +206,9 @@ test('highlighted text stays dark, readable ink in dark mode, not the light body
 	await page.locator('.swatches .swatch').first().click();
 
 	const partialHighlight = page
-		.locator('.flow-column[data-resource-id="SEEDDE"] [data-verse-key="43:3:16"] .partial-highlight')
+		.locator(
+			'.flow-column[data-resource-id="SEEDDE"] [data-verse-key="43:3:16"] .partial-highlight'
+		)
 		.first();
 	const wholeVerse = page.locator(
 		'.flow-column[data-resource-id="SEEDDE"] [data-verse-key="43:3:17"]'
