@@ -1591,6 +1591,7 @@
 														data.reference.verse !== undefined &&
 														cell.verse <= data.reference.verse &&
 														(cell.verseEnd ?? cell.verse) >= data.reference.verse}
+													class:has-highlight={mark?.color}
 													style:background-color={mark?.color}
 												>
 													<span class="verse-lead">
@@ -2135,6 +2136,12 @@
 
 	.flow-verse.highlighted {
 		background-color: color-mix(in oklab, var(--color-accent-500) 12%, transparent);
+	}
+
+	/* A whole-verse highlight paints a light pastel background regardless of theme, so its text must
+	   stay dark ink rather than follow the dark-mode body color, which would turn light-on-light. */
+	.flow-verse.has-highlight {
+		color: oklch(0.28 0.02 90);
 	}
 
 	.flow-reference {
