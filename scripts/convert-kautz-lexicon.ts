@@ -41,6 +41,7 @@
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 import { attribute, readXml } from '../src/lib/bible/parse/xml.ts';
 import { findBookId } from '../src/lib/bible/book-names.ts';
 import { referencePath } from '../src/lib/bible/reference.ts';
@@ -59,6 +60,9 @@ const BOLD_OPEN = '\uE010';
 const BOLD_CLOSE = '\uE011';
 const ITALIC_OPEN = '\uE012';
 const ITALIC_CLOSE = '\uE013';
+/** Preserves the one semantic source-line boundary that must survive hard-wrap joining: the boundary
+ *  between a short roman-numeral gloss and its following explanation. */
+const GLOSS_EXPLANATION_BREAK = '\uE014';
 
 type Enrichment = {
 	beta?: string;
@@ -656,6 +660,19 @@ function renderEtymology(etymology: string): string {
 /** Lines that open a new logical unit in the meaning block, as opposed to merely wrapping the previous one. */
 const SENSE_MARKER =
 	/^(Gräz\.|LXX[.:]|Synonyme siehe:|Wortfamilie:|[IVXLCDM]+\.?\)|\d{1,2}[a-z]?\))/;
+const ROMAN_SENSE_MARKER = /^([IVXLCDM]+\.?\))\s*/;
+
+/**
+ * Kautz puts a short roman-numeral gloss on its own physical line before a longer explanation. His
+ * manuscript otherwise uses physical lines as hard wraps, so only a short gloss (at most three words)
+ * makes that boundary semantic. This is also the source author's suggested way to find missed breaks.
+ */
+function isShortRomanGloss(line: string): boolean {
+	const marker = ROMAN_SENSE_MARKER.exec(line);
+	if (!marker) return false;
+	const wordCount = line.slice(marker[0].length).match(/\S+/g)?.length ?? 0;
+	return wordCount > 0 && wordCount <= 3;
+}
 
 /**
  * Re-joins hard-wrapped continuation lines into one logical line per sense, so a `<br/>` can be placed
@@ -674,6 +691,7 @@ const SENSE_MARKER =
 function groupIntoSenses(rest: string, forceWordFamilyMode = false): string[] {
 	const groups: string[] = [];
 	let inWortfamilieBlock = forceWordFamilyMode;
+	let preserveNextLineBreak = false;
 
 	for (const raw of rest.split('\n')) {
 		const trimmed = raw.trim();
@@ -692,8 +710,15 @@ function groupIntoSenses(rest: string, forceWordFamilyMode = false): string[] {
 			continue;
 		}
 
-		if (groups.length === 0 || SENSE_MARKER.test(trimmed)) groups.push(trimmed);
-		else groups[groups.length - 1] += ` ${trimmed}`;
+		if (groups.length === 0 || SENSE_MARKER.test(trimmed)) {
+			groups.push(trimmed);
+			preserveNextLineBreak = isShortRomanGloss(trimmed);
+		} else {
+			groups[groups.length - 1] += preserveNextLineBreak
+				? `${GLOSS_EXPLANATION_BREAK}${trimmed}`
+				: ` ${trimmed}`;
+			preserveNextLineBreak = false;
+		}
 	}
 
 	return groups;
@@ -799,8 +824,6 @@ function splitGlossFromExplanation(afterMarker: string): { gloss: string; explan
 	};
 }
 
-const ROMAN_SENSE_MARKER = /^([IVXLCDM]+\.?\))\s*/;
-
 /**
  * Renders one already-merged sense. Beyond generic inline "Strong Nr. N" mentions, two labelled forms get
  * their number list linkified: "Synonyme siehe: …" and the inline form of "Wortfamilie: …" (a plain
@@ -818,7 +841,15 @@ function renderSense(sense: string): string {
 
 	const roman = ROMAN_SENSE_MARKER.exec(sense);
 	if (roman) {
-		const { gloss, explanation } = splitGlossFromExplanation(sense.slice(roman[0].length));
+		const afterMarker = sense.slice(roman[0].length);
+		const sourceBreak = afterMarker.indexOf(GLOSS_EXPLANATION_BREAK);
+		const { gloss, explanation } =
+			sourceBreak === -1
+				? splitGlossFromExplanation(afterMarker)
+				: {
+						gloss: afterMarker.slice(0, sourceBreak).trim(),
+						explanation: afterMarker.slice(sourceBreak + GLOSS_EXPLANATION_BREAK.length).trim()
+					};
 		if (explanation)
 			return `${renderProse(`${roman[1]} ${gloss}`)}<br/>${renderProse(explanation)}`;
 	}
@@ -855,7 +886,7 @@ function renderSynonymSense(sense: string): string {
 	return `<indent>${linkedNumber} ${escapeXml(word!)}${gloss}</indent>`;
 }
 
-function renderBody(rest: string, forceWordFamilyMode = false): string {
+export function renderBody(rest: string, forceWordFamilyMode = false): string {
 	const senses = groupIntoSenses(rest, forceWordFamilyMode);
 	const render = forceWordFamilyMode ? renderSynonymSense : renderSense;
 	return senses
@@ -999,4 +1030,4 @@ async function main() {
 	console.log(`wrote ${xmlEntries.length} entries to ${outputPath}`);
 }
 
-await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
