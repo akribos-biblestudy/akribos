@@ -125,6 +125,13 @@ test('a partial highlight applies only in the translation it was selected in', a
 	)) {
 		expect(color).toBe('rgb(255, 241, 198)');
 	}
+	// A radius on the narrow whitespace-only span pinches its background into a pill and makes it look
+	// shorter than the words on either side. Rectangular adjacent runs stay visually level.
+	for (const radius of await seeddeHighlight.evaluateAll((elements) =>
+		elements.map((element) => getComputedStyle(element).borderRadius)
+	)) {
+		expect(radius).toBe('0px');
+	}
 
 	const seedplainHighlight = page.locator(
 		'.flow-column[data-resource-id="SEEDPLAIN"] [data-verse-key="43:3:16"] .partial-highlight'
@@ -157,6 +164,39 @@ test('a selection made without a mouseup/touchend still opens the menu, via sele
 	await selectVerseText(page, 'SEEDDE', '43:3:16', 'er seinen', { dispatchMouseup: false });
 
 	await expect(page.locator('.swatches .swatch')).toHaveCount(10);
+});
+
+test.describe('touch text selection', () => {
+	test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+
+	test('keeps the native selection adjustable and updates the highlight range', async ({
+		page
+	}) => {
+		await register(page, uniqueEmail());
+		await page.goto('/Joh3');
+
+		await selectVerseText(page, 'SEEDDE', '43:3:16', 'er', { dispatchMouseup: false });
+		await expect(page.locator('.swatches .swatch')).toHaveCount(10);
+		await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe('er');
+		const initialEnd = await page.locator('input[name="endWord"]').first().inputValue();
+
+		// This second selectionchange represents moving a native selection handle. The open menu must
+		// neither steal focus nor toggle closed; it must pick up the extended range instead.
+		await selectVerseText(page, 'SEEDDE', '43:3:16', 'er seinen', { dispatchMouseup: false });
+		await expect
+			.poll(() => page.evaluate(() => window.getSelection()?.toString()))
+			.toBe('er seinen');
+		await expect
+			.poll(() => page.locator('input[name="endWord"]').first().inputValue())
+			.not.toBe(initialEnd);
+
+		await page.locator('.swatches .swatch').first().click();
+		await expect(
+			page.locator(
+				'.flow-column[data-resource-id="SEEDDE"] [data-verse-key="43:3:16"] .partial-highlight'
+			)
+		).toHaveCount(3);
+	});
 });
 
 test('selecting an entire verse highlights it for every translation, like the verse-number menu', async ({

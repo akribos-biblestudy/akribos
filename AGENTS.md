@@ -126,6 +126,9 @@ Auswahl den kompletten Vers ab, behandelt der Reader sie wie den bisherigen Vers
 der Server in `setVerseHighlight()`, der eine Auswahl nie ungeprüft persistiert. `VerseText.svelte`
 erhält dafür optional `highlights` (Bereiche mit Farbe) und `wordOffset`; letzteres hält den
 Wortindex über `splitVerseLead()`s Aufteilung in Vers-Anfang und -Rest hinweg konsistent.
+Auf Touch-Geräten darf das Auswahlmenü weder den Fokus übernehmen noch die native Browserauswahl
+löschen: Die Auswahlgriffe bleiben dadurch verstellbar, und jedes weitere `selectionchange`
+aktualisiert denselben Menüzustand auf den verlängerten oder verkürzten Wortbereich.
 
 Private Kommentare hängen eindeutig an Benutzer, Vers und Bibelressource (`verse_comments`); pro
 Kombination existiert höchstens einer. Sie werden mit den endlos nachgeladenen Kapiteln geladen und

@@ -64,7 +64,8 @@
 		highlight: string | null,
 		onChange: (styleId: string | null) => void,
 		resource: { id: string; name: string } | null,
-		addComment: (() => void) | undefined
+		addComment: (() => void) | undefined,
+		focusMenu = true
 	): void {
 		context = next;
 		verse = verseNumber;
@@ -74,7 +75,7 @@
 		commentResource = resource;
 		onAddComment = addComment;
 		selection = null;
-		menu?.openAt(anchor);
+		menu?.openAt(anchor, { focus: focusMenu });
 	}
 
 	/**
@@ -89,7 +90,8 @@
 		next: VerseContext,
 		range: { resourceId: string; start: number; end: number },
 		highlight: string | null,
-		onChange: (styleId: string | null) => void
+		onChange: (styleId: string | null) => void,
+		preserveNativeSelection = false
 	): void {
 		context = next;
 		verse = 0;
@@ -99,7 +101,7 @@
 		commentResource = null;
 		onAddComment = undefined;
 		selection = range;
-		menu?.openAt(anchor);
+		menu?.openAt(anchor, { focus: !preserveNativeSelection });
 	}
 
 	const linkUrl = $derived(context ? new URL(context.path, page.url.origin).toString() : '');

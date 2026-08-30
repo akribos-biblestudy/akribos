@@ -26,22 +26,25 @@
 	let element: HTMLDivElement | undefined = $state();
 	let anchor: HTMLElement | null = null;
 	let open = $state(false);
+	let restoreFocusOnClose = true;
 
-	export function openAt(target: HTMLElement): void {
+	export function openAt(target: HTMLElement, { focus = true }: { focus?: boolean } = {}): void {
 		if (!element) return;
+		const alreadyOpen = element.matches(':popover-open');
 		// The anchor is a toggle: clicking the same button a second time closes its menu. Native
 		// popovers only provide outside-click dismissal, so this small bit is ours.
-		if (open && anchor === target) {
+		if (alreadyOpen && anchor === target) {
 			close();
 			return;
 		}
 		anchor = target;
+		restoreFocusOnClose = focus;
 		// Placed off-screen first, so measuring it does not make the page jump.
 		element.style.left = '-9999px';
 		element.style.top = '0px';
-		element.showPopover();
+		if (!alreadyOpen) element.showPopover();
 		place();
-		items()[0]?.focus();
+		if (focus) items()[0]?.focus();
 	}
 
 	export function close(): void {
@@ -94,8 +97,9 @@
 	function onToggle(event: ToggleEvent): void {
 		open = event.newState === 'open';
 		if (!open) {
-			anchor?.focus();
+			if (restoreFocusOnClose) anchor?.focus();
 			anchor = null;
+			restoreFocusOnClose = true;
 		}
 	}
 
