@@ -128,7 +128,10 @@ erhält dafür optional `highlights` (Bereiche mit Farbe) und `wordOffset`; letz
 Wortindex über `splitVerseLead()`s Aufteilung in Vers-Anfang und -Rest hinweg konsistent.
 Auf Touch-Geräten darf das Auswahlmenü weder den Fokus übernehmen noch die native Browserauswahl
 löschen: Die Auswahlgriffe bleiben dadurch verstellbar, und jedes weitere `selectionchange`
-aktualisiert denselben Menüzustand auf den verlängerten oder verkürzten Wortbereich.
+aktualisiert denselben Menüzustand auf den verlängerten oder verkürzten Wortbereich. Bei einer
+Mausauswahl darf `selectionchange` das Menü dagegen nie öffnen; erst `mouseup` signalisiert, dass die
+Auswahl abgeschlossen ist. Die Unterscheidung folgt dem tatsächlichen `PointerEvent.pointerType`,
+nicht allein einem Media Query, damit auch Touchscreen-Desktops mit Maus korrekt funktionieren.
 
 Private Kommentare hängen eindeutig an Benutzer, Vers und Bibelressource (`verse_comments`); pro
 Kombination existiert höchstens einer. Sie werden mit den endlos nachgeladenen Kapiteln geladen und
