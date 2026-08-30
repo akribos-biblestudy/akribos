@@ -49,22 +49,26 @@ function databaseUrl(): string {
  * `needle` names an exact substring to select; omitting it selects the verse's entire rendered text,
  * which is how a reader would highlight the whole verse (in every translation) by dragging across it.
  *
- * `dispatchMouseup: false` leaves the synthetic `mouseup` out, the way a native Android long-press
- * selection never delivers one to the page — only the browser's own, real `selectionchange` event
- * follows, which is what the reader's debounced fallback listener has to pick up instead.
+ * `dispatchMouseup: false` leaves the synthetic `mouseup` out. `pointerType: 'touch'` models a native
+ * Android long-press, whose own `touchend` may never reach the page; only the browser's real
+ * `selectionchange` then follows, which the reader's debounced touch fallback has to pick up.
  */
 async function selectVerseText(
 	page: Page,
 	resourceId: string,
 	verseKey: string,
 	needle?: string,
-	{ dispatchMouseup = true }: { dispatchMouseup?: boolean } = {}
+	{
+		dispatchMouseup = true,
+		pointerType = 'mouse'
+	}: { dispatchMouseup?: boolean; pointerType?: 'mouse' | 'touch' } = {}
 ): Promise<void> {
 	await page.evaluate(
-		({ resourceId, verseKey, needle, dispatchMouseup }) => {
+		({ resourceId, verseKey, needle, dispatchMouseup, pointerType }) => {
 			const column = document.querySelector(`.flow-column[data-resource-id="${resourceId}"]`);
 			const verseEl = column?.querySelector<HTMLElement>(`[data-verse-key="${verseKey}"]`);
 			if (!verseEl) throw new Error(`verse not found: ${resourceId} ${verseKey}`);
+			verseEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType }));
 
 			const textNodes: Text[] = [];
 			for (const container of verseEl.querySelectorAll('.verse-text')) {
@@ -95,7 +99,7 @@ async function selectVerseText(
 			selection?.addRange(range);
 			if (dispatchMouseup) verseEl.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
 		},
-		{ resourceId, verseKey, needle, dispatchMouseup }
+		{ resourceId, verseKey, needle, dispatchMouseup, pointerType }
 	);
 }
 
@@ -153,17 +157,23 @@ test('a partial highlight applies only in the translation it was selected in', a
 	await expect(seedplainHighlight).toHaveCount(0);
 });
 
-test('a selection made without a mouseup/touchend still opens the menu, via selectionchange', async ({
-	page
-}) => {
+test('a mouse selection opens the menu only after mouseup', async ({ page }) => {
 	await register(page, uniqueEmail());
 
 	await page.goto('/Joh3');
-	// No synthetic `mouseup` here — this is the native-long-press case from issue #142, where the
-	// gesture's own `touchend` never reaches the page and only a real `selectionchange` follows.
 	await selectVerseText(page, 'SEEDDE', '43:3:16', 'er seinen', { dispatchMouseup: false });
+	const swatches = page.locator('.swatches .swatch');
 
-	await expect(page.locator('.swatches .swatch')).toHaveCount(10);
+	// A slow mouse drag can emit many selectionchange events. None may open the menu while the button
+	// is still held, even after the touch fallback's debounce interval has elapsed.
+	await page.waitForTimeout(200);
+	await expect(swatches).toHaveCount(0);
+
+	await page
+		.locator('.flow-column[data-resource-id="SEEDDE"] [data-verse-key="43:3:16"]')
+		.dispatchEvent('mouseup');
+
+	await expect(swatches).toHaveCount(10);
 });
 
 test.describe('touch text selection', () => {
@@ -175,14 +185,25 @@ test.describe('touch text selection', () => {
 		await register(page, uniqueEmail());
 		await page.goto('/Joh3');
 
-		await selectVerseText(page, 'SEEDDE', '43:3:16', 'er', { dispatchMouseup: false });
+		await selectVerseText(page, 'SEEDDE', '43:3:16', 'er', {
+			dispatchMouseup: false,
+			pointerType: 'touch'
+		});
 		await expect(page.locator('.swatches .swatch')).toHaveCount(10);
+		await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe('er');
+		// A compatibility mouseup synthesized by a touch browser must not clear the native range.
+		await page
+			.locator('.flow-column[data-resource-id="SEEDDE"] [data-verse-key="43:3:16"]')
+			.dispatchEvent('mouseup');
 		await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe('er');
 		const initialEnd = await page.locator('input[name="endWord"]').first().inputValue();
 
 		// This second selectionchange represents moving a native selection handle. The open menu must
 		// neither steal focus nor toggle closed; it must pick up the extended range instead.
-		await selectVerseText(page, 'SEEDDE', '43:3:16', 'er seinen', { dispatchMouseup: false });
+		await selectVerseText(page, 'SEEDDE', '43:3:16', 'er seinen', {
+			dispatchMouseup: false,
+			pointerType: 'touch'
+		});
 		await expect
 			.poll(() => page.evaluate(() => window.getSelection()?.toString()))
 			.toBe('er seinen');
