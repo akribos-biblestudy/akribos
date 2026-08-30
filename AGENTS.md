@@ -87,7 +87,10 @@ Wichtige Scroll-Invarianten:
   anzeigen.
 - Nach einer echten Reader-Navigation müssen verzögerte Scroll-/Adressleisten-Timer und noch laufende
   Kapitel-Nachladungen verworfen werden; sie dürfen niemals den neuen Kapitelstream oder dessen URL
-  verändern. Die Strong-Seitenleiste wird nach History-Navigationen aus `window.location.hash`
+  verändern. Eine Navigation auf ein Kapitel ohne Vers setzt zusätzlich jede wiederverwendete
+  `.flow-column` vor und nach dem Austausch des Kapitelstreams programmatisch auf `scrollTop = 0`;
+  nur das äußere Fenster zurückzusetzen lässt sonst den Scrollstand der alten Stelle bestehen. Die
+  Strong-Seitenleiste wird nach History-Navigationen aus `window.location.hash`
   restauriert, weil flache `replaceState`-Änderungen nicht zuverlässig in `page.url` reaktiv werden.
 - Jeder Klick auf ein Strong-Wort und jedes explizite Schließen der Strong-Seitenleiste legt mit
   `pushState` einen eigenen History-Eintrag an. Dadurch kann Zurück/Vorwärts jeden einzelnen

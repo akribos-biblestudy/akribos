@@ -878,10 +878,13 @@
 		const signature = `${data.reference.book}:${data.reference.chapter}:${columnsKey}`;
 		if (signature !== streamSignature) {
 			streamGeneration += 1;
+			const generation = streamGeneration;
 			loadingPrevious = false;
 			loadingNext = false;
 			cancelScheduledReaderWork();
 			const columnsChanged = columnsKey !== streamColumnsKey;
+			const startsAtChapterTop = data.reference.verse === undefined;
+			if (startsAtChapterTop) resetFlowColumnsToTop();
 			streamSignature = signature;
 			streamColumnsKey = columnsKey;
 			streamChapters = [initialStreamChapter()];
@@ -906,9 +909,15 @@
 			readerLocation.reference = data.reference;
 			activeFlowSource = 0;
 			jumpedSignature = '';
-			if (data.reference.verse === undefined) {
-				// Landing on a new chapter always starts at its top.
-				tick().then(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+			if (startsAtChapterTop) {
+				// SvelteKit reuses the inner scrolling columns across reader navigations. Reset them once
+				// before replacing their contents and again after the DOM update: the first reset prevents
+				// scroll anchoring from retaining the old position, while the second covers remounted columns.
+				tick().then(() => {
+					if (generation !== streamGeneration) return;
+					resetFlowColumnsToTop();
+					window.scrollTo({ top: 0, behavior: 'instant' });
+				});
 			}
 		}
 	});
@@ -921,6 +930,16 @@
 			suppressedFlowColumns.delete(columnIndex);
 			suppressFlowTimers[columnIndex] = undefined;
 		}, 80);
+	}
+
+	function resetFlowColumnsToTop() {
+		for (const [index, column] of flowColumns.entries()) {
+			if (!column) continue;
+			lastAlignedElement[index] = null;
+			suppressProgrammaticFlowScroll(index);
+			column.scrollTop = 0;
+			updateFlowEdgeState(index, column);
+		}
 	}
 
 	async function fetchStreamChapter(reference: { book: number; chapter: number }) {
