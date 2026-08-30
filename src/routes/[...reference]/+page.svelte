@@ -308,7 +308,8 @@
 		verse: number,
 		verseEnd: number | null,
 		segments: Parameters<typeof segmentsToText>[0],
-		resource: { id: string; name: string }
+		resource: { id: string; name: string },
+		focusMenu = true
 	) {
 		const reference = {
 			book,
@@ -329,7 +330,8 @@
 			highlightByKey.get(`${book}:${chapter}:${verse}`)?.styleId ?? null,
 			(styleId) => updateStreamHighlight(book, chapter, verse, styleId),
 			resource,
-			() => openVerseComment(book, chapter, verse, resource.id)
+			() => openVerseComment(book, chapter, verse, resource.id),
+			focusMenu
 		);
 	}
 
@@ -393,7 +395,7 @@
 	 * verse, or cannot be matched back onto the verse's own text (e.g. they touch only whitespace) are
 	 * silently ignored — a reader can still use the verse-number menu for anything this misses.
 	 */
-	function onVerseTextSelection() {
+	function onVerseTextSelection(preserveNativeSelection = false) {
 		if (!data.user) return;
 		const selection = window.getSelection();
 		if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
@@ -434,7 +436,7 @@
 		const rect = range.getBoundingClientRect();
 		if (rect.width === 0 && rect.height === 0) return;
 		const anchor = anchorSelectionRect(rect);
-		selection.removeAllRanges();
+		if (!preserveNativeSelection) selection.removeAllRanges();
 
 		const resource = { id: column.resource.id, name: column.resource.tabTitle };
 		const wordCount = countVerseWords(cell.segments);
@@ -446,7 +448,8 @@
 				verse,
 				cell.verseEnd,
 				cell.segments,
-				resource
+				resource,
+				!preserveNativeSelection
 			);
 			return;
 		}
@@ -482,7 +485,8 @@
 					wordRange.start,
 					wordRange.end,
 					styleId
-				)
+				),
+			preserveNativeSelection
 		);
 	}
 
@@ -492,24 +496,36 @@
 	 * listener, so `onVerseTextSelection` only used to run on the *next* touch — typically the tap a
 	 * reader makes to dismiss that native bubble. `selectionchange` fires reliably the instant the
 	 * selection is created, native long-press included, so it is debounced in as an additional trigger
-	 * that does not depend on `touchend` being delivered. The debounce also covers a mouse drag, where
-	 * `selectionchange` fires on every character crossed: by the time it settles, `mouseup` has already
-	 * opened the menu and cleared the selection, so the delayed call below is a harmless no-op.
+	 * that does not depend on `touchend` being delivered. On a coarse pointer it deliberately keeps the
+	 * native range and selection handles alive; every later handle movement refreshes the same menu with
+	 * the adjusted word range. For a mouse drag, `mouseup` still opens the focused menu and clears the
+	 * range first, so the delayed selectionchange call below becomes a harmless no-op.
 	 */
 	let selectionChangeTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function onSelectionChangeDebounced() {
 		clearTimeout(selectionChangeTimer);
-		selectionChangeTimer = setTimeout(onVerseTextSelection, 120);
+		selectionChangeTimer = setTimeout(
+			() => onVerseTextSelection(window.matchMedia('(any-pointer: coarse)').matches),
+			120
+		);
+	}
+
+	function onMouseSelectionEnd() {
+		onVerseTextSelection(false);
+	}
+
+	function onTouchSelectionEnd() {
+		onVerseTextSelection(true);
 	}
 
 	$effect(() => {
-		document.addEventListener('mouseup', onVerseTextSelection);
-		document.addEventListener('touchend', onVerseTextSelection);
+		document.addEventListener('mouseup', onMouseSelectionEnd);
+		document.addEventListener('touchend', onTouchSelectionEnd);
 		document.addEventListener('selectionchange', onSelectionChangeDebounced);
 		return () => {
-			document.removeEventListener('mouseup', onVerseTextSelection);
-			document.removeEventListener('touchend', onVerseTextSelection);
+			document.removeEventListener('mouseup', onMouseSelectionEnd);
+			document.removeEventListener('touchend', onTouchSelectionEnd);
 			document.removeEventListener('selectionchange', onSelectionChangeDebounced);
 			clearTimeout(selectionChangeTimer);
 		};

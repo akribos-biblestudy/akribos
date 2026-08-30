@@ -201,7 +201,9 @@
 	.partial-highlight,
 	.strong.has-highlight,
 	em.has-highlight {
-		border-radius: 0.15rem;
+		/* Rounded whitespace-only spans pinch into narrow pills between words; square adjacent runs keep
+		   one continuous, level highlighter stroke across the complete selected phrase. */
+		border-radius: 0;
 		color: oklch(0.28 0.02 90);
 	}
 </style>
