@@ -167,6 +167,36 @@ test('the search field opens a keyboard-accessible book and chapter chooser', as
 	await expect(page.getByText('Und so wurden Himmel und Erde vollendet')).toBeVisible();
 });
 
+test('choosing a chapter resets a previously scrolled reader to its first verse', async ({
+	page
+}) => {
+	await page.goto('/Joh3');
+	const column = page.locator('.flow-column').first();
+	await expect(column.locator('[data-chapter-key="43:4"]')).toBeAttached();
+
+	await column.evaluate((element) => {
+		element.scrollTop = element.scrollHeight;
+	});
+	await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+	await page.locator('#site-search').click();
+	const chooser = page.getByRole('dialog', { name: 'Bibelstelle wählen' });
+	await chooser.getByRole('button', { name: '1.Mose' }).click();
+	await chooser.getByRole('link', { name: '1.Mose 2', exact: true }).click();
+
+	await expect(page).toHaveURL(/\/1Mo2$/);
+	await expect
+		.poll(() =>
+			column.evaluate((element) => {
+				const top = element.getBoundingClientRect().top + 24;
+				return [...element.querySelectorAll<HTMLElement>('[data-verse-key]')].find(
+					(verse) => verse.getBoundingClientRect().bottom > top
+				)?.dataset.verseKey;
+			})
+		)
+		.toBe('1:2:1');
+});
+
 test('a reference shows the chapter in parallel columns', async ({ page }) => {
 	await page.goto('/Joh3,16');
 
