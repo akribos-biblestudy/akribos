@@ -496,22 +496,32 @@
 	 * listener, so `onVerseTextSelection` only used to run on the *next* touch — typically the tap a
 	 * reader makes to dismiss that native bubble. `selectionchange` fires reliably the instant the
 	 * selection is created, native long-press included, so it is debounced in as an additional trigger
-	 * that does not depend on `touchend` being delivered. On a coarse pointer it deliberately keeps the
-	 * native range and selection handles alive; every later handle movement refreshes the same menu with
-	 * the adjusted word range. For a mouse drag, `mouseup` still opens the focused menu and clears the
-	 * range first, so the delayed selectionchange call below becomes a harmless no-op.
+	 * that does not depend on `touchend` being delivered. The fallback is armed by the actual input
+	 * modality, not a media query: a touchscreen laptop may report a coarse pointer even while its mouse
+	 * is being dragged. Touch keeps the native range and selection handles alive; mouse selection waits
+	 * exclusively for `mouseup`, so the menu cannot cover text before the drag is finished.
 	 */
 	let selectionChangeTimer: ReturnType<typeof setTimeout> | undefined;
+	let touchSelectionActive = false;
+
+	function onSelectionPointerDown(event: PointerEvent) {
+		touchSelectionActive = event.pointerType === 'touch';
+		if (!touchSelectionActive) {
+			clearTimeout(selectionChangeTimer);
+			selectionChangeTimer = undefined;
+		}
+	}
 
 	function onSelectionChangeDebounced() {
+		if (!touchSelectionActive) return;
 		clearTimeout(selectionChangeTimer);
-		selectionChangeTimer = setTimeout(
-			() => onVerseTextSelection(window.matchMedia('(any-pointer: coarse)').matches),
-			120
-		);
+		selectionChangeTimer = setTimeout(() => onVerseTextSelection(true), 120);
 	}
 
 	function onMouseSelectionEnd() {
+		// Touch browsers may emit a compatibility mouseup after their touch gesture. It must not turn
+		// the focus-free touch menu into the desktop variant or clear the still-adjustable selection.
+		if (touchSelectionActive) return;
 		onVerseTextSelection(false);
 	}
 
@@ -520,10 +530,12 @@
 	}
 
 	$effect(() => {
+		document.addEventListener('pointerdown', onSelectionPointerDown, true);
 		document.addEventListener('mouseup', onMouseSelectionEnd);
 		document.addEventListener('touchend', onTouchSelectionEnd);
 		document.addEventListener('selectionchange', onSelectionChangeDebounced);
 		return () => {
+			document.removeEventListener('pointerdown', onSelectionPointerDown, true);
 			document.removeEventListener('mouseup', onMouseSelectionEnd);
 			document.removeEventListener('touchend', onTouchSelectionEnd);
 			document.removeEventListener('selectionchange', onSelectionChangeDebounced);
