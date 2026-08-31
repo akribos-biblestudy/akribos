@@ -27,8 +27,12 @@ const PASSWORD = 'ein-sicheres-passwort';
 
 /**
  * Word indices in the seeded SEEDDE text, which are what a highlight is stored against.
- * Joh 3,16: "Denn(0) also(1) hat(2) Gott(3) die(4) Welt(5) geliebt(6), daß(7) er(8) seinen(9) Sohn(10) gab.(11)"
- * Joh 3,17: "Denn(0) Gott(1) hat(2) seinen(3) Sohn(4) nicht(5) gesandt,(6) um(7) zu(8) richten.(9)"
+ *
+ * Joh 3,16: Denn(0) also(1) hat(2) Gott(3) die(4) Welt(5) geliebt(6) ,(7) daß(8) er(9) seinen(10)
+ * Sohn(11) gab.(12) — the comma is a token of its own here because the footnote marker between
+ * "geliebt" and it closes the word, where punctuation otherwise stays glued to the word before it.
+ *
+ * Joh 3,17: Denn(0) Gott(1) hat(2) seinen(3) Sohn(4) nicht(5) gesandt,(6) um(7) zu(8) richten.(9)
  */
 const JOHN_16 = '43:3:16';
 const JOHN_17 = '43:3:17';
@@ -104,7 +108,13 @@ async function dragWords(
 	from: { verseKey: string; index: number },
 	to: { verseKey: string; index: number }
 ): Promise<void> {
-	const start = await centerOf(word(page, resourceId, from.verseKey, from.index));
+	// Hovering first waits for the word to be visible, stable and hit-testable. Without it the boxes
+	// can be measured against a layout the reader has not finished settling — the columns get their
+	// widths after hydration — and the press then lands a word or two away from the intended one.
+	const origin = word(page, resourceId, from.verseKey, from.index);
+	await origin.hover();
+
+	const start = await centerOf(origin);
 	const end = await centerOf(word(page, resourceId, to.verseKey, to.index));
 
 	await page.mouse.move(start.x, start.y);
@@ -123,7 +133,12 @@ test('a word selection applies only in the translation it was selected in', asyn
 	await page.goto('/Joh3');
 	// "er seinen" is plain, untagged text in both translations' rendering of verse 16, so the drag
 	// neither starts nor ends on a Strong's-tagged word or a footnote marker.
-	await dragWords(page, 'SEEDDE', { verseKey: JOHN_16, index: 8 }, { verseKey: JOHN_16, index: 9 });
+	await dragWords(
+		page,
+		'SEEDDE',
+		{ verseKey: JOHN_16, index: 9 },
+		{ verseKey: JOHN_16, index: 10 }
+	);
 
 	await expect(swatches(page)).toHaveCount(10);
 	await swatches(page).first().click();
@@ -175,7 +190,12 @@ test('a section dragged across a verse boundary is stored and painted as one', a
 	await page.goto('/Joh3');
 	// From "seinen" in verse 16 through "Sohn" in verse 17 — the case the previous selection model
 	// dropped on the floor, because a range spanning two verses was simply ignored.
-	await dragWords(page, 'SEEDDE', { verseKey: JOHN_16, index: 9 }, { verseKey: JOHN_17, index: 4 });
+	await dragWords(
+		page,
+		'SEEDDE',
+		{ verseKey: JOHN_16, index: 10 },
+		{ verseKey: JOHN_17, index: 4 }
+	);
 
 	await expect(swatches(page)).toHaveCount(10);
 	await swatches(page).first().click();
@@ -192,6 +212,7 @@ test('a section dragged across a verse boundary is stored and painted as one', a
 		expect(inFirst).toContain('seinen');
 		expect(inFirst).toContain('gab');
 		expect(inFirst).not.toContain('Denn');
+		expect(inFirst).not.toContain('daß');
 		expect(inSecond).toContain('Denn');
 		expect(inSecond).toContain('Sohn');
 		expect(inSecond).not.toContain('richten');
@@ -208,16 +229,29 @@ test('a section dragged across a verse boundary is stored and painted as one', a
 });
 
 test('picking the same colour again clears the whole section', async ({ page }) => {
+	// Registering an account and then marking the same section twice is a long test; under the full
+	// suite's parallel load it needs more than the default budget.
+	test.slow();
 	await register(page, uniqueEmail());
 
 	await page.goto('/Joh3');
-	await dragWords(page, 'SEEDDE', { verseKey: JOHN_16, index: 9 }, { verseKey: JOHN_17, index: 4 });
+	await dragWords(
+		page,
+		'SEEDDE',
+		{ verseKey: JOHN_16, index: 10 },
+		{ verseKey: JOHN_17, index: 4 }
+	);
 	await swatches(page).first().click();
 	await expect(markedRuns(page, 'SEEDDE', JOHN_17).first()).toBeVisible();
 
 	// Selecting exactly the same section again must offer the swatch as active, so clicking it removes
 	// the section rather than writing a second, identical one.
-	await dragWords(page, 'SEEDDE', { verseKey: JOHN_16, index: 9 }, { verseKey: JOHN_17, index: 4 });
+	await dragWords(
+		page,
+		'SEEDDE',
+		{ verseKey: JOHN_16, index: 10 },
+		{ verseKey: JOHN_17, index: 4 }
+	);
 	await expect(swatches(page).first()).toHaveAttribute('aria-pressed', 'true');
 	await swatches(page).first().click();
 
@@ -295,19 +329,55 @@ test.describe('touch selection', () => {
 		from: { verseKey: string; index: number },
 		to: { verseKey: string; index: number }
 	): Promise<void> {
-		const start = await centerOf(word(page, 'SEEDDE', from.verseKey, from.index));
-		const end = await centerOf(word(page, 'SEEDDE', to.verseKey, to.index));
 		const common = { pointerId: 1, pointerType: 'touch', isPrimary: true, bubbles: true };
 		// Dispatched on the word itself, so it is the event's target the way a real finger's would be;
 		// the reader listens further up and resolves the far end from the coordinates.
 		const origin = word(page, 'SEEDDE', from.verseKey, from.index);
+		await origin.scrollIntoViewIfNeeded();
+		const start = await centerOf(origin);
 
 		await origin.dispatchEvent('pointerdown', { ...common, clientX: start.x, clientY: start.y });
 		// Longer than the hold the reader waits for before the gesture becomes a selection.
 		await page.waitForTimeout(500);
+		// Measured after the hold: the far end is resolved from coordinates, so it must be read off a
+		// layout that has finished settling rather than one from before the page was done loading.
+		const end = await centerOf(word(page, 'SEEDDE', to.verseKey, to.index));
 		await origin.dispatchEvent('pointermove', { ...common, clientX: end.x, clientY: end.y });
 		await origin.dispatchEvent('pointerup', { ...common, clientX: end.x, clientY: end.y });
 	}
+
+	test('the palette opens as a bottom sheet that does not cover the selection', async ({
+		page
+	}) => {
+		await register(page, uniqueEmail());
+		await page.goto('/Joh3');
+
+		await touchDrag(page, { verseKey: JOHN_16, index: 9 }, { verseKey: JOHN_16, index: 10 });
+		await expect(swatches(page)).toHaveCount(10);
+
+		// The hold and drag marked exactly the two words it ran across.
+		const selectedText = await page
+			.locator('.flow-column[data-resource-id="SEEDDE"] .selected')
+			.evaluateAll((els) => els.map((el) => el.textContent).join(''));
+		expect(selectedText).toBe('er seinen');
+
+		const menu = page.getByRole('menu');
+		const menuBox = (await menu.boundingBox())!;
+		const selected = (await word(page, 'SEEDDE', JOHN_16, 9).boundingBox())!;
+		const viewport = page.viewportSize()!;
+
+		// Pinned across the bottom, spanning the screen, and starting below the words it was opened for.
+		expect(menuBox.width).toBeGreaterThan(viewport.width * 0.9);
+		expect(menuBox.y).toBeGreaterThan(selected.y + selected.height);
+		expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(viewport.height);
+
+		// A swatch has to be big enough to hit with a finger or a stylus first time.
+		const swatch = (await swatches(page).first().boundingBox())!;
+		expect(swatch.width).toBeGreaterThanOrEqual(32);
+		expect(swatch.height).toBeGreaterThanOrEqual(32);
+
+		await page.screenshot({ path: 'docs/screenshots/selection-sheet-mobile.png' });
+	});
 
 	test('a hold and drag marks a passage, a short tap does not', async ({ page }) => {
 		await register(page, uniqueEmail());
@@ -315,10 +385,10 @@ test.describe('touch selection', () => {
 
 		// A tap without the hold must leave the reader alone — it is how a page is scrolled and how a
 		// tagged word is looked up.
-		await word(page, 'SEEDDE', JOHN_16, 8).tap();
+		await word(page, 'SEEDDE', JOHN_16, 9).tap();
 		await expect(swatches(page)).toHaveCount(0);
 
-		await touchDrag(page, { verseKey: JOHN_16, index: 8 }, { verseKey: JOHN_16, index: 9 });
+		await touchDrag(page, { verseKey: JOHN_16, index: 9 }, { verseKey: JOHN_16, index: 10 });
 		await expect(swatches(page)).toHaveCount(10);
 
 		await swatches(page).first().click();
@@ -347,7 +417,12 @@ test('highlighted text stays dark, readable ink in dark mode, not the light body
 	await register(page, uniqueEmail());
 
 	await page.goto('/Joh3');
-	await dragWords(page, 'SEEDDE', { verseKey: JOHN_16, index: 8 }, { verseKey: JOHN_16, index: 9 });
+	await dragWords(
+		page,
+		'SEEDDE',
+		{ verseKey: JOHN_16, index: 9 },
+		{ verseKey: JOHN_16, index: 10 }
+	);
 	await swatches(page).first().click();
 
 	const marked = partialHighlights(page, 'SEEDDE', JOHN_16).first();

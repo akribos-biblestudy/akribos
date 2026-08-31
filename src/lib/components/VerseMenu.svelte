@@ -119,7 +119,9 @@
 		onAddComment = undefined;
 		onStartSection = undefined;
 		selection = target;
-		menu?.openAt(anchor, { focus: focusMenu });
+		// A selection's menu is the one that must never cover what it was opened for, so on a phone or
+		// an e-ink reader it opens as a sheet across the bottom instead.
+		menu?.openAt(anchor, { focus: focusMenu, allowSheet: true });
 	}
 
 	/** Closing from outside, for when the reader dismisses whatever the menu was opened for. */
@@ -372,6 +374,19 @@
 	.swatch.active {
 		border: 2px solid var(--color-stone-700);
 		box-shadow: 0 0 0 2px var(--color-stone-50);
+	}
+
+	/* A finger, and especially a stylus on a slow-refreshing screen, needs a target it can hit first
+	   time; there is room for it in the bottom sheet the selection menu opens as. */
+	@media (pointer: coarse) {
+		.swatches {
+			gap: 0.6rem;
+		}
+
+		.swatch {
+			width: 2.25rem;
+			height: 2.25rem;
+		}
 	}
 
 	:global(.dark) .swatch.active {
