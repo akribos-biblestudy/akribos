@@ -5,13 +5,11 @@
 	import { onDestroy, tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { formatReference, referencePath, type VerseRef } from '$lib/bible/reference';
-	import {
-		countVerseWords,
-		segmentsToText,
-		splitVerseLead,
-		wordRangeForCharSpan
-	} from '$lib/bible/segments';
+	import { countVerseWords, segmentsToText, splitVerseLead } from '$lib/bible/segments';
+	import { spanRangeForVerse } from '$lib/reader/selection';
+	import { ReaderSelection } from '$lib/reader/selection.svelte';
 	import { readerLocation, setJumpToVerse } from '$lib/reader-location.svelte';
+	import { rangeSelect } from '$lib/actions/range-select';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
 	import { t } from '$lib/i18n';
 	import ColumnPicker from '$lib/components/ColumnPicker.svelte';
@@ -19,7 +17,7 @@
 	import CommentToggle from '$lib/components/CommentToggle.svelte';
 	import StudySidebar from '$lib/components/StudySidebar.svelte';
 	import TranslationDialog from '$lib/components/TranslationDialog.svelte';
-	import VerseMenu from '$lib/components/VerseMenu.svelte';
+	import VerseMenu, { type SelectionTarget } from '$lib/components/VerseMenu.svelte';
 	import VerseText from '$lib/components/VerseText.svelte';
 
 	let { data } = $props();
@@ -331,6 +329,7 @@
 			(styleId) => updateStreamHighlight(book, chapter, verse, styleId),
 			resource,
 			() => openVerseComment(book, chapter, verse, resource.id),
+			data.user ? () => armVerseSection(`${book}:${chapter}`, verse) : undefined,
 			focusMenu
 		);
 	}
@@ -350,11 +349,26 @@
 		segments: Parameters<typeof segmentsToText>[0],
 		resource: { id: string; name: string }
 	) {
-		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+		if (event.metaKey || event.ctrlKey || event.altKey || event.button !== 0) return;
+
+		const chapterKey = `${book}:${chapter}`;
+		const start = sectionStart?.chapterKey === chapterKey ? sectionStart.verse : null;
+
+		// Shift-click is the desktop shorthand; `sectionArmed` is the same thing reached through the
+		// menu, for a screen where there is no modifier key to hold.
+		if (start !== null && start !== verse && (event.shiftKey || sectionArmed)) {
+			event.preventDefault();
+			sectionArmed = false;
+			selectVerseSection(chapterKey, start, verse);
 			return;
 		}
 
+		if (event.shiftKey) return;
+
 		event.preventDefault();
+		sectionStart = { chapterKey, verse };
+		sectionArmed = false;
+		textSelection.clear();
 		openVerseMenuForWholeVerse(
 			event.currentTarget,
 			book,
@@ -366,8 +380,14 @@
 		);
 	}
 
-	/** A throwaway, invisible element positioned over the current text selection, so `VerseMenu` (which
-	 *  anchors to a real element) can open next to a selection instead of a clicked verse number. */
+	/** "Abschnitt ab hier": the next verse number tapped becomes the other end. */
+	function armVerseSection(chapterKey: string, verse: number): void {
+		sectionStart = { chapterKey, verse };
+		sectionArmed = true;
+	}
+
+	/** A throwaway, invisible element positioned over the current selection, so `VerseMenu` (which
+	 *  anchors to a real element) can open next to it instead of next to a clicked verse number. */
 	let selectionAnchorEl: HTMLElement | null = null;
 
 	function anchorSelectionRect(rect: DOMRect): HTMLElement {
@@ -387,161 +407,236 @@
 	}
 
 	/**
-	 * Turns a mouse or touch text selection inside one translation's verse text into a highlight menu.
+	 * The passage the reader is marking out right now, and the gesture that produces it.
 	 *
-	 * A selection covering the whole verse behaves exactly like clicking the verse number (applies to
-	 * every translation); anything narrower opens the selection-only menu, scoped to that one
-	 * translation's word range. Selections that are collapsed, land outside a verse, span more than one
-	 * verse, or cannot be matched back onto the verse's own text (e.g. they touch only whitespace) are
-	 * silently ignored — a reader can still use the verse-number menu for anything this misses.
+	 * Nothing here goes through `window.getSelection()` any more — see `src/lib/reader/selection.ts`
+	 * for why. The reader owns the range, paints it itself and opens this menu when the gesture ends,
+	 * which is what makes a mouse, a finger and an e-ink stylus behave identically.
 	 */
-	function onVerseTextSelection(preserveNativeSelection = false) {
-		if (!data.user) return;
-		const selection = window.getSelection();
-		if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+	const textSelection = new ReaderSelection();
 
-		const rawSelectedText = selection.toString();
-		const selectedText = rawSelectedText.replace(/\s+/g, ' ').trim();
-		if (!selectedText) return;
+	/** The verse a section would start at: the last verse number opened, remembered so that
+	 *  shift-clicking (or "Abschnitt ab hier", which sets `sectionArmed`) can close the range. */
+	let sectionStart: { chapterKey: string; verse: number } | null = null;
+	let sectionArmed = $state(false);
 
-		const range = selection.getRangeAt(0);
-		const container = range.commonAncestorContainer;
-		const element = container instanceof Element ? container : container.parentElement;
-		const verseEl = element?.closest<HTMLElement>('.flow-verse[data-verse-key]');
-		const columnEl = element?.closest<HTMLElement>('.flow-column[data-resource-id]');
-		if (!verseEl || !columnEl) return;
+	/** Which column's rendering to read a selection out of. A word selection names its own; a verse
+	 *  selection paints in all of them, so the first Bible column stands in for the rest. */
+	function selectionScopeResourceId(): string | null {
+		if (textSelection.resourceId) return textSelection.resourceId;
+		return data.columns.find((column) => column.bibleCellIndex !== null)?.resource.id ?? null;
+	}
 
-		const [rawBook, rawChapter, rawVerse] = (verseEl.dataset.verseKey ?? '').split(':');
-		const book = Number(rawBook);
-		const chapter = Number(rawChapter);
-		const verse = Number(rawVerse);
-		const resourceId = columnEl.dataset.resourceId ?? '';
-		if (![book, chapter, verse].every(Number.isInteger) || !resourceId) return;
+	/** Every run painting part of the current selection, in reading order, within that one column. */
+	function selectedElements(): HTMLElement[] {
+		const resourceId = selectionScopeResourceId();
+		if (!flowReader || !textSelection.active || !resourceId) return [];
+		const column = flowReader.querySelector<HTMLElement>(
+			`.flow-column[data-resource-id="${CSS.escape(resourceId)}"]`
+		);
+		return column ? Array.from(column.querySelectorAll<HTMLElement>('.selected')) : [];
+	}
 
+	/** The box the selection occupies on screen, for the menu to open next to. */
+	function selectionRect(): DOMRect | null {
+		let left = Infinity;
+		let top = Infinity;
+		let right = -Infinity;
+		let bottom = -Infinity;
+		for (const element of selectedElements()) {
+			const rect = element.getBoundingClientRect();
+			if (rect.width === 0 && rect.height === 0) continue;
+			left = Math.min(left, rect.left);
+			top = Math.min(top, rect.top);
+			right = Math.max(right, rect.right);
+			bottom = Math.max(bottom, rect.bottom);
+		}
+		if (left === Infinity) return null;
+		return new DOMRect(left, top, right - left, bottom - top);
+	}
+
+	/** The selected text, read back off the runs that paint it — including the whitespace between
+	 *  them, which carries the selection too and so reproduces the spacing exactly. */
+	function selectedText(): string {
+		return selectedElements()
+			.map((element) => element.textContent ?? '')
+			.join('')
+			.replace(/\s+/g, ' ')
+			.trim();
+	}
+
+	function selectionReference(): {
+		book: number;
+		chapter: number;
+		verse: number;
+		verseEnd?: number;
+	} | null {
+		if (!textSelection.active) return null;
+		const [book, chapter] = textSelection.chapterKey.split(':').map(Number);
+		if (!Number.isInteger(book) || !Number.isInteger(chapter)) return null;
+
+		const { from, to } = textSelection.span;
+		return {
+			book: book!,
+			chapter: chapter!,
+			verse: from.verse,
+			...(to.verse > from.verse ? { verseEnd: to.verse } : {})
+		};
+	}
+
+	function selectionTarget(): SelectionTarget {
+		const { from, to } = textSelection.span;
+		const endVerse = to.verse > from.verse ? to.verse : null;
+		if (textSelection.kind === 'verse') return { kind: 'verses', endVerse };
+		return {
+			kind: 'words',
+			resourceId: textSelection.resourceId,
+			start: from.word,
+			end: to.word,
+			endVerse
+		};
+	}
+
+	/**
+	 * The colour already on exactly this section, so that picking it again clears it instead of
+	 * writing a second, identical one. A verse section only counts as coloured when every verse it
+	 * covers carries the same style — recolouring half of it leaves no single "active" swatch.
+	 */
+	function selectionStyleId(): string | null {
+		const reference = selectionReference();
+		if (!reference) return null;
+		const { from, to } = textSelection.span;
+
+		if (textSelection.kind === 'verse') {
+			let shared: string | null = null;
+			for (let verse = from.verse; verse <= to.verse; verse += 1) {
+				const styleId =
+					highlightByKey.get(`${reference.book}:${reference.chapter}:${verse}`)?.styleId ?? null;
+				if (verse === from.verse) shared = styleId;
+				else if (styleId !== shared) return null;
+			}
+			return shared;
+		}
+
+		const key = `${reference.book}:${reference.chapter}:${from.verse}:${textSelection.resourceId}`;
+		return (
+			partialHighlightsByKey
+				.get(key)
+				?.find(
+					(entry) =>
+						entry.startVerse === from.verse &&
+						entry.endVerse === to.verse &&
+						entry.startWord === from.word &&
+						entry.endWord === to.word
+				)?.styleId ?? null
+		);
+	}
+
+	/** Optimistic local update for a swatch picked on a selection, mirroring what the action writes. */
+	function applySelectionHighlight(styleId: string | null): void {
+		const reference = selectionReference();
+		if (!reference) return;
+		const { from, to } = textSelection.span;
+
+		if (textSelection.kind === 'verse') {
+			for (let verse = from.verse; verse <= to.verse; verse += 1) {
+				updateStreamHighlight(reference.book, reference.chapter, verse, styleId);
+			}
+		} else {
+			updatePartialHighlight(
+				reference.book,
+				reference.chapter,
+				from.verse,
+				to.verse,
+				textSelection.resourceId,
+				from.word,
+				to.word,
+				styleId
+			);
+		}
+
+		// The ink replaces the selection; leaving both on would just hide the colour just picked.
+		textSelection.clear();
+	}
+
+	/** How many words this translation renders the verse with — the same count a highlight's word
+	 *  indices are measured against. */
+	function verseWordCount(
+		book: number,
+		chapter: number,
+		verse: number,
+		resourceId: string
+	): number {
 		const stream = streamChapters.find(
 			(candidate) => candidate.reference.book === book && candidate.reference.chapter === chapter
 		);
 		const column = data.columns.find((candidate) => candidate.resource.id === resourceId);
-		const row = stream?.chapter.rows.find((candidate) => candidate.verse === verse);
-		const cell =
-			column?.bibleCellIndex != null ? (row?.cells[column.bibleCellIndex] ?? null) : null;
-		if (!stream || !column || !cell) return;
+		if (!stream || !column || column.bibleCellIndex === null) return 0;
 
-		const flattened = segmentsToText(cell.segments);
-		const charStart = flattened.indexOf(selectedText);
-		if (charStart < 0) return;
-		const wordRange = wordRangeForCharSpan(flattened, charStart, charStart + selectedText.length);
-		if (!wordRange) return;
-
-		const rect = range.getBoundingClientRect();
-		if (rect.width === 0 && rect.height === 0) return;
-		const anchor = anchorSelectionRect(rect);
-		if (!preserveNativeSelection) selection.removeAllRanges();
-
-		const resource = { id: column.resource.id, name: column.resource.tabTitle };
-		const wordCount = countVerseWords(cell.segments);
-		if (wordRange.start === 0 && wordRange.end === wordCount - 1) {
-			openVerseMenuForWholeVerse(
-				anchor,
-				book,
-				chapter,
-				verse,
-				cell.verseEnd,
-				cell.segments,
-				resource,
-				!preserveNativeSelection
-			);
-			return;
-		}
-
-		const reference = {
-			book,
-			chapter,
-			verse,
-			...(cell.verseEnd && cell.verseEnd > verse ? { verseEnd: cell.verseEnd } : {})
-		};
-		const activeStyleId =
-			partialHighlightsByKey
-				.get(`${book}:${chapter}:${verse}:${resourceId}`)
-				?.find((entry) => entry.start === wordRange.start && entry.end === wordRange.end)
-				?.styleId ?? null;
-
-		verseMenu?.openForSelection(
-			anchor,
-			{
-				reference: formatReference(reference),
-				label: formatReference(reference, { style: 'full' }),
-				path: referencePath(reference),
-				text: rawSelectedText
-			},
-			{ resourceId, start: wordRange.start, end: wordRange.end },
-			activeStyleId,
-			(styleId) =>
-				updatePartialHighlight(
-					book,
-					chapter,
-					verse,
-					resourceId,
-					wordRange.start,
-					wordRange.end,
-					styleId
-				),
-			preserveNativeSelection
-		);
+		const cell = stream.chapter.rows.find((row) => row.verse === verse)?.cells[
+			column.bibleCellIndex
+		];
+		return cell ? countVerseWords(cell.segments) : 0;
 	}
 
 	/**
-	 * On Android, a long-press-to-select gesture is consumed by the browser's own selection UI
-	 * (handles plus a copy/share bubble); the gesture's own `touchend` never reaches this document
-	 * listener, so `onVerseTextSelection` only used to run on the *next* touch — typically the tap a
-	 * reader makes to dismiss that native bubble. `selectionchange` fires reliably the instant the
-	 * selection is created, native long-press included, so it is debounced in as an additional trigger
-	 * that does not depend on `touchend` being delivered. The fallback is armed by the actual input
-	 * modality, not a media query: a touchscreen laptop may report a coarse pointer even while its mouse
-	 * is being dragged. Touch keeps the native range and selection handles alive; mouse selection waits
-	 * exclusively for `mouseup`, so the menu cannot cover text before the drag is finished.
+	 * A word selection running from a verse's first word to its last means "this verse", which has
+	 * always applied to every translation rather than only the column it was drawn in. Turning it into
+	 * a verse selection here is what keeps the colour that appears immediately identical to the one the
+	 * server writes, which re-checks the same rule against the stored text.
 	 */
-	let selectionChangeTimer: ReturnType<typeof setTimeout> | undefined;
-	let touchSelectionActive = false;
+	function collapseWholeVerseSelection(): void {
+		if (textSelection.kind !== 'word') return;
+		const { from, to } = textSelection.span;
+		if (from.verse !== to.verse || from.word !== 0) return;
 
-	function onSelectionPointerDown(event: PointerEvent) {
-		touchSelectionActive = event.pointerType === 'touch';
-		if (!touchSelectionActive) {
-			clearTimeout(selectionChangeTimer);
-			selectionChangeTimer = undefined;
+		const [book, chapter] = textSelection.chapterKey.split(':').map(Number);
+		if (!Number.isInteger(book) || !Number.isInteger(chapter)) return;
+
+		const count = verseWordCount(book!, chapter!, from.verse, textSelection.resourceId);
+		if (count === 0 || to.word !== count - 1) return;
+		textSelection.beginVerse(textSelection.chapterKey, from.verse);
+	}
+
+	/** Opens the palette next to whatever is selected. Waits for the paint first, because the rect is
+	 *  measured off the runs the selection marks — which the last extension may not have reached yet. */
+	async function openSelectionMenu(): Promise<void> {
+		collapseWholeVerseSelection();
+		await tick();
+		const reference = selectionReference();
+		const rect = selectionRect();
+		if (!reference || !rect) {
+			dismissSelection();
+			return;
 		}
+
+		verseMenu?.openForSelection(
+			anchorSelectionRect(rect),
+			{
+				reference: formatReference({ ...reference, verseEnd: undefined }),
+				label: formatReference(reference, { style: 'full' }),
+				path: referencePath(reference),
+				text: selectedText()
+			},
+			selectionTarget(),
+			selectionStyleId(),
+			applySelectionHighlight,
+			!isMobileViewport
+		);
 	}
 
-	function onSelectionChangeDebounced() {
-		if (!touchSelectionActive) return;
-		clearTimeout(selectionChangeTimer);
-		selectionChangeTimer = setTimeout(() => onVerseTextSelection(true), 120);
+	function dismissSelection(): void {
+		textSelection.clear();
+		verseMenu?.close();
 	}
 
-	function onMouseSelectionEnd() {
-		// Touch browsers may emit a compatibility mouseup after their touch gesture. It must not turn
-		// the focus-free touch menu into the desktop variant or clear the still-adjustable selection.
-		if (touchSelectionActive) return;
-		onVerseTextSelection(false);
+	/** Marks whole verses `from`..`to`, which applies to every translation just like the verse-number
+	 *  highlight always has. */
+	function selectVerseSection(chapterKey: string, from: number, to: number): void {
+		textSelection.beginVerse(chapterKey, Math.min(from, to));
+		textSelection.head = { verse: Math.max(from, to), word: 0 };
+		void openSelectionMenu();
 	}
-
-	function onTouchSelectionEnd() {
-		onVerseTextSelection(true);
-	}
-
-	$effect(() => {
-		document.addEventListener('pointerdown', onSelectionPointerDown, true);
-		document.addEventListener('mouseup', onMouseSelectionEnd);
-		document.addEventListener('touchend', onTouchSelectionEnd);
-		document.addEventListener('selectionchange', onSelectionChangeDebounced);
-		return () => {
-			document.removeEventListener('pointerdown', onSelectionPointerDown, true);
-			document.removeEventListener('mouseup', onMouseSelectionEnd);
-			document.removeEventListener('touchend', onTouchSelectionEnd);
-			document.removeEventListener('selectionchange', onSelectionChangeDebounced);
-			clearTimeout(selectionChangeTimer);
-		};
-	});
 
 	onDestroy(() => selectionAnchorEl?.remove());
 
@@ -771,23 +866,60 @@
 		)
 	);
 
-	/** Translation-specific highlighted word ranges, keyed like `data-verse-key` plus the resource id,
-	 *  each verse+resource possibly carrying several distinct coloured sections. */
+	/**
+	 * Translation-specific coloured sections, split back into one painted range per verse and keyed
+	 * like `data-verse-key` plus the resource id.
+	 *
+	 * A section is stored as its two endpoints, so a section running from verse 29 into verse 31 has
+	 * to be spread over the verses in between here — each one contributing whatever `spanRangeForVerse`
+	 * says, measured against that verse's own length. The section's own endpoints travel along, so the
+	 * menu can still recognise "this exact section is already coloured".
+	 */
 	const partialHighlightsByKey = $derived.by(() => {
 		const grouped: Record<
 			string,
-			{ start: number; end: number; color: string; styleId: string }[]
+			{
+				start: number;
+				end: number;
+				color: string;
+				styleId: string;
+				startVerse: number;
+				endVerse: number;
+				startWord: number;
+				endWord: number;
+			}[]
 		> = {};
 		for (const stream of streamChapters) {
 			for (const highlight of stream.highlights) {
 				if (highlight.resourceId === null) continue;
-				const key = `${stream.reference.book}:${stream.reference.chapter}:${highlight.verse}:${highlight.resourceId}`;
-				(grouped[key] ??= []).push({
-					start: highlight.startWord!,
-					end: highlight.endWord!,
-					color: highlight.color,
-					styleId: highlight.styleId
-				});
+				const column = data.columns.find(
+					(candidate) => candidate.resource.id === highlight.resourceId
+				);
+				if (!column || column.bibleCellIndex === null) continue;
+
+				const span = {
+					from: { verse: highlight.verse, word: highlight.startWord! },
+					to: { verse: highlight.endVerse, word: highlight.endWord! }
+				};
+				for (let verse = highlight.verse; verse <= highlight.endVerse; verse += 1) {
+					const cell = stream.chapter.rows.find((row) => row.verse === verse)?.cells[
+						column.bibleCellIndex
+					];
+					if (!cell) continue;
+					const range = spanRangeForVerse(span, verse, countVerseWords(cell.segments));
+					if (!range) continue;
+
+					const key = `${stream.reference.book}:${stream.reference.chapter}:${verse}:${highlight.resourceId}`;
+					(grouped[key] ??= []).push({
+						...range,
+						color: highlight.color,
+						styleId: highlight.styleId,
+						startVerse: highlight.verse,
+						endVerse: highlight.endVerse,
+						startWord: highlight.startWord!,
+						endWord: highlight.endWord!
+					});
+				}
 			}
 		}
 		return new Map(Object.entries(grouped));
@@ -815,6 +947,7 @@
 		if (style)
 			stream.highlights.push({
 				verse,
+				endVerse: verse,
 				styleId: style.id,
 				color: style.color,
 				name: style.name,
@@ -824,12 +957,13 @@
 			});
 	}
 
-	/** Same idea as `updateStreamHighlight`, but for one translation-specific word range, which does
-	 *  not replace any other section of the same verse — only the exact same range. */
+	/** Same idea as `updateStreamHighlight`, but for one translation-specific section, which does not
+	 *  replace any other section of the same verse — only an identical one. */
 	function updatePartialHighlight(
 		book: number,
 		chapter: number,
 		verse: number,
+		endVerse: number,
 		resourceId: string,
 		start: number,
 		end: number,
@@ -844,6 +978,7 @@
 			(highlight) =>
 				!(
 					highlight.verse === verse &&
+					highlight.endVerse === endVerse &&
 					highlight.resourceId === resourceId &&
 					highlight.startWord === start &&
 					highlight.endWord === end
@@ -855,6 +990,7 @@
 		if (style)
 			stream.highlights.push({
 				verse,
+				endVerse,
 				styleId: style.id,
 				color: style.color,
 				name: style.name,
@@ -1507,6 +1643,11 @@
 					style:--column-track={columnTrack}
 					style:--flow-edge-fade-height={`${FLOW_EDGE_FADE_PX}px`}
 					data-testid="flow-reader"
+					use:rangeSelect={{
+						selection: textSelection,
+						onCommit: () => void openSelectionMenu(),
+						onDismiss: dismissSelection
+					}}
 				>
 					<!-- The splitter belongs to the text it resizes. Keeping its overlay outside the individual
 					     scrolling columns leaves it stationary and centered while either text column scrolls. -->
@@ -1615,6 +1756,12 @@
 												partialHighlightsByKey.get(
 													`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}:${column.resource.id}`
 												) ?? []}
+											{@const selected = textSelection.rangeFor(
+												`${stream.reference.book}:${stream.reference.chapter}`,
+												column.resource.id,
+												cell.verse,
+												countVerseWords(cell.segments)
+											)}
 											{@const comment = verseCommentAt(stream, column.resource.id, cell.verse)}
 											{@const commentKey = verseCommentKey(
 												stream.reference.book,
@@ -1730,6 +1877,7 @@
 																	)}
 																activeStrong={activeStrong?.strong ?? null}
 																highlights={partial}
+																selection={selected}
 																{hoverStrong}
 																onStrongHover={(strong) => (hoverStrong = strong)}
 															/></span
@@ -1751,6 +1899,7 @@
 																)}
 															activeStrong={activeStrong?.strong ?? null}
 															highlights={partial}
+															selection={selected}
 															wordOffset={leadWordCount}
 															{hoverStrong}
 															onStrongHover={(strong) => (hoverStrong = strong)}
@@ -1891,6 +2040,15 @@
 	{marks}
 	highlightStyles={data.highlightStyles}
 />
+
+<!-- "Abschnitt ab hier" is a two-step gesture with nothing on screen in between, so it says so. The
+     bar sits at the bottom, where it cannot cover the verse numbers the reader is about to tap. -->
+{#if sectionArmed}
+	<div class="section-hint" role="status">
+		<span>{t('verse.sectionHint')}</span>
+		<button type="button" onclick={() => (sectionArmed = false)}>{t('action.cancel')}</button>
+	</div>
+{/if}
 
 <!-- One dialog for the whole page, opened for whichever column was clicked. -->
 <TranslationDialog
@@ -2163,6 +2321,12 @@
 	.flow-verse .verse-text {
 		overflow-wrap: break-word;
 		word-break: normal;
+		/* The reader draws its own selection (see `src/lib/reader/selection.ts`), so the browser must
+		   not draw a second one on top of it — and on touch it must not raise its own selection handles
+		   and callout, which is the part that behaves differently on every Android build and e-ink
+		   reader. Copying is offered by the selection's own menu instead. */
+		user-select: none;
+		-webkit-touch-callout: none;
 	}
 
 	.flow-verse::after {
@@ -2333,5 +2497,32 @@
 		.pb-sheet {
 			padding-bottom: 72dvh;
 		}
+	}
+
+	/* Sits above the reader, out of the way of the verse numbers the reader is about to tap, and clear
+	   of the home indicator on a phone. */
+	.section-hint {
+		position: fixed;
+		left: 50%;
+		bottom: calc(1rem + env(safe-area-inset-bottom));
+		z-index: 40;
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		translate: -50% 0;
+		max-width: calc(100vw - 2rem);
+		padding: 0.6rem 1rem;
+		border-radius: 0.75rem;
+		background: var(--color-accent-700);
+		color: white;
+		box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.25);
+	}
+
+	.section-hint button {
+		flex: none;
+		padding: 0.2rem 0.6rem;
+		border-radius: 0.5rem;
+		background: rgb(255 255 255 / 0.18);
+		font-weight: 600;
 	}
 </style>

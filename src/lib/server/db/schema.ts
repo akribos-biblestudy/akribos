@@ -676,19 +676,29 @@ export const highlightStyles = pgTable(
 export type HighlightStyle = typeof highlightStyles.$inferSelect;
 
 /**
- * One coloured section of a verse.
+ * One coloured section, from `verse`/`startWord` to `endVerse`/`endWord`.
  *
- * `resourceId`, `startWord` and `endWord` are null together for a highlight that covers the whole
- * verse, matching the original design: it applies in every translation, and a verse holds at most one
- * of these (picking another colour replaces it, like a physical highlighter). That shape is also what
+ * `resourceId`, `startWord` and `endWord` are null together for a section covering whole verses,
+ * matching the original design: it applies in every translation, and a verse holds at most one of
+ * these (picking another colour replaces it, like a physical highlighter). That shape is also what
  * every row from before this feature already has, so an old highlight keeps working unchanged.
  *
- * When they are set instead, the highlight covers only `startWord..endWord` (inclusive, 0-based,
- * counted by `countVerseWords` in `src/lib/bible/segments.ts`) of that one `resourceId`'s rendering —
- * a translation-specific selection can only ever mean something for that translation's own text. A
- * verse may carry several of these at once (different sections, possibly different translations or
- * colours), so only the exact same range replaces its own colour; two overlapping-but-different
- * ranges are independent rows and simply paint over one another where they overlap.
+ * When they are set instead, the section covers `startWord` of `verse` through `endWord` of
+ * `endVerse` (inclusive, 0-based, counted by `countVerseWords` in `src/lib/bible/segments.ts`) of
+ * that one `resourceId`'s rendering — a translation-specific selection can only ever mean something
+ * for that translation's own text. Which words each verse in between contributes is worked out at
+ * render time by `spanRangeForVerse` (`src/lib/reader/selection.ts`), from that verse's own length;
+ * storing the two endpoints rather than one row per verse is what keeps a section a single thing to
+ * recolour, remove and list.
+ *
+ * A verse may take part in several sections at once (possibly different translations or colours), so
+ * only the exact same span replaces its own colour; two overlapping-but-different spans are
+ * independent rows and simply paint over one another where they overlap.
+ *
+ * `endVerse` is therefore only ever greater than `verse` for a translation-specific section. A
+ * whole-verse section spanning several verses is written as one row per verse instead, so that the
+ * "one colour per verse, everywhere" rule the reader has always had keeps holding. `endVerse` equals
+ * `verse` for every row written before sections existed, which is what the migration backfills.
  */
 export const verseHighlights = pgTable(
 	'verse_highlights',
@@ -703,19 +713,25 @@ export const verseHighlights = pgTable(
 		bookId: integer('book_id').notNull(),
 		chapter: integer('chapter').notNull(),
 		verse: integer('verse').notNull(),
-		/** Null for a whole-verse highlight; the translation a partial one belongs to otherwise. */
+		/** Last verse of the section; equal to `verse` unless it spans several. */
+		endVerse: integer('end_verse').notNull(),
+		/** Null for a whole-verse section; the translation a partial one belongs to otherwise. */
 		resourceId: text('resource_id').references(() => resources.id, { onDelete: 'cascade' }),
-		/** Inclusive word range within `resourceId`'s rendering; null together with `resourceId`. */
+		/** First covered word of `verse`; null together with `resourceId`. */
 		startWord: integer('start_word'),
+		/** Last covered word of `endVerse`; null together with `resourceId`. */
 		endWord: integer('end_word'),
 		...timestamps
 	},
 	(table) => [
-		// At most one whole-verse highlight per verse, exactly as before this feature existed.
+		// At most one whole-verse highlight per verse, exactly as before this feature existed. A
+		// whole-verse section covering several verses is stored as one such row per verse, which is what
+		// keeps "a verse carries at most one colour that applies everywhere" true — recolouring verse 30
+		// on its own has to replace the colour it got as part of 29-31, not stack with it.
 		uniqueIndex('verse_highlights_verse_idx')
 			.on(table.userId, table.bookId, table.chapter, table.verse)
 			.where(sql`${table.resourceId} is null`),
-		// Re-picking the same section replaces its colour; a different range is a separate section.
+		// Re-picking the same section replaces its colour; a different span is a separate section.
 		uniqueIndex('verse_highlights_range_idx')
 			.on(
 				table.userId,
@@ -723,6 +739,7 @@ export const verseHighlights = pgTable(
 				table.bookId,
 				table.chapter,
 				table.verse,
+				table.endVerse,
 				table.startWord,
 				table.endWord
 			)
@@ -730,10 +747,13 @@ export const verseHighlights = pgTable(
 		index('verse_highlights_style_idx').on(table.styleId),
 		check(
 			'verse_highlights_range_check',
-			sql`(${table.resourceId} is null and ${table.startWord} is null and ${table.endWord} is null)
-				or (${table.resourceId} is not null and ${table.startWord} is not null
-					and ${table.endWord} is not null and ${table.startWord} >= 0
-					and ${table.endWord} >= ${table.startWord})`
+			sql`${table.endVerse} >= ${table.verse}
+				and ((${table.resourceId} is null and ${table.startWord} is null and ${table.endWord} is null
+						and ${table.endVerse} = ${table.verse})
+					or (${table.resourceId} is not null and ${table.startWord} is not null
+						and ${table.endWord} is not null and ${table.startWord} >= 0
+						and ${table.endWord} >= 0
+						and (${table.endVerse} > ${table.verse} or ${table.endWord} >= ${table.startWord})))`
 		)
 	]
 );

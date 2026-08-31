@@ -4,6 +4,7 @@
 		initHighlightCursor,
 		type DisplayChunk,
 		type HighlightRange,
+		type SelectionRange,
 		type VerseSegment
 	} from '$lib/bible/segments';
 	import Footnote from './Footnote.svelte';
@@ -22,6 +23,7 @@
 		activeStrong = null,
 		hoverStrong = null,
 		highlights = [],
+		selection = null,
 		wordOffset = 0
 	}: {
 		segments: VerseSegment[];
@@ -39,6 +41,8 @@
 		hoverStrong?: string | null;
 		/** Translation-specific highlighted word ranges to paint within `segments`, if any. */
 		highlights?: HighlightRange[];
+		/** The word range the reader is currently selecting, painted as a selection rather than ink. */
+		selection?: SelectionRange | null;
 		/** Global word index of `segments[0]`, so a verse split into a lead and a remainder (see
 		 *  `splitVerseLead`) keeps `highlights` ranges aligned across both calls. */
 		wordOffset?: number;
@@ -93,17 +97,20 @@
 	const displayParts = $derived.by(() => {
 		const cursor = initHighlightCursor(wordOffset);
 		return renderParts.map((part) => ({
-			main: highlightSegment(part.segment, highlights, cursor),
-			suffix: part.suffix ? highlightSegment(part.suffix, highlights, cursor) : []
+			main: highlightSegment(part.segment, highlights, cursor, selection),
+			suffix: part.suffix ? highlightSegment(part.suffix, highlights, cursor, selection) : []
 		}));
 	});
 </script>
 
 {#snippet chunk(item: DisplayChunk)}
 	{#if item.kind === 'text'}
-		{#if item.color}<span class="partial-highlight" style:background-color={item.color}
-				>{item.text}</span
-			>{:else}{item.text}{/if}
+		{#if item.word === null && !item.color && !item.selected}{item.text}{:else}<span
+				class:partial-highlight={item.color && !item.selected}
+				class:selected={item.selected}
+				data-w={item.word ?? undefined}
+				style:background-color={item.selected ? undefined : item.color}>{item.text}</span
+			>{/if}
 	{:else if item.kind === 'br'}
 		<br />
 	{:else if item.kind === 'w'}
@@ -112,10 +119,12 @@
 			class="strong"
 			class:active={matchesStrong(item.segment, activeStrong) ||
 				matchesStrong(item.segment, hoverStrong)}
-			class:has-highlight={item.color}
+			class:has-highlight={item.color && !item.selected}
+			class:selected={item.selected}
 			data-strong={item.segment.strong}
+			data-w={item.word}
 			title={item.segment.morph ?? undefined}
-			style:background-color={item.color}
+			style:background-color={item.selected ? undefined : item.color}
 			onclick={() => onStrongClick?.(item.segment.strong, item.segment.text)}
 			onpointerenter={(event) => {
 				if (isMouseHover(event)) onStrongHover?.(item.segment.strong);
@@ -125,7 +134,12 @@
 			}}>{item.segment.text}</button
 		>
 	{:else if item.kind === 'em'}
-		<em class:has-highlight={item.color} style:background-color={item.color}>{item.text}</em>
+		<em
+			class:has-highlight={item.color && !item.selected}
+			class:selected={item.selected}
+			data-w={item.word ?? undefined}
+			style:background-color={item.selected ? undefined : item.color}>{item.text}</em
+		>
 	{:else if item.kind === 'note'}
 		<Footnote marker={item.segment.marker} text={item.segment.text} />
 	{:else if item.kind === 'wj'}
@@ -198,6 +212,17 @@
 	   whole `.flow-verse`, which is what a whole-verse highlight still uses. The highlighter palette is
 	   made of light pastel backgrounds, so the text on top must stay dark ink in both themes — it must
 	   not follow the dark-mode body text color, which would turn light-on-light and unreadable. */
+	/* The range being selected right now. It deliberately does not look like the pastel highlighter
+	   palette: it inverts, so it stays unmistakable on a slow-refreshing e-ink screen where a light
+	   tinted background is barely a shade of grey. It also wins over a highlight colour underneath —
+	   `background-color` is left off the element entirely while selected, rather than fought with
+	   `!important`. */
+	.selected {
+		background-color: var(--color-accent-700);
+		color: white;
+		border-radius: 0;
+	}
+
 	.partial-highlight,
 	.strong.has-highlight,
 	em.has-highlight {

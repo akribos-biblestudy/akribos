@@ -8,6 +8,17 @@
 		path: string;
 		text: string;
 	};
+
+	/**
+	 * What a selected section covers. `words` is a run inside one translation's own rendering and so
+	 * only means something there; `verses` covers whole verses and applies to every translation, the
+	 * same distinction the stored highlights make.
+	 *
+	 * `endVerse` is null while the section stays inside the verse its reference names.
+	 */
+	export type SelectionTarget =
+		| { kind: 'words'; resourceId: string; start: number; end: number; endVerse: number | null }
+		| { kind: 'verses'; endVerse: number | null };
 </script>
 
 <script lang="ts">
@@ -47,9 +58,10 @@
 	let onHighlightChange: ((styleId: string | null) => void) | undefined;
 	let commentResource: { id: string; name: string } | null = $state(null);
 	let onAddComment: (() => void) | undefined;
-	/** Set only when the menu was opened for a text selection rather than a verse-number click; then
-	 *  it shows nothing but the highlight swatches, scoped to this one translation's word range. */
-	let selection = $state<{ resourceId: string; start: number; end: number } | null>(null);
+	let onStartSection: (() => void) | undefined = $state(undefined);
+	/** Set only when the menu was opened for a selection rather than a verse-number click; then it
+	 *  shows the palette and copying, but nothing that needs a single verse to point at. */
+	let selection = $state<SelectionTarget | null>(null);
 
 	/**
 	 * `highlight` is the style currently on this verse, if any (null for none); `onChange` fires
@@ -65,6 +77,7 @@
 		onChange: (styleId: string | null) => void,
 		resource: { id: string; name: string } | null,
 		addComment: (() => void) | undefined,
+		startSection: (() => void) | undefined,
 		focusMenu = true
 	): void {
 		context = next;
@@ -74,24 +87,28 @@
 		onHighlightChange = onChange;
 		commentResource = resource;
 		onAddComment = addComment;
+		onStartSection = startSection;
 		selection = null;
 		menu?.openAt(anchor, { focus: focusMenu });
 	}
 
 	/**
-	 * Opens the menu for a word range selected inside one translation's own text — everything except
-	 * the highlight swatches would be meaningless here (there is no single verse to show/copy/list),
-	 * so the template hides it while `selection` is set. `highlight` is the style already on this
-	 * exact range, if any; a selection that does not match a stored range shows no active swatch,
-	 * since picking a colour then creates a new section rather than replacing an unrelated one.
+	 * Opens the menu for a selected section. Everything that needs one verse to point at — showing it
+	 * alone, adding it to a list, commenting on it — is hidden while `selection` is set; copying and
+	 * the palette are what remain, and copying matters more here than it used to, since the reader's
+	 * own selection replaced the browser's (see `src/lib/reader/selection.ts`).
+	 *
+	 * `highlight` is the style already on this exact section, if any; a selection that does not match
+	 * a stored one shows no active swatch, since picking a colour then creates a new section rather
+	 * than replacing an unrelated one.
 	 */
 	export function openForSelection(
 		anchor: HTMLElement,
 		next: VerseContext,
-		range: { resourceId: string; start: number; end: number },
+		target: SelectionTarget,
 		highlight: string | null,
 		onChange: (styleId: string | null) => void,
-		preserveNativeSelection = false
+		focusMenu = false
 	): void {
 		context = next;
 		verse = 0;
@@ -100,8 +117,14 @@
 		onHighlightChange = onChange;
 		commentResource = null;
 		onAddComment = undefined;
-		selection = range;
-		menu?.openAt(anchor, { focus: !preserveNativeSelection });
+		onStartSection = undefined;
+		selection = target;
+		menu?.openAt(anchor, { focus: focusMenu });
+	}
+
+	/** Closing from outside, for when the reader dismisses whatever the menu was opened for. */
+	export function close(): void {
+		menu?.close();
 	}
 
 	const linkUrl = $derived(context ? new URL(context.path, page.url.origin).toString() : '');
@@ -139,7 +162,15 @@
 <Menu bind:this={menu} label={context ? t('verse.menu', { reference: context.label }) : ''}>
 	{#if context}
 		{#if selection}
-			<p class="menu-label">{t('highlights.selectionLabel')}</p>
+			<p class="menu-label">{context.label}</p>
+
+			<button
+				type="button"
+				role="menuitem"
+				onclick={() => copy('text', `${context!.label}\n${context!.text}`)}
+			>
+				{copied === 'text' ? t('action.copied') : t('highlights.copySelection')}
+			</button>
 		{:else}
 			<p class="menu-label">{context.label}</p>
 
@@ -153,6 +184,19 @@
 			>
 				{t('verse.showOnly')}
 			</button>
+
+			{#if onStartSection}
+				<button
+					type="button"
+					role="menuitem"
+					onclick={() => {
+						menu?.close();
+						onStartSection?.();
+					}}
+				>
+					{t('verse.sectionFromHere')}
+				</button>
+			{/if}
 
 			<button
 				type="button"
@@ -184,9 +228,14 @@
 					>
 						<input type="hidden" name="reference" value={context.reference} />
 						{#if selection}
-							<input type="hidden" name="resourceId" value={selection.resourceId} />
-							<input type="hidden" name="startWord" value={selection.start} />
-							<input type="hidden" name="endWord" value={selection.end} />
+							{#if selection.kind === 'words'}
+								<input type="hidden" name="resourceId" value={selection.resourceId} />
+								<input type="hidden" name="startWord" value={selection.start} />
+								<input type="hidden" name="endWord" value={selection.end} />
+							{/if}
+							{#if selection.endVerse !== null}
+								<input type="hidden" name="endVerse" value={selection.endVerse} />
+							{/if}
 						{/if}
 						{#if !active}<input type="hidden" name="styleId" value={style.id} />{/if}
 						<button
@@ -204,7 +253,7 @@
 		{/if}
 
 		{#if selection}
-			<!-- Nothing else applies to a bare word selection: no single verse to show/copy/list. -->
+			<!-- Nothing else applies to a section: there is no single verse to show, list or comment on. -->
 		{:else if signedIn && commentResource}
 			<hr />
 			<button

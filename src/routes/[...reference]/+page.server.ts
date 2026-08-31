@@ -52,6 +52,7 @@ import {
 	loadChapterHighlights,
 	removeVerseHighlight,
 	setVerseHighlight,
+	type SectionReference,
 	type WordRange
 } from '$lib/server/repositories/verse-highlights';
 
@@ -393,10 +394,11 @@ export const actions = {
 	 * Picking a colour from the verse menu's swatches. Silently ignored for a style that is not the
 	 * signed-in reader's own — there is nothing a reader could usefully be told there.
 	 *
-	 * `resourceId`/`startWord`/`endWord` are present only when the swatch was picked for a text
-	 * selection rather than the whole verse; `wordRangeFromForm()` also re-validates them, so a
-	 * tampered request can at worst end up a no-op or a whole-verse highlight, never an out-of-bounds
-	 * one.
+	 * `resourceId`/`startWord`/`endWord` are present only when the swatch was picked for a selected
+	 * word range rather than whole verses, and `endVerse` only when the section runs past the verse
+	 * the reference names. The repository re-validates all of them against the verses' real word
+	 * counts, so a tampered request can at worst end up a no-op or a whole-verse highlight, never an
+	 * out-of-bounds one.
 	 */
 	setHighlight: async ({ request, locals }) => {
 		if (!locals.user) redirect(303, '/login');
@@ -409,9 +411,9 @@ export const actions = {
 		await setVerseHighlight(
 			getDb(),
 			locals.user.id,
-			{ ...reference, verse: reference.verse },
+			sectionReferenceFromForm(reference, reference.verse, form),
 			styleId,
-			wordRangeFromForm(form)
+			wordRangeFromForm(form, reference.verse)
 		);
 		return { highlighted: true };
 	},
@@ -427,23 +429,58 @@ export const actions = {
 		await removeVerseHighlight(
 			getDb(),
 			locals.user.id,
-			{ ...reference, verse: reference.verse },
-			wordRangeFromForm(form)
+			sectionReferenceFromForm(reference, reference.verse, form),
+			wordRangeFromForm(form, reference.verse)
 		);
 		return { highlighted: true };
 	}
 };
 
-/** Reads the optional partial-highlight fields the verse menu sends for a text selection. */
-function wordRangeFromForm(form: FormData): WordRange | null {
+/**
+ * The last verse a section covers, when the reader selected past the one its reference names.
+ *
+ * It travels in its own field rather than as a range inside `reference`, because a reference range
+ * already means something else there: a translation printing verses 16-17 as one block sends that
+ * range for copying and linking, and highlighting it must keep meaning "this one block".
+ */
+function endVerseFromForm(form: FormData, verse: number): number | null {
+	const raw = form.get('endVerse');
+	if (raw === null) return null;
+
+	const endVerse = Number(raw);
+	if (!Number.isInteger(endVerse) || endVerse <= verse) return null;
+	return endVerse;
+}
+
+function sectionReferenceFromForm(
+	reference: { book: number; chapter: number },
+	verse: number,
+	form: FormData
+): SectionReference {
+	const endVerse = endVerseFromForm(form, verse);
+	return {
+		book: reference.book,
+		chapter: reference.chapter,
+		verse,
+		...(endVerse === null ? {} : { verseEnd: endVerse })
+	};
+}
+
+/** Reads the optional word-range fields the verse menu sends for a selected section. */
+function wordRangeFromForm(form: FormData, verse: number): WordRange | null {
 	const resourceId = form.get('resourceId');
 	if (resourceId === null) return null;
 
 	const start = Number(form.get('startWord'));
 	const end = Number(form.get('endWord'));
-	if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) return null;
+	if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < 0) return null;
 
-	return { resourceId: String(resourceId), start, end };
+	const endVerse = endVerseFromForm(form, verse);
+	// Within a single verse the range must still run forwards; across verses the two indices belong to
+	// different verses and cannot be compared at all.
+	if (endVerse === null && end < start) return null;
+
+	return { resourceId: String(resourceId), start, end, ...(endVerse === null ? {} : { endVerse }) };
 }
 
 /**

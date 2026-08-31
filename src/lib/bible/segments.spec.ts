@@ -7,7 +7,6 @@ import {
 	splitVerseLead,
 	segmentsToText,
 	tidySegmentSpacing,
-	wordRangeForCharSpan,
 	wordsFromSegments,
 	type HighlightRange,
 	type VerseSegment
@@ -158,11 +157,17 @@ describe('highlightSegments', () => {
 			cursor
 		);
 		expect(chunks).toEqual([
-			{ kind: 'text', text: 'Im', color: null },
-			{ kind: 'text', text: ' ', color: null },
-			{ kind: 'w', segment: { kind: 'w', text: 'Anfang', strong: 'H7225' }, color: '#ff0' },
-			{ kind: 'text', text: ' ', color: null },
-			{ kind: 'text', text: 'schuf', color: null }
+			{ kind: 'text', text: 'Im', color: null, word: 0, selected: false },
+			{ kind: 'text', text: ' ', color: null, word: null, selected: false },
+			{
+				kind: 'w',
+				segment: { kind: 'w', text: 'Anfang', strong: 'H7225' },
+				color: '#ff0',
+				word: 1,
+				selected: false
+			},
+			{ kind: 'text', text: ' ', color: null, word: null, selected: false },
+			{ kind: 'text', text: 'schuf', color: null, word: 2, selected: false }
 		]);
 	});
 
@@ -171,11 +176,11 @@ describe('highlightSegments', () => {
 		const cursor = initHighlightCursor();
 		const chunks = highlightSegments(['eins zwei drei'], ranges, cursor);
 		expect(chunks).toEqual([
-			{ kind: 'text', text: 'eins', color: null },
-			{ kind: 'text', text: ' ', color: null },
-			{ kind: 'text', text: 'zwei', color: '#ff0' },
-			{ kind: 'text', text: ' ', color: null },
-			{ kind: 'text', text: 'drei', color: null }
+			{ kind: 'text', text: 'eins', color: null, word: 0, selected: false },
+			{ kind: 'text', text: ' ', color: null, word: null, selected: false },
+			{ kind: 'text', text: 'zwei', color: '#ff0', word: 1, selected: false },
+			{ kind: 'text', text: ' ', color: null, word: null, selected: false },
+			{ kind: 'text', text: 'drei', color: null, word: 2, selected: false }
 		]);
 	});
 
@@ -183,14 +188,14 @@ describe('highlightSegments', () => {
 		const ranges: HighlightRange[] = [{ start: 1, end: 2, color: '#ff0' }];
 		const cursor = initHighlightCursor();
 		const chunks = highlightSegments(['eins zwei drei vier'], ranges, cursor);
-		expect(chunks).toEqual([
-			{ kind: 'text', text: 'eins', color: null },
-			{ kind: 'text', text: ' ', color: null },
-			{ kind: 'text', text: 'zwei', color: '#ff0' },
-			{ kind: 'text', text: ' ', color: '#ff0' },
-			{ kind: 'text', text: 'drei', color: '#ff0' },
-			{ kind: 'text', text: ' ', color: null },
-			{ kind: 'text', text: 'vier', color: null }
+		expect(chunks.map((chunk) => ('color' in chunk ? chunk.color : undefined))).toEqual([
+			null,
+			null,
+			'#ff0',
+			'#ff0',
+			'#ff0',
+			null,
+			null
 		]);
 	});
 
@@ -201,14 +206,14 @@ describe('highlightSegments', () => {
 		];
 		const cursor = initHighlightCursor();
 		const chunks = highlightSegments(['eins zwei'], ranges, cursor);
-		expect(chunks).toEqual([
-			{ kind: 'text', text: 'eins', color: '#ff0' },
-			{ kind: 'text', text: ' ', color: null },
-			{ kind: 'text', text: 'zwei', color: '#0f0' }
+		expect(chunks.map((chunk) => ('color' in chunk ? chunk.color : undefined))).toEqual([
+			'#ff0',
+			null,
+			'#0f0'
 		]);
 	});
 
-	it('keeps a word and its glued punctuation the same colour', () => {
+	it('keeps a word and its glued punctuation the same colour and word index', () => {
 		const ranges: HighlightRange[] = [{ start: 0, end: 0, color: '#ff0' }];
 		const cursor = initHighlightCursor();
 		const chunks = highlightSegments(
@@ -217,8 +222,14 @@ describe('highlightSegments', () => {
 			cursor
 		);
 		expect(chunks).toEqual([
-			{ kind: 'w', segment: { kind: 'w', text: 'Jesus', strong: 'G2424' }, color: '#ff0' },
-			{ kind: 'text', text: '?', color: '#ff0' }
+			{
+				kind: 'w',
+				segment: { kind: 'w', text: 'Jesus', strong: 'G2424' },
+				color: '#ff0',
+				word: 0,
+				selected: false
+			},
+			{ kind: 'text', text: '?', color: '#ff0', word: 0, selected: false }
 		]);
 	});
 
@@ -226,7 +237,9 @@ describe('highlightSegments', () => {
 		const ranges: HighlightRange[] = [{ start: 1, end: 1, color: '#ff0' }];
 		const cursor = initHighlightCursor(1);
 		const chunks = highlightSegments(['schuf'], ranges, cursor);
-		expect(chunks).toEqual([{ kind: 'text', text: 'schuf', color: '#ff0' }]);
+		expect(chunks).toEqual([
+			{ kind: 'text', text: 'schuf', color: '#ff0', word: 1, selected: false }
+		]);
 	});
 
 	it('never colours a footnote or a line break', () => {
@@ -238,41 +251,70 @@ describe('highlightSegments', () => {
 			cursor
 		);
 		expect(chunks).toEqual([
-			{ kind: 'text', text: 'eins', color: '#ff0' },
+			{ kind: 'text', text: 'eins', color: '#ff0', word: 0, selected: false },
 			{ kind: 'note', segment: { kind: 'note', marker: '1', text: 'x' } },
 			{ kind: 'br' },
-			{ kind: 'text', text: 'zwei', color: '#ff0' }
+			{ kind: 'text', text: 'zwei', color: '#ff0', word: 1, selected: false }
 		]);
 	});
-});
 
-describe('wordRangeForCharSpan', () => {
-	const text = 'Im Anfang schuf Gott Himmel und Erde.';
-
-	it('maps a single selected word to its own index', () => {
-		const start = text.indexOf('Anfang');
-		expect(wordRangeForCharSpan(text, start, start + 'Anfang'.length)).toEqual({
-			start: 1,
-			end: 1
-		});
+	// The reader stamps `word` into the DOM as `data-w` and maps a pointer back onto it, so these
+	// indices are what a selection and a stored highlight actually address.
+	it('numbers words in reading order, whitespace excluded, notes skipped', () => {
+		const cursor = initHighlightCursor();
+		const chunks = highlightSegments(
+			[
+				'eins ',
+				{ kind: 'note', marker: '1', text: 'x' },
+				{ kind: 'w', text: 'zwei', strong: 'H1' },
+				' drei',
+				{ kind: 'br' },
+				'vier'
+			],
+			[],
+			cursor
+		);
+		expect(chunks.map((chunk) => ('word' in chunk ? chunk.word : chunk.kind))).toEqual([
+			0,
+			null,
+			'note',
+			1,
+			null,
+			2,
+			'br',
+			3
+		]);
 	});
 
-	it('expands to every word the character span touches', () => {
-		const start = text.indexOf('schuf');
-		const end = text.indexOf('Himmel') + 'Himmel'.length;
-		expect(wordRangeForCharSpan(text, start, end)).toEqual({ start: 2, end: 4 });
+	it('marks the selected words, and the whitespace they run across', () => {
+		const cursor = initHighlightCursor();
+		const chunks = highlightSegments(['eins zwei drei vier'], [], cursor, { start: 1, end: 2 });
+		expect(chunks.map((chunk) => ('selected' in chunk ? chunk.selected : undefined))).toEqual([
+			false,
+			false,
+			true,
+			true,
+			true,
+			false,
+			false
+		]);
 	});
 
-	it('returns null for a span that only covers whitespace', () => {
-		const start = text.indexOf('Im') + 'Im'.length;
-		expect(wordRangeForCharSpan(text, start, start + 1)).toBeNull();
+	it('selects a tagged word like any other', () => {
+		const cursor = initHighlightCursor();
+		const chunks = highlightSegments(
+			['Im ', { kind: 'w', text: 'Anfang', strong: 'H7225' }],
+			[],
+			cursor,
+			{ start: 1, end: 1 }
+		);
+		expect(chunks.at(-1)).toMatchObject({ kind: 'w', word: 1, selected: true });
 	});
 
-	it('covers the whole verse when the span is the full text', () => {
-		expect(wordRangeForCharSpan(text, 0, text.length)).toEqual({
-			start: 0,
-			end: countVerseWords([text]) - 1
-		});
+	it('leaves everything unselected without a selection', () => {
+		const cursor = initHighlightCursor();
+		const chunks = highlightSegments(['eins zwei'], [], cursor);
+		expect(chunks.every((chunk) => !('selected' in chunk) || !chunk.selected)).toBe(true);
 	});
 });
 
