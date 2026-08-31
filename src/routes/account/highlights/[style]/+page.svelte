@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { formatReference, referencePath } from '$lib/bible/reference';
 	import { countVerseWords } from '$lib/bible/segments';
-	import { spanRangeForVerse } from '$lib/reader/selection';
+	import { spanRangeForVerse } from '$lib/bible/highlight-span';
 	import { t } from '$lib/i18n';
 	import VerseText from '$lib/components/VerseText.svelte';
 	import Button from '$lib/components/Button.svelte';

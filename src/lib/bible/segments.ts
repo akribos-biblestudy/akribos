@@ -239,24 +239,14 @@ export function initHighlightCursor(wordOffset = 0): HighlightCursor {
 }
 
 /**
- * The range a reader is currently dragging out, in the same word index space as `HighlightRange`.
- * Unlike a stored highlight it carries no colour: it is painted as a selection, not as ink.
- */
-export type SelectionRange = { start: number; end: number };
-
-/**
  * Rendering-only view of a verse's segments, split at word boundaries so a `HighlightRange` can paint
  * part of a plain-text or emphasis run without touching a tagged word, footnote or line break — those
- * stay whole tokens, matching how a reader actually selects "one or more words".
- *
- * `word` is the index the run carries in that space, and null for whitespace between two words — the
- * reader stamps it into the DOM as `data-w`, which is what lets a pointer be mapped back onto an
- * exact word without going through `window.getSelection()`.
+ * stay whole tokens, matching how a highlight's word indices are counted.
  */
 export type DisplayChunk =
-	| { kind: 'text'; text: string; color: string | null; word: number | null; selected: boolean }
-	| { kind: 'w'; segment: WordSegment; color: string | null; word: number; selected: boolean }
-	| { kind: 'em'; text: string; color: string | null; word: number | null; selected: boolean }
+	| { kind: 'text'; text: string; color: string | null }
+	| { kind: 'w'; segment: WordSegment; color: string | null }
+	| { kind: 'em'; text: string; color: string | null }
 	| { kind: 'note'; segment: NoteSegment }
 	| { kind: 'br' }
 	| { kind: 'wj'; children: DisplayChunk[] };
@@ -268,12 +258,6 @@ function colorAt(word: number, ranges: readonly HighlightRange[]): string | null
 	}
 	return color;
 }
-
-function selectedAt(word: number, selection: SelectionRange | null): boolean {
-	return selection !== null && word >= selection.start && word <= selection.end;
-}
-
-type Run = { text: string; color: string | null; word: number | null; selected: boolean };
 
 /**
  * Splits `text` into whitespace-delimited runs, advancing `cursor` by one word for every run that
@@ -287,25 +271,17 @@ function emitRuns(
 	text: string,
 	ranges: readonly HighlightRange[],
 	cursor: HighlightCursor,
-	atomic: boolean,
-	selection: SelectionRange | null
-): Run[] {
+	atomic: boolean
+): { text: string; color: string | null }[] {
 	if (atomic) {
 		if (!text) return [];
 		if (!cursor.open) cursor.word += 1;
 		cursor.open = true;
-		return [
-			{
-				text,
-				color: colorAt(cursor.word, ranges),
-				word: cursor.word,
-				selected: selectedAt(cursor.word, selection)
-			}
-		];
+		return [{ text, color: colorAt(cursor.word, ranges) }];
 	}
 
 	const pieces = text.split(/(\s+)/).filter((piece) => piece !== '');
-	const out: Run[] = [];
+	const out: { text: string; color: string | null }[] = [];
 	for (const piece of pieces) {
 		if (/^\s+$/.test(piece)) {
 			// Whitespace between two words of the same highlight is part of one continuous marked
@@ -313,25 +289,18 @@ function emitRuns(
 			// boundary; whitespace at the edge of a highlight, or between two differently-coloured
 			// ones, stays uncoloured. `cursor.word + 1` is always the index the next word will get
 			// (whitespace only ever closes the current token), so this can look ahead before that
-			// word is actually reached. A selection joins up across whitespace by the same rule.
+			// word is actually reached.
 			const previousColor = colorAt(cursor.word, ranges);
 			const nextColor = colorAt(cursor.word + 1, ranges);
 			out.push({
 				text: piece,
-				color: previousColor && previousColor === nextColor ? previousColor : null,
-				word: null,
-				selected: selectedAt(cursor.word, selection) && selectedAt(cursor.word + 1, selection)
+				color: previousColor && previousColor === nextColor ? previousColor : null
 			});
 			cursor.open = false;
 			continue;
 		}
 		if (!cursor.open) cursor.word += 1;
-		out.push({
-			text: piece,
-			color: colorAt(cursor.word, ranges),
-			word: cursor.word,
-			selected: selectedAt(cursor.word, selection)
-		});
+		out.push({ text: piece, color: colorAt(cursor.word, ranges) });
 		cursor.open = true;
 	}
 	return out;
@@ -339,52 +308,28 @@ function emitRuns(
 
 /**
  * Rebuilds one segment as `DisplayChunk`s, colouring the runs whose word index falls inside one of
- * `ranges` and flagging those inside `selection`. Notes are excluded from the word count, the same
- * way they are excluded from `segmentsToText`; a line break closes the current token like whitespace
- * does.
+ * `ranges`. Notes are excluded from the word count, the same way they are excluded from
+ * `segmentsToText`; a line break closes the current token like whitespace does.
  */
 export function highlightSegment(
 	segment: VerseSegment,
 	ranges: readonly HighlightRange[],
-	cursor: HighlightCursor,
-	selection: SelectionRange | null = null
+	cursor: HighlightCursor
 ): DisplayChunk[] {
 	if (typeof segment === 'string') {
-		return emitRuns(segment, ranges, cursor, false, selection).map(
-			(run) =>
-				({
-					kind: 'text',
-					text: run.text,
-					color: run.color,
-					word: run.word,
-					selected: run.selected
-				}) as const
+		return emitRuns(segment, ranges, cursor, false).map(
+			(run) => ({ kind: 'text', text: run.text, color: run.color }) as const
 		);
 	}
 
 	if (segment.kind === 'w') {
-		const [run] = emitRuns(segment.text, ranges, cursor, true, selection);
-		return [
-			{
-				kind: 'w',
-				segment,
-				color: run?.color ?? null,
-				word: run?.word ?? cursor.word,
-				selected: run?.selected ?? false
-			}
-		];
+		const [run] = emitRuns(segment.text, ranges, cursor, true);
+		return [{ kind: 'w', segment, color: run?.color ?? null }];
 	}
 
 	if (segment.kind === 'em') {
-		return emitRuns(segment.text, ranges, cursor, false, selection).map(
-			(run) =>
-				({
-					kind: 'em',
-					text: run.text,
-					color: run.color,
-					word: run.word,
-					selected: run.selected
-				}) as const
+		return emitRuns(segment.text, ranges, cursor, false).map(
+			(run) => ({ kind: 'em', text: run.text, color: run.color }) as const
 		);
 	}
 
@@ -396,17 +341,16 @@ export function highlightSegment(
 	}
 
 	// 'wj': words of Jesus recurse, sharing the same running cursor.
-	return [{ kind: 'wj', children: highlightSegments(segment.children, ranges, cursor, selection) }];
+	return [{ kind: 'wj', children: highlightSegments(segment.children, ranges, cursor) }];
 }
 
 export function highlightSegments(
 	segments: readonly VerseSegment[],
 	ranges: readonly HighlightRange[],
-	cursor: HighlightCursor,
-	selection: SelectionRange | null = null
+	cursor: HighlightCursor
 ): DisplayChunk[] {
 	const out: DisplayChunk[] = [];
-	for (const segment of segments) out.push(...highlightSegment(segment, ranges, cursor, selection));
+	for (const segment of segments) out.push(...highlightSegment(segment, ranges, cursor));
 	return out;
 }
 

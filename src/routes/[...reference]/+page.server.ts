@@ -394,11 +394,12 @@ export const actions = {
 	 * Picking a colour from the verse menu's swatches. Silently ignored for a style that is not the
 	 * signed-in reader's own — there is nothing a reader could usefully be told there.
 	 *
-	 * `resourceId`/`startWord`/`endWord` are present only when the swatch was picked for a selected
-	 * word range rather than whole verses, and `endVerse` only when the section runs past the verse
-	 * the reference names. The repository re-validates all of them against the verses' real word
-	 * counts, so a tampered request can at worst end up a no-op or a whole-verse highlight, never an
-	 * out-of-bounds one.
+	 * No part of the reader currently sends `resourceId`/`startWord`/`endWord` or `endVerse`: marking
+	 * happens from a verse number's menu and covers whole verses. The fields are still read, and the
+	 * repository still stores what they describe, because the stored shape supports word ranges and
+	 * multi-verse sections and highlights written that way have to stay writable and removable. The
+	 * repository re-validates every index against the verses' real word counts, so a request that
+	 * makes them up can at worst end up a no-op or a whole-verse highlight, never an out-of-bounds one.
 	 */
 	setHighlight: async ({ request, locals }) => {
 		if (!locals.user) redirect(303, '/login');
@@ -418,7 +419,7 @@ export const actions = {
 		return { highlighted: true };
 	},
 
-	/** Clicking an already-active swatch again, to clear the verse's (or the selected section's) highlight. */
+	/** Clicking an already-active swatch again, to clear the verse's (or a stored section's) highlight. */
 	removeHighlight: async ({ request, locals }) => {
 		if (!locals.user) redirect(303, '/login');
 
