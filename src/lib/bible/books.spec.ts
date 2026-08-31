@@ -92,6 +92,19 @@ describe('book names', () => {
 		expect(findBookId('Petrus')).toBe(60);
 	});
 
+	it("reads SWORD's Roman numerals as the book number", () => {
+		expect(findBookId('I Samuel')).toBe(9);
+		expect(findBookId('II Samuel')).toBe(10);
+		expect(findBookId('II Thessalonians')).toBe(53);
+		expect(findBookId('III John')).toBe(64);
+		expect(findBookId('I. Timothy')).toBe(54);
+	});
+
+	it('leaves a leading i that is part of the name alone', () => {
+		expect(findBookId('Ijob')).toBe(18);
+		expect(findBookId('Isaiah')).toBe(23);
+	});
+
 	it('rejects unknown names', () => {
 		expect(findBookId('Henoch')).toBeUndefined();
 		expect(findBookId('')).toBeUndefined();

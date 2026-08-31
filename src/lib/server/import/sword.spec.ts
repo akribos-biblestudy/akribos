@@ -26,6 +26,102 @@ describe('SWORD adapter', () => {
 			{ book: 9, chapter: 3, verse: 10, content: 'Rede, denn dein Knecht hört.' }
 		]);
 	});
+
+	it("reads every book name of SWORD's own canon", () => {
+		// Verbatim from CrossWire's canon.h, which is what diatheke prints when no locale overrides it.
+		// Getting a name wrong here is not a visible failure: the line is silently dropped, or a
+		// one-word suffix matches a legacy bare alias and the note lands in the wrong book. That is how
+		// I/II Corinthians, I/II Thessalonians and the Song of Solomon went missing from the reader,
+		// and how I/II/III John and the Revelation of John all ended up filed under the gospel.
+		const swordNames = [
+			'Genesis',
+			'Exodus',
+			'Leviticus',
+			'Numbers',
+			'Deuteronomy',
+			'Joshua',
+			'Judges',
+			'Ruth',
+			'I Samuel',
+			'II Samuel',
+			'I Kings',
+			'II Kings',
+			'I Chronicles',
+			'II Chronicles',
+			'Ezra',
+			'Nehemiah',
+			'Esther',
+			'Job',
+			'Psalms',
+			'Proverbs',
+			'Ecclesiastes',
+			'Song of Solomon',
+			'Isaiah',
+			'Jeremiah',
+			'Lamentations',
+			'Ezekiel',
+			'Daniel',
+			'Hosea',
+			'Joel',
+			'Amos',
+			'Obadiah',
+			'Jonah',
+			'Micah',
+			'Nahum',
+			'Habakkuk',
+			'Zephaniah',
+			'Haggai',
+			'Zechariah',
+			'Malachi',
+			'Matthew',
+			'Mark',
+			'Luke',
+			'John',
+			'Acts',
+			'Romans',
+			'I Corinthians',
+			'II Corinthians',
+			'Galatians',
+			'Ephesians',
+			'Philippians',
+			'Colossians',
+			'I Thessalonians',
+			'II Thessalonians',
+			'I Timothy',
+			'II Timothy',
+			'Titus',
+			'Philemon',
+			'Hebrews',
+			'James',
+			'I Peter',
+			'II Peter',
+			'I John',
+			'II John',
+			'III John',
+			'Jude',
+			'Revelation of John'
+		];
+
+		const resolved = swordNames.map(
+			(name) => [...parseDiathekeOutput(`${name} 1:1: Text.`)][0]?.book
+		);
+
+		expect(resolved).toEqual(swordNames.map((_name, index) => index + 1));
+	});
+
+	it('files a verse under the book diatheke was asked for, whatever it calls it', () => {
+		// The module is read one book at a time, so the requested book is the authoritative fact and
+		// the printed name is only a locale artefact.
+		expect([...parseDiathekeOutput('Zweiter Thessalonicherbrief 1:1: Text.', 53)]).toEqual([
+			{ book: 53, chapter: 1, verse: 1, content: 'Text.' }
+		]);
+	});
+
+	it('does not mistake a chapter and verse inside continuation text for a new verse', () => {
+		expect([...parseDiathekeOutput('Genesis 1:1: Im Anfang.\n3:16: siehe dort.', 1)]).toEqual([
+			{ book: 1, chapter: 1, verse: 1, content: 'Im Anfang. 3:16: siehe dort.' }
+		]);
+	});
 });
 
 describe('extractTitle', () => {

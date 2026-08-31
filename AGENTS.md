@@ -272,6 +272,14 @@ nicht bis zum eigentlichen Ende des Wörterbuchs (5624): Gerhard Kautz' deutsche
 (`data/stronggreek_de_kautz.xml`, siehe `docs/importing.md`) nummeriert seinen Anhang mit
 Synonymgruppen 5801-6020 durch.
 
+SWORD-Module werden über `diatheke` **buchweise** gelesen (`-k <osisId>`). Das angefragte Buch ist
+damit die maßgebliche Zuordnung, nicht der Buchname in der Ausgabe: den schreibt SWORD in der Locale,
+die es gerade auflöst, standardmäßig mit römischen Zahlen (`II Thessalonians`, `Revelation of John`).
+`parseDiathekeOutput()` bekommt das erwartete Buch deshalb übergeben. Wo ein Name doch aufgelöst
+werden muss, gewinnt die **längste** passende Wortfolge — die einwortige Endung eines nummerierten
+Buchs ist eine historische Kurzform eines anderen (`Samuel` bedeutet 1.Samuel), sodass die kürzeste
+Übereinstimmung `II Samuel` unter 1.Samuel ablegen würde.
+
 Öffentliche Seiten dürfen CDN-Caching verwenden; personalisierte Reader-Seiten sind `private,
 no-store`. Form Actions und APIs müssen Authentifizierung und Besitz serverseitig prüfen. Bestehende
 Parser-/Sanitizer-Grenzen nicht durch `{@html}` umgehen; die wenigen erlaubten HTML-Stellen sind für

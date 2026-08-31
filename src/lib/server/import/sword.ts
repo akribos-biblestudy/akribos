@@ -82,6 +82,8 @@ export async function* readSwordModule(
 
 		let count = 0;
 		for (const book of BOOKS) {
+			const before = count;
+			let rendered = '';
 			if (expectedFormat === 'sword-bible') {
 				const result = await run(
 					'diatheke',
@@ -99,6 +101,7 @@ export async function* readSwordModule(
 					],
 					environment
 				);
+				rendered = result.stdout;
 				const document = swordBookAsOsis(result.stdout, book.id, book.osisId);
 				if (document) {
 					for await (const event of parseOsis(document)) {
@@ -147,10 +150,26 @@ export async function* readSwordModule(
 						environment
 					)
 				]);
-				for (const entry of swordCommentaryEntries(withHeadings.stdout, withoutHeadings.stdout)) {
+				rendered = withHeadings.stdout;
+				for (const entry of swordCommentaryEntries(
+					withHeadings.stdout,
+					withoutHeadings.stdout,
+					book.id
+				)) {
 					count += 1;
 					yield { type: 'commentaryEntry', entry };
 				}
+			}
+
+			// A book the module simply does not cover renders as nothing at all, so text that yields no
+			// reference means the output was there and could not be read. That is worth saying out loud:
+			// the reader would otherwise just show an empty column for those books, as it did while
+			// SWORD's `II Thessalonians` and `Song of Solomon` went unrecognised.
+			if (count === before && hasRenderedText(rendered)) {
+				yield {
+					type: 'warning',
+					message: `no readable references in the output for ${book.osisId}`
+				};
 			}
 
 			yield {
@@ -171,10 +190,14 @@ export async function* readSwordModule(
 	}
 }
 
+/** Whether diatheke printed anything beyond its trailing `(ModuleName)` line for an absent book. */
+function hasRenderedText(output: string): boolean {
+	return output.split(/\r?\n/).some((raw) => raw.trim() !== '' && !/^\([^)]+\)$/.test(raw.trim()));
+}
+
 function swordBookAsOsis(output: string, expectedBook: number, osisId: string): string | null {
 	const verses: string[] = [];
-	for (const parsed of parseDiathekeOutput(output)) {
-		if (!parsed || parsed.book !== expectedBook) continue;
+	for (const parsed of parseDiathekeOutput(output, expectedBook)) {
 		verses.push(
 			`<verse osisID="${osisId}.${parsed.chapter}.${parsed.verse}">${parsed.content}</verse>`
 		);
@@ -207,10 +230,11 @@ type CommentarySection = {
  */
 export function* swordCommentaryEntries(
 	withHeadings: string,
-	withoutHeadings: string
+	withoutHeadings: string,
+	expectedBook?: number
 ): Generator<CommentarySection> {
-	const headed = [...parseDiathekeOutput(withHeadings)];
-	const plain = [...parseDiathekeOutput(withoutHeadings)];
+	const headed = [...parseDiathekeOutput(withHeadings, expectedBook)];
+	const plain = [...parseDiathekeOutput(withoutHeadings, expectedBook)];
 	const alignedPlain =
 		headed.length === plain.length &&
 		headed.every(
@@ -291,34 +315,58 @@ export function extractTitle(withHeading: string, withoutHeading: string): strin
 	return title || undefined;
 }
 
-function parseDiathekeLine(line: string) {
+/**
+ * Book a reference in front of `<chapter>:<verse>:` names, taking the **longest** trailing phrase
+ * that resolves.
+ *
+ * Shortest-first would be wrong for every numbered book: SWORD writes the number as a separate word
+ * (`II Samuel`), and the one-word suffix of such a name is another book's historical bare alias —
+ * `Samuel` has meant 1.Samuel since the old site, so `II Samuel` would file itself under 1.Samuel.
+ * Up to four words, because `Revelation of John` and `Song of Solomon` are three.
+ */
+function bookFromPrefix(prefix: string): number | undefined {
+	const words = prefix.split(/\s+/);
+	for (let length = Math.min(4, words.length); length >= 1; length -= 1) {
+		const book = findBookId(words.slice(-length).join(' '));
+		if (book) return book;
+	}
+	return undefined;
+}
+
+/**
+ * `expectedBook` is the book diatheke was asked for and therefore the book every verse it printed
+ * belongs to. It takes precedence over the name in the output, which is written in whichever locale
+ * SWORD happens to resolve and is not something this importer can rely on reading.
+ */
+function parseDiathekeLine(line: string, expectedBook?: number) {
+	const padded = ` ${line}`;
 	const reference = /\s(\d+):(\d+):\s*/g;
-	for (let match = reference.exec(` ${line}`); match; match = reference.exec(` ${line}`)) {
-		const prefix = ` ${line}`.slice(0, match.index).trim();
-		const words = prefix.split(/\s+/);
-		for (let length = 1; length <= Math.min(4, words.length); length += 1) {
-			const book = findBookId(words.slice(-length).join(' '));
-			if (!book) continue;
-			const chapter = Number(match[1]);
-			const verse = Number(match[2]);
-			if (!chapter || !verse) return null;
-			return {
-				book,
-				chapter,
-				verse,
-				content: ` ${line}`.slice(match.index + match[0].length)
-			};
-		}
+	for (let match = reference.exec(padded); match; match = reference.exec(padded)) {
+		const prefix = padded.slice(0, match.index).trim();
+		// A wrapped continuation line carries no reference of its own, so a bare `3:16:` inside the
+		// body text must never start a verse — only something that could be a book name may.
+		if (!prefix) continue;
+		const book = expectedBook ?? bookFromPrefix(prefix);
+		if (!book) continue;
+		const chapter = Number(match[1]);
+		const verse = Number(match[2]);
+		if (!chapter || !verse) return null;
+		return {
+			book,
+			chapter,
+			verse,
+			content: padded.slice(match.index + match[0].length)
+		};
 	}
 	return null;
 }
 
-export function* parseDiathekeOutput(output: string) {
+export function* parseDiathekeOutput(output: string, expectedBook?: number) {
 	let pending: ReturnType<typeof parseDiathekeLine> = null;
 	for (const raw of output.split(/\r?\n/)) {
 		const line = raw.trim();
 		if (!line || /^\([^)]+\)$/.test(line)) continue;
-		const parsed = parseDiathekeLine(line);
+		const parsed = parseDiathekeLine(line, expectedBook);
 		if (parsed) {
 			if (pending) yield pending;
 			pending = parsed;

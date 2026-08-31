@@ -51,7 +51,7 @@ export const GERMAN_BOOK_NAMES: Readonly<Record<number, BookNames>> = {
 	22: {
 		name: 'Hoheslied',
 		short: 'Hld',
-		aliases: ['Hohes Lied', 'Hohelied', 'Hoh', 'Song', 'Canticles']
+		aliases: ['Hohes Lied', 'Hohelied', 'Hoh', 'Song', 'Song of Solomon', 'Canticles']
 	},
 	23: { name: 'Jesaja', short: 'Jes', aliases: ['Isaiah', 'Isa'] },
 	24: { name: 'Jeremia', short: 'Jer', aliases: ['Jeremiah'] },
@@ -108,20 +108,31 @@ export const GERMAN_BOOK_NAMES: Readonly<Record<number, BookNames>> = {
 	63: { name: '2.Johannes', short: '2Joh', aliases: ['2Jo', '2John'] },
 	64: { name: '3.Johannes', short: '3Joh', aliases: ['3Jo', '3John'] },
 	65: { name: 'Judas', short: 'Jud', aliases: ['Jude'] },
-	66: { name: 'Offenbarung', short: 'Offb', aliases: ['Off', 'Apokalypse', 'Revelation', 'Rev'] }
+	66: {
+		name: 'Offenbarung',
+		short: 'Offb',
+		aliases: ['Off', 'Apokalypse', 'Revelation', 'Revelation of John', 'Rev']
+	}
 };
 
 /**
  * Folds a name into a lookup key: case, punctuation, whitespace and umlauts are all ignored, so
  * `1. Könige`, `1kon` and `1KÖNIGE` are the same key.
+ *
+ * A leading Roman numeral becomes its Arabic equivalent, because that is how CrossWire's SWORD
+ * library names the numbered books — `II Thessalonians`, `III John` — and those keys have to meet
+ * the German `2.Thessalonicher` and `3.Johannes` in the same index. The numeral only counts as one
+ * when it is a separate word: `Ijob` starts with an `i` too and must stay Job.
  */
 export function normalizeBookName(input: string): string {
 	return input
+		.trim()
 		.toLowerCase()
 		.replaceAll('ä', 'a')
 		.replaceAll('ö', 'o')
 		.replaceAll('ü', 'u')
 		.replaceAll('ß', 'ss')
+		.replace(/^(i{1,3})[\s.]+(?=\S)/, (_match, numeral: string) => String(numeral.length))
 		.replace(/[^a-z0-9]/g, '');
 }
 
