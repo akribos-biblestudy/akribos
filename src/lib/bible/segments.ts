@@ -239,14 +239,24 @@ export function initHighlightCursor(wordOffset = 0): HighlightCursor {
 }
 
 /**
+ * The range a reader is currently dragging out, in the same word index space as `HighlightRange`.
+ * Unlike a stored highlight it carries no colour: it is painted as a selection, not as ink.
+ */
+export type SelectionRange = { start: number; end: number };
+
+/**
  * Rendering-only view of a verse's segments, split at word boundaries so a `HighlightRange` can paint
  * part of a plain-text or emphasis run without touching a tagged word, footnote or line break — those
  * stay whole tokens, matching how a reader actually selects "one or more words".
+ *
+ * `word` is the index the run carries in that space, and null for whitespace between two words — the
+ * reader stamps it into the DOM as `data-w`, which is what lets a pointer be mapped back onto an
+ * exact word without going through `window.getSelection()`.
  */
 export type DisplayChunk =
-	| { kind: 'text'; text: string; color: string | null }
-	| { kind: 'w'; segment: WordSegment; color: string | null }
-	| { kind: 'em'; text: string; color: string | null }
+	| { kind: 'text'; text: string; color: string | null; word: number | null; selected: boolean }
+	| { kind: 'w'; segment: WordSegment; color: string | null; word: number; selected: boolean }
+	| { kind: 'em'; text: string; color: string | null; word: number | null; selected: boolean }
 	| { kind: 'note'; segment: NoteSegment }
 	| { kind: 'br' }
 	| { kind: 'wj'; children: DisplayChunk[] };
@@ -258,6 +268,12 @@ function colorAt(word: number, ranges: readonly HighlightRange[]): string | null
 	}
 	return color;
 }
+
+function selectedAt(word: number, selection: SelectionRange | null): boolean {
+	return selection !== null && word >= selection.start && word <= selection.end;
+}
+
+type Run = { text: string; color: string | null; word: number | null; selected: boolean };
 
 /**
  * Splits `text` into whitespace-delimited runs, advancing `cursor` by one word for every run that
@@ -271,17 +287,25 @@ function emitRuns(
 	text: string,
 	ranges: readonly HighlightRange[],
 	cursor: HighlightCursor,
-	atomic: boolean
-): { text: string; color: string | null }[] {
+	atomic: boolean,
+	selection: SelectionRange | null
+): Run[] {
 	if (atomic) {
 		if (!text) return [];
 		if (!cursor.open) cursor.word += 1;
 		cursor.open = true;
-		return [{ text, color: colorAt(cursor.word, ranges) }];
+		return [
+			{
+				text,
+				color: colorAt(cursor.word, ranges),
+				word: cursor.word,
+				selected: selectedAt(cursor.word, selection)
+			}
+		];
 	}
 
 	const pieces = text.split(/(\s+)/).filter((piece) => piece !== '');
-	const out: { text: string; color: string | null }[] = [];
+	const out: Run[] = [];
 	for (const piece of pieces) {
 		if (/^\s+$/.test(piece)) {
 			// Whitespace between two words of the same highlight is part of one continuous marked
@@ -289,18 +313,25 @@ function emitRuns(
 			// boundary; whitespace at the edge of a highlight, or between two differently-coloured
 			// ones, stays uncoloured. `cursor.word + 1` is always the index the next word will get
 			// (whitespace only ever closes the current token), so this can look ahead before that
-			// word is actually reached.
+			// word is actually reached. A selection joins up across whitespace by the same rule.
 			const previousColor = colorAt(cursor.word, ranges);
 			const nextColor = colorAt(cursor.word + 1, ranges);
 			out.push({
 				text: piece,
-				color: previousColor && previousColor === nextColor ? previousColor : null
+				color: previousColor && previousColor === nextColor ? previousColor : null,
+				word: null,
+				selected: selectedAt(cursor.word, selection) && selectedAt(cursor.word + 1, selection)
 			});
 			cursor.open = false;
 			continue;
 		}
 		if (!cursor.open) cursor.word += 1;
-		out.push({ text: piece, color: colorAt(cursor.word, ranges) });
+		out.push({
+			text: piece,
+			color: colorAt(cursor.word, ranges),
+			word: cursor.word,
+			selected: selectedAt(cursor.word, selection)
+		});
 		cursor.open = true;
 	}
 	return out;
@@ -308,28 +339,52 @@ function emitRuns(
 
 /**
  * Rebuilds one segment as `DisplayChunk`s, colouring the runs whose word index falls inside one of
- * `ranges`. Notes are excluded from the word count, the same way they are excluded from
- * `segmentsToText`; a line break closes the current token like whitespace does.
+ * `ranges` and flagging those inside `selection`. Notes are excluded from the word count, the same
+ * way they are excluded from `segmentsToText`; a line break closes the current token like whitespace
+ * does.
  */
 export function highlightSegment(
 	segment: VerseSegment,
 	ranges: readonly HighlightRange[],
-	cursor: HighlightCursor
+	cursor: HighlightCursor,
+	selection: SelectionRange | null = null
 ): DisplayChunk[] {
 	if (typeof segment === 'string') {
-		return emitRuns(segment, ranges, cursor, false).map(
-			(run) => ({ kind: 'text', text: run.text, color: run.color }) as const
+		return emitRuns(segment, ranges, cursor, false, selection).map(
+			(run) =>
+				({
+					kind: 'text',
+					text: run.text,
+					color: run.color,
+					word: run.word,
+					selected: run.selected
+				}) as const
 		);
 	}
 
 	if (segment.kind === 'w') {
-		const [run] = emitRuns(segment.text, ranges, cursor, true);
-		return [{ kind: 'w', segment, color: run?.color ?? null }];
+		const [run] = emitRuns(segment.text, ranges, cursor, true, selection);
+		return [
+			{
+				kind: 'w',
+				segment,
+				color: run?.color ?? null,
+				word: run?.word ?? cursor.word,
+				selected: run?.selected ?? false
+			}
+		];
 	}
 
 	if (segment.kind === 'em') {
-		return emitRuns(segment.text, ranges, cursor, false).map(
-			(run) => ({ kind: 'em', text: run.text, color: run.color }) as const
+		return emitRuns(segment.text, ranges, cursor, false, selection).map(
+			(run) =>
+				({
+					kind: 'em',
+					text: run.text,
+					color: run.color,
+					word: run.word,
+					selected: run.selected
+				}) as const
 		);
 	}
 
@@ -341,16 +396,17 @@ export function highlightSegment(
 	}
 
 	// 'wj': words of Jesus recurse, sharing the same running cursor.
-	return [{ kind: 'wj', children: highlightSegments(segment.children, ranges, cursor) }];
+	return [{ kind: 'wj', children: highlightSegments(segment.children, ranges, cursor, selection) }];
 }
 
 export function highlightSegments(
 	segments: readonly VerseSegment[],
 	ranges: readonly HighlightRange[],
-	cursor: HighlightCursor
+	cursor: HighlightCursor,
+	selection: SelectionRange | null = null
 ): DisplayChunk[] {
 	const out: DisplayChunk[] = [];
-	for (const segment of segments) out.push(...highlightSegment(segment, ranges, cursor));
+	for (const segment of segments) out.push(...highlightSegment(segment, ranges, cursor, selection));
 	return out;
 }
 
@@ -364,41 +420,6 @@ export function countVerseWords(segments: readonly VerseSegment[]): number {
 	const cursor = initHighlightCursor();
 	highlightSegments(segments, [], cursor);
 	return cursor.word + 1;
-}
-
-/**
- * Locates the inclusive word-index range that overlaps a character span within a verse's flattened
- * text (as produced by `segmentsToText`), using the same whitespace tokenisation as
- * `highlightSegment`. Used to turn a browser text selection — which only knows character offsets —
- * into the word range a highlight is stored against. Returns `null` when the span does not overlap
- * any word, e.g. a selection that landed entirely on whitespace.
- */
-export function wordRangeForCharSpan(
-	text: string,
-	charStart: number,
-	charEnd: number
-): { start: number; end: number } | null {
-	const pieces = text.split(/(\s+)/).filter((piece) => piece !== '');
-	let pos = 0;
-	let word = -1;
-	let start: number | null = null;
-	let end: number | null = null;
-
-	for (const piece of pieces) {
-		const isWhitespace = /^\s+$/.test(piece);
-		const pieceStart = pos;
-		const pieceEnd = pos + piece.length;
-		if (!isWhitespace) {
-			word += 1;
-			if (pieceEnd > charStart && pieceStart < charEnd) {
-				if (start === null) start = word;
-				end = word;
-			}
-		}
-		pos = pieceEnd;
-	}
-
-	return start === null || end === null ? null : { start, end };
 }
 
 /** Drops empty runs and trims the leading and trailing whitespace of a finished verse. */

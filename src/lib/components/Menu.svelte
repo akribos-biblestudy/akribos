@@ -27,8 +27,24 @@
 	let anchor: HTMLElement | null = null;
 	let open = $state(false);
 	let restoreFocusOnClose = true;
+	let sheet = $state(false);
 
-	export function openAt(target: HTMLElement, { focus = true }: { focus?: boolean } = {}): void {
+	/**
+	 * Whether to open as a sheet across the bottom of the screen instead of next to the anchor.
+	 *
+	 * On a phone or an e-ink reader a menu anchored to a selection covers the very text it was opened
+	 * for, and near the bottom of the screen it gets pushed somewhere unrelated by the clamping in
+	 * `place()`. A sheet is always in the same place, never covers the selection, and gives the colour
+	 * swatches a comfortable target size.
+	 */
+	function preferSheet(): boolean {
+		return window.matchMedia('(pointer: coarse), (max-width: 40rem)').matches;
+	}
+
+	export function openAt(
+		target: HTMLElement,
+		{ focus = true, allowSheet = false }: { focus?: boolean; allowSheet?: boolean } = {}
+	): void {
 		if (!element) return;
 		const alreadyOpen = element.matches(':popover-open');
 		// The anchor is a toggle: clicking the same button a second time closes its menu. Native
@@ -39,6 +55,7 @@
 		}
 		anchor = target;
 		restoreFocusOnClose = focus;
+		sheet = allowSheet && preferSheet();
 		// Placed off-screen first, so measuring it does not make the page jump.
 		element.style.left = '-9999px';
 		element.style.top = '0px';
@@ -58,6 +75,14 @@
 	/** Keeps the menu next to its anchor, flipping above it when there is no room below. */
 	function place(): void {
 		if (!element || !anchor) return;
+
+		if (sheet) {
+			// The sheet's position comes entirely from CSS; clearing the inline values from a previous,
+			// anchored open is all that is needed here.
+			element.style.left = '';
+			element.style.top = '';
+			return;
+		}
 
 		const gap = 4;
 		const margin = 8;
@@ -132,6 +157,7 @@
 	aria-label={label}
 	tabindex="-1"
 	class="menu"
+	class:sheet
 	ontoggle={onToggle}
 	onkeydown={onKeydown}
 >
@@ -164,6 +190,18 @@
 
 	.menu:not(:popover-open) {
 		display: none;
+	}
+
+	/* Pinned across the bottom, clear of the home indicator, with room for a comfortable tap target. */
+	.menu.sheet {
+		left: 0.5rem;
+		right: 0.5rem;
+		bottom: calc(0.5rem + env(safe-area-inset-bottom));
+		top: auto;
+		max-width: none;
+		max-height: 60dvh;
+		padding: 0.5rem;
+		font-size: 0.9375rem;
 	}
 
 	:global(.dark) .menu {

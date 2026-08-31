@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { formatReference, referencePath } from '$lib/bible/reference';
+	import { countVerseWords } from '$lib/bible/segments';
+	import { spanRangeForVerse } from '$lib/reader/selection';
 	import { t } from '$lib/i18n';
 	import VerseText from '$lib/components/VerseText.svelte';
 	import Button from '$lib/components/Button.svelte';
@@ -42,26 +44,40 @@
 	{:else}
 		<ol class="space-y-3">
 			{#each data.verses as item (item.id)}
+				{@const reference = {
+					book: item.book,
+					chapter: item.chapter,
+					verse: item.verse,
+					...(item.endVerse > item.verse ? { verseEnd: item.endVerse } : {})
+				}}
+				<!-- A section is listed once, under the verse it starts in, and only that verse's text is
+				     shown; the range in the reference is what says how much further it runs. -->
+				{@const painted =
+					item.segments && item.startWord !== null && item.endWord !== null
+						? spanRangeForVerse(
+								{
+									from: { verse: item.verse, word: item.startWord },
+									to: { verse: item.endVerse, word: item.endWord }
+								},
+								item.verse,
+								countVerseWords(item.segments)
+							)
+						: null}
 				<li
 					class="rounded-lg border border-stone-200 p-4 dark:border-stone-800"
 					style="border-left: 0.35rem solid {data.style.color}"
 				>
 					<a
 						class="text-sm font-semibold text-accent-600 hover:underline dark:text-accent-400"
-						href={referencePath({ book: item.book, chapter: item.chapter, verse: item.verse })}
+						href={referencePath(reference)}
 					>
-						{formatReference(
-							{ book: item.book, chapter: item.chapter, verse: item.verse },
-							{ style: 'full' }
-						)}
+						{formatReference(reference, { style: 'full' })}
 					</a>
 					{#if item.segments}
 						<p class="scripture-sized mt-1 font-serif leading-relaxed">
 							<VerseText
 								segments={item.segments}
-								highlights={item.startWord !== null && item.endWord !== null
-									? [{ start: item.startWord, end: item.endWord, color: data.style.color }]
-									: []}
+								highlights={painted ? [{ ...painted, color: data.style.color }] : []}
 							/>
 						</p>
 					{/if}
