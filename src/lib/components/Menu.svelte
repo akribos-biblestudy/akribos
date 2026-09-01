@@ -4,10 +4,19 @@
 	/**
 	 * A popup menu anchored to an element.
 	 *
-	 * Built on the native `popover` attribute, so the menu is painted in the top layer and cannot be
-	 * clipped by an ancestor's overflow — which matters in the reader, where the anchor is a verse
-	 * number deep inside a CSS grid. `popover="auto"` also brings outside-click dismissal and Escape
-	 * without a keydown listener of our own.
+	 * Built on the native `popover` attribute where the browser has one, so the menu is painted in the
+	 * top layer and cannot be clipped by an ancestor's overflow — which matters in the reader, where
+	 * the anchor is a verse number deep inside a CSS grid. `popover="auto"` also brings outside-click
+	 * dismissal and Escape without a keydown listener of our own.
+	 *
+	 * Where that API is missing the same menu opens as a plain fixed-position element and the
+	 * dismissal is handled here. This is not hypothetical: the browser built into an e-ink reader runs
+	 * a Chromium older than the 114 that brought `popover`, while everything else about the app works
+	 * there. Two things follow from having to survive such a browser. `openAt()` must not ask
+	 * `matches(':popover-open')`, because an unknown pseudo-class throws a `SyntaxError` out of
+	 * `matches()` — which aborts the open with no menu and nothing the reader can see. And a closed
+	 * menu is hidden by the `open` class rather than by `:popover-open`, because a rule whose selector
+	 * cannot be parsed is dropped whole, which would leave every menu permanently open on the page.
 	 *
 	 * Open it from the parent through `bind:this`:
 	 *
@@ -28,9 +37,23 @@
 	let open = $state(false);
 	let restoreFocusOnClose = true;
 
+	/** Resolved on first use rather than at init, so this stays safe during server rendering. */
+	let popoverApi: boolean | undefined;
+
+	/** Both halves are needed: the method to open in the top layer, the selector to read the state. */
+	function hasPopoverApi(): boolean {
+		popoverApi ??=
+			typeof HTMLElement.prototype.showPopover === 'function' &&
+			CSS.supports('selector(:popover-open)');
+		return popoverApi;
+	}
+
+	// A menu destroyed while open — a navigation, say — must not leave its own listeners behind.
+	$effect(() => () => detachDismiss());
+
 	export function openAt(target: HTMLElement, { focus = true }: { focus?: boolean } = {}): void {
 		if (!element) return;
-		const alreadyOpen = element.matches(':popover-open');
+		const alreadyOpen = isShowing();
 		// The anchor is a toggle: clicking the same button a second time closes its menu. Native
 		// popovers only provide outside-click dismissal, so this small bit is ours.
 		if (alreadyOpen && anchor === target) {
@@ -42,17 +65,80 @@
 		// Placed off-screen first, so measuring it does not make the page jump.
 		element.style.left = '-9999px';
 		element.style.top = '0px';
-		if (!alreadyOpen) element.showPopover();
+		if (!alreadyOpen) show();
 		place();
 		if (focus) items()[0]?.focus();
 	}
 
 	export function close(): void {
-		element?.hidePopover();
+		if (!element || !isShowing()) return;
+		if (hasPopoverApi()) element.hidePopover();
+		else detachDismiss();
+		finishClose();
 	}
 
 	export function isOpen(): boolean {
 		return open;
+	}
+
+	/**
+	 * `open` only follows the `toggle` event, which the browser queues rather than dispatches on the
+	 * spot, so the element itself is asked wherever it can answer.
+	 */
+	function isShowing(): boolean {
+		if (!element) return false;
+		return hasPopoverApi() ? element.matches(':popover-open') : open;
+	}
+
+	/**
+	 * The class goes on before anything else, because `place()` cannot measure a menu that is still
+	 * `display: none` and `items()` cannot find a focus target in one. `class:open` in the markup sets
+	 * the very same class, only a flush later — it is what keeps the rule out of Svelte's unused-CSS
+	 * pruning and what puts the class back should the state change from elsewhere.
+	 */
+	function show(): void {
+		if (!element) return;
+		element.classList.add('open');
+		open = true;
+		if (hasPopoverApi()) {
+			element.showPopover();
+			return;
+		}
+		document.addEventListener('pointerdown', onDismissPointerDown, true);
+		document.addEventListener('keydown', onDismissKeydown, true);
+	}
+
+	function finishClose(): void {
+		element?.classList.remove('open');
+		// A native close arrives here twice: from `close()` and again from the `toggle` event it fires.
+		if (!open) return;
+		open = false;
+		const previous = anchor;
+		anchor = null;
+		if (restoreFocusOnClose) previous?.focus();
+		restoreFocusOnClose = true;
+	}
+
+	function detachDismiss(): void {
+		document.removeEventListener('pointerdown', onDismissPointerDown, true);
+		document.removeEventListener('keydown', onDismissKeydown, true);
+	}
+
+	/**
+	 * What `popover="auto"` does for us elsewhere: a press outside closes the menu. The anchor is
+	 * excluded, so its own click keeps toggling instead of closing and immediately reopening.
+	 */
+	function onDismissPointerDown(event: Event): void {
+		const target = event.target as Node | null;
+		if (target && (element?.contains(target) || anchor?.contains(target))) return;
+		close();
+	}
+
+	/** Escape, likewise. */
+	function onDismissKeydown(event: KeyboardEvent): void {
+		if (event.key !== 'Escape') return;
+		event.preventDefault();
+		close();
 	}
 
 	/** Keeps the menu next to its anchor, flipping above it when there is no room below. */
@@ -94,16 +180,16 @@
 		].filter((item) => item.offsetParent !== null);
 	}
 
+	/** The native path's own dismissal — an outside click, Escape — arrives only as this event. */
 	function onToggle(event: ToggleEvent): void {
-		open = event.newState === 'open';
-		if (!open) {
-			if (restoreFocusOnClose) anchor?.focus();
-			anchor = null;
-			restoreFocusOnClose = true;
+		if (event.newState === 'open') {
+			open = true;
+			return;
 		}
+		finishClose();
 	}
 
-	/** Arrow keys walk the menu; Escape and outside clicks are the popover's own business. */
+	/** Arrow keys walk the menu; Escape and outside clicks are dismissal, handled above. */
 	function onKeydown(event: KeyboardEvent): void {
 		const all = items();
 		if (all.length === 0) return;
@@ -132,6 +218,7 @@
 	aria-label={label}
 	tabindex="-1"
 	class="menu"
+	class:open
 	ontoggle={onToggle}
 	onkeydown={onKeydown}
 >
@@ -140,8 +227,11 @@
 
 <style>
 	/* The user-agent stylesheet centres a popover with `inset: 0; margin: auto`; both have to go for
-	   the left/top set in `place()` to mean anything. */
+	   the left/top set in `place()` to mean anything. Hiding a closed menu is the `open` class's job
+	   rather than `:popover-open`'s, so that it also happens in a browser that cannot parse that
+	   selector and would drop the rule containing it — see the note at the top of this file. */
 	.menu {
+		display: none;
 		position: fixed;
 		inset: auto;
 		margin: 0;
@@ -162,8 +252,8 @@
 		color: var(--color-stone-800);
 	}
 
-	.menu:not(:popover-open) {
-		display: none;
+	.menu.open {
+		display: block;
 	}
 
 	:global(.dark) .menu {

@@ -514,6 +514,42 @@ test('the chapter number opens the menu for the hidden first verse number', asyn
 	await expect(page.getByRole('menu', { name: 'Vers 1.Mose 1,1' })).toBeVisible();
 });
 
+test('the verse menu opens where the browser has no popover API', async ({ page }) => {
+	// The browsers built into e-ink readers predate `popover`, so the menu falls back to a plain
+	// element there. Both halves of the API are taken away here, matching what such a browser offers:
+	// no `showPopover()`, and no `:popover-open` for a selector query to survive.
+	await page.addInitScript(() => {
+		delete (HTMLElement.prototype as Partial<HTMLElement>).showPopover;
+		delete (HTMLElement.prototype as Partial<HTMLElement>).hidePopover;
+		const supported = CSS.supports.bind(CSS);
+		CSS.supports = ((...query: [string] | [string, string]) =>
+			query.some((part) => part.includes(':popover-open'))
+				? false
+				: supported(...(query as [string]))) as typeof CSS.supports;
+	});
+	await page.goto('/1Mo1');
+
+	const anchor = page.getByRole('link', { name: 'Vers 1.Mose 1,2' }).first();
+	const menu = page.getByRole('menu', { name: 'Vers 1.Mose 1,2' });
+
+	await anchor.click();
+	await expect(menu).toBeVisible();
+
+	// Dismissal is the popover's own business elsewhere and this component's here: Escape, a click
+	// outside, and the anchor itself as a toggle.
+	await page.keyboard.press('Escape');
+	await expect(menu).toHaveCount(0);
+
+	await anchor.click();
+	await page.getByRole('heading', { level: 1 }).click();
+	await expect(menu).toHaveCount(0);
+
+	await anchor.click();
+	await expect(menu).toBeVisible();
+	await anchor.click();
+	await expect(menu).toHaveCount(0);
+});
+
 test('flowing text preloads the next chapter for endless scrolling', async ({ page }) => {
 	await page.goto('/Joh3');
 	await expect(page.locator('[data-chapter-key="43:4"]').first()).toBeAttached();

@@ -110,6 +110,15 @@ Text und Highlight-Zustand an `openAt()`; so werden nicht hunderte Menüs und Fo
 gerendert. Highlights werden optimistisch in `streamChapters` aktualisiert, Listenmarkierungen im
 reaktiven `marks`-Set.
 
+`Menu.svelte` nutzt die Popover-API nur dort, wo der Browser sie hat, und fällt sonst auf ein
+einfaches `position: fixed`-Element mit eigener Dismiss-Behandlung zurück: Die eingebauten Browser
+von E-Ink-Readern sind älter als das Chrome 114, das `popover` gebracht hat. Deshalb darf JavaScript
+dort nicht `matches(':popover-open')` fragen — ein unbekanntes Pseudo wirft einen `SyntaxError`, und
+das Menü öffnet gar nicht — und die Sichtbarkeit darf nicht an `:popover-open` hängen, weil eine
+Regel mit unparsbarem Selektor komplett entfällt und damit jedes Menü dauerhaft offen im Layout
+stünde. Sichtbar macht die Klasse `open`, die `show()` synchron setzt, weil `place()` und `items()`
+ein Menü mit `display: none` weder messen noch darin einen Fokus finden können.
+
 Eine Markierung (`verse_highlights`) gilt entweder für den ganzen Vers und damit für alle
 Übersetzungen (`resource_id`, `start_word`, `end_word` alle `NULL` — das ist auch die Form, in der
 jede Markierung aus der Zeit vor dieser Unterscheidung existiert und weiterhin funktioniert), oder für
