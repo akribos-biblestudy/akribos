@@ -23,10 +23,9 @@
 	} = $props();
 
 	type Context = {
-		action: '?/setColumn' | '?/addColumn';
+		action: '?/addTab';
 		readerUrl: string;
-		index?: number;
-		selectedId?: string;
+		tileId: string;
 		chosen: string[];
 	};
 
@@ -54,10 +53,9 @@
 
 	const visible = $derived(
 		(activeGroup?.resources ?? []).filter((resource) => {
-			// Adding a translation that is already a column would just be a no-op on the server, so it
-			// is left out entirely here rather than shown disabled; switching a column's translation
-			// (?/setColumn) instead swaps the two columns, which is worth offering.
-			if (context?.action === '?/addColumn' && context.chosen.includes(resource.id)) return false;
+			// Within one tile a resource only needs one tab. The same resource remains available in every
+			// other tile, which is useful for comparing independent link sets.
+			if (context?.chosen.includes(resource.id)) return false;
 
 			const needle = query.trim().toLowerCase();
 			if (!needle) return true;
@@ -73,9 +71,7 @@
 	export function openAt(next: Context): void {
 		context = next;
 		query = '';
-		activeKind =
-			GROUPS.find((group) => resources.find((r) => r.id === next.selectedId)?.kind === group.kind)
-				?.kind ?? groups[0]?.kind;
+		activeKind = groups[0]?.kind;
 		dialog?.showModal();
 	}
 
@@ -142,7 +138,7 @@
 						<p
 							class="text-[0.68rem] font-bold tracking-[0.12em] text-accent-700 uppercase dark:text-accent-300"
 						>
-							{context.action === '?/addColumn' ? t('reader.addColumn') : label}
+							Ressource öffnen
 						</p>
 						<h2
 							class="mt-0.5 text-xl font-semibold tracking-tight text-stone-900 dark:text-stone-50"
@@ -192,8 +188,8 @@
 
 				<ul class="resource-grid min-h-0 flex-1 overflow-y-auto px-4 pb-5 sm:px-6">
 					{#each visible as resource (resource.id)}
-						{@const isSelected = resource.id === context.selectedId}
-						{@const isChosen = !isSelected && context.chosen.includes(resource.id)}
+						{@const isSelected = false}
+						{@const isChosen = false}
 						<li>
 							<form
 								method="POST"
@@ -209,9 +205,7 @@
 									};
 								}}
 							>
-								{#if context.index !== undefined}
-									<input type="hidden" name="index" value={context.index} />
-								{/if}
+								<input type="hidden" name="tileId" value={context.tileId} />
 								<input type="hidden" name="resource" value={resource.id} />
 								<button type="submit" class="entry" class:selected={isSelected}>
 									<span

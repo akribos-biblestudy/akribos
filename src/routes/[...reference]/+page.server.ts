@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { randomUUID } from 'node:crypto';
 import { bookById } from '$lib/bible/books';
 import { bookName, bookShortName } from '$lib/bible/book-names';
 import {
@@ -11,15 +12,25 @@ import {
 import { normalizeStrongId } from '$lib/bible/strong';
 import { getDb } from '$lib/server/db';
 import {
-	addColumn,
-	moveColumn,
-	resolveColumns,
-	resolveColumnWidths,
-	removeColumn,
-	setColumn,
-	writeColumns,
-	writeColumnWidths
-} from '$lib/server/columns';
+	activateReaderTab,
+	activeReaderTab,
+	activeResourceIds,
+	addReaderTab,
+	changeReaderLayout,
+	closeReaderTab,
+	isReaderLayout,
+	isReaderLinkSet,
+	moveReaderTab,
+	readerLayoutDefinition,
+	setReaderLayoutSize,
+	setReaderTabLinkSet,
+	type ReaderWorkspace
+} from '$lib/reader/workspace';
+import {
+	resolveReaderWorkspace,
+	workspaceColumns,
+	writeWorkspaceCompatibilityCookies
+} from '$lib/server/reader-workspace';
 import { loadChapter } from '$lib/server/repositories/chapter';
 import { loadReferenceResources } from '$lib/server/repositories/reference-resources';
 import {
@@ -32,7 +43,7 @@ import {
 	listBibles,
 	listReaderResources
 } from '$lib/server/repositories/resources';
-import { updateReaderColumns, updateReaderFontScale } from '$lib/server/repositories/users';
+import { updateReaderFontScale, updateReaderWorkspace } from '$lib/server/repositories/users';
 import {
 	MAX_FONT_SCALE,
 	MIN_FONT_SCALE,
@@ -108,8 +119,15 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 	}
 
 	const readerResources = await listReaderResources(db);
-	const columns = resolveColumns(cookies, readerResources, locals.user?.readerColumns);
-	const selectedBibles = columns.filter((id) => bibles.some((bible) => bible.id === id));
+	const workspace = resolveReaderWorkspace(
+		cookies,
+		readerResources,
+		locals.user?.readerWorkspace,
+		locals.user?.readerColumns
+	);
+	const byId = new Map(readerResources.map((resource) => [resource.id, resource]));
+	const activeIds = activeResourceIds(workspace);
+	const selectedBibles = activeIds.filter((id) => byId.get(id)?.kind === 'bible');
 
 	/**
 	 * Highest chapter the selected translations have for this book; 0 when none of them contains it.
@@ -135,7 +153,7 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 			chapter: reference.chapter
 		}),
 		loadReferenceResources(db, {
-			resourceIds: columns,
+			resourceIds: activeIds,
 			book: reference.book,
 			chapter: reference.chapter
 		})
@@ -148,9 +166,27 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 	chapter.rows.sort((left, right) => left.verse - right.verse);
 	chapter.empty = chapter.rows.length === 0;
 
-	const coverage = await bookCoverage(db, selectedBibles);
-	const byId = new Map(readerResources.map((resource) => [resource.id, resource]));
-	const bibleCellIndex = new Map(selectedBibles.map((id, index) => [id, index]));
+	const coverage = await bookCoverage(db, [...new Set(selectedBibles)]);
+	let bibleCellIndex = 0;
+	let columnIndex = 0;
+	const columns = workspace.tiles.flatMap((tile, tileIndex) => {
+		const activeTab = activeReaderTab(tile);
+		const resource = activeTab ? byId.get(activeTab.resourceId) : undefined;
+		if (!activeTab || !resource) return [];
+		const cellIndex = resource.kind === 'bible' ? bibleCellIndex++ : null;
+		return [
+			{
+				index: columnIndex++,
+				tileIndex,
+				tileId: tile.id,
+				activeTab,
+				resource,
+				bibleCellIndex: cellIndex,
+				/** False when this translation does not contain the current book at all. */
+				covers: coverage.get(resource.id)?.has(reference.book) ?? false
+			}
+		];
+	});
 
 	// Verse lists, so a signed-in reader can add a verse without leaving the chapter. The most recently
 	// used list is offered first, which is the one they are working in.
@@ -190,19 +226,8 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 			headings: [...chapter.headings.entries()]
 		},
 		referenceResources,
-		columns: columns.map((id, index) => {
-			const resource = byId.get(id)!;
-			return {
-				index,
-				resource,
-				bibleCellIndex: bibleCellIndex.get(id) ?? null,
-				/** False when this translation does not contain the current book at all. */
-				covers: coverage.get(id)?.has(reference.book) ?? false
-			};
-		}),
-		/** Custom per-column widths, in the same order as `columns` above, or `null` when the reader has
-		 *  not resized anything — the client then falls back to an even split via CSS. */
-		columnWidths: resolveColumnWidths(cookies, columns),
+		workspace,
+		columns,
 		navigation: {
 			previous: previousChapter(reference.book, reference.chapter),
 			next: nextChapter(reference.book, reference.chapter),
@@ -222,84 +247,101 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
  * selection is stored where server rendering can see it.
  */
 export const actions = {
-	setColumn: async ({ request, cookies, locals }) => {
+	setLayout: async ({ request, cookies, locals }) => {
 		const form = await request.formData();
-		const index = Number(form.get('index'));
-		const resource = String(form.get('resource') ?? '');
+		const layout = form.get('layout');
+		if (!isReaderLayout(layout)) return fail(400, { error: 'layout' });
+		const workspace = await currentWorkspace(cookies, locals.user);
+		await commitWorkspace(cookies, locals.user, changeReaderLayout(workspace, layout, randomUUID));
+		return { success: true };
+	},
 
+	addTab: async ({ request, cookies, locals }) => {
+		const form = await request.formData();
+		const tileId = String(form.get('tileId') ?? '');
+		const resourceId = String(form.get('resource') ?? '');
 		const available = await listReaderResources(getDb());
-		if (!Number.isInteger(index) || !available.some((item) => item.id === resource)) {
-			return { success: false };
+		if (!available.some((resource) => resource.id === resourceId)) {
+			return fail(400, { error: 'resource' });
 		}
-
-		await commitColumns(
-			cookies,
-			locals.user,
-			setColumn(resolveColumns(cookies, available, locals.user?.readerColumns), index, resource)
-		);
-		return { success: true };
-	},
-
-	addColumn: async ({ request, cookies, locals }) => {
-		const form = await request.formData();
-		const resource = form.get('resource');
-
-		const bibles = await listReaderResources(getDb());
-		await commitColumns(
-			cookies,
-			locals.user,
-			addColumn(
-				resolveColumns(cookies, bibles, locals.user?.readerColumns),
-				bibles,
-				// Absent when the button was submitted without a choice, which appends the next unused one.
-				resource === null ? undefined : String(resource)
-			)
-		);
-		return { success: true };
-	},
-
-	removeColumn: async ({ request, cookies, locals }) => {
-		const form = await request.formData();
-		const index = Number(form.get('index'));
-		if (!Number.isInteger(index)) return { success: false };
-
-		const bibles = await listReaderResources(getDb());
-		await commitColumns(
-			cookies,
-			locals.user,
-			removeColumn(resolveColumns(cookies, bibles, locals.user?.readerColumns), index)
-		);
-		return { success: true };
-	},
-
-	moveColumn: async ({ request, cookies, locals }) => {
-		const form = await request.formData();
-		const from = Number(form.get('from'));
-		const to = Number(form.get('to'));
-		const bibles = await listReaderResources(getDb());
-		await commitColumns(
-			cookies,
-			locals.user,
-			moveColumn(resolveColumns(cookies, bibles, locals.user?.readerColumns), from, to)
-		);
-		return { success: true };
-	},
-
-	/** Commits a drag-resize of the column boundaries. Widths are normalized and clamped again here —
-	 *  the client already does both live, but a request is never trusted at face value. */
-	setColumnWidths: async ({ request, cookies, locals }) => {
-		const form = await request.formData();
-		const widths = String(form.get('widths') ?? '')
-			.split(',')
-			.map(Number);
-
-		const bibles = await listReaderResources(getDb());
-		const columns = resolveColumns(cookies, bibles, locals.user?.readerColumns);
-		if (widths.length !== columns.length || widths.some((width) => !Number.isFinite(width))) {
-			return fail(400, { error: 'widths' });
+		const workspace = await currentWorkspace(cookies, locals.user, available);
+		if (!workspace.tiles.some((tile) => tile.id === tileId)) {
+			return fail(400, { error: 'tile' });
 		}
+		await commitWorkspace(
+			cookies,
+			locals.user,
+			addReaderTab(workspace, tileId, resourceId, randomUUID)
+		);
+		return { success: true };
+	},
 
-		writeColumnWidths(cookies, columns, widths);
+	activateTab: async ({ request, cookies, locals }) => {
+		const form = await request.formData();
+		const tileId = String(form.get('tileId') ?? '');
+		const tabId = String(form.get('tabId') ?? '');
+		const workspace = await currentWorkspace(cookies, locals.user);
+		await commitWorkspace(cookies, locals.user, activateReaderTab(workspace, tileId, tabId));
+		return { success: true };
+	},
+
+	closeTab: async ({ request, cookies, locals }) => {
+		const form = await request.formData();
+		const tileId = String(form.get('tileId') ?? '');
+		const tabId = String(form.get('tabId') ?? '');
+		const workspace = await currentWorkspace(cookies, locals.user);
+		await commitWorkspace(cookies, locals.user, closeReaderTab(workspace, tileId, tabId));
+		return { success: true };
+	},
+
+	moveTab: async ({ request, cookies, locals }) => {
+		const form = await request.formData();
+		const fromTileId = String(form.get('fromTileId') ?? '');
+		const tabId = String(form.get('tabId') ?? '');
+		const toTileId = String(form.get('toTileId') ?? '');
+		const toIndex = Number(form.get('toIndex'));
+		if (!Number.isInteger(toIndex)) return fail(400, { error: 'position' });
+		const workspace = await currentWorkspace(cookies, locals.user);
+		await commitWorkspace(
+			cookies,
+			locals.user,
+			moveReaderTab(workspace, fromTileId, tabId, toTileId, toIndex)
+		);
+		return { success: true };
+	},
+
+	setTabLinkSet: async ({ request, cookies, locals }) => {
+		const form = await request.formData();
+		const tileId = String(form.get('tileId') ?? '');
+		const tabId = String(form.get('tabId') ?? '');
+		const rawLinkSet = form.get('linkSet');
+		const linkSet = rawLinkSet === '' ? null : rawLinkSet;
+		if (!isReaderLinkSet(linkSet)) return fail(400, { error: 'linkSet' });
+		const workspace = await currentWorkspace(cookies, locals.user);
+		await commitWorkspace(
+			cookies,
+			locals.user,
+			setReaderTabLinkSet(workspace, tileId, tabId, linkSet)
+		);
+		return { success: true };
+	},
+
+	setLayoutSize: async ({ request, cookies, locals }) => {
+		const form = await request.formData();
+		const layout = form.get('layout');
+		if (!isReaderLayout(layout)) return fail(400, { error: 'layout' });
+		const columns = parseFractions(form.get('columns'));
+		const rows = parseFractions(form.get('rows'));
+		const definition = readerLayoutDefinition(layout);
+		if (columns.length !== definition.columns || rows.length !== definition.rows) {
+			return fail(400, { error: 'sizes' });
+		}
+		const workspace = await currentWorkspace(cookies, locals.user);
+		await commitWorkspace(
+			cookies,
+			locals.user,
+			setReaderLayoutSize(workspace, layout, columns, rows)
+		);
 		return { success: true };
 	},
 
@@ -504,23 +546,47 @@ function decodeReferenceParam(raw: string): string {
 const LOCATION_COOKIE = 'location';
 
 /** Where `/` sends a returning visitor: the last chapter they read, or John 1. */
-async function commitColumns(
-	cookies: Parameters<typeof writeColumns>[0],
+async function currentWorkspace(
+	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
 	user: App.Locals['user'],
-	columns: string[]
-): Promise<void> {
-	writeColumns(cookies, columns);
-	if (user) await updateReaderColumns(getDb(), user.id, columns);
+	available?: Awaited<ReturnType<typeof listReaderResources>>
+): Promise<ReaderWorkspace> {
+	const resources = available ?? (await listReaderResources(getDb()));
+	return resolveReaderWorkspace(cookies, resources, user?.readerWorkspace, user?.readerColumns);
 }
 
-function defaultLocation(cookies: Parameters<typeof writeColumns>[0]): string {
+async function commitWorkspace(
+	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
+	user: App.Locals['user'],
+	workspace: ReaderWorkspace
+): Promise<void> {
+	const written = writeWorkspaceCompatibilityCookies(cookies, workspace);
+	if (!written && !user) {
+		// A browser cookie is the only persistence available to a guest. Do not pretend a mutation was
+		// saved once the exceptionally large workspace no longer fits in it.
+		error(409, 'Der Arbeitsbereich ist für die lokale Speicherung zu groß.');
+	}
+	if (user) await updateReaderWorkspace(getDb(), user.id, workspace, workspaceColumns(workspace));
+}
+
+function parseFractions(value: FormDataEntryValue | null): number[] {
+	return String(value ?? '')
+		.split(',')
+		.filter(Boolean)
+		.map(Number)
+		.filter(Number.isFinite);
+}
+
+function defaultLocation(
+	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0]
+): string {
 	const stored = cookies.get(LOCATION_COOKIE);
 	const reference = stored ? parseReference(stored) : null;
 	return referencePath(reference ?? { book: 43, chapter: 1 });
 }
 
 function rememberLocation(
-	cookies: Parameters<typeof writeColumns>[0],
+	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
 	reference: { book: number; chapter: number }
 ): void {
 	cookies.set(LOCATION_COOKIE, `${bookShortName(reference.book)}${reference.chapter}`, {

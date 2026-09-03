@@ -35,6 +35,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { VerseSegment } from '../../bible/segments.ts';
 import { COMMENT_REACTION_EMOJIS } from '../../notes/reactions.ts';
+import type { ReaderWorkspace } from '../../reader/workspace.ts';
 import { tsvector } from './types.ts';
 
 const timestamps = {
@@ -296,6 +297,11 @@ export const users = pgTable(
 			.array()
 			.notNull()
 			.default(sql`'{}'::text[]`),
+		/**
+		 * Complete Logos-style workspace. `reader_columns` remains as the compact compatibility view used
+		 * by search and older clients; it is updated from this structure whenever the workspace changes.
+		 */
+		readerWorkspace: jsonb('reader_workspace').$type<ReaderWorkspace>(),
 		/** Scripture font size as an integer percentage. */
 		readerFontScale: integer('reader_font_scale').notNull().default(100),
 		/**

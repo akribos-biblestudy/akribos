@@ -26,6 +26,7 @@ export type SessionUser = Pick<
 	| 'displayName'
 	| 'role'
 	| 'readerColumns'
+	| 'readerWorkspace'
 	| 'readerFontScale'
 	| 'theme'
 	| 'tourCompletedAt'
@@ -91,6 +92,7 @@ export async function resolveSession(
 			displayName: users.displayName,
 			role: users.role,
 			readerColumns: users.readerColumns,
+			readerWorkspace: users.readerWorkspace,
 			readerFontScale: users.readerFontScale,
 			theme: users.theme,
 			tourCompletedAt: users.tourCompletedAt,
@@ -123,6 +125,7 @@ export async function resolveSession(
 			displayName: row.displayName,
 			role: row.role,
 			readerColumns: row.readerColumns,
+			readerWorkspace: row.readerWorkspace,
 			readerFontScale: row.readerFontScale,
 			theme: row.theme,
 			tourCompletedAt: row.tourCompletedAt
