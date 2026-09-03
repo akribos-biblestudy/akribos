@@ -13,6 +13,7 @@ import {
 	setReaderTabLinkSet,
 	setReaderTabLookup,
 	setReaderTabReference,
+	setReaderTabStudy,
 	workspaceFromColumns
 } from './workspace.ts';
 
@@ -64,7 +65,8 @@ describe('reader workspace', () => {
 			resourceId: 'c',
 			linkSet: 'A',
 			reference: { book: 42, chapter: 20 },
-			lookup: null
+			lookup: null,
+			studyContext: null
 		});
 		workspace = setReaderTabReference(workspace, 'tile-1', 'tab-1', {
 			book: 1,
@@ -83,6 +85,27 @@ describe('reader workspace', () => {
 		expect(activeReaderTab(workspace.tiles[1]!)?.lookup).toBe('G25');
 		expect(activeReaderTab(workspace.tiles[0]!)?.lookup).toBeNull();
 		expect(workspace.focusedTileId).toBe('tile-2');
+	});
+
+	it('stores the exact translation and verse behind a lexicon study', () => {
+		let workspace = workspaceFromColumns(['bible', 'lexicon']);
+		workspace = setReaderTabStudy(workspace, 'tile-2', 'tab-2', 'G25', {
+			sourceResourceId: 'bible',
+			reference: { book: 43, chapter: 3, verse: 16 },
+			word: 'geliebt'
+		});
+		expect(activeReaderTab(workspace.tiles[1]!)?.studyContext).toEqual({
+			sourceResourceId: 'bible',
+			reference: { book: 43, chapter: 3, verse: 16 },
+			word: 'geliebt'
+		});
+
+		workspace = setReaderTabLookup(workspace, 'tile-2', 'tab-2', 'G2316');
+		expect(activeReaderTab(workspace.tiles[1]!)?.studyContext).toEqual({
+			sourceResourceId: 'bible',
+			reference: { book: 43, chapter: 3, verse: 16 },
+			word: null
+		});
 	});
 
 	it('replaces a tab resource without losing its location or link set', () => {

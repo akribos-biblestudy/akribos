@@ -61,6 +61,19 @@ Joh 3:16	Denn so sehr hat Gott die Welt geliebt, dass er seinen Sohn gab.
 Joh 3:17	Denn Gott hat seinen Sohn nicht in die Welt gesandt, damit er sie richte.
 Joh 3:18	Wer glaubt, wird nicht gerichtet; wer nicht glaubt, ist gerichtet.`;
 
+/** Tiny original-language source used to verify that grammar is merged into every lexicon tab. */
+const GREEK = `<?xml version="1.0" encoding="utf-8"?>
+<XMLBIBLE biblename="Testgrundtext" type="x-bible">
+	<INFORMATION>
+		<title>Testgrundtext</title><identifier>SEEDGRC</identifier><language>GRC</language>
+	</INFORMATION>
+	<BIBLEBOOK bnumber="43">
+		<CHAPTER cnumber="3">
+			<VERS vnumber="16"><gr str="2316" rmac="N-NSM">θεὸς </gr><gr str="25" rmac="V-AAI-3S">ἠγάπησεν </gr><gr str="2889" rmac="N-ASM">κόσμον</gr>.</VERS>
+		</CHAPTER>
+	</BIBLEBOOK>
+</XMLBIBLE>`;
+
 const LEXICON = `<?xml version="1.0" encoding="utf-8"?>
 <strongsdictionary><prologue>Seed</prologue><entries>
 	<entry strongs="00025"><strongs>25</strongs>
@@ -98,6 +111,7 @@ try {
 		sourceFormat: 'vpl',
 		overrides: { id: 'SEEDPLAIN', name: 'Testübersetzung schlicht', abbrev: 'Schlicht' }
 	});
+	await ingestBible(db, parseZefania(GREEK), { sourceFormat: 'zefania' });
 
 	await ingestLexicon(db, parseStrongsXml(LEXICON), { sourceFormat: 'strongs-xml' });
 
@@ -110,6 +124,10 @@ try {
 	await db.update(resources).set({ sortOrder: 10 }).where(eq(resources.id, 'SEEDDE'));
 	await db.update(resources).set({ sortOrder: 20 }).where(eq(resources.id, 'SEEDPLAIN'));
 	await db.update(resources).set({ sortOrder: 30 }).where(eq(resources.id, 'SEEDCOMMENTARY'));
+	await db
+		.update(resources)
+		.set({ sortOrder: 40, kind: 'morphology' })
+		.where(eq(resources.id, 'SEEDGRC'));
 
 	await refreshStrongStatisticsBlocking(db);
 
@@ -130,7 +148,9 @@ try {
 		});
 	}
 
-	console.log('seeded: SEEDDE, SEEDPLAIN, SEEDCOMMENTARY, STRONGS_GREEK and the admin account');
+	console.log(
+		'seeded: SEEDDE, SEEDPLAIN, SEEDGRC, SEEDCOMMENTARY, STRONGS_GREEK and the admin account'
+	);
 } catch (error) {
 	console.error('seeding failed:', error);
 	process.exitCode = 1;

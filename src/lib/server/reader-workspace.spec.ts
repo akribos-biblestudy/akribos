@@ -46,6 +46,11 @@ describe('reader workspace persistence', () => {
 		const workspace = workspaceFromColumns(['a', 'b']);
 		workspace.tiles[0]!.tabs[0]!.linkSet = 'D';
 		workspace.tiles[0]!.tabs[0]!.lookup = 'G25';
+		workspace.tiles[0]!.tabs[0]!.studyContext = {
+			sourceResourceId: 'b',
+			reference: { book: 43, chapter: 3, verse: 16 },
+			word: 'geliebt'
+		};
 		workspace.layoutSizes['columns-2'] = { columns: [0.65, 0.35], rows: [1] };
 		expect(writeReaderWorkspace(cookies, workspace)).toBe(true);
 		expect(readReaderWorkspaceCookie(cookies)).toEqual(workspace);
@@ -70,7 +75,8 @@ describe('reader workspace persistence', () => {
 			resourceId: 'a',
 			linkSet: null,
 			reference: { book: 43, chapter: 1 },
-			lookup: null
+			lookup: null,
+			studyContext: null
 		});
 		expect(workspaceColumns(workspace)).toEqual(['a', 'b', 'c', 'd', 'e']);
 	});
