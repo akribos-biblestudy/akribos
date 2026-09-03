@@ -219,8 +219,8 @@
 					<span>Dein Leseraum</span>
 					<h3>So lesen, wie es für dich passt</h3>
 					<p>
-						Schriftgröße, Hell- oder Dunkelmodus, Quellen und Spalten merkt sich Akribos für den
-						nächsten Besuch.
+						Schriftgröße, Hell- oder Dunkelmodus, Kachellayout und Ressourcen-Tabs merkt sich
+						Akribos für den nächsten Besuch.
 					</p>
 				</article>
 			</div>

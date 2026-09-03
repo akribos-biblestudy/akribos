@@ -5,14 +5,13 @@
 	import type { ReadableResource } from '$lib/server/repositories/resources';
 
 	/**
-	 * Full-screen picker for a reader column's translation, opened from `ColumnPicker` (and from the
-	 * mobile column tabs) instead of a small anchored dropdown — the list of Bibles, commentaries and
+	 * Full-screen picker for adding a resource tab to a reader tile instead of a small anchored
+	 * dropdown — the list of Bibles, commentaries and
 	 * cross-reference works is long enough, and important enough a choice, to deserve its own screen
 	 * rather than a menu that clips at the edge of the viewport.
 	 *
-	 * One instance lives at the reader page level and is reused for every column: `openAt()` carries
-	 * the per-call context (which column, what is already chosen) rather than that being static props,
-	 * since which column is being edited changes on every open.
+	 * One instance lives at the reader page level and is reused for every tile: `openAt()` carries
+	 * the per-call context (which tile and what is already open there) rather than static props.
 	 */
 	let {
 		resources,

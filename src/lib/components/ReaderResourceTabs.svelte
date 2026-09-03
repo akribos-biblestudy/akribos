@@ -74,7 +74,7 @@
 
 	function dropTab(event: DragEvent, targetIndex: number): void {
 		event.preventDefault();
-		let payload: { fromTileId?: string; tabId?: string } = {};
+		let payload: { fromTileId?: string; tabId?: string };
 		try {
 			payload = JSON.parse(event.dataTransfer?.getData('application/x-akribos-tab') ?? '{}');
 		} catch {
@@ -142,6 +142,9 @@
 							tabindex={tab.id === activeTab?.id ? 0 : -1}
 							class="tab-title"
 							title={resource.selectionTitle}
+							data-tour-target={tileIndex === 0 && tab.id === activeTab?.id
+								? 'resource-picker'
+								: undefined}
 						>
 							{#if tab.linkSet}
 								<span class="tab-link-set link-{tab.linkSet.toLowerCase()}">{tab.linkSet}</span>
@@ -181,7 +184,13 @@
 	</button>
 
 	{#if activeTab}
-		<form method="POST" action="?/setTabLinkSet" use:enhance={submitEnhancement} class="link-form">
+		<form
+			method="POST"
+			action="?/setTabLinkSet"
+			use:enhance={submitEnhancement}
+			class="link-form"
+			data-tour-target={tileIndex === 0 ? 'column-link' : undefined}
+		>
 			<input type="hidden" name="tileId" value={tile.id} />
 			<input type="hidden" name="tabId" value={activeTab.id} />
 			<label>
@@ -198,7 +207,7 @@
 					onchange={(event) => event.currentTarget.form?.requestSubmit()}
 				>
 					<option value="">–</option>
-					{#each READER_LINK_SETS as linkSet}
+					{#each READER_LINK_SETS as linkSet (linkSet)}
 						<option value={linkSet}>{linkSet}</option>
 					{/each}
 				</select>

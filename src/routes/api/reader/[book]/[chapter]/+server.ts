@@ -8,7 +8,7 @@ import { resolveReaderWorkspace } from '$lib/server/reader-workspace';
 import { loadChapter } from '$lib/server/repositories/chapter';
 import { loadChapterVerseComments } from '$lib/server/repositories/verse-comments';
 import { loadReferenceResources } from '$lib/server/repositories/reference-resources';
-import { listBibles, listReaderResources } from '$lib/server/repositories/resources';
+import { listReaderResources } from '$lib/server/repositories/resources';
 import { loadChapterHighlights } from '$lib/server/repositories/verse-highlights';
 
 export async function GET({ params, cookies, locals, setHeaders }) {
@@ -25,7 +25,7 @@ export async function GET({ params, cookies, locals, setHeaders }) {
 	}
 
 	const db = getDb();
-	const [bibles, readerResources] = await Promise.all([listBibles(db), listReaderResources(db)]);
+	const readerResources = await listReaderResources(db);
 	const workspace = resolveReaderWorkspace(
 		cookies,
 		readerResources,

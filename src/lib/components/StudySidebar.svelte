@@ -131,7 +131,7 @@
 
 <aside
 	bind:this={asideEl}
-	class="panel fixed inset-x-0 bottom-0 z-40 flex max-h-[70dvh] flex-col rounded-t-xl border
+	class="panel fixed inset-x-0 bottom-0 z-40 flex max-h-[62dvh] flex-col rounded-t-xl border
 	       border-stone-200 bg-white shadow-2xl sm:inset-x-auto sm:top-[var(--header-height)]
 	       sm:right-[max(0px,calc((100vw-var(--content-max-width))/2-28rem))] sm:bottom-auto
 	       sm:h-[calc(100dvh-var(--header-height))] sm:max-h-none

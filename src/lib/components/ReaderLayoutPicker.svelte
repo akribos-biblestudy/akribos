@@ -76,7 +76,7 @@
 							style:grid-template-areas={definition.areas}
 							aria-hidden="true"
 						>
-							{#each ['a', 'b', 'c', 'd'].slice(0, definition.tileCount) as area}
+							{#each ['a', 'b', 'c', 'd'].slice(0, definition.tileCount) as area (area)}
 								<i style:grid-area={area}></i>
 							{/each}
 						</span>

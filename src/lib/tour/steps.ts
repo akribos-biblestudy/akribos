@@ -25,8 +25,7 @@ export type TourStep = {
 
 /**
  * Explained to every reader, signed in or not: the search field's two-step chooser and its quote/`-`
- * syntax, word study, choosing a Bible or commentary per column, unlinking a column's scrolling, and
- * adding a column. Order follows the issue's list.
+ * syntax, word study, resource tabs, A–E link sets and opening another tab.
  */
 export const GUEST_TOUR_STEPS: TourStep[] = [
 	{

@@ -303,6 +303,13 @@
 	/** Which workspace tile a reader is looking at on a phone, where only one tile fits. */
 	let mobileTile = $state(0);
 
+	/** A desktop layout can be reduced while its last tile is selected on a phone-sized viewport.
+	 * Keep the mobile selection inside the new tile range so that this never leaves an empty reader. */
+	$effect(() => {
+		const lastTile = Math.max(0, data.workspace.tiles.length - 1);
+		if (mobileTile > lastTile) mobileTile = lastTile;
+	});
+
 	/**
 	 * Whether the phone-width layout (one column visible, switched by tabs) is actually in effect —
 	 * not merely "the reader happens to be on a phone", since a desktop window can be narrowed too.
@@ -414,6 +421,20 @@
 		};
 		const url = `${window.location.pathname}${window.location.search}#${encodeURIComponent(strong)}/${encodeURIComponent(word)}/${verse}`;
 		pushState(url, { ...page.state, studySidebar: true });
+		// The phone sheet covers the lower 62% of the viewport. A new per-tile tab strip adds height above
+		// the text, so explicitly keep the tapped verse in the narrow readable band above the sheet.
+		if (window.matchMedia('(max-width: 639px)').matches) {
+			tick().then(() => {
+				const column = flowColumns[activeFlowSource] ?? flowColumns[0];
+				const anchor = column?.querySelector<HTMLElement>(
+					`[data-verse-key="${book}:${chapter}:${verse}"]`
+				);
+				if (!column || !anchor) return;
+				const columnTop = column.getBoundingClientRect().top;
+				const anchorTop = anchor.getBoundingClientRect().top;
+				column.scrollTop += anchorTop - columnTop - 4;
+			});
+		}
 	}
 
 	function closeStrong() {
@@ -2091,7 +2112,7 @@
 	/* Room to scroll the last verses clear of the mobile study sheet. */
 	@media (max-width: 639px) {
 		.pb-sheet {
-			padding-bottom: 72dvh;
+			padding-bottom: 64dvh;
 		}
 	}
 </style>

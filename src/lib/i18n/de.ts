@@ -157,9 +157,9 @@ export const de = {
 	'account.theme': 'Zwischen hellem und dunklem Design wechseln',
 	'account.readerFontSize': 'Textgröße im Bibeltext',
 	'account.readerFontPreview': 'Im Anfang schuf Gott Himmel und Erde.',
-	'account.readerTranslations': 'Gespeicherte Lesespalten',
+	'account.readerTranslations': 'Ressourcen im Arbeitsbereich',
 	'account.readerTranslationsHint':
-		'Auswahl und Reihenfolge von Bibeln und Nachschlagewerken werden im Bibelleser automatisch gespeichert.',
+		'Kachelanordnung, Tabs, aktive Ressourcen, Link-Sets und Größen werden im Bibelleser automatisch gespeichert.',
 	'account.saved': 'Gespeichert.',
 	'account.emailHint': 'Die E-Mail-Adresse kann nicht geändert werden.',
 	'account.apiKeys': 'API-Schlüssel',
@@ -448,13 +448,13 @@ export const de = {
 		'Unterstrichene Wörter tragen eine Strong-Nummer. Klicke darauf, um die Grundbedeutung, verwandte Stellen und die Grammatik dieses Urtextworts zu sehen.',
 	'tour.resourcePicker.title': 'Bibel- und Kommentarauswahl',
 	'tour.resourcePicker.body':
-		'Über den Spaltentitel wählst du, welche Übersetzung oder welcher Kommentar in dieser Spalte angezeigt wird.',
-	'tour.columnLink.title': 'Spalten verknüpfen',
+		'Jede Kachel hat eigene Tabs. Klicke auf einen Tab, um zwischen Bibeln, Kommentaren und Parallelstellen zu wechseln.',
+	'tour.columnLink.title': 'Tabs verknüpfen',
 	'tour.columnLink.body':
-		'Standardmäßig scrollen alle Spalten gemeinsam. Über dieses Symbol lässt sich eine Spalte entkoppeln, damit sie unabhängig von den anderen scrollt.',
-	'tour.columnAdd.title': 'Spalte hinzufügen',
+		'Wähle A, B, C, D oder E: Sichtbare Tabs mit demselben Buchstaben folgen einander beim Scrollen. „–“ lässt einen Tab unabhängig.',
+	'tour.columnAdd.title': 'Tab hinzufügen',
 	'tour.columnAdd.body':
-		'Mit diesem Symbol fügst du eine weitere Übersetzung oder einen Kommentar als neue Spalte hinzu.',
+		'Mit diesem Symbol öffnest du eine weitere Übersetzung, einen Kommentar oder Parallelstellen als Tab in derselben Kachel.',
 	'tour.verseMenu.title': 'Versmenü',
 	'tour.verseMenu.body':
 		'Klicke auf eine Versnummer, um sie hervorzuheben, einen Kommentar zu schreiben oder sie einer Versliste zuzuordnen.',
