@@ -7,7 +7,6 @@
 </script>
 
 <svelte:head>
-	<title>{data.list.title} — Akribos</title>
 	<!-- A shared link is meant for the people it was given to, not for search engines. -->
 	<meta name="robots" content="noindex, nofollow" />
 </svelte:head>

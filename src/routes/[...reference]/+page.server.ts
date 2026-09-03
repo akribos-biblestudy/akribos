@@ -22,6 +22,7 @@ import {
 	isReaderLayout,
 	isReaderLinkSet,
 	moveReaderTab,
+	normalizeReaderWorkspace,
 	replaceReaderTabResource,
 	readerLayoutDefinition,
 	setReaderLayoutSize,
@@ -31,6 +32,14 @@ import {
 	setReaderTabStudy,
 	type ReaderWorkspace
 } from '$lib/reader/workspace';
+import {
+	decodeReaderUrlState,
+	encodeReaderUrlState,
+	readerStateFromUrl,
+	readerUrl,
+	sameReaderUrlWorkspace,
+	type ReaderSearchQueries
+} from '$lib/reader/url-state';
 import {
 	resolveReaderWorkspace,
 	workspaceColumns,
@@ -119,13 +128,25 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 	}
 
 	const readerResources = await listReaderResources(db);
-	let workspace = resolveReaderWorkspace(
+	const persistedWorkspace = resolveReaderWorkspace(
 		cookies,
 		readerResources,
 		locals.user?.readerWorkspace,
 		locals.user?.readerColumns,
 		reference
 	);
+	const decodedUrlState = decodeReaderUrlState(url);
+	let workspace = decodedUrlState
+		? normalizeReaderWorkspace(
+				decodedUrlState.workspace,
+				readerResources.map((resource) => resource.id),
+				workspaceColumns(persistedWorkspace),
+				reference
+			)
+		: persistedWorkspace;
+	// Divider ratios are a personal device preference, not part of a copied or duplicated URL.
+	workspace.layoutSizes = structuredClone(persistedWorkspace.layoutSizes);
+	const searchQueries = decodedUrlState?.searchQueries ?? {};
 	const byId = new Map(readerResources.map((resource) => [resource.id, resource]));
 	const activeIds = activeResourceIds(workspace);
 	const selectedBibles = activeIds.filter((id) => byId.get(id)?.kind === 'bible');
@@ -144,7 +165,7 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 		reference.book
 	);
 	if (maxChapter > 0 && reference.chapter > maxChapter) {
-		redirect(302, referencePath({ book: reference.book, chapter: maxChapter }));
+		redirect(302, `${referencePath({ book: reference.book, chapter: maxChapter })}${url.search}`);
 	}
 
 	// The canonical URL belongs to the most recently focused tile. A direct link therefore changes
@@ -156,6 +177,14 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 	const focusedTab = focusedTile ? activeReaderTab(focusedTile) : null;
 	if (focusedTile && focusedTab) {
 		workspace = setReaderTabReference(workspace, focusedTile.id, focusedTab.id, reference);
+	}
+
+	const readerState = encodeReaderUrlState(workspace, searchQueries);
+	if (readerStateFromUrl(url) !== readerState) {
+		// A plain passage URL starts a personal branch and may safely become the account/device default.
+		// A valid URL snapshot is never persisted by this GET: it may have come from somebody else.
+		if (!decodedUrlState) await commitWorkspace(cookies, locals.user, workspace, true);
+		redirect(302, readerUrl(canonical, readerState));
 	}
 
 	const coverage = await bookCoverage(db, [...new Set(selectedBibles)]);
@@ -214,6 +243,8 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 		title: formatReference(reference),
 		fullTitle: `${bookName(reference.book)} ${reference.chapter}`,
 		workspace,
+		readerState,
+		searchQueries,
 		columns,
 		navigation: {
 			previous: previousChapter(reference.book, reference.chapter),
@@ -230,21 +261,26 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
  * selection is stored where server rendering can see it.
  */
 export const actions = {
-	setLayout: async ({ request, cookies, locals, params }) => {
+	setLayout: async ({ request, cookies, locals, params, url }) => {
 		const form = await request.formData();
 		const layout = form.get('layout');
 		if (!isReaderLayout(layout)) return fail(400, { error: 'layout' });
-		const workspace = await currentWorkspace(
+		const current = await currentWorkspace(
 			cookies,
 			locals.user,
+			url,
 			undefined,
 			actionReference(params)
 		);
-		await commitWorkspace(cookies, locals.user, changeReaderLayout(workspace, layout, randomUUID));
-		return { success: true };
+		return finishWorkspaceMutation(
+			cookies,
+			locals.user,
+			current,
+			changeReaderLayout(current.workspace, layout, randomUUID)
+		);
 	},
 
-	addTab: async ({ request, cookies, locals, params }) => {
+	addTab: async ({ request, cookies, locals, params, url }) => {
 		const form = await request.formData();
 		const tileId = String(form.get('tileId') ?? '');
 		const resourceId = String(form.get('resource') ?? '');
@@ -252,24 +288,26 @@ export const actions = {
 		if (!available.some((resource) => resource.id === resourceId)) {
 			return fail(400, { error: 'resource' });
 		}
-		const workspace = await currentWorkspace(
+		const current = await currentWorkspace(
 			cookies,
 			locals.user,
+			url,
 			available,
 			actionReference(params)
 		);
+		const { workspace } = current;
 		if (!workspace.tiles.some((tile) => tile.id === tileId)) {
 			return fail(400, { error: 'tile' });
 		}
-		await commitWorkspace(
+		return finishWorkspaceMutation(
 			cookies,
 			locals.user,
+			current,
 			addReaderTab(workspace, tileId, resourceId, randomUUID)
 		);
-		return { success: true };
 	},
 
-	replaceTabResource: async ({ request, cookies, locals, params }) => {
+	replaceTabResource: async ({ request, cookies, locals, params, url }) => {
 		const form = await request.formData();
 		const tileId = String(form.get('tileId') ?? '');
 		const tabId = String(form.get('tabId') ?? '');
@@ -278,12 +316,14 @@ export const actions = {
 		if (!available.some((resource) => resource.id === resourceId)) {
 			return fail(400, { error: 'resource' });
 		}
-		const workspace = await currentWorkspace(
+		const current = await currentWorkspace(
 			cookies,
 			locals.user,
+			url,
 			available,
 			actionReference(params)
 		);
+		const { workspace } = current;
 		if (
 			!workspace.tiles.some(
 				(tile) => tile.id === tileId && tile.tabs.some((tab) => tab.id === tabId)
@@ -291,88 +331,116 @@ export const actions = {
 		) {
 			return fail(400, { error: 'tab' });
 		}
-		await commitWorkspace(
+		delete current.searchQueries[tabId];
+		return finishWorkspaceMutation(
 			cookies,
 			locals.user,
+			current,
 			replaceReaderTabResource(workspace, tileId, tabId, resourceId)
 		);
-		return { success: true };
 	},
 
-	activateTab: async ({ request, cookies, locals }) => {
+	activateTab: async ({ request, cookies, locals, url }) => {
 		const form = await request.formData();
 		const tileId = String(form.get('tileId') ?? '');
 		const tabId = String(form.get('tabId') ?? '');
 		const currentReference = parseReference(String(form.get('currentReference') ?? ''));
-		let workspace = await currentWorkspace(cookies, locals.user);
+		const requestedTargetReference = parseReference(String(form.get('targetReference') ?? ''));
+		const current = await currentWorkspace(cookies, locals.user, url);
+		let { workspace } = current;
 		const sourceTile = workspace.tiles.find((tile) => tile.id === tileId);
 		const sourceTab = sourceTile ? activeReaderTab(sourceTile) : null;
 		if (sourceTile && sourceTab && currentReference && isReferenceInCanon(currentReference)) {
 			workspace = setReaderTabReference(workspace, sourceTile.id, sourceTab.id, currentReference);
 		}
+		const targetTile = workspace.tiles.find((tile) => tile.id === tileId);
+		const targetTab = targetTile?.tabs.find((tab) => tab.id === tabId);
+		const linkedActivePeer = targetTab?.linkSet
+			? workspace.tiles
+					.filter((tile) => tile.id !== tileId)
+					.map((tile) => activeReaderTab(tile))
+					.find((tab) => tab?.linkSet === targetTab.linkSet)
+			: null;
+		const targetReference =
+			requestedTargetReference && isReferenceInCanon(requestedTargetReference)
+				? requestedTargetReference
+				: linkedActivePeer?.reference;
+		if (targetTile && targetTab && targetReference) {
+			// A newly shown linked tab joins the visible group's current position. Its previously stored
+			// position must never pull the already visible members of that group backwards.
+			workspace = setReaderTabReference(workspace, targetTile.id, targetTab.id, targetReference);
+		}
 		const next = activateReaderTab(workspace, tileId, tabId);
-		await commitWorkspace(cookies, locals.user, next);
 		const active = activeReaderTab(next.tiles.find((tile) => tile.id === tileId) ?? next.tiles[0]!);
-		return { success: true, ...(active ? { path: referencePath(active.reference) } : {}) };
+		return finishWorkspaceMutation(cookies, locals.user, current, next, {
+			...(active ? { path: referencePath(active.reference) } : {})
+		});
 	},
 
-	closeTab: async ({ request, cookies, locals, params }) => {
+	closeTab: async ({ request, cookies, locals, params, url }) => {
 		const form = await request.formData();
 		const tileId = String(form.get('tileId') ?? '');
 		const tabId = String(form.get('tabId') ?? '');
-		const workspace = await currentWorkspace(
+		const current = await currentWorkspace(
 			cookies,
 			locals.user,
+			url,
 			undefined,
 			actionReference(params)
 		);
-		await commitWorkspace(cookies, locals.user, closeReaderTab(workspace, tileId, tabId));
-		return { success: true };
+		return finishWorkspaceMutation(
+			cookies,
+			locals.user,
+			current,
+			closeReaderTab(current.workspace, tileId, tabId)
+		);
 	},
 
-	moveTab: async ({ request, cookies, locals, params }) => {
+	moveTab: async ({ request, cookies, locals, params, url }) => {
 		const form = await request.formData();
 		const fromTileId = String(form.get('fromTileId') ?? '');
 		const tabId = String(form.get('tabId') ?? '');
 		const toTileId = String(form.get('toTileId') ?? '');
 		const toIndex = Number(form.get('toIndex'));
 		if (!Number.isInteger(toIndex)) return fail(400, { error: 'position' });
-		const workspace = await currentWorkspace(
+		const current = await currentWorkspace(
 			cookies,
 			locals.user,
+			url,
 			undefined,
 			actionReference(params)
 		);
-		await commitWorkspace(
+		return finishWorkspaceMutation(
 			cookies,
 			locals.user,
-			moveReaderTab(workspace, fromTileId, tabId, toTileId, toIndex)
+			current,
+			moveReaderTab(current.workspace, fromTileId, tabId, toTileId, toIndex)
 		);
-		return { success: true };
 	},
 
-	setTabLinkSet: async ({ request, cookies, locals, params }) => {
+	setTabLinkSet: async ({ request, cookies, locals, params, url }) => {
 		const form = await request.formData();
 		const tileId = String(form.get('tileId') ?? '');
 		const tabId = String(form.get('tabId') ?? '');
 		const rawLinkSet = form.get('linkSet');
 		const linkSet = rawLinkSet === '' ? null : rawLinkSet;
 		if (!isReaderLinkSet(linkSet)) return fail(400, { error: 'linkSet' });
-		const workspace = await currentWorkspace(
+		const current = await currentWorkspace(
 			cookies,
 			locals.user,
+			url,
 			undefined,
 			actionReference(params)
 		);
-		await commitWorkspace(
+		return finishWorkspaceMutation(
 			cookies,
 			locals.user,
-			setReaderTabLinkSet(workspace, tileId, tabId, linkSet)
+			current,
+			setReaderTabLinkSet(current.workspace, tileId, tabId, linkSet)
 		);
-		return { success: true };
 	},
 
-	setTabReference: async ({ request, cookies, locals, params }) => {
+	setTabReference: async ({ request, cookies, locals, params, url }) => {
 		const form = await request.formData();
 		const tileId = String(form.get('tileId') ?? '');
 		const tabId = String(form.get('tabId') ?? '');
@@ -380,12 +448,14 @@ export const actions = {
 		if (!reference || !isReferenceInCanon(reference)) {
 			return fail(400, { error: 'reference' });
 		}
-		const workspace = await currentWorkspace(
+		const current = await currentWorkspace(
 			cookies,
 			locals.user,
+			url,
 			undefined,
 			actionReference(params)
 		);
+		const { workspace } = current;
 		if (
 			!workspace.tiles.some(
 				(tile) => tile.id === tileId && tile.tabs.some((tab) => tab.id === tabId)
@@ -393,15 +463,17 @@ export const actions = {
 		) {
 			return fail(400, { error: 'tab' });
 		}
-		await commitWorkspace(
+		delete current.searchQueries[tabId];
+		return finishWorkspaceMutation(
 			cookies,
 			locals.user,
-			setReaderTabReference(workspace, tileId, tabId, reference)
+			current,
+			setReaderTabReference(workspace, tileId, tabId, reference),
+			{ path: referencePath(reference) }
 		);
-		return { success: true, path: referencePath(reference) };
 	},
 
-	setTabLookup: async ({ request, cookies, locals, params }) => {
+	setTabLookup: async ({ request, cookies, locals, params, url }) => {
 		const form = await request.formData();
 		const tileId = String(form.get('tileId') ?? '');
 		const tabId = String(form.get('tabId') ?? '');
@@ -410,28 +482,30 @@ export const actions = {
 			.slice(0, 200);
 		if (!lookup) return fail(400, { error: 'lookup' });
 		const available = await listReaderResources(getDb());
-		const workspace = await currentWorkspace(
+		const current = await currentWorkspace(
 			cookies,
 			locals.user,
+			url,
 			available,
 			actionReference(params)
 		);
+		const { workspace } = current;
 		const tab = workspace.tiles
 			.find((tile) => tile.id === tileId)
 			?.tabs.find((candidate) => candidate.id === tabId);
 		if (!tab || available.find((resource) => resource.id === tab.resourceId)?.kind !== 'lexicon') {
 			return fail(400, { error: 'tab' });
 		}
-		await commitWorkspace(
+		return finishWorkspaceMutation(
 			cookies,
 			locals.user,
+			current,
 			setReaderTabLookup(workspace, tileId, tabId, lookup)
 		);
-		return { success: true };
 	},
 
 	/** Reuses the lexicon tab belonging to the source tab's A–E group, or opens one. */
-	openLexiconTab: async ({ request, cookies, locals }) => {
+	openLexiconTab: async ({ request, cookies, locals, url }) => {
 		const form = await request.formData();
 		const sourceTileId = String(form.get('tileId') ?? '');
 		const sourceTabId = String(form.get('tabId') ?? '');
@@ -446,7 +520,8 @@ export const actions = {
 
 		const db = getDb();
 		const available = await listReaderResources(db);
-		let workspace = await currentWorkspace(cookies, locals.user, available);
+		const current = await currentWorkspace(cookies, locals.user, url, available);
+		let { workspace } = current;
 		let sourceTile = workspace.tiles.find((tile) => tile.id === sourceTileId);
 		const initialSourceTab = sourceTile?.tabs.find((tab) => tab.id === sourceTabId);
 		if (!sourceTile || !initialSourceTab) return fail(400, { error: 'tab' });
@@ -485,8 +560,11 @@ export const actions = {
 				reference: studyReference,
 				word: clickedWord || null
 			});
-			await commitWorkspace(cookies, locals.user, next);
-			return { success: true, tileId: existing.tile.id, tabId: existing.tab.id, reused: true };
+			return finishWorkspaceMutation(cookies, locals.user, current, next, {
+				tileId: existing.tile.id,
+				tabId: existing.tab.id,
+				reused: true
+			});
 		}
 
 		const lexicon = await firstLexiconForLookup(db, available, lookup);
@@ -519,11 +597,14 @@ export const actions = {
 			reference: studyReference,
 			word: clickedWord || null
 		});
-		await commitWorkspace(cookies, locals.user, next);
-		return { success: true, tileId: targetTile.id, tabId: added.id, reused: false };
+		return finishWorkspaceMutation(cookies, locals.user, current, next, {
+			tileId: targetTile.id,
+			tabId: added.id,
+			reused: false
+		});
 	},
 
-	setLayoutSize: async ({ request, cookies, locals, params }) => {
+	setLayoutSize: async ({ request, cookies, locals, params, url }) => {
 		const form = await request.formData();
 		const layout = form.get('layout');
 		if (!isReaderLayout(layout)) return fail(400, { error: 'layout' });
@@ -533,18 +614,25 @@ export const actions = {
 		if (columns.length !== definition.columns || rows.length !== definition.rows) {
 			return fail(400, { error: 'sizes' });
 		}
-		const workspace = await currentWorkspace(
+		const current = await currentWorkspace(
 			cookies,
 			locals.user,
+			url,
 			undefined,
 			actionReference(params)
 		);
+		const next = setReaderLayoutSize(current.workspace, layout, columns, rows);
+		// Divider ratios are personal and may be saved without adopting a foreign URL workspace.
 		await commitWorkspace(
 			cookies,
 			locals.user,
-			setReaderLayoutSize(workspace, layout, columns, rows)
+			setReaderLayoutSize(current.persistedWorkspace, layout, columns, rows),
+			true
 		);
-		return { success: true };
+		return {
+			success: true,
+			readerState: encodeReaderUrlState(next, current.searchQueries)
+		};
 	},
 
 	saveVerseComment: async ({ request, locals }) => {
@@ -761,21 +849,42 @@ function decodeReferenceParam(raw: string): string {
 const LOCATION_COOKIE = 'location';
 
 /** Where `/` sends a returning visitor: the last chapter they read, or John 1. */
+type CurrentWorkspace = {
+	workspace: ReaderWorkspace;
+	persistedWorkspace: ReaderWorkspace;
+	searchQueries: ReaderSearchQueries;
+	persist: boolean;
+};
+
 async function currentWorkspace(
 	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
 	user: App.Locals['user'],
+	url: URL,
 	available?: Awaited<ReturnType<typeof listReaderResources>>,
 	reference?: { book: number; chapter: number; verse?: number }
-): Promise<ReaderWorkspace> {
+): Promise<CurrentWorkspace> {
 	const resources = available ?? (await listReaderResources(getDb()));
-	let workspace = resolveReaderWorkspace(
+	const persistedWorkspace = resolveReaderWorkspace(
 		cookies,
 		resources,
 		user?.readerWorkspace,
 		user?.readerColumns,
 		reference
 	);
-	if (!reference) return workspace;
+	const decoded = decodeReaderUrlState(url);
+	let workspace = decoded
+		? normalizeReaderWorkspace(
+				decoded.workspace,
+				resources.map((resource) => resource.id),
+				workspaceColumns(persistedWorkspace),
+				reference
+			)
+		: persistedWorkspace;
+	workspace.layoutSizes = structuredClone(persistedWorkspace.layoutSizes);
+	const persist = !decoded || sameReaderUrlWorkspace(workspace, persistedWorkspace);
+	if (!reference) {
+		return { workspace, persistedWorkspace, searchQueries: decoded?.searchQueries ?? {}, persist };
+	}
 
 	// A GET aligns the focused tab with the canonical route in memory. Reconcile that same state before
 	// every workspace mutation too, otherwise an unrelated action (changing a link letter, moving a
@@ -787,7 +896,7 @@ async function currentWorkspace(
 	if (focusedTile && focusedTab) {
 		workspace = setReaderTabReference(workspace, focusedTile.id, focusedTab.id, reference);
 	}
-	return workspace;
+	return { workspace, persistedWorkspace, searchQueries: decoded?.searchQueries ?? {}, persist };
 }
 
 function actionReference(params: {
@@ -801,8 +910,10 @@ function actionReference(params: {
 async function commitWorkspace(
 	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
 	user: App.Locals['user'],
-	workspace: ReaderWorkspace
+	workspace: ReaderWorkspace,
+	persist = true
 ): Promise<void> {
+	if (!persist) return;
 	const written = writeWorkspaceCompatibilityCookies(cookies, workspace);
 	if (!written && !user) {
 		// A browser cookie is the only persistence available to a guest. Do not pretend a mutation was
@@ -810,6 +921,21 @@ async function commitWorkspace(
 		error(409, 'Der Arbeitsbereich ist für die lokale Speicherung zu groß.');
 	}
 	if (user) await updateReaderWorkspace(getDb(), user.id, workspace, workspaceColumns(workspace));
+}
+
+async function finishWorkspaceMutation<T extends Record<string, unknown>>(
+	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
+	user: App.Locals['user'],
+	current: CurrentWorkspace,
+	next: ReaderWorkspace,
+	extra?: T
+): Promise<{ success: true; readerState: string } & T> {
+	await commitWorkspace(cookies, user, next, current.persist);
+	return {
+		success: true,
+		readerState: encodeReaderUrlState(next, current.searchQueries),
+		...(extra ?? ({} as T))
+	};
 }
 
 function parseFractions(value: FormDataEntryValue | null): number[] {

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import './marketing-landing.css';
+	import Icon from './Icon.svelte';
 
 	const searches = [
 		['liebe', 'findet auch „lieben“, „liebt“ und „Liebe“'],
@@ -9,7 +10,6 @@
 </script>
 
 <svelte:head>
-	<title>Akribos — Bibel lesen. Tiefer verstehen.</title>
 	<meta
 		name="description"
 		content="Akribos verbindet parallele Bibelübersetzungen, Kommentare, Strong-Lexikon, Urtextanalyse, Suche, Notizen und Verslisten in einem modernen Bibelstudium."
@@ -26,7 +26,9 @@
 				>Organisieren</a
 			>
 		</nav>
-		<a class="nav-cta" href="/Johannes3">Jetzt lesen <span>↗</span></a>
+		<a class="nav-cta" href="/Johannes3"
+			>Jetzt lesen <span><Icon name="open-external" class="size-4" /></span></a
+		>
 	</header>
 
 	<main>
@@ -42,13 +44,15 @@
 					verbunden in einem ruhigen Arbeitsraum für sorgfältiges Bibelstudium.
 				</p>
 				<div class="actions">
-					<a class="button primary hero-cta" href="/Johannes3">Jetzt lesen <span>→</span></a>
+					<a class="button primary hero-cta" href="/Johannes3"
+						>Jetzt lesen <span><Icon name="arrow-right" class="size-5" /></span></a
+					>
 					<a class="button ghost" href="#entdecken">Akribos entdecken</a>
 				</div>
 				<div class="proof">
-					<span><i>✓</i> Ohne Installation</span><span><i>✓</i> Ohne Werbung</span><span
-						><i>✓</i> Kostenloses Konto</span
-					>
+					<span><i><Icon name="check" class="size-2.5" /></i> Ohne Installation</span><span
+						><i><Icon name="check" class="size-2.5" /></i> Ohne Werbung</span
+					><span><i><Icon name="check" class="size-2.5" /></i> Kostenloses Konto</span>
 				</div>
 			</div>
 			<div class="name-note">
@@ -151,7 +155,9 @@
 
 		<section class="search section">
 			<div class="search-demo">
-				<header><span>⌕</span> Suche in allen Übersetzungen</header>
+				<header>
+					<span><Icon name="search" class="size-4" /></span> Suche in allen Übersetzungen
+				</header>
 				{#each searches as example, index (example[0])}
 					<div class:active={index === 1} class="search-row">
 						<code>{example[0]}</code><span>{example[1]}</span>
@@ -169,7 +175,9 @@
 					Suche nach Wortstämmen, mehreren Begriffen oder exakten Wortfolgen. Schließe Wörter aus,
 					filtere nach Buch und vergleiche Treffer über Übersetzungen hinweg.
 				</p>
-				<a href="/search?q=liebe">Suche ausprobieren <span>→</span></a>
+				<a href="/search?q=liebe"
+					>Suche ausprobieren <span><Icon name="arrow-right" class="size-4" /></span></a
+				>
 			</div>
 		</section>
 
@@ -198,7 +206,7 @@
 					</p>
 				</article>
 				<article class="notes">
-					<div class="round-icon">✎</div>
+					<div class="round-icon"><Icon name="pencil" class="size-4" /></div>
 					<span>Notizen</span>
 					<h3>Direkt am Vers notieren</h3>
 					<p>
@@ -207,7 +215,7 @@
 					</p>
 				</article>
 				<article class="lists">
-					<div class="round-icon">☆</div>
+					<div class="round-icon"><Icon name="star" class="size-4" /></div>
 					<span>Verslisten</span>
 					<h3>Sammeln & teilen</h3>
 					<p>
@@ -242,7 +250,7 @@
 				<header><i></i><i></i><i></i><span>Strong-Lexikon abfragen</span></header>
 				<pre><code>curl /api/v1/strong/G3056</code></pre>
 			</div>
-			<a href="/api">API entdecken <span>↗</span></a>
+			<a href="/api">API entdecken <span><Icon name="open-external" class="size-4" /></span></a>
 		</section>
 
 		<section class="final">
@@ -253,7 +261,9 @@
 			<h2>Lies nicht nur weiter.<br /><em>Sieh genauer hin.</em></h2>
 			<p>Öffne Akribos und beginne dort, wo du gerade bist.</p>
 			<div class="actions centered">
-				<a class="button primary" href="/Johannes3">Jetzt Bibel lesen <span>→</span></a>
+				<a class="button primary" href="/Johannes3"
+					>Jetzt Bibel lesen <span><Icon name="arrow-right" class="size-5" /></span></a
+				>
 				<a class="button ghost" href="/register">Kostenlos registrieren</a>
 			</div>
 		</section>

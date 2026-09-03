@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { bookById } from '$lib/bible/books';
 	import {
@@ -10,7 +11,14 @@
 		type VerseRef
 	} from '$lib/bible/reference';
 	import { READER_LINK_SETS, type ReaderLinkSet, type ReaderTab } from '$lib/reader/workspace';
+	import {
+		readerActionUrl,
+		readerStateFromActionData,
+		readerStateFromUrl,
+		readerUrl
+	} from '$lib/reader/url-state';
 	import type { ReadableResource } from '$lib/server/repositories/resources';
+	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
 	import ResourceKindIcon from './ResourceKindIcon.svelte';
 
@@ -33,7 +41,7 @@
 		reference: VerseRef;
 		searchQuery?: string | null;
 		studyResourceTitle?: string | null;
-		onOpenResource: (tileId: string, tabId: string) => void;
+		onOpenResource: (tileId: string, tabId: string, anchor: HTMLElement) => void;
 		onSearch: (query: string) => void;
 		onClearSearch: () => void;
 	} = $props();
@@ -81,27 +89,44 @@
 			return;
 		}
 		return async ({ result, update }) => {
-			await update({ reset: false, invalidateAll: result.type !== 'success' });
 			if (result.type === 'success') {
 				focused = false;
 				onClearSearch();
-				await goto(referencePath(parsed), {
+				const state = readerStateFromActionData(result.data);
+				if (!state) return;
+				await goto(readerUrl(referencePath(parsed), state), {
 					invalidateAll: true,
 					noScroll: true
 				});
+				return;
 			}
+			await update({ reset: false, invalidateAll: true });
 		};
 	};
 
 	const linkEnhancement: SubmitFunction = () => {
-		return async ({ update }) => {
+		return async ({ result, update }) => {
 			linkMenu?.close();
-			await update({ reset: false });
+			const state = result.type === 'success' ? readerStateFromActionData(result.data) : null;
+			if (state) {
+				await goto(readerUrl(page.url.pathname, state), {
+					replaceState: true,
+					invalidateAll: true,
+					noScroll: true,
+					keepFocus: true
+				});
+				return;
+			}
+			await update({ reset: false, invalidateAll: result.type !== 'success' });
 		};
 	};
 
 	function linkClass(linkSet: ReaderLinkSet): string {
 		return linkSet ? `link-${linkSet.toLowerCase()}` : 'link-none';
+	}
+
+	function actionUrl(action: string): string {
+		return readerActionUrl(action, readerStateFromUrl(page.url));
 	}
 </script>
 
@@ -112,15 +137,15 @@
 		aria-label="{resource.selectionTitle} wechseln"
 		title="Werk wechseln"
 		data-tour-target={tileIndex === 0 ? 'resource-picker' : undefined}
-		onclick={() => onOpenResource(tileId, tab.id)}
+		onclick={(event) => onOpenResource(tileId, tab.id, event.currentTarget)}
 	>
-		<ResourceKindIcon kind={resource.kind} class="resource-kind-icon kind-{resource.kind}" />
-		<span aria-hidden="true">⌄</span>
+		<ResourceKindIcon kind={resource.kind} class="toolbar-resource-icon" />
+		<Icon name="chevron-down" class="size-2.5" />
 	</button>
 
 	<form
 		method="POST"
-		action={resource.kind === 'lexicon' ? '?/setTabLookup' : '?/setTabReference'}
+		action={actionUrl(resource.kind === 'lexicon' ? 'setTabLookup' : 'setTabReference')}
 		use:enhance={referenceEnhancement}
 		class="reference-form"
 		role="search"
@@ -154,20 +179,20 @@
 	<button
 		type="button"
 		class="link-button {linkClass(tab.linkSet)}"
-		aria-label="Link-Set für {resource.abbrev}: {tab.linkSet ?? 'Keine'}"
-		title="Link-Set {tab.linkSet ?? 'Keine'}"
+		aria-label="Tabgruppe für {resource.abbrev} wechseln; aktuell {tab.linkSet ?? 'Keine'}"
+		title="Tabgruppe wechseln"
 		data-tour-target={tileIndex === 0 ? 'column-link' : undefined}
 		onclick={(event) => linkMenu?.openAt(event.currentTarget)}
 	>
-		{#if tab.linkSet}
-			{tab.linkSet}
-		{:else}
-			<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-				<path
-					d="M12.23 4.23a2.5 2.5 0 0 1 3.54 3.54l-1.23 1.22a.75.75 0 1 0 1.06 1.06l1.23-1.22a4 4 0 0 0-5.66-5.66l-3 3a4 4 0 0 0 .23 5.87.75.75 0 0 0 .97-1.14 2.5 2.5 0 0 1-.14-3.67l3-3ZM7.77 15.77a2.5 2.5 0 0 1-3.54-3.54l1.23-1.22a.75.75 0 1 0-1.06-1.06l-1.23 1.22a4 4 0 0 0 5.66 5.66l3-3a4 4 0 0 0-.23-5.87.75.75 0 0 0-.97 1.14 2.5 2.5 0 0 1 .14 3.67l-3 3Z"
-				/>
-			</svg>
-		{/if}
+		<span class="link-badge">
+			{#if tab.linkSet}
+				{tab.linkSet}
+			{:else}
+				<Icon name="link" class="size-3" />
+			{/if}
+		</span>
+		<span class="link-label">Tabgruppe wechseln</span>
+		<Icon name="chevron-down" class="link-chevron" />
 	</button>
 
 	<button
@@ -177,21 +202,20 @@
 		title="Werk-Informationen"
 		onclick={(event) => infoMenu?.openAt(event.currentTarget)}
 	>
-		<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-			<path
-				fill-rule="evenodd"
-				d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-11.5a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM9.25 9a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-1.5 0V9Z"
-				clip-rule="evenodd"
-			/>
-		</svg>
+		<Icon name="info" class="size-4.5" />
 	</button>
 </div>
 
-<Menu bind:this={linkMenu} label="Link-Set wählen">
-	<p class="menu-label">Link-Set</p>
+<Menu bind:this={linkMenu} label="Tabgruppe wechseln">
+	<p class="menu-label">Tabgruppe wechseln</p>
 	<div class="link-options" role="none">
 		{#each READER_LINK_SETS as linkSet (linkSet)}
-			<form method="POST" action="?/setTabLinkSet" use:enhance={linkEnhancement} role="none">
+			<form
+				method="POST"
+				action={actionUrl('setTabLinkSet')}
+				use:enhance={linkEnhancement}
+				role="none"
+			>
 				<input type="hidden" name="tileId" value={tileId} />
 				<input type="hidden" name="tabId" value={tab.id} />
 				<input type="hidden" name="linkSet" value={linkSet} />
@@ -204,7 +228,12 @@
 				>
 			</form>
 		{/each}
-		<form method="POST" action="?/setTabLinkSet" use:enhance={linkEnhancement} role="none">
+		<form
+			method="POST"
+			action={actionUrl('setTabLinkSet')}
+			use:enhance={linkEnhancement}
+			role="none"
+		>
 			<input type="hidden" name="tileId" value={tileId} />
 			<input type="hidden" name="tabId" value={tab.id} />
 			<input type="hidden" name="linkSet" value="" />
@@ -262,31 +291,12 @@
 		background: var(--color-stone-100);
 		color: var(--color-stone-800);
 	}
-	.resource-button :global(.resource-kind-icon) {
+	.resource-button :global(.toolbar-resource-icon) {
 		width: 1.15rem;
-		height: 1.15rem;
-	}
-	.resource-button :global(.kind-bible) {
-		color: #39834b;
-	}
-	.resource-button :global(.kind-commentary) {
-		color: #806640;
-	}
-	.resource-button :global(.kind-lexicon) {
-		color: #2f70a7;
-	}
-	.resource-button :global(.kind-xrefs) {
-		color: #526b78;
-	}
-	.resource-button span {
-		font-size: 0.65rem;
+		height: 1.35rem;
 	}
 	.info-button {
 		border-left: 1px solid var(--line);
-	}
-	.info-button svg {
-		width: 1.1rem;
-		height: 1.1rem;
 	}
 
 	.reference-form {
@@ -327,38 +337,64 @@
 	}
 
 	.link-button {
-		width: 1.7rem;
-		height: 1.7rem;
+		width: auto;
+		height: 1.65rem;
 		align-self: center;
 		margin: 0 0.18rem;
+		gap: 0.3rem;
+		padding: 0.12rem 0.28rem 0.12rem 0.16rem;
+		border: 1px solid transparent;
 		border-radius: 0.35rem;
-		background: var(--link-color, transparent);
-		font-size: 0.68rem;
-		font-weight: 800;
+		color: var(--color-stone-600);
+	}
+	.link-button:hover {
+		border-color: var(--line);
+		background: var(--color-stone-100);
+		color: var(--color-stone-900);
+	}
+	.link-badge {
+		display: inline-flex;
+		width: 1.28rem;
+		height: 1.28rem;
+		flex: none;
+		align-items: center;
+		justify-content: center;
+		border-radius: 0.24rem;
+		background: color-mix(in oklab, var(--link-color, var(--color-stone-500)) 76%, var(--surface));
 		color: white;
+		font-size: 0.61rem;
+		font-weight: 750;
 	}
-	.link-button svg {
-		width: 1rem;
-		height: 1rem;
-	}
-	.link-button.link-none {
+	.link-none .link-badge {
 		border: 1px solid var(--line);
+		background: var(--surface-raised);
+		color: var(--color-stone-400);
+	}
+	.link-label {
+		font-size: 0.68rem;
+		font-weight: 550;
+		white-space: nowrap;
+	}
+	.link-chevron {
+		width: 0.68rem;
+		height: 0.68rem;
+		flex: none;
 		color: var(--color-stone-400);
 	}
 	.link-a {
-		--link-color: #f97316;
+		--link-color: #b9683f;
 	}
 	.link-b {
-		--link-color: #2563eb;
+		--link-color: #55759b;
 	}
 	.link-c {
-		--link-color: #16a34a;
+		--link-color: #60836d;
 	}
 	.link-d {
-		--link-color: #9333ea;
+		--link-color: #776b91;
 	}
 	.link-e {
-		--link-color: #e11d48;
+		--link-color: #9a6572;
 	}
 
 	.menu-label {
@@ -392,7 +428,11 @@
 		font-weight: 700 !important;
 	}
 	.link-options button.selected {
-		background: var(--link-color, var(--color-stone-600)) !important;
+		background: color-mix(
+			in oklab,
+			var(--link-color, var(--color-stone-600)) 78%,
+			var(--surface)
+		) !important;
 		box-shadow: 0 0 0 2px
 			color-mix(in oklab, var(--link-color, var(--color-stone-600)) 25%, transparent);
 		color: white !important;
@@ -428,7 +468,8 @@
 		background: var(--color-stone-900);
 	}
 	:global(.dark) .resource-button:hover,
-	:global(.dark) .info-button:hover {
+	:global(.dark) .info-button:hover,
+	:global(.dark) .link-button:hover {
 		background: var(--color-stone-800);
 		color: var(--color-stone-100);
 	}

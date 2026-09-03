@@ -2,32 +2,26 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { t } from '$lib/i18n';
+	import {
+		readerStateFromActionData,
+		readerUrl as readerUrlWithState
+	} from '$lib/reader/url-state';
 	import type { ReadableResource } from '$lib/server/repositories/resources';
+	import Icon from './Icon.svelte';
 	import ResourceKindIcon from './ResourceKindIcon.svelte';
 
 	/**
-	 * Full-screen picker for adding a resource tab to a reader tile instead of a small anchored
-	 * dropdown — the list of Bibles, commentaries and
-	 * cross-reference works is long enough, and important enough a choice, to deserve its own screen
-	 * rather than a menu that clips at the edge of the viewport.
-	 *
-	 * One instance lives at the reader page level and is reused for every tile: `openAt()` carries
-	 * the per-call context (which tile and what is already open there) rather than static props.
+	 * Compact, anchored resource picker. A delayed hover/focus preview carries the metadata that used
+	 * to make every list item a large card. One instance handles adding and replacing tabs; duplicate
+	 * resources remain valid.
 	 */
-	let {
-		resources,
-		label
-	}: {
-		resources: ReadableResource[];
-		label: string;
-	} = $props();
+	let { resources, label }: { resources: ReadableResource[]; label: string } = $props();
 
 	type Context = {
-		action: '?/addTab' | '?/replaceTabResource';
+		action: string;
 		readerUrl: string;
 		tileId: string;
 		tabId?: string;
-		chosen: string[];
 	};
 
 	const GROUPS = [
@@ -38,9 +32,15 @@
 	] as const;
 
 	let dialog: HTMLDialogElement | undefined = $state();
+	let searchInput: HTMLInputElement | undefined = $state();
 	let context: Context | undefined = $state();
 	let activeKind: string | undefined = $state();
 	let query = $state('');
+	let chooserStyle = $state('');
+	let previewStyle = $state('');
+	let previewResource: ReadableResource | undefined = $state();
+	let previewTimer: ReturnType<typeof setTimeout> | undefined;
+	let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const groups = $derived(
 		GROUPS.map((group) => ({
@@ -49,18 +49,12 @@
 			resources: resources.filter((resource) => resource.kind === group.kind)
 		})).filter((group) => group.resources.length > 0)
 	);
-
 	const activeGroup = $derived(groups.find((group) => group.kind === activeKind) ?? groups[0]);
-
 	const visible = $derived(
-		(activeGroup?.resources ?? []).filter((resource) => {
-			// Within one tile a resource only needs one tab. The same resource remains available in every
-			// other tile, which is useful for comparing independent link sets.
-			if (context?.chosen.includes(resource.id)) return false;
-
+		(query.trim() ? resources : (activeGroup?.resources ?? [])).filter((resource) => {
 			const needle = query.trim().toLowerCase();
-			if (!needle) return true;
 			return (
+				!needle ||
 				resource.selectionTitle.toLowerCase().includes(needle) ||
 				(resource.selectionSubtitle?.toLowerCase().includes(needle) ?? false) ||
 				resource.coverTitle.toLowerCase().includes(needle) ||
@@ -69,14 +63,69 @@
 		})
 	);
 
-	export function openAt(next: Context): void {
+	function placeChooser(anchor: HTMLElement): void {
+		const rect = anchor.getBoundingClientRect();
+		const width = Math.min(368, window.innerWidth - 16);
+		const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+		const highestTop = Math.max(8, window.innerHeight - 248);
+		const top = Math.min(Math.max(8, rect.bottom + 6), highestTop);
+		const maxHeight = Math.max(180, window.innerHeight - top - 8);
+		chooserStyle = `--chooser-left:${left}px;--chooser-top:${top}px;--chooser-width:${width}px;--chooser-max-height:${maxHeight}px`;
+	}
+
+	function clearPreviewTimers(): void {
+		if (previewTimer) clearTimeout(previewTimer);
+		if (hideTimer) clearTimeout(hideTimer);
+		previewTimer = undefined;
+		hideTimer = undefined;
+	}
+
+	function closePreview(): void {
+		clearPreviewTimers();
+		previewResource = undefined;
+	}
+
+	function showPreview(resource: ReadableResource, anchor: HTMLElement): void {
+		clearPreviewTimers();
+		const chooser = dialog?.getBoundingClientRect();
+		const row = anchor.getBoundingClientRect();
+		const width = Math.min(360, window.innerWidth - 16);
+		let left = (chooser?.right ?? row.right) + 8;
+		if (left + width > window.innerWidth - 8) left = (chooser?.left ?? row.left) - width - 8;
+		if (left < 8) left = 8;
+		const top = Math.max(8, Math.min(row.top - 12, window.innerHeight - 280));
+		const maxHeight = Math.max(220, window.innerHeight - top - 8);
+		previewStyle = `--preview-left:${left}px;--preview-top:${top}px;--preview-width:${width}px;--preview-max-height:${maxHeight}px`;
+		previewResource = resource;
+	}
+
+	function schedulePreview(resource: ReadableResource, anchor: HTMLElement, delay = 450): void {
+		clearPreviewTimers();
+		previewTimer = setTimeout(() => showPreview(resource, anchor), delay);
+	}
+
+	function schedulePreviewClose(): void {
+		if (previewTimer) clearTimeout(previewTimer);
+		if (hideTimer) clearTimeout(hideTimer);
+		previewTimer = undefined;
+		hideTimer = setTimeout(() => {
+			previewResource = undefined;
+			hideTimer = undefined;
+		}, 180);
+	}
+
+	export function openAt(next: Context, anchor: HTMLElement): void {
 		context = next;
 		query = '';
 		activeKind = groups[0]?.kind;
+		closePreview();
+		placeChooser(anchor);
 		dialog?.showModal();
+		requestAnimationFrame(() => searchInput?.focus());
 	}
 
 	export function close(): void {
+		closePreview();
 		dialog?.close();
 	}
 </script>
@@ -85,397 +134,453 @@
 	bind:this={dialog}
 	aria-label={label}
 	class="translation-dialog"
+	style={chooserStyle}
+	onclose={closePreview}
 	onclick={(event) => {
 		if (event.target === dialog) close();
 	}}
 >
 	{#if context}
-		<div class="flex h-full min-h-0 flex-col sm:flex-row">
-			<nav
-				class="flex shrink-0 gap-1 overflow-x-auto border-b border-stone-200/80 p-3
-				       sm:w-52 sm:flex-col sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-4 dark:border-white/8"
-			>
-				<p
-					class="mb-2 hidden px-2 text-[0.68rem] font-bold tracking-[0.12em] text-stone-400 uppercase sm:block dark:text-stone-500"
-				>
-					{t('dialog.categories')}
-				</p>
+		<div class="chooser-shell">
+			<div class="search-row">
+				<div class="search-field">
+					<Icon name="search" class="search-icon" />
+					<input
+						bind:this={searchInput}
+						type="search"
+						bind:value={query}
+						placeholder={t('dialog.searchTranslation')}
+						autocomplete="off"
+						spellcheck="false"
+					/>
+				</div>
+				<button type="button" onclick={close} aria-label={t('action.close')} class="close-button">
+					<Icon name="x" class="size-4" />
+				</button>
+			</div>
+
+			<nav class="categories" aria-label={t('dialog.categories')}>
 				{#each groups as group (group.kind)}
 					<button
 						type="button"
 						class="category"
-						class:kind-bible={group.kind === 'bible'}
-						class:kind-commentary={group.kind === 'commentary'}
-						class:kind-xrefs={group.kind === 'xrefs'}
-						class:kind-lexicon={group.kind === 'lexicon'}
-						class:active={group.kind === activeGroup?.kind}
+						class:active={!query.trim() && group.kind === activeGroup?.kind}
+						aria-pressed={!query.trim() && group.kind === activeGroup?.kind}
 						onclick={() => {
 							activeKind = group.kind;
 							query = '';
+							closePreview();
 						}}
 					>
-						<ResourceKindIcon kind={group.kind} class="size-4 shrink-0" />
-						<span class="truncate">{group.label}</span>
-						<span class="category-count">{group.resources.length}</span>
+						<ResourceKindIcon kind={group.kind} class="category-icon" />
+						<span>{group.label}</span>
+						<small>{group.resources.length}</small>
 					</button>
 				{/each}
 			</nav>
 
-			<div class="flex min-w-0 flex-1 flex-col">
-				<div class="flex items-start justify-between gap-4 px-4 pt-4 sm:px-6 sm:pt-5">
-					<div>
-						<p
-							class="text-[0.68rem] font-bold tracking-[0.12em] text-accent-700 uppercase dark:text-accent-300"
-						>
-							Ressource öffnen
-						</p>
-						<h2
-							class="mt-0.5 text-xl font-semibold tracking-tight text-stone-900 dark:text-stone-50"
-						>
-							{activeGroup?.label}
-						</h2>
-					</div>
-					<button
-						type="button"
-						onclick={close}
-						aria-label={t('action.close')}
-						class="icon-button -mt-1"
+			<ul class="resource-list">
+				{#each visible as resource (resource.id)}
+					<li
+						class="resource-row"
+						onpointerenter={(event) => {
+							if (event.pointerType === 'mouse') schedulePreview(resource, event.currentTarget);
+						}}
+						onpointerleave={schedulePreviewClose}
+						onfocusin={(event) => schedulePreview(resource, event.currentTarget, 250)}
+						onfocusout={schedulePreviewClose}
 					>
-						<svg viewBox="0 0 20 20" class="size-5" fill="currentColor" aria-hidden="true">
-							<path
-								d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"
-							/>
-						</svg>
-					</button>
-				</div>
-
-				<div class="px-4 py-4 sm:px-6">
-					<div class="relative">
-						<svg
-							viewBox="0 0 20 20"
-							class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-stone-400"
-							fill="currentColor"
-							aria-hidden="true"
+						<form
+							method="POST"
+							action={context.action}
+							use:enhance={() => {
+								const readerUrl = context?.readerUrl;
+								return async ({ result, update }) => {
+									close();
+									await update({ reset: false, invalidateAll: result.type !== 'success' });
+									if (result.type === 'success' && readerUrl) {
+										const state = readerStateFromActionData(result.data);
+										if (!state) return;
+										const path = new URL(readerUrl, window.location.origin).pathname;
+										await goto(readerUrlWithState(path, state), {
+											replaceState: true,
+											invalidateAll: true
+										});
+									}
+								};
+							}}
 						>
-							<path
-								fill-rule="evenodd"
-								d="M9 3.5a5.5 5.5 0 1 0 3.66 9.605l3.617 3.618a.75.75 0 1 0 1.06-1.06l-3.617-3.618A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z"
-							/>
-						</svg>
-						<input
-							type="search"
-							bind:value={query}
-							placeholder={t('dialog.searchTranslation')}
-							autocomplete="off"
-							spellcheck="false"
-							class="w-full rounded-xl border border-stone-300 bg-white py-2.5 pr-3 pl-9 text-sm shadow-sm
-							       focus:border-accent-500 focus:ring-3 focus:ring-accent-500/10 focus:outline-none
-							       dark:border-white/12 dark:bg-white/5 dark:text-stone-100 dark:placeholder:text-stone-500"
-						/>
-					</div>
-				</div>
-
-				<ul class="resource-grid min-h-0 flex-1 overflow-y-auto px-4 pb-5 sm:px-6">
-					{#each visible as resource (resource.id)}
-						{@const isSelected = false}
-						{@const isChosen = false}
-						<li>
-							<form
-								method="POST"
-								action={context.action}
-								use:enhance={() => {
-									const readerUrl = context?.readerUrl;
-									return async ({ result, update }) => {
-										close();
-										await update({ reset: false, invalidateAll: result.type !== 'success' });
-										if (result.type === 'success' && readerUrl) {
-											await goto(readerUrl, { replaceState: true, invalidateAll: true });
-										}
-									};
-								}}
-							>
-								<input type="hidden" name="tileId" value={context.tileId} />
-								{#if context.tabId}<input type="hidden" name="tabId" value={context.tabId} />{/if}
-								<input type="hidden" name="resource" value={resource.id} />
-								<button type="submit" class="entry" class:selected={isSelected}>
-									<span
-										class="cover"
-										class:commentary={resource.kind === 'commentary'}
-										class:xrefs={resource.kind === 'xrefs'}
-										class:lexicon={resource.kind === 'lexicon'}
-										aria-hidden="true"
-									>
-										<span class="cover-mark" aria-hidden="true">✦</span>
-										<span class="cover-title">{resource.coverTitle}</span>
-										<span class="cover-rule"></span>
-										<span class="cover-kind">{activeGroup?.label}</span>
-									</span>
-									<span class="resource-meta">
-										<span class="resource-name">{resource.selectionTitle}</span>
-										{#if resource.selectionSubtitle}
-											<span class="resource-abbrev">{resource.selectionSubtitle}</span>
-										{/if}
-									</span>
-									{#if isSelected}
-										<svg
-											viewBox="0 0 20 20"
-											class="selected-check"
-											fill="currentColor"
-											aria-hidden="true"
-										>
-											<path
-												fill-rule="evenodd"
-												d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z"
-												clip-rule="evenodd"
-											/>
-										</svg>
+							<input type="hidden" name="tileId" value={context.tileId} />
+							{#if context.tabId}<input type="hidden" name="tabId" value={context.tabId} />{/if}
+							<input type="hidden" name="resource" value={resource.id} />
+							<button type="submit" class="entry">
+								<ResourceKindIcon kind={resource.kind} class="entry-icon" />
+								<span class="resource-meta">
+									<span class="resource-name">{resource.selectionTitle}</span>
+									{#if resource.selectionSubtitle}
+										<span class="resource-subtitle">{resource.selectionSubtitle}</span>
 									{/if}
-									{#if isChosen}
-										<span class="in-use" title={t('resource.inUse')}>{t('resource.inUse')}</span>
-									{/if}
-								</button>
-							</form>
-						</li>
-					{/each}
-				</ul>
-			</div>
+								</span>
+							</button>
+						</form>
+						<button
+							type="button"
+							class="preview-trigger"
+							aria-label="Informationen zu {resource.selectionTitle}"
+							title="Werk-Informationen"
+							onclick={(event) => showPreview(resource, event.currentTarget)}
+						>
+							<Icon name="info" class="size-3.5" />
+						</button>
+					</li>
+				{:else}
+					<li class="empty-result">Kein passendes Werk gefunden.</li>
+				{/each}
+			</ul>
 		</div>
+	{/if}
+
+	{#if previewResource}
+		<aside
+			class="resource-preview"
+			style={previewStyle}
+			aria-label="Informationen zu {previewResource.selectionTitle}"
+			onpointerenter={clearPreviewTimers}
+			onpointerleave={schedulePreviewClose}
+		>
+			<button
+				type="button"
+				class="preview-close"
+				aria-label="Werk-Informationen schließen"
+				onclick={closePreview}
+			>
+				<Icon name="x" class="size-4" />
+			</button>
+			<div class="preview-heading">
+				<span class="cover kind-{previewResource.kind}" aria-hidden="true">
+					<span class="cover-mark">✦</span>
+					<span class="cover-title">{previewResource.coverTitle}</span>
+					<span class="cover-rule"></span>
+				</span>
+				<div>
+					<strong>{previewResource.selectionTitle}</strong>
+					{#if previewResource.selectionSubtitle}
+						<em>{previewResource.selectionSubtitle}</em>
+					{/if}
+				</div>
+			</div>
+			<div class="preview-body">
+				{#if previewResource.licenseHtml}
+					<p>{previewResource.licenseHtml}</p>
+				{:else}
+					<p>Für dieses Werk sind keine weiteren Copyright-Hinweise hinterlegt.</p>
+				{/if}
+				{#if previewResource.usageNotesHtml}
+					<!-- Dictionary usage notes come from the escaping/allow-listing import parser. -->
+					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+					<div class="resource-notes">{@html previewResource.usageNotesHtml}</div>
+				{/if}
+			</div>
+		</aside>
 	{/if}
 </dialog>
 
 <style>
 	.translation-dialog {
-		box-sizing: border-box;
-		/* The app's global CSS reset zeroes every element's margin, which is also how the UA stylesheet
-		   centers an open <dialog> (`margin: auto` against `inset: 0`) — restoring both here explicitly
-		   is what keeps it centered instead of pinned to the top-left corner. */
 		position: fixed;
-		inset: 0;
-		margin: auto;
-		width: min(64rem, calc(100vw - 2rem));
-		height: min(42rem, calc(100dvh - 2rem));
+		inset: auto;
+		top: var(--chooser-top, 3.5rem);
+		left: var(--chooser-left, 0.5rem);
+		box-sizing: border-box;
+		width: var(--chooser-width, min(23rem, calc(100vw - 1rem)));
+		height: auto;
 		max-width: none;
-		max-height: none;
+		max-height: var(--chooser-max-height, calc(100dvh - 4rem));
+		margin: 0;
 		padding: 0;
+		overflow: visible;
 		border: 1px solid var(--color-stone-200);
-		border-radius: 1rem;
+		border-radius: 0.75rem;
 		background: var(--surface-raised);
-		box-shadow:
-			0 20px 25px -5px rgb(0 0 0 / 0.15),
-			0 8px 10px -6px rgb(0 0 0 / 0.1);
+		box-shadow: 0 18px 42px rgb(28 25 23 / 0.16);
 	}
-
 	.translation-dialog::backdrop {
-		background: rgb(17 24 18 / 0.55);
-		backdrop-filter: blur(7px);
+		background: transparent;
 	}
-
-	:global(.dark) .translation-dialog {
+	:global(.dark) .translation-dialog,
+	:global(.dark) .resource-preview {
 		border-color: var(--color-stone-700);
+	}
+	.chooser-shell {
+		display: flex;
+		max-height: inherit;
+		min-height: 14rem;
+		flex-direction: column;
+		overflow: hidden;
+		border-radius: inherit;
 		background: var(--surface-raised);
 	}
-
-	.category {
+	.search-row {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		border-radius: 0.625rem;
-		padding: 0.6rem 0.7rem;
-		color: var(--color-stone-600);
-		font-size: 0.875rem;
-		font-weight: 500;
-		text-align: left;
-		white-space: nowrap;
+		gap: 0.35rem;
+		padding: 0.55rem;
 	}
-
-	:global(.dark) .category {
-		color: var(--color-stone-300);
+	.search-field {
+		position: relative;
+		min-width: 0;
+		flex: 1;
 	}
-
-	.category:hover {
+	.search-field :global(.search-icon) {
+		position: absolute;
+		top: 50%;
+		left: 0.65rem;
+		width: 0.9rem;
+		height: 0.9rem;
+		transform: translateY(-50%);
+		color: var(--color-stone-400);
+		pointer-events: none;
+	}
+	.search-field input {
+		width: 100%;
+		border: 0;
+		border-radius: 0.45rem;
+		background: var(--color-stone-100);
+		padding: 0.55rem 0.65rem 0.55rem 2rem;
+		font-size: 0.82rem;
+		outline: none;
+	}
+	.search-field input:focus {
+		box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-accent-500) 38%, transparent);
+	}
+	.close-button,
+	.preview-trigger,
+	.preview-close {
+		display: inline-flex;
+		flex: none;
+		align-items: center;
+		justify-content: center;
+		border-radius: 0.35rem;
+		color: var(--color-stone-500);
+	}
+	.close-button {
+		width: 2rem;
+		height: 2rem;
+	}
+	.close-button:hover,
+	.preview-trigger:hover,
+	.preview-close:hover,
+	.resource-row:hover,
+	.resource-row:focus-within {
 		background: var(--color-stone-100);
 	}
-
-	:global(.dark) .category:hover {
-		background: var(--color-stone-800);
+	.categories {
+		display: flex;
+		gap: 0.1rem;
+		overflow-x: auto;
+		padding: 0 0.55rem 0.45rem;
+		border-bottom: 1px solid var(--line);
+		scrollbar-width: none;
 	}
-
+	.category {
+		display: inline-flex;
+		min-width: max-content;
+		align-items: center;
+		gap: 0.28rem;
+		padding: 0.32rem 0.38rem;
+		border-radius: 0.4rem;
+		color: var(--color-stone-600);
+		font-size: 0.69rem;
+		font-weight: 550;
+	}
+	.category:hover,
 	.category.active {
 		background: color-mix(in oklab, var(--color-accent-500) 10%, transparent);
 		color: var(--color-accent-700);
 	}
-
-	.category-count {
-		margin-left: auto;
-		min-width: 1.45rem;
-		padding: 0.08rem 0.35rem;
-		border-radius: 999px;
-		background: color-mix(in oklab, currentColor 8%, transparent);
-		font-size: 0.68rem;
-		text-align: center;
+	.category :global(.category-icon) {
+		width: 0.85rem;
+		height: 1rem;
 	}
-
-	.resource-grid {
+	.category small {
+		color: var(--color-stone-400);
+		font-size: 0.6rem;
+	}
+	.resource-list {
+		min-height: 0;
+		overflow-y: auto;
+		padding: 0.25rem 0.4rem 0.45rem;
+	}
+	.resource-row {
 		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		align-content: start;
-		gap: 1rem;
-	}
-
-	:global(.dark) .category.active {
-		color: var(--color-accent-300);
-	}
-
-	.entry {
-		position: relative;
-		display: grid;
-		grid-template-columns: 4.35rem minmax(0, 1fr);
-		width: 100%;
-		min-height: 7.2rem;
+		grid-template-columns: minmax(0, 1fr) 1.8rem;
 		align-items: stretch;
-		gap: 0.9rem;
-		border: 1px solid var(--color-stone-200);
-		border-radius: 0.8rem;
-		padding: 0.65rem;
-		background: color-mix(in oklab, var(--surface) 88%, transparent);
-		box-shadow: 0 1px 2px rgb(28 25 23 / 0.04);
+		border-radius: 0.35rem;
+	}
+	.resource-row form {
+		min-width: 0;
+	}
+	.entry {
+		display: grid;
+		grid-template-columns: 1.5rem minmax(0, 1fr);
+		width: 100%;
+		min-height: 2.7rem;
+		align-items: center;
+		gap: 0.55rem;
+		padding: 0.3rem 0.35rem;
 		color: var(--color-stone-900);
 		text-align: left;
-		transition:
-			transform 150ms ease,
-			border-color 150ms ease,
-			box-shadow 150ms ease;
 	}
-
-	:global(.dark) .entry {
-		border-color: var(--color-stone-700);
-		color: var(--color-stone-100);
-	}
-
-	.entry:hover {
-		border-color: color-mix(in oklab, var(--color-accent-500) 50%, var(--color-stone-200));
-		transform: translateY(-2px);
-		box-shadow: 0 8px 20px rgb(28 25 23 / 0.09);
-	}
-
-	.entry.selected {
-		border-color: var(--color-accent-500);
-		background: color-mix(in oklab, var(--color-accent-500) 6%, transparent);
-	}
-
-	.cover {
-		display: flex;
-		min-width: 0;
-		flex-direction: column;
-		justify-content: flex-end;
-		padding: 0.55rem;
-		border-radius: 0.35rem 0.55rem 0.55rem 0.35rem;
-		background: linear-gradient(145deg, #397a49, #173e2a);
-		box-shadow:
-			inset 3px 0 rgb(255 255 255 / 0.13),
-			0 3px 7px rgb(28 25 23 / 0.18);
-		color: white;
-	}
-
-	.cover.commentary {
-		background: linear-gradient(145deg, #786547, #46351f);
-	}
-	.cover.xrefs {
-		background: linear-gradient(145deg, #526b78, #293c47);
-	}
-	.cover.lexicon {
-		background: linear-gradient(145deg, #3879ad, #1d466b);
-	}
-	.category.kind-bible :global(svg) {
-		color: #39834b;
-	}
-	.category.kind-commentary :global(svg) {
-		color: #806640;
-	}
-	.category.kind-xrefs :global(svg) {
-		color: #526b78;
-	}
-	.category.kind-lexicon :global(svg) {
-		color: #2f70a7;
-	}
-	.cover-mark {
-		margin-bottom: auto;
-		font-size: 0.7rem;
-		opacity: 0.72;
-	}
-	.cover-title {
-		overflow: hidden;
-		font-family: var(--font-serif);
-		font-size: 0.8rem;
-		font-weight: 700;
-		line-height: 1.15;
-		text-overflow: ellipsis;
-	}
-	.cover-rule {
-		width: 1.25rem;
-		margin: 0.32rem 0;
-		border-top: 1px solid rgb(255 255 255 / 0.45);
-	}
-	.cover-kind {
-		overflow: hidden;
-		font-size: 0.48rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		text-overflow: ellipsis;
-		opacity: 0.72;
+	.entry :global(.entry-icon) {
+		width: 1.15rem;
+		height: 1.35rem;
 	}
 	.resource-meta {
 		display: flex;
 		min-width: 0;
 		flex-direction: column;
-		justify-content: center;
+	}
+	.resource-name,
+	.resource-subtitle {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.resource-name {
-		display: -webkit-box;
-		overflow: hidden;
-		font-weight: 650;
-		line-height: 1.3;
-		-webkit-box-orient: vertical;
-		-webkit-line-clamp: 3;
-		line-clamp: 3;
+		font-size: 0.82rem;
+		font-weight: 600;
 	}
-	.resource-abbrev {
-		margin-top: 0.35rem;
+	.resource-subtitle {
+		color: var(--color-stone-500);
+		font-size: 0.65rem;
+	}
+	.preview-trigger {
+		width: 1.8rem;
+		min-height: 2.7rem;
+	}
+	.empty-result {
+		padding: 1.5rem 0.75rem;
+		color: var(--color-stone-500);
+		font-size: 0.75rem;
+		text-align: center;
+	}
+	.resource-preview {
+		position: fixed;
+		top: var(--preview-top);
+		left: var(--preview-left);
+		z-index: 1;
+		box-sizing: border-box;
+		width: var(--preview-width);
+		max-height: var(--preview-max-height);
+		overflow-y: auto;
+		border: 1px solid var(--color-stone-200);
+		border-radius: 0.75rem;
+		background: var(--surface-raised);
+		box-shadow: 0 16px 38px rgb(28 25 23 / 0.18);
+		color: var(--color-stone-900);
+	}
+	.preview-close {
+		position: absolute;
+		top: 0.45rem;
+		right: 0.45rem;
+		width: 1.8rem;
+		height: 1.8rem;
+	}
+	.preview-heading {
+		display: grid;
+		grid-template-columns: 4.6rem minmax(0, 1fr);
+		align-items: center;
+		gap: 0.8rem;
+		padding: 1rem 2.5rem 0.85rem 1rem;
+	}
+	.preview-heading strong,
+	.preview-heading em {
+		display: block;
+	}
+	.preview-heading strong {
+		font-size: 0.95rem;
+		line-height: 1.25;
+	}
+	.preview-heading em {
+		margin-top: 0.3rem;
 		color: var(--color-stone-500);
 		font-size: 0.72rem;
 	}
-
-	:global(.dark) .resource-abbrev {
-		color: var(--color-stone-400);
+	.cover {
+		display: flex;
+		width: 4.6rem;
+		height: 6.3rem;
+		flex-direction: column;
+		padding: 0.5rem;
+		border-radius: 0.2rem 0.35rem 0.35rem 0.2rem;
+		background: linear-gradient(145deg, #397a49, #173e2a);
+		box-shadow:
+			inset 3px 0 rgb(255 255 255 / 0.13),
+			0 3px 8px rgb(28 25 23 / 0.2);
+		color: white;
 	}
-	.selected-check {
-		position: absolute;
-		top: 0.55rem;
-		right: 0.55rem;
-		width: 1.25rem;
-		color: var(--color-accent-600);
+	.cover.kind-commentary {
+		background: linear-gradient(145deg, #786547, #46351f);
 	}
-	.in-use {
-		position: absolute;
-		right: 0.55rem;
-		bottom: 0.55rem;
-		color: var(--color-stone-400);
-		font-size: 0.62rem;
+	.cover.kind-xrefs {
+		background: linear-gradient(145deg, #526b78, #293c47);
 	}
-
+	.cover.kind-lexicon {
+		background: linear-gradient(145deg, #3879ad, #1d466b);
+	}
+	.cover-mark {
+		margin-bottom: auto;
+		font-size: 0.65rem;
+		opacity: 0.72;
+	}
+	.cover-title {
+		overflow: hidden;
+		font-family: var(--font-serif);
+		font-size: 0.7rem;
+		font-weight: 700;
+		line-height: 1.15;
+	}
+	.cover-rule {
+		width: 1.2rem;
+		margin-top: 0.4rem;
+		border-top: 1px solid rgb(255 255 255 / 0.45);
+	}
+	.preview-body {
+		margin: 0 1rem 1rem;
+		padding-top: 0.8rem;
+		border-top: 1px solid var(--line);
+		font-size: 0.75rem;
+		line-height: 1.55;
+	}
+	.preview-body :global(.resource-notes) {
+		margin-top: 0.75rem;
+	}
+	:global(.dark) .search-field input,
+	:global(.dark) .resource-row:hover,
+	:global(.dark) .resource-row:focus-within,
+	:global(.dark) .close-button:hover,
+	:global(.dark) .preview-trigger:hover,
+	:global(.dark) .preview-close:hover {
+		background: var(--color-stone-800);
+	}
+	:global(.dark) .entry,
+	:global(.dark) .resource-preview {
+		color: var(--color-stone-100);
+	}
 	@media (max-width: 639px) {
 		.translation-dialog {
+			top: 0.5rem;
+			left: 0.5rem;
 			width: calc(100vw - 1rem);
-			height: calc(100dvh - 1rem);
+			max-height: calc(100dvh - 1rem);
 		}
-		.resource-grid {
-			grid-template-columns: minmax(0, 1fr);
-		}
-		.category {
-			flex: 0 0 auto;
-		}
-		.category-count {
-			display: none;
+		.resource-preview {
+			top: auto;
+			right: 0.5rem;
+			bottom: 0.5rem;
+			left: 0.5rem;
+			width: auto;
+			max-height: calc(100dvh - 1rem);
 		}
 	}
 </style>

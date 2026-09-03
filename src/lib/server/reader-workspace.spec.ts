@@ -9,10 +9,10 @@ import {
 	writeReaderWorkspace
 } from './reader-workspace.ts';
 
-function resource(id: string): ReadableResource {
+function resource(id: string, kind: ReadableResource['kind'] = 'bible'): ReadableResource {
 	return {
 		id,
-		kind: 'bible',
+		kind,
 		name: id,
 		abbrev: id,
 		coverTitle: id,
@@ -61,11 +61,55 @@ describe('reader workspace persistence', () => {
 		writeReaderWorkspace(cookies, workspaceFromColumns(['a']));
 		const resolved = resolveReaderWorkspace(
 			cookies,
-			['a', 'b'].map(resource),
+			['a', 'b'].map((id) => resource(id)),
 			workspaceFromColumns(['b']),
 			[]
 		);
 		expect(resolved.tiles[0]?.tabs[0]?.resourceId).toBe('b');
+	});
+
+	it('starts a new reader with the first Bible, commentary and lexicon in group A', () => {
+		const { cookies } = cookieJar();
+		const resolved = resolveReaderWorkspace(
+			cookies,
+			[
+				resource('bible'),
+				resource('commentary', 'commentary'),
+				resource('lexicon', 'lexicon'),
+				resource('second-bible')
+			],
+			null,
+			[]
+		);
+
+		expect(resolved.layout).toBe('columns-3');
+		expect(resolved.tiles.map((tile) => tile.tabs[0]?.resourceId)).toEqual([
+			'bible',
+			'commentary',
+			'lexicon'
+		]);
+		expect(resolved.tiles.map((tile) => tile.tabs[0]?.linkSet)).toEqual(['A', 'A', 'A']);
+	});
+
+	it('still migrates an existing legacy column selection instead of applying the new default', () => {
+		const { cookies } = cookieJar({ columns: 'second-bible,bible' });
+		const resolved = resolveReaderWorkspace(
+			cookies,
+			[
+				resource('bible'),
+				resource('commentary', 'commentary'),
+				resource('lexicon', 'lexicon'),
+				resource('second-bible')
+			],
+			null,
+			[]
+		);
+
+		expect(resolved.layout).toBe('columns-2');
+		expect(resolved.tiles.map((tile) => tile.tabs[0]?.resourceId)).toEqual([
+			'second-bible',
+			'bible'
+		]);
 	});
 
 	it('keeps a unique five-resource projection for older reader consumers', () => {

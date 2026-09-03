@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { tick } from 'svelte';
 	import { formatNumber, t, type MessageKey } from '$lib/i18n';
+	import Icon from '$lib/components/Icon.svelte';
 
 	let { data, form } = $props();
 
@@ -66,8 +67,6 @@
 		}
 	}
 </script>
-
-<svelte:head><title>Ressourcen — Akribos</title></svelte:head>
 
 <header class="mb-5 flex flex-wrap items-start justify-between gap-3">
 	<div>
@@ -141,18 +140,10 @@
 			<div class="border-b border-stone-200 p-3 dark:border-stone-800">
 				<label class="sr-only" for="resource-search">Ressourcen durchsuchen</label>
 				<div class="relative">
-					<svg
-						viewBox="0 0 20 20"
-						fill="currentColor"
-						aria-hidden="true"
+					<Icon
+						name="search"
 						class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-stone-400"
-					>
-						<path
-							fill-rule="evenodd"
-							d="M9 3.5a5.5 5.5 0 1 0 3.66 9.605l3.617 3.618a.75.75 0 1 0 1.06-1.06l-3.617-3.618A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z"
-							clip-rule="evenodd"
-						/>
-					</svg>
+					/>
 					<input
 						id="resource-search"
 						type="search"

@@ -27,7 +27,6 @@
 </script>
 
 <svelte:head>
-	<title>API-Referenz — Akribos</title>
 	<meta
 		name="description"
 		content="Interactive, try-it-out reference for the Akribos public API, generated from its OpenAPI document."

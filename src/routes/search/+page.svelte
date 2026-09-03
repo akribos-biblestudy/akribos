@@ -4,6 +4,7 @@
 	import HighlightedVerse from '$lib/components/HighlightedVerse.svelte';
 	import BookDistribution from '$lib/components/BookDistribution.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 
 	let { data } = $props();
 
@@ -17,7 +18,6 @@
 </script>
 
 <svelte:head>
-	<title>{data.query ? `${data.query} — Suche` : 'Suche'} — Akribos</title>
 	<!-- Result pages are not useful in an index and change with the reader's column selection. -->
 	<meta name="robots" content="noindex, follow" />
 </svelte:head>
@@ -126,7 +126,8 @@
 						href="/search?q={encodeURIComponent(data.query)}&page={data.results.page - 1}{data.book
 							? `&book=${data.book}`
 							: ''}"
-						rel="prev">←</a
+						rel="prev"
+						aria-label="Vorherige Seite"><Icon name="chevron-left" class="size-4" /></a
 					>
 				{/if}
 				<span class="text-stone-500 dark:text-stone-400">
@@ -138,7 +139,8 @@
 						href="/search?q={encodeURIComponent(data.query)}&page={data.results.page + 1}{data.book
 							? `&book=${data.book}`
 							: ''}"
-						rel="next">→</a
+						rel="next"
+						aria-label="Nächste Seite"><Icon name="chevron-right" class="size-4" /></a
 					>
 				{/if}
 			</nav>

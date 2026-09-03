@@ -1,10 +1,18 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { formatReference, type VerseRef } from '$lib/bible/reference';
-	import type { ReaderTile } from '$lib/reader/workspace';
+	import type { ReaderTab, ReaderTile } from '$lib/reader/workspace';
+	import {
+		readerActionUrl,
+		readerStateFromActionData,
+		readerStateFromUrl,
+		readerUrl as readerUrlWithState
+	} from '$lib/reader/url-state';
 	import type { ReadableResource } from '$lib/server/repositories/resources';
+	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
 
 	let {
@@ -14,6 +22,7 @@
 		resources,
 		readerUrl,
 		currentReference,
+		referenceForTab,
 		onOpenResource
 	}: {
 		tile: ReaderTile;
@@ -22,7 +31,8 @@
 		resources: ReadableResource[];
 		readerUrl: (reference?: VerseRef) => string;
 		currentReference: VerseRef;
-		onOpenResource: (tileId: string) => void;
+		referenceForTab: (tab: ReaderTab) => VerseRef;
+		onOpenResource: (tileId: string, anchor: HTMLElement) => void;
 	} = $props();
 
 	let moveForm = $state<HTMLFormElement>();
@@ -43,26 +53,35 @@
 				moveMenu?.close();
 				await update({ reset: false, invalidateAll: result.type !== 'success' });
 				if (result.type === 'success') {
+					const state = readerStateFromActionData(result.data);
+					if (!state) return;
 					const path =
 						result.data &&
 						typeof result.data === 'object' &&
 						'path' in result.data &&
 						typeof result.data.path === 'string'
-							? `${result.data.path}${window.location.search}${window.location.hash}`
-							: url;
-					await goto(path, {
-						replaceState: true,
-						invalidateAll: true,
-						noScroll: true,
-						keepFocus: true
-					});
-					// A scroll may already have shallowly replaced the address bar with `path` while this
-					// action was in flight. In that case `goto()` is intentionally a no-op; force the
-					// server data refresh so the newly active tab cannot keep its pre-scroll props.
-					await invalidateAll();
+							? result.data.path
+							: new URL(url, window.location.origin).pathname;
+					const targetUrl = readerUrlWithState(path, state);
+					if (`${window.location.pathname}${window.location.search}` === targetUrl) {
+						// A scroll may already have shallowly installed this exact URL while the action was
+						// in flight. In that one case there is no navigation to refresh the active tab.
+						await invalidateAll();
+					} else {
+						await goto(targetUrl, {
+							replaceState: true,
+							invalidateAll: true,
+							noScroll: true,
+							keepFocus: true
+						});
+					}
 				}
 			};
 		};
+	}
+
+	function actionUrl(action: string): string {
+		return readerActionUrl(action, readerStateFromUrl(page.url));
 	}
 
 	function referenceAfterClose(tabId: string): VerseRef | undefined {
@@ -140,10 +159,11 @@
 	>
 		{#each tile.tabs as tab, tabIndex (tab.id)}
 			{@const resource = byId.get(tab.resourceId)}
+			{@const targetReference = referenceForTab(tab)}
 			{#if resource}
 				<div
 					role="group"
-					aria-label={resource.selectionTitle}
+					aria-label={resource.tabTitle}
 					class="resource-tab"
 					class:active={tab.id === activeTab?.id}
 					class:dragging={tab.id === draggedTabId}
@@ -156,7 +176,11 @@
 						dropTab(event, tabIndex);
 					}}
 				>
-					<form method="POST" action="?/activateTab" use:enhance={submitEnhancement(tab.reference)}>
+					<form
+						method="POST"
+						action={actionUrl('activateTab')}
+						use:enhance={submitEnhancement(targetReference)}
+					>
 						<input type="hidden" name="tileId" value={tile.id} />
 						<input type="hidden" name="tabId" value={tab.id} />
 						<input
@@ -164,15 +188,16 @@
 							name="currentReference"
 							value={formatReference(currentReference)}
 						/>
+						<input type="hidden" name="targetReference" value={formatReference(targetReference)} />
 						<button
 							type="submit"
 							role="tab"
 							aria-selected={tab.id === activeTab?.id}
 							tabindex={tab.id === activeTab?.id ? 0 : -1}
 							class="tab-title"
-							title={resource.selectionTitle}
+							title={resource.tabTitle}
 						>
-							<span>{resource.abbrev}</span>
+							<span>{resource.tabTitle}</span>
 							{#if tab.linkSet}
 								<span class="tab-link-set link-{tab.linkSet.toLowerCase()}">{tab.linkSet}</span>
 							{/if}
@@ -180,17 +205,13 @@
 					</form>
 					<form
 						method="POST"
-						action="?/closeTab"
+						action={actionUrl('closeTab')}
 						use:enhance={submitEnhancement(referenceAfterClose(tab.id))}
 					>
 						<input type="hidden" name="tileId" value={tile.id} />
 						<input type="hidden" name="tabId" value={tab.id} />
-						<button type="submit" class="close-tab" aria-label={`${resource.abbrev} schließen`}>
-							<svg viewBox="0 0 16 16" class="size-3" fill="currentColor" aria-hidden="true">
-								<path
-									d="M4.47 3.53a.75.75 0 0 0-1.06 1.06L6.82 8l-3.41 3.41a.75.75 0 1 0 1.06 1.06L7.88 9.06l3.41 3.41a.75.75 0 0 0 1.06-1.06L8.94 8l3.41-3.41a.75.75 0 0 0-1.06-1.06L7.88 6.94 4.47 3.53Z"
-								/>
-							</svg>
+						<button type="submit" class="close-tab" aria-label={`${resource.tabTitle} schließen`}>
+							<Icon name="x" class="size-3" />
 						</button>
 					</form>
 				</div>
@@ -204,13 +225,9 @@
 		aria-label="Ressource in Bereich {tileIndex + 1} öffnen"
 		title="Ressource öffnen"
 		data-tour-target={tileIndex === 0 ? 'column-add' : undefined}
-		onclick={() => onOpenResource(tile.id)}
+		onclick={(event) => onOpenResource(tile.id, event.currentTarget)}
 	>
-		<svg viewBox="0 0 16 16" class="size-4" fill="currentColor" aria-hidden="true">
-			<path
-				d="M8.75 3a.75.75 0 0 0-1.5 0v4.25H3a.75.75 0 0 0 0 1.5h4.25V13a.75.75 0 0 0 1.5 0V8.75H13a.75.75 0 0 0 0-1.5H8.75V3Z"
-			/>
-		</svg>
+		<Icon name="plus" class="size-4" />
 	</button>
 
 	{#if activeTab && tiles.length > 1}
@@ -219,7 +236,8 @@
 			class="move-tab"
 			aria-label="Tab verschieben"
 			title="Tab verschieben"
-			onclick={(event) => moveMenu?.openAt(event.currentTarget)}>•••</button
+			onclick={(event) => moveMenu?.openAt(event.currentTarget)}
+			><Icon name="more-horizontal" class="size-4" /></button
 		>
 		<Menu bind:this={moveMenu} label="Tab verschieben">
 			<p class="move-label">Verschieben nach</p>
@@ -227,7 +245,7 @@
 				{#if target.id !== tile.id}
 					<form
 						method="POST"
-						action="?/moveTab"
+						action={actionUrl('moveTab')}
 						use:enhance={submitEnhancement(activeTab.reference)}
 						role="none"
 					>
@@ -246,7 +264,7 @@
 <form
 	bind:this={moveForm}
 	method="POST"
-	action="?/moveTab"
+	action={actionUrl('moveTab')}
 	use:enhance={submitEnhancement()}
 	class="hidden"
 >
@@ -312,6 +330,11 @@
 		min-width: 0;
 		flex: 1;
 	}
+	.resource-tab form:last-child {
+		display: flex;
+		height: 100%;
+		align-items: center;
+	}
 
 	.tab-title {
 		display: flex;
@@ -337,25 +360,25 @@
 		align-items: center;
 		justify-content: center;
 		border-radius: 0.22rem;
-		background: var(--link-color);
+		background: color-mix(in oklab, var(--link-color) 78%, var(--surface));
 		font-size: 0.6rem;
 		font-weight: 800;
 		color: white;
 	}
 	.tab-link-set.link-a {
-		--link-color: #f97316;
+		--link-color: #b9683f;
 	}
 	.tab-link-set.link-b {
-		--link-color: #2563eb;
+		--link-color: #55759b;
 	}
 	.tab-link-set.link-c {
-		--link-color: #16a34a;
+		--link-color: #60836d;
 	}
 	.tab-link-set.link-d {
-		--link-color: #9333ea;
+		--link-color: #776b91;
 	}
 	.tab-link-set.link-e {
-		--link-color: #e11d48;
+		--link-color: #9a6572;
 	}
 
 	.close-tab,
@@ -374,6 +397,12 @@
 	.move-tab:hover {
 		background: var(--color-stone-100);
 		color: var(--color-accent-700);
+	}
+	.close-tab {
+		width: 1.7rem;
+		height: 1.7rem;
+		margin-right: 0.12rem;
+		border-radius: 0.35rem;
 	}
 	.move-tab {
 		font-size: 0.68rem;
@@ -405,6 +434,10 @@
 		.add-tab,
 		.move-tab {
 			min-width: 2.5rem;
+		}
+		.close-tab {
+			height: 2.5rem;
+			margin-right: 0;
 		}
 	}
 </style>

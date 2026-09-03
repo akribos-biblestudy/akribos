@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Icon from '$lib/components/Icon.svelte';
+
 	const chapters = [
 		{
 			href: '#erste-schritte',
@@ -70,7 +72,6 @@
 </script>
 
 <svelte:head>
-	<title>Hilfe & Wissensbasis — Akribos</title>
 	<meta
 		name="description"
 		content="Die vollständige Akribos-Anleitung: Bibel lesen, Übersetzungen vergleichen, suchen, Strong-Nummern untersuchen, Verse markieren, kommentieren und teilen."
@@ -225,14 +226,14 @@
 				<figure class="screenshot">
 					<img
 						src="/help/reader-overview.webp"
-						alt="Akribos-Reader mit drei Kacheln, mehreren Ressourcen-Tabs und Link-Sets"
+						alt="Akribos-Reader mit drei Kacheln, mehreren Ressourcen-Tabs und Tabgruppen"
 						width="1440"
 						height="900"
 						loading="lazy"
 					/>
 					<figcaption>
 						<strong>Der Reader:</strong> oben Navigation und Layoutwahl, in jeder Kachel eigene Tabs und
-						Link-Sets für die Synchronisierung.
+						Tabgruppen für die Synchronisierung.
 					</figcaption>
 				</figure>
 
@@ -241,14 +242,15 @@
 						<span>Zwischen Tabs wechseln</span>
 						<p>
 							Klicke auf einen Tab, um ihn samt seiner eigenen Lesestelle sichtbar zu machen. Mit
-							<strong>×</strong> schließt du ihn wieder; das Buchsymbol wechselt sein aktuelles Werk.
+							<strong class="inline-flex align-text-bottom"><Icon name="x" class="size-4" /></strong
+							> schließt du ihn wieder; das Buchsymbol wechselt sein aktuelles Werk.
 						</p>
 					</article>
 					<article>
 						<span>Tab hinzufügen</span>
 						<p>
 							Mit <strong>+</strong> in einer Kachel ergänzt du eine Übersetzung, einen Kommentar, Parallelstellen
-							oder ein Wörterbuch. Dieselbe Ressource darf in mehreren Kacheln offen sein.
+							oder ein Wörterbuch. Dieselbe Ressource darf auch mehrfach in derselben Kachel offen sein.
 						</p>
 					</article>
 					<article>
@@ -267,11 +269,19 @@
 						</p>
 					</article>
 					<article>
-						<span>Tabs koppeln</span>
+						<span>Tabgruppe wechseln</span>
 						<p>
 							Wähle für einen Tab den Buchstaben <strong>A, B, C, D oder E</strong>. Alle gerade
 							sichtbaren Tabs mit demselben Buchstaben folgen einander; inaktive Tabs derselben
 							Gruppe merken sich die neue Stelle für ihr nächstes Öffnen. <strong>–</strong> scrollt unabhängig.
+						</p>
+					</article>
+					<article>
+						<span>Ansicht duplizieren</span>
+						<p>
+							Die Adresse enthält Layout, Tabs, Tabgruppen, deren Lesestellen und eine aktive Suche.
+							Neuladen, Browser-Tab duplizieren oder Link kopieren öffnet daher dieselbe Ansicht.
+							Ein fremder Link ersetzt nicht deinen gespeicherten Standard-Arbeitsbereich.
 						</p>
 					</article>
 					<article>
@@ -314,7 +324,7 @@
 					<p>
 						In dafür vorbereiteten Übersetzungen sind Wörter mit Strong-Nummern dezent
 						unterstrichen. Ein Klick öffnet die Studienansicht in einem Wörterbuch-Tab derselben
-						Koppelgruppe.
+						Tabgruppe.
 					</p>
 				</div>
 
@@ -370,7 +380,7 @@
 					Gib etwa <code>G25</code> oder <code>H430</code> in das Feld eines Bibel-Tabs ein. Die Vorkommen
 					aus genau dieser Übersetzung erscheinen samt Buchverteilung und Übersetzungsformen im Tab. Ein
 					Klick auf ein markiertes Wort im Bibeltext öffnet oder aktualisiert stattdessen den Wörterbuch-Tab
-					im gleichen Link-Set. Dort stehen Definition, Grammatik, Übersetzungsformen und Fundstellen
+					in der gleichen Tabgruppe. Dort stehen Definition, Grammatik, Übersetzungsformen und Fundstellen
 					gemeinsam; ein kleines Kürzel neben dem Suchfeld zeigt die zugrunde liegende Übersetzung. Im
 					Feld des Wörterbuch-Tabs kannst du nach Strong-Nummer, Lemma oder Umschrift zum nächsten Eintrag
 					springen.
@@ -688,7 +698,7 @@
 				<details>
 					<summary>Meine Tabs bewegen sich nicht gemeinsam.</summary>
 					<p>
-						Prüfe die Buchstaben neben dem Kettensymbol. Sichtbare Tabs mit demselben Link-Set A–E
+						Prüfe die Buchstaben neben dem Kettensymbol. Sichtbare Tabs in derselben Tabgruppe A–E
 						folgen einander; inaktive Tabs übernehmen die Stelle im Hintergrund. <strong>–</strong>
 						bedeutet, dass der Tab unabhängig scrollt.
 					</p>
@@ -712,7 +722,7 @@
 					<summary>Was wird gespeichert?</summary>
 					<p>
 						Ohne Konto speichert Akribos notwendige Einstellungen wie Darstellung, Kachellayout,
-						Tabs, Link-Sets und letzte Lesestelle im Browser. Mit Konto werden persönliche Inhalte
+						Tabs, Tabgruppen und letzte Lesestelle im Browser. Mit Konto werden persönliche Inhalte
 						deinem Benutzerkonto zugeordnet. Details stehen in der <a href="/datenschutz"
 							>Datenschutzerklärung</a
 						>.

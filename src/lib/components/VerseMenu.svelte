@@ -15,6 +15,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { t } from '$lib/i18n';
+	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
 
 	/**
@@ -210,17 +211,7 @@
 					>
 						<span class="truncate">{list.title}</span>
 						{#if present}
-							<svg
-								viewBox="0 0 20 20"
-								class="menu-check size-4 shrink-0"
-								fill="currentColor"
-								aria-hidden="true"
-							>
-								<path
-									fill-rule="evenodd"
-									d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0l-3.5-3.5a1 1 0 0 1 1.4-1.4l2.8 2.8 6.8-6.8a1 1 0 0 1 1.4 0Z"
-								/>
-							</svg>
+							<Icon name="check" class="menu-check size-4 shrink-0" />
 						{/if}
 					</button>
 				</form>
@@ -241,11 +232,7 @@
 				<input type="hidden" name="reference" value={context.reference} />
 				<input type="hidden" name="title" value={context.label} />
 				<button type="submit" role="menuitem" class="new-list">
-					<svg viewBox="0 0 20 20" class="size-4 shrink-0" fill="currentColor" aria-hidden="true">
-						<path
-							d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"
-						/>
-					</svg>
+					<Icon name="plus" class="size-4 shrink-0" />
 					{t('lists.newWithVerse')}
 				</button>
 			</form>

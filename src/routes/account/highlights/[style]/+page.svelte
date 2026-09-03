@@ -5,19 +5,17 @@
 	import { t } from '$lib/i18n';
 	import VerseText from '$lib/components/VerseText.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 
 	let { data } = $props();
 	const styleName = $derived(data.style.name ?? t('highlights.unnamed'));
 </script>
 
-<svelte:head
-	><title>{t('highlights.versesTitle', { name: styleName })} — Akribos</title></svelte:head
->
-
 <main class="mx-auto w-full max-w-3xl space-y-6 px-4 py-8">
 	<nav class="text-sm">
 		<Button href="/account?tab=appearance" size="sm" variant="secondary">
-			← {t('highlights.back')}
+			<Icon name="chevron-left" class="size-4" />
+			{t('highlights.back')}
 		</Button>
 	</nav>
 

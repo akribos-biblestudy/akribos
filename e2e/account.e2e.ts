@@ -56,7 +56,9 @@ test('registration, sign out and sign in again', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'Einstellungen' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Abmelden' }).click();
-	await expect(page).toHaveURL(/\/Joh1$/);
+	await expect(page).toHaveURL(
+		(url) => url.pathname === '/Joh1' && Boolean(url.searchParams.get('layout'))
+	);
 	await expect(
 		page.getByRole('searchbox', { name: /Bibelstelle oder Suche in/ }).first()
 	).toHaveValue('Joh 1');
@@ -445,7 +447,7 @@ test('an admin can see and edit resources', async ({ page }) => {
 	await resourceSearch.clear();
 	await expect(page.getByRole('button', { name: 'SEEDDE bearbeiten' })).toBeVisible();
 
-	// The descriptive tab title stays separate from the compact abbreviation shown in the reader.
+	// The dedicated tab title is what readers see on the resource tab.
 	const tabTitle = page.locator('#tab-SEEDDE');
 	await tabTitle.fill('Umbenannt');
 	await page
@@ -455,8 +457,8 @@ test('an admin can see and edit resources', async ({ page }) => {
 		.click();
 
 	await page.goto('/Joh3');
-	await expect(page.getByRole('tab', { name: /^Testübersetzung/ })).toBeVisible();
-	await expect(page.getByRole('tab', { name: /Umbenannt/ })).toHaveCount(0);
+	await expect(page.getByRole('tab', { name: /^Umbenannt/ })).toBeVisible();
+	await expect(page.getByRole('tab', { name: /^Testübersetzung/ })).toHaveCount(0);
 
 	// Put it back, so the test can run again.
 	await page.goto('/admin/resources');

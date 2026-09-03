@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { deserialize, enhance } from '$app/forms';
-	import { beforeNavigate, goto, invalidateAll, replaceState } from '$app/navigation';
+	import { beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onDestroy, tick, untrack } from 'svelte';
 	import { SvelteMap, SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity';
@@ -9,9 +9,11 @@
 	import { spanRangeForVerse } from '$lib/bible/highlight-span';
 	import { readerLocation, setJumpToVerse } from '$lib/reader-location.svelte';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
+	import { readerContentLinks } from '$lib/actions/reader-content-links';
 	import { t } from '$lib/i18n';
 	import CommentBubble from '$lib/components/CommentBubble.svelte';
 	import CommentToggle from '$lib/components/CommentToggle.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import ReaderLexiconTab from '$lib/components/ReaderLexiconTab.svelte';
 	import ReaderResourceTabs from '$lib/components/ReaderResourceTabs.svelte';
 	import ReaderTabSearchResults from '$lib/components/ReaderTabSearchResults.svelte';
@@ -23,8 +25,20 @@
 		MIN_READER_TRACK_FRACTION,
 		normalizeReaderTracks,
 		readerLayoutDefinition,
-		readerLayoutSize
+		readerLayoutSize,
+		setReaderTabLookup,
+		setReaderTabReference,
+		type ReaderTab,
+		type ReaderWorkspace
 	} from '$lib/reader/workspace';
+	import {
+		encodeReaderUrlState,
+		readerActionUrl,
+		readerStateFromActionData,
+		readerStateFromUrl,
+		readerUrl,
+		type ReaderSearchQueries
+	} from '$lib/reader/url-state';
 	import type { ReaderTabSearchResponse } from '$lib/reader/tab-search';
 
 	let { data } = $props();
@@ -54,32 +68,41 @@
 
 	function currentReaderUrl(reference?: VerseRef): string {
 		const path = referencePath(reference ?? readerLocation.reference ?? data.reference);
-		return `${path}${window.location.search}${window.location.hash}`;
+		return readerUrl(path, currentReaderState());
 	}
 
-	function openResourceDialog(tileId: string) {
-		const tile = data.workspace.tiles.find((candidate) => candidate.id === tileId);
-		translationDialog?.openAt({
-			action: '?/addTab',
-			readerUrl: currentReaderUrl(),
-			tileId,
-			chosen: tile?.tabs.map((tab) => tab.resourceId) ?? []
-		});
+	function currentReaderState(): string {
+		return readerStateFromUrl(page.url) ?? data.readerState;
 	}
 
-	function replaceResourceDialog(tileId: string, tabId: string) {
+	function actionUrl(action: string): string {
+		return readerActionUrl(action, currentReaderState());
+	}
+
+	function openResourceDialog(tileId: string, anchor: HTMLElement) {
+		translationDialog?.openAt(
+			{
+				action: actionUrl('addTab'),
+				readerUrl: currentReaderUrl(),
+				tileId
+			},
+			anchor
+		);
+	}
+
+	function replaceResourceDialog(tileId: string, tabId: string, anchor: HTMLElement) {
 		const tile = data.workspace.tiles.find((candidate) => candidate.id === tileId);
 		const tab = tile?.tabs.find((candidate) => candidate.id === tabId);
 		if (!tile || !tab) return;
-		translationDialog?.openAt({
-			action: '?/replaceTabResource',
-			readerUrl: currentReaderUrl(tab.reference),
-			tileId,
-			tabId,
-			chosen: tile.tabs
-				.filter((candidate) => candidate.id !== tabId)
-				.map((candidate) => candidate.resourceId)
-		});
+		translationDialog?.openAt(
+			{
+				action: actionUrl('replaceTabResource'),
+				readerUrl: currentReaderUrl(tab.reference),
+				tileId,
+				tabId
+			},
+			anchor
+		);
 	}
 
 	function columnForTile(tileId: string) {
@@ -387,7 +410,7 @@
 			formatReference(reference ?? visibleReferences[columnIndex] ?? column.activeTab.reference)
 		);
 		if (word) form.set('word', word);
-		const response = await fetch('?/openLexiconTab', {
+		const response = await fetch(actionUrl('openLexiconTab'), {
 			method: 'POST',
 			body: form,
 			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
@@ -395,7 +418,13 @@
 		if (!response.ok) return;
 		const result = deserialize(await response.text());
 		if (result.type !== 'success') return;
-		await invalidateAll();
+		const state = readerStateFromActionData(result.data);
+		if (!state) return;
+		await goto(readerUrl(window.location.pathname, state), {
+			replaceState: true,
+			invalidateAll: true,
+			noScroll: true
+		});
 		if (
 			window.matchMedia('(max-width: 639px)').matches &&
 			result.data &&
@@ -415,12 +444,21 @@
 		form.set('tileId', column.tileId);
 		form.set('tabId', column.activeTab.id);
 		form.set('lookup', lookup);
-		const response = await fetch('?/setTabLookup', {
+		const response = await fetch(actionUrl('setTabLookup'), {
 			method: 'POST',
 			body: form,
 			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
 		});
-		if (response.ok) await invalidateAll();
+		if (!response.ok) return;
+		const result = deserialize(await response.text());
+		if (result.type !== 'success') return;
+		const state = readerStateFromActionData(result.data);
+		if (!state) return;
+		await goto(readerUrl(window.location.pathname, state), {
+			replaceState: true,
+			invalidateAll: true,
+			noScroll: true
+		});
 	}
 
 	function openStrong(
@@ -442,13 +480,17 @@
 		generation: number;
 	};
 
-	function initialColumnStreams(): ColumnStream[] {
-		return data.columns.map((column) => ({
+	function columnStreamFromInitial(column: (typeof data.columns)[number]): ColumnStream {
+		return {
 			chapters: [column.initialChapter],
 			loadingPrevious: false,
 			loadingNext: false,
 			generation: 0
-		}));
+		};
+	}
+
+	function initialColumnStreams(): ColumnStream[] {
+		return data.columns.map(columnStreamFromInitial);
 	}
 
 	let columnStreams = $state<ColumnStream[]>(initialColumnStreams());
@@ -464,10 +506,33 @@
 		return `${column.activeTab.id}:${column.resource.id}:${reference.book}:${reference.chapter}:${reference.verse ?? ''}`;
 	}
 
+	function columnStreamKey(column: (typeof data.columns)[number]): string {
+		return `${column.activeTab.id}:${column.resource.id}`;
+	}
+
+	function sameReference(left: VerseRef | undefined, right: VerseRef): boolean {
+		return (
+			left?.book === right.book &&
+			left.chapter === right.chapter &&
+			(left.verse ?? null) === (right.verse ?? null)
+		);
+	}
+
 	function toolbarReference(column: (typeof data.columns)[number]): VerseRef {
 		return visibleReferenceTabKeys[column.index] === columnReferenceKey(column)
 			? (visibleReferences[column.index] ?? column.activeTab.reference)
 			: column.activeTab.reference;
+	}
+
+	function tabActivationReference(tileId: string, tab: ReaderTab): VerseRef {
+		const currentColumn = data.columns.find((column) => column.tileId === tileId);
+		if (currentColumn?.activeTab.id === tab.id) return toolbarReference(currentColumn);
+		if (!tab.linkSet) return tab.reference;
+
+		const visiblePeer = data.columns.find(
+			(column) => column.tileId !== tileId && column.activeTab.linkSet === tab.linkSet
+		);
+		return visiblePeer ? toolbarReference(visiblePeer) : tab.reference;
 	}
 
 	function lexiconStudyContext(column: (typeof data.columns)[number]) {
@@ -501,6 +566,34 @@
 	};
 	let tabSearches = $state<Record<string, TabSearchState>>({});
 	const tabSearchRequests = new SvelteMap<string, AbortController>();
+	let restoredReaderState = $state('');
+
+	function currentSearchQueries(): ReaderSearchQueries {
+		return Object.fromEntries(
+			Object.entries(tabSearches).map(([tabId, state]) => [tabId, state.query])
+		);
+	}
+
+	function workspaceAtVisibleReferences(): ReaderWorkspace {
+		let workspace = data.workspace as ReaderWorkspace;
+		for (const column of data.columns) {
+			const reference = toolbarReference(column);
+			workspace = setReaderTabReference(workspace, column.tileId, column.activeTab.id, reference);
+		}
+		return workspace;
+	}
+
+	function syncReaderUrl(path = window.location.pathname): void {
+		try {
+			const state = encodeReaderUrlState(workspaceAtVisibleReferences(), currentSearchQueries());
+			const next = readerUrl(path, state);
+			if (`${window.location.pathname}${window.location.search}` !== next) {
+				replaceState(next, page.state);
+			}
+		} catch (error) {
+			console.error(error);
+		}
+	}
 
 	function tabSearchFor(column: (typeof data.columns)[number]): TabSearchState | null {
 		const state = tabSearches[column.activeTab.id];
@@ -514,6 +607,7 @@
 		const next = { ...tabSearches };
 		delete next[tabId];
 		tabSearches = next;
+		syncReaderUrl();
 	}
 
 	async function runTabSearch(
@@ -546,6 +640,7 @@
 				error: null
 			}
 		};
+		syncReaderUrl();
 
 		try {
 			const params = new SvelteURLSearchParams({
@@ -583,6 +678,19 @@
 		}
 	}
 
+	$effect(() => {
+		const state = data.readerState;
+		if (state === restoredReaderState) return;
+		restoredReaderState = state;
+		for (const request of tabSearchRequests.values()) request.abort();
+		tabSearchRequests.clear();
+		tabSearches = {};
+		for (const column of data.columns) {
+			const query = data.searchQueries[column.activeTab.id];
+			if (query) void runTabSearch(column.index, query);
+		}
+	});
+
 	async function openTabSearchReference(columnIndex: number, reference: VerseRef): Promise<void> {
 		const column = data.columns[columnIndex];
 		if (!column) return;
@@ -590,14 +698,48 @@
 		form.set('tileId', column.tileId);
 		form.set('tabId', column.activeTab.id);
 		form.set('reference', formatReference(reference));
-		const response = await fetch('?/setTabReference', {
+		const response = await fetch(actionUrl('setTabReference'), {
 			method: 'POST',
 			body: form,
 			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
 		});
 		if (!response.ok) return;
+		const result = deserialize(await response.text());
+		if (result.type !== 'success') return;
+		const state = readerStateFromActionData(result.data);
+		if (!state) return;
 		clearTabSearch(column.activeTab.id);
-		await goto(referencePath(reference), { invalidateAll: true, noScroll: true });
+		await goto(readerUrl(referencePath(reference), state), { invalidateAll: true, noScroll: true });
+	}
+
+	function contextualReferenceUrl(columnIndex: number, reference: VerseRef): string {
+		const column = data.columns[columnIndex];
+		if (!column) return referencePath(reference);
+		const workspace = setReaderTabReference(
+			workspaceAtVisibleReferences(),
+			column.tileId,
+			column.activeTab.id,
+			reference
+		);
+		return readerUrl(
+			referencePath(reference),
+			encodeReaderUrlState(workspace, currentSearchQueries())
+		);
+	}
+
+	function contextualLexiconLookupUrl(columnIndex: number, lookup: string): string {
+		const column = data.columns[columnIndex];
+		if (!column || column.resource.kind !== 'lexicon') return window.location.href;
+		const workspace = setReaderTabLookup(
+			workspaceAtVisibleReferences(),
+			column.tileId,
+			column.activeTab.id,
+			lookup
+		);
+		return readerUrl(
+			window.location.pathname,
+			encodeReaderUrlState(workspace, currentSearchQueries())
+		);
 	}
 
 	$effect(() => {
@@ -790,6 +932,10 @@
 	let flowColumns = $state<HTMLElement[]>([]);
 	let activeFlowSource = 0;
 	let streamSignature = '';
+	let activeStreamKeys: string[] = [];
+	const streamsByTab = new SvelteMap<string, ColumnStream>();
+	const referencesByTab = new SvelteMap<string, VerseRef>();
+	const scrollTopsByTab = new SvelteMap<string, number>();
 	/**
 	 * Columns whose next scroll events were caused by our own alignment/prepend compensation.
 	 *
@@ -823,7 +969,37 @@
 		if (columnsKey === streamSignature) return;
 		cancelScheduledReaderWork();
 		streamSignature = columnsKey;
-		columnStreams = initialColumnStreams();
+
+		// Keep streams and scroll positions with their tabs, not with the temporary visible column
+		// index. Switching one tile can then reveal its already loaded tab without rebuilding unrelated
+		// Bible/commentary columns or requesting their next chapters again.
+		for (const [index, key] of activeStreamKeys.entries()) {
+			const stream = columnStreams[index];
+			const reference = visibleReferences[index];
+			const flowColumn = flowColumns[index];
+			if (stream) streamsByTab.set(key, stream);
+			if (reference) referencesByTab.set(key, { ...reference });
+			if (flowColumn) scrollTopsByTab.set(key, flowColumn.scrollTop);
+		}
+
+		const nextStreamKeys = data.columns.map(columnStreamKey);
+		const reusedStreams: boolean[] = [];
+		columnStreams = data.columns.map((column, index) => {
+			const key = nextStreamKeys[index]!;
+			const cached = streamsByTab.get(key);
+			const containsTarget = cached?.chapters.some(
+				(chapter) =>
+					chapter.reference.book === column.activeTab.reference.book &&
+					chapter.reference.chapter === column.activeTab.reference.chapter
+			);
+			reusedStreams[index] = Boolean(cached && containsTarget);
+			const stream = cached && containsTarget ? cached : columnStreamFromInitial(column);
+			stream.loadingPrevious = false;
+			stream.loadingNext = false;
+			streamsByTab.set(key, stream);
+			return stream;
+		});
+		activeStreamKeys = nextStreamKeys;
 		visibleReferences = data.columns.map((column) => ({ ...column.activeTab.reference }));
 		visibleReferenceTabKeys = data.columns.map((column) => columnReferenceKey(column));
 		activeFlowSource = Math.max(
@@ -831,23 +1007,37 @@
 			data.columns.findIndex((column) => column.tileId === data.workspace.focusedTileId)
 		);
 		readerLocation.reference = visibleReferences[activeFlowSource] ?? data.reference;
-		resetFlowColumnsToTop();
 		tick().then(() => {
 			flowColumns = data.columns
 				.map((_, index) =>
 					document.querySelector<HTMLElement>(`.flow-column[data-flow-column-index="${index}"]`)
 				)
 				.filter((element): element is HTMLElement => element !== null);
-			resetFlowColumnsToTop();
 			for (const [index, column] of data.columns.entries()) {
 				if (column.resource.kind === 'lexicon') continue;
+				const key = nextStreamKeys[index]!;
+				const flowColumn = flowColumns[index];
 				const reference = column.activeTab.reference;
-				if (reference.verse) {
+				const previousReference = referencesByTab.get(key);
+				if (flowColumn && sameReference(previousReference, reference)) {
+					const scrollTop = scrollTopsByTab.get(key);
+					if (scrollTop !== undefined) {
+						suppressProgrammaticFlowScroll(index);
+						flowColumn.scrollTop = scrollTop;
+					}
+					updateFlowEdgeState(index, flowColumn);
+				} else if (flowColumn) {
+					lastAlignedElement[index] = null;
+					suppressProgrammaticFlowScroll(index);
+					flowColumn.scrollTop = 0;
+					updateFlowEdgeState(index, flowColumn);
+				}
+				if (!sameReference(previousReference, reference) && reference.verse) {
 					scrollColumnToVerse(index, reference.book, reference.chapter, reference.verse, true);
 				}
-				void loadStreamNext(index);
+				referencesByTab.set(key, { ...reference });
+				if (!reusedStreams[index]) void loadStreamNext(index);
 			}
-			window.scrollTo({ top: 0, behavior: 'instant' });
 		});
 	});
 
@@ -859,16 +1049,6 @@
 			suppressedFlowColumns.delete(columnIndex);
 			suppressFlowTimers[columnIndex] = undefined;
 		}, 80);
-	}
-
-	function resetFlowColumnsToTop() {
-		for (const [index, column] of flowColumns.entries()) {
-			if (!column) continue;
-			lastAlignedElement[index] = null;
-			suppressProgrammaticFlowScroll(index);
-			column.scrollTop = 0;
-			updateFlowEdgeState(index, column);
-		}
 	}
 
 	async function fetchStreamChapter(
@@ -974,15 +1154,20 @@
 			form.set('tileId', column.tileId);
 			form.set('tabId', column.activeTab.id);
 			form.set('reference', formatReference(reference));
-			void fetch('?/setTabReference', {
+			const request = fetch(actionUrl('setTabReference'), {
 				method: 'POST',
 				body: form,
 				headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
 			});
 			const path = referencePath(reference);
-			if (path !== window.location.pathname) {
-				replaceState(`${path}${window.location.search}${window.location.hash}`, page.state);
-			}
+			syncReaderUrl(path);
+			void request.then(async (response) => {
+				if (!response.ok) return;
+				const result = deserialize(await response.text());
+				if (result.type !== 'success') return;
+				const state = readerStateFromActionData(result.data);
+				if (state) replaceState(readerUrl(path, state), page.state);
+			});
 		}, 200);
 	}
 
@@ -1000,7 +1185,11 @@
 	}
 
 	beforeNavigate(() => {
-		for (const stream of columnStreams) stream.generation += 1;
+		for (const stream of columnStreams) {
+			stream.generation += 1;
+			stream.loadingPrevious = false;
+			stream.loadingNext = false;
+		}
 		cancelScheduledReaderWork();
 	});
 
@@ -1254,7 +1443,6 @@
 <svelte:window onpointermove={onLayoutResizeMove} onpointerup={onLayoutResizeEnd} />
 
 <svelte:head>
-	<title>{data.fullTitle} — Akribos</title>
 	<meta
 		name="description"
 		content="{data.fullTitle} in {data.columns
@@ -1269,7 +1457,13 @@
 	     cannot overflow anyway. -->
 	<main>
 		<div class="mx-auto max-w-[var(--content-max-width)] px-2 py-2 sm:px-3 sm:py-3">
-			<form bind:this={sizesForm} method="POST" action="?/setLayoutSize" use:enhance class="hidden">
+			<form
+				bind:this={sizesForm}
+				method="POST"
+				action={actionUrl('setLayoutSize')}
+				use:enhance
+				class="hidden"
+			>
 				<input type="hidden" name="layout" value={data.workspace.layout} />
 				<input bind:this={sizesColumnsInput} type="hidden" name="columns" />
 				<input bind:this={sizesRowsInput} type="hidden" name="rows" />
@@ -1395,6 +1589,7 @@
 							resources={data.readerResources}
 							readerUrl={currentReaderUrl}
 							currentReference={column ? toolbarReference(column) : data.reference}
+							referenceForTab={(tab) => tabActivationReference(tile.id, tab)}
 							onOpenResource={openResourceDialog}
 						/>
 						{#if column}
@@ -1435,6 +1630,8 @@
 										onLookup={(lookup) => void lookupInLexicon(columnIndex, lookup)}
 										onOpenReference={(reference) =>
 											void openTabSearchReference(columnIndex, reference)}
+										lookupHref={(lookup) => contextualLexiconLookupUrl(columnIndex, lookup)}
+										referenceHref={(reference) => contextualReferenceUrl(columnIndex, reference)}
 									/>
 								{/if}
 								{#if tabSearch}
@@ -1555,7 +1752,7 @@
 																			cell.verse
 																		)}
 																		title={stream.fullTitle}
-																		href={referencePath({
+																		href={contextualReferenceUrl(columnIndex, {
 																			book: stream.reference.book,
 																			chapter: stream.reference.chapter,
 																			verse: cell.verse
@@ -1593,7 +1790,7 @@
 																			stream.reference.chapter,
 																			cell.verse
 																		)}
-																		href={referencePath({
+																		href={contextualReferenceUrl(columnIndex, {
 																			book: stream.reference.book,
 																			chapter: stream.reference.chapter,
 																			verse: cell.verse
@@ -1717,6 +1914,12 @@
 																<div
 																	class="commentary-body"
 																	use:verseHoverPopover={{ bibleId: primaryBibleId }}
+																	use:readerContentLinks={{
+																		onReference: (reference) =>
+																			void openTabSearchReference(columnIndex, reference),
+																		referenceHref: (reference) =>
+																			contextualReferenceUrl(columnIndex, reference)
+																	}}
 																>
 																	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 																	{@html entry.bodyHtml}
@@ -1738,12 +1941,31 @@
 															<span class="verse-number">{row.verse}</span>
 															{#each references as target (target.id)}
 																<a
-																	class="mr-1 text-xs text-accent-700 dark:text-accent-300"
-																	href={referencePath({
+																	class="verse-ref mr-1 text-xs text-accent-700 dark:text-accent-300"
+																	data-book={target.toBook}
+																	data-chapter={target.toChapter}
+																	data-verse={target.toVerse}
+																	href={contextualReferenceUrl(columnIndex, {
 																		book: target.toBook,
 																		chapter: target.toChapter,
 																		verse: target.toVerse
 																	})}
+																	onclick={(event) => {
+																		if (
+																			event.button === 0 &&
+																			!event.metaKey &&
+																			!event.ctrlKey &&
+																			!event.shiftKey &&
+																			!event.altKey
+																		) {
+																			event.preventDefault();
+																			void openTabSearchReference(columnIndex, {
+																				book: target.toBook,
+																				chapter: target.toChapter,
+																				verse: target.toVerse
+																			});
+																		}
+																	}}
 																>
 																	{formatReference({
 																		book: target.toBook,
@@ -1764,12 +1986,12 @@
 								</div>
 							</div>
 						{:else}
-							<button type="button" class="empty-tile" onclick={() => openResourceDialog(tile.id)}>
-								<svg viewBox="0 0 20 20" class="size-6" fill="currentColor" aria-hidden="true">
-									<path
-										d="M10.75 4a.75.75 0 0 0-1.5 0v5.25H4a.75.75 0 0 0 0 1.5h5.25V16a.75.75 0 0 0 1.5 0v-5.25H16a.75.75 0 0 0 0-1.5h-5.25V4Z"
-									/>
-								</svg>
+							<button
+								type="button"
+								class="empty-tile"
+								onclick={(event) => openResourceDialog(tile.id, event.currentTarget)}
+							>
+								<Icon name="plus" class="size-6" />
 								<span>Ressource öffnen</span>
 							</button>
 						{/if}
@@ -1984,29 +2206,31 @@
 	   card borders and the resize control remain crisp. */
 	.flow-edge-fade {
 		position: absolute;
-		right: 1px;
-		left: 1px;
+		right: 0;
+		left: 0;
 		height: var(--flow-edge-fade-height);
 		opacity: 0;
 		transition: opacity 140ms ease;
 	}
 
 	.flow-edge-fade.top {
-		top: 1px;
+		top: 0;
 		background: linear-gradient(
 			to bottom,
 			var(--surface) 0%,
-			color-mix(in oklab, var(--surface) 82%, transparent) 38%,
+			var(--surface) 42%,
+			color-mix(in oklab, var(--surface) 96%, transparent) 68%,
 			transparent 100%
 		);
 	}
 
 	.flow-edge-fade.bottom {
-		bottom: 1px;
+		bottom: 0;
 		background: linear-gradient(
 			to top,
 			var(--surface) 0%,
-			color-mix(in oklab, var(--surface) 82%, transparent) 38%,
+			var(--surface) 42%,
+			color-mix(in oklab, var(--surface) 96%, transparent) 68%,
 			transparent 100%
 		);
 	}
@@ -2104,7 +2328,7 @@
 		display: inline;
 		margin: 0;
 		font-family: var(--font-serif);
-		font-size: calc(1.08rem * var(--reader-font-scale, 1));
+		font-size: var(--reader-text-size, 1.08rem);
 		line-height: 1.65;
 		hyphens: auto;
 	}
@@ -2165,7 +2389,7 @@
 		display: flow-root;
 		margin-bottom: 1.15rem;
 		font-family: var(--font-serif);
-		font-size: calc(1.08rem * var(--reader-font-scale, 1));
+		font-size: var(--reader-text-size, 1.08rem);
 		line-height: 1.65;
 	}
 

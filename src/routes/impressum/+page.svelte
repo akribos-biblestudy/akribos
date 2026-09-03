@@ -1,5 +1,4 @@
 <svelte:head>
-	<title>Impressum — Akribos</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 

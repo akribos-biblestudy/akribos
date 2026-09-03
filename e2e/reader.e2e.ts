@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { lastMailLinkTo } from './lib/mail-outbox.ts';
 
 /**
  * Reader, tab-scoped search and embedded lexicon study.
@@ -6,6 +7,15 @@ import { expect, test, type Page } from '@playwright/test';
  * Runs against the fixture from `pnpm db:seed`: SEEDDE (with Strong's numbers), SEEDPLAIN,
  * SEEDCOMMENTARY and a tiny Greek morphology source, plus three dictionary entries.
  */
+
+async function expectReaderPath(page: Page, pathname: string): Promise<void> {
+	await expect(page).toHaveURL(
+		(url) =>
+			url.pathname === pathname &&
+			Boolean(url.searchParams.get('layout')) &&
+			url.searchParams.has('tab')
+	);
+}
 
 /** The commentary fixture is not a default column, so tests exercising it must select it explicitly. */
 async function useCommentaryColumn(page: Page): Promise<void> {
@@ -34,12 +44,16 @@ async function addResourceTab(
 			.click();
 	}
 	await page
-		.locator('form[action="?/addTab"]')
+		.locator('form')
 		.filter({ has: page.locator(`input[name="resource"][value="${resourceId}"]`) })
 		.getByRole('button')
 		.click();
 	await expect(tile.locator('.resource-tab')).toHaveCount(tabsBefore + 1);
-	await expect(tile.locator(`.flow-column[data-resource-id="${resourceId}"]`)).toBeVisible();
+	if (resourceId === 'STRONGS_GREEK') {
+		await expect(tile.getByLabel(/Lexikoneintrag in/)).toBeVisible();
+	} else {
+		await expect(tile.locator(`.flow-column[data-resource-id="${resourceId}"]`)).toBeVisible();
+	}
 }
 
 function tabReference(page: Page, tileIndex = 0) {
@@ -58,9 +72,9 @@ function lexiconLookup(page: Page, tileIndex = 1) {
 
 async function selectLinkSet(page: Page, tileIndex: number, linkSet: string): Promise<void> {
 	const tile = page.locator('.reader-tile').nth(tileIndex);
-	await tile.getByRole('button', { name: /Link-Set für/ }).click();
+	await tile.getByRole('button', { name: /Tabgruppe für/ }).click();
 	await page
-		.getByRole('menu', { name: 'Link-Set wählen' })
+		.getByRole('menu', { name: 'Tabgruppe wechseln' })
 		.getByRole('menuitemradio', { name: linkSet, exact: true })
 		.click();
 }
@@ -72,12 +86,46 @@ async function loginAsAdmin(page: Page): Promise<void> {
 	await page.getByRole('button', { name: 'Anmelden' }).click();
 }
 
+async function registerReader(page: Page): Promise<void> {
+	const email = `reader-url-${Math.random().toString(36).slice(2, 10)}@example.com`;
+	await page.goto('/register');
+	await page.getByLabel('E-Mail-Adresse').fill(email);
+	await page.getByLabel('Anzeigename').fill('URL Reader');
+	await page.getByLabel('Passwort', { exact: true }).fill('ein-sicheres-passwort');
+	await page.getByLabel('Passwort wiederholen').fill('ein-sicheres-passwort');
+	await page.getByRole('button', { name: 'Konto erstellen' }).click();
+	await page.goto(await lastMailLinkTo(email));
+	await page.getByRole('button', { name: 'Konto aktivieren' }).click();
+	await page.evaluate(() => fetch('/api/tour', { method: 'POST' }));
+}
+
 test('the root shows the reader to signed-out visitors', async ({ page }) => {
 	const response = await page.goto('/');
 
 	expect(response?.status()).toBe(200);
-	await expect(page).toHaveURL(/\/Joh1$/);
+	await expectReaderPath(page, '/Joh1');
 	await expect(tabReference(page)).toHaveValue('Joh 1');
+});
+
+test('a first visit starts with Bible, commentary and lexicon in three linked columns', async ({
+	page
+}) => {
+	await page.context().clearCookies();
+	await page.context().addCookies([
+		{
+			name: 'tour-guest-done',
+			value: '1',
+			url: 'http://localhost:4173'
+		}
+	]);
+	await page.goto('/Joh3');
+
+	const tiles = page.locator('.reader-tile');
+	await expect(tiles).toHaveCount(3);
+	await expect(tiles.nth(0).getByRole('tab', { name: /^Testübersetzung/ })).toBeVisible();
+	await expect(tiles.nth(1).getByRole('tab', { name: /^Kommentar/ })).toBeVisible();
+	await expect(tiles.nth(2).getByRole('tab', { name: /^Strong Griechisch/ })).toBeVisible();
+	await expect(page.getByRole('button', { name: /Tabgruppe für.*aktuell A/ })).toHaveCount(3);
 });
 
 test('the root resumes the reader for a signed-in user', async ({ page }) => {
@@ -85,7 +133,7 @@ test('the root resumes the reader for a signed-in user', async ({ page }) => {
 	await page.goto('/Joh3');
 	await page.goto('/');
 
-	await expect(page).toHaveURL(/\/Joh3$/);
+	await expectReaderPath(page, '/Joh3');
 });
 
 test('Impressum and Datenschutz are reachable only from the global menu', async ({ page }) => {
@@ -195,6 +243,17 @@ test('the obsolete book and chapter chooser is absent from every tab', async ({ 
 	await expect(page.getByRole('button', { name: 'Buch und Kapitel wählen' })).toHaveCount(0);
 });
 
+test('resource tabs use the dedicated tab title instead of the selection title', async ({
+	page
+}) => {
+	await page.goto('/Joh3');
+	const secondTile = page.locator('.reader-tile').nth(1);
+
+	await expect(secondTile.locator('.resource-tab')).toHaveAttribute('aria-label', 'Schlicht Tab');
+	await expect(secondTile.locator('.tab-title')).toHaveAttribute('title', 'Schlicht Tab');
+	await expect(secondTile.locator('.tab-title')).not.toContainText('Testübersetzung schlicht');
+});
+
 test('tabs keep independent references and restore them when activated', async ({ page }) => {
 	await page.goto('/Joh3');
 	await addResourceTab(page, 0, 'SEEDPLAIN');
@@ -202,19 +261,19 @@ test('tabs keep independent references and restore them when activated', async (
 
 	await tabReference(page).fill('1Mo 2');
 	await tabReference(page).press('Enter');
-	await expect(page).toHaveURL(/\/1Mo2$/);
+	await expectReaderPath(page, '/1Mo2');
 	await expect(tabReference(page)).toHaveValue('1Mo 2');
 
 	const firstTile = page.locator('.reader-tile').first();
 	await firstTile.getByRole('tab', { name: /^Testübersetzung/ }).click();
-	await expect(page).toHaveURL(/\/Joh3$/);
+	await expectReaderPath(page, '/Joh3');
 	await expect(tabReference(page)).toHaveValue('Joh 3');
 	await expect(
 		page.getByText('Denn also hat Gott die Welt geliebt', { exact: false })
 	).toBeVisible();
 
 	await firstTile.getByRole('tab', { name: /^Schlicht/ }).click();
-	await expect(page).toHaveURL(/\/1Mo2$/);
+	await expectReaderPath(page, '/1Mo2');
 	await expect(tabReference(page)).toHaveValue('1Mo 2');
 });
 
@@ -223,6 +282,7 @@ test('linked inactive tabs receive the current reference before they are activat
 }) => {
 	await page.goto('/Joh3');
 	await addResourceTab(page, 1, 'SEEDCOMMENTARY', 'Kommentare');
+	await selectLinkSet(page, 1, 'B');
 
 	const leftColumn = page.locator('.flow-column').first();
 	await leftColumn.evaluate((element) => {
@@ -233,13 +293,22 @@ test('linked inactive tabs receive the current reference before they are activat
 		element.dispatchEvent(new Event('scroll'));
 	});
 
-	// Activate before the debounced persistence runs. The activation form carries the live reference,
-	// so even this fast switch cannot restore the inactive tab's old position into the link set.
+	// Activate the inactive A tab before the debounced persistence runs while the tile itself shows B.
+	// The target takes the live A position from the other tile; its stale position must not move A.
 	const secondTile = page.locator('.reader-tile').nth(1);
+	await page.waitForTimeout(250);
+	const chapterRequests: string[] = [];
+	page.on('request', (request) => {
+		if (new URL(request.url()).pathname.startsWith('/api/reader/')) {
+			chapterRequests.push(request.url());
+		}
+	});
 	await secondTile.getByRole('tab', { name: /^Schlicht/ }).click();
-	await expect(page).toHaveURL(/\/Joh3,17$/);
+	await expectReaderPath(page, '/Joh3,17');
 	await expect(tabReference(page)).toHaveValue('Joh 3,17');
 	await expect(tabReference(page, 1)).toHaveValue('Joh 3,17');
+	await page.waitForTimeout(250);
+	expect(chapterRequests).toEqual([]);
 });
 
 test('the book icon replaces the work in the current tab without changing its reference', async ({
@@ -248,10 +317,15 @@ test('the book icon replaces the work in the current tab without changing its re
 	await page.goto('/Joh3');
 	const firstTile = page.locator('.reader-tile').first();
 	await firstTile.getByRole('button', { name: /wechseln$/ }).click();
+	const chooser = page.getByRole('dialog', { name: 'Werk wählen' });
+	await expect(chooser).toBeVisible();
+	expect((await chooser.boundingBox())?.width).toBeLessThanOrEqual(368);
 
 	const replacement = page
-		.locator('form[action="?/replaceTabResource"]')
+		.locator('form')
 		.filter({ has: page.locator('input[name="resource"][value="SEEDPLAIN"]') });
+	await replacement.getByRole('button').hover();
+	await expect(chooser.locator('.resource-preview')).toContainText('Testübersetzung schlicht');
 	await replacement.getByRole('button').click();
 
 	await expect(firstTile.locator('.resource-tab')).toHaveCount(1);
@@ -426,15 +500,103 @@ test('the compact arrangement menu closes when clicking outside', async ({ page 
 	await expect(menu).toHaveCount(0);
 });
 
+test('the compact arrangement trigger toggles its menu', async ({ page }) => {
+	await page.goto('/Joh3');
+	const trigger = page.getByTestId('layout-picker');
+	const menu = page.getByRole('menu', { name: 'Kachelanordnung' });
+
+	await trigger.click();
+	await expect(menu).toBeVisible();
+	await trigger.click();
+	await expect(menu).toHaveCount(0);
+});
+
+test('a duplicated reader URL restores layout, tabs, positions, tab groups and search', async ({
+	page
+}) => {
+	await page.goto('/Joh3');
+	await page.getByTestId('layout-picker').click();
+	await page.getByRole('menuitemradio', { name: /Drei Spalten/ }).click();
+	await addResourceTab(page, 0, 'SEEDCOMMENTARY', 'Kommentare');
+	await selectLinkSet(page, 1, 'B');
+	await tabReference(page, 1).fill('1Mo 2');
+	await tabReference(page, 1).press('Enter');
+	await expectReaderPath(page, '/1Mo2');
+	await expect(tabReference(page, 1)).toHaveValue('1Mo 2');
+	await tabReference(page, 0).fill('bekannteste');
+	await tabReference(page, 0).press('Enter');
+	await expect(page.getByLabel('Suchergebnisse in Testkommentar')).toBeVisible();
+
+	const copiedUrl = page.url();
+	const copiedState = new URL(copiedUrl).search;
+	expect(copiedState).toBeTruthy();
+	const duplicate = await page.context().newPage();
+	await duplicate.goto(copiedUrl);
+
+	await expect(duplicate.locator('.reader-tile')).toHaveCount(3);
+	await expect(duplicate.locator('.reader-tile').first().locator('.resource-tab')).toHaveCount(2);
+	await expect(
+		duplicate
+			.locator('.reader-tile')
+			.first()
+			.getByRole('tab', { name: /^Kommentar/ })
+	).toHaveAttribute('aria-selected', 'true');
+	await expect(tabReference(duplicate, 1)).toHaveValue('1Mo 2');
+	await expect(
+		duplicate
+			.locator('.reader-tile')
+			.nth(1)
+			.getByRole('button', { name: /aktuell B/ })
+	).toBeVisible();
+	await expect(tabReference(duplicate, 0)).toHaveValue('bekannteste');
+	await expect(duplicate.getByLabel('Suchergebnisse in Testkommentar')).toBeVisible();
+
+	// Once duplicated, each address is an independent branch even though both tabs share cookies.
+	await page.getByTestId('layout-picker').click();
+	await page.getByRole('menuitemradio', { name: /Eine Kachel/ }).click();
+	await duplicate.reload();
+	await expect(duplicate.locator('.reader-tile')).toHaveCount(3);
+	await expect(duplicate).toHaveURL((url) => url.search === copiedState);
+	await duplicate.close();
+});
+
+test('opening and editing somebody else’s reader URL does not replace the account workspace', async ({
+	page,
+	browser
+}) => {
+	await registerReader(page);
+	await page.goto('/Joh3');
+	await page.getByTestId('layout-picker').click();
+	await page.getByRole('menuitemradio', { name: /Eine Kachel/ }).click();
+	await expect(page.locator('.reader-tile')).toHaveCount(1);
+
+	const foreignContext = await browser.newContext();
+	const foreignPage = await foreignContext.newPage();
+	await foreignPage.goto('/Joh3');
+	await foreignPage.getByTestId('layout-picker').click();
+	await foreignPage.getByRole('menuitemradio', { name: /Drei Spalten/ }).click();
+	await expect(foreignPage.locator('.reader-tile')).toHaveCount(3);
+	const foreignUrl = foreignPage.url();
+	await foreignContext.close();
+
+	await page.goto(foreignUrl);
+	await expect(page.locator('.reader-tile')).toHaveCount(3);
+	await selectLinkSet(page, 0, 'D');
+	await page.reload();
+	await expect(page.locator('.reader-tile')).toHaveCount(3);
+
+	await page.goto('/');
+	await expect(page.locator('.reader-tile')).toHaveCount(1);
+});
+
 test('a tab keeps its A-E link set when it moves between tiles', async ({ page }) => {
 	await page.goto('/Joh3');
 	await addResourceTab(page, 0, 'SEEDPLAIN');
 	const firstTile = page.locator('.reader-tile').first();
 	await selectLinkSet(page, 0, 'C');
 	await expect(firstTile.locator('.resource-tab.active .tab-link-set')).toHaveText('C');
-	await expect(firstTile.getByRole('button', { name: /Link-Set für.*C/ })).toHaveCSS(
-		'background-color',
-		'rgb(22, 163, 74)'
+	await expect(firstTile.getByRole('button', { name: /Tabgruppe für.*C/ })).toContainText(
+		'Tabgruppe wechseln'
 	);
 
 	await firstTile.getByRole('button', { name: 'Tab verschieben' }).click();
@@ -442,14 +604,14 @@ test('a tab keeps its A-E link set when it moves between tiles', async ({ page }
 	const secondTile = page.locator('.reader-tile').nth(1);
 	await expect(secondTile.locator('.resource-tab')).toHaveCount(2);
 	await expect(secondTile.locator('.resource-tab.active .tab-link-set')).toHaveText('C');
-	await expect(secondTile.getByRole('button', { name: /Link-Set für.*C/ })).toBeVisible();
+	await expect(secondTile.getByRole('button', { name: /Tabgruppe für.*C/ })).toBeVisible();
 
 	await page.reload();
 	await expect(
 		page
 			.locator('.reader-tile')
 			.nth(1)
-			.getByRole('button', { name: /Link-Set für.*C/ })
+			.getByRole('button', { name: /Tabgruppe für.*C/ })
 	).toBeVisible();
 });
 
@@ -713,11 +875,11 @@ test('a tab-specific reference field moves forwards and backwards', async ({ pag
 
 	await tabReference(page).fill('1Mo 2');
 	await tabReference(page).press('Enter');
-	await expect(page).toHaveURL(/\/1Mo2$/);
+	await expectReaderPath(page, '/1Mo2');
 
 	await tabReference(page).fill('1Mo 1');
 	await tabReference(page).press('Enter');
-	await expect(page).toHaveURL(/\/1Mo1$/);
+	await expectReaderPath(page, '/1Mo1');
 });
 
 test('a Strong click opens and then reuses the lexicon tab in its link group', async ({ page }) => {
@@ -734,6 +896,12 @@ test('a Strong click opens and then reuses the lexicon tab in its link group', a
 	await expect(study).toContainText('Übersetzt als');
 	await expect(study).toContainText('Vorkommen');
 	await expect(study).toContainText('geliebt');
+	const readerFontSize = await page
+		.locator('.flow-verse')
+		.first()
+		.evaluate((element) => getComputedStyle(element).fontSize);
+	await expect(study.locator('.lexicon-body').first()).toHaveCSS('font-size', readerFontSize);
+	await expect(study.locator('.occurrence p').first()).toHaveCSS('font-size', readerFontSize);
 	await expect(
 		lexiconLookup(page)
 			.locator('..')
@@ -751,6 +919,48 @@ test('a Strong click opens and then reuses the lexicon tab in its link group', a
 	await expect(secondTile.getByLabel('Lexikoneintrag in Strong')).toContainText('G2889');
 });
 
+test('links inside a lexicon keep and expose their reader context', async ({ page }) => {
+	await page.goto('/Joh3');
+	await page.locator('button.strong[data-strong="G25"]').first().click();
+	const secondTile = page.locator('.reader-tile').nth(1);
+	const study = secondTile.getByLabel('Lexikoneintrag in Strong');
+	const strongReference = study.getByRole('link', { name: 'G2316' });
+	const bibleReference = study.getByRole('link', { name: 'Joh 3:16' });
+
+	await expect(strongReference).toHaveAttribute('href', /\/Joh3\?layout=/);
+	await expect(bibleReference).toHaveAttribute('href', /\/Joh3,16\?layout=/);
+	await strongReference.click();
+	await expect(lexiconLookup(page)).toHaveValue('G2316');
+	await expect(secondTile.getByRole('tab', { name: /^Strong Griechisch/ })).toHaveCount(1);
+
+	await lexiconLookup(page).fill('G25');
+	await lexiconLookup(page).press('Enter');
+	await study.getByRole('link', { name: 'Joh 3:16' }).click();
+	await expectReaderPath(page, '/Joh3,16');
+	await expect(lexiconLookup(page)).toHaveValue('G25');
+	await expect(page.locator('.reader-tile')).toHaveCount(2);
+});
+
+test('the same dictionary can stay open in multiple independent tabs', async ({ page }) => {
+	await page.goto('/Joh3');
+	const firstTile = page.locator('.reader-tile').first();
+
+	await addResourceTab(page, 0, 'STRONGS_GREEK', 'Wörterbuch');
+	await lexiconLookup(page, 0).fill('G25');
+	await lexiconLookup(page, 0).press('Enter');
+
+	await addResourceTab(page, 0, 'STRONGS_GREEK', 'Wörterbuch');
+	await lexiconLookup(page, 0).fill('G2316');
+	await lexiconLookup(page, 0).press('Enter');
+
+	const dictionaryTabs = firstTile.getByRole('tab', { name: /^Strong Griechisch/ });
+	await expect(dictionaryTabs).toHaveCount(2);
+	await dictionaryTabs.first().click();
+	await expect(lexiconLookup(page, 0)).toHaveValue('G25');
+	await dictionaryTabs.nth(1).click();
+	await expect(lexiconLookup(page, 0)).toHaveValue('G2316');
+});
+
 test('Strong clicks remain inside their own A-E link group', async ({ page }) => {
 	await page.goto('/Joh3');
 	const firstTile = page.locator('.reader-tile').first();
@@ -758,7 +968,7 @@ test('Strong clicks remain inside their own A-E link group', async ({ page }) =>
 
 	await secondTile.getByRole('button', { name: /wechseln$/ }).click();
 	await page
-		.locator('form[action="?/replaceTabResource"]')
+		.locator('form')
 		.filter({ has: page.locator('input[name="resource"][value="SEEDDE"]') })
 		.getByRole('button')
 		.click();
@@ -793,7 +1003,7 @@ test('hovering a tagged word highlights every occurrence without opening a tab',
 
 	// A hover is a pure visual highlight: no lexicon tab and no URL/history change.
 	await expect(page.getByRole('tab', { name: /^Strong Griechisch/ })).toHaveCount(0);
-	await expect(page).toHaveURL(/\/Joh3$/);
+	await expectReaderPath(page, '/Joh3');
 
 	// Moving away removes the highlight again.
 	await page.getByTestId('layout-picker').hover();
@@ -838,10 +1048,12 @@ test('a pending reader position update cannot overwrite a search navigation', as
 
 	await tabReference(page).fill('1Mo 1');
 	await tabReference(page).press('Enter');
-	await expect(page).toHaveURL(/\/1Mo1$/);
+	await expectReaderPath(page, '/1Mo1');
 	await page.waitForTimeout(400);
 	// The new reader may add its visible first verse, but stale work from John must never take over.
-	await expect(page).toHaveURL(/\/1Mo1(?:,1)?$/);
+	await expect(page).toHaveURL(
+		(url) => ['/1Mo1', '/1Mo1,1'].includes(url.pathname) && Boolean(url.searchParams.get('layout'))
+	);
 });
 
 test('clicking a footnote marker opens its note without relying on the Popover API', async ({
@@ -925,27 +1137,46 @@ test('a quoted phrase matches the exact sequence', async ({ page }) => {
 });
 
 test('a word typed into a tab field searches only the current resource', async ({ page }) => {
-	await page.goto('/Joh1');
+	await page.goto('/Joh3');
 	await tabReference(page).fill('Gott');
 	await tabReference(page).press('Enter');
 
-	await expect(page).toHaveURL(/\/Joh1$/);
+	await expectReaderPath(page, '/Joh3');
 	const results = page
 		.locator('.reader-tile')
 		.first()
 		.getByLabel('Suchergebnisse in Testübersetzung');
 	await expect(results).toContainText('„Gott“ in Testübersetzung');
-	await expect(results.locator('.book-distribution')).toBeVisible();
+	const distribution = results.locator('.book-distribution');
+	await expect(distribution).toBeVisible();
+	await expect(distribution.locator('.testament-summary')).toContainText([
+		'Altes Testament',
+		'Neues Testament'
+	]);
+	const distributionMetrics = await distribution.evaluate((element) => ({
+		fits: element.scrollWidth <= element.clientWidth + 1,
+		writingMode: getComputedStyle(element.querySelector('.books.compact .name')!).writingMode,
+		visibleCounts: element.querySelectorAll('.books.compact .count').length
+	}));
+	expect(distributionMetrics).toEqual({
+		fits: true,
+		writingMode: 'vertical-rl',
+		visibleCounts: 0
+	});
 	const resultFontSize = await results
 		.locator('.result-text')
 		.first()
 		.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
-	expect(resultFontSize).toBeCloseTo(17.28, 1);
+	const readerFontSize = await page
+		.locator('.flow-verse')
+		.first()
+		.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+	expect(resultFontSize).toBeCloseTo(readerFontSize, 2);
 
 	await results.locator('.book-distribution button.book').filter({ hasText: '1Mo' }).click();
-	await expect(results.getByRole('button', { name: /Johannes/ })).toHaveCount(0);
-	await results.getByRole('button', { name: /1\.Mose 1,1/ }).click();
-	await expect(page).toHaveURL(/\/1Mo1,1$/);
+	await expect(results.getByRole('link', { name: /Johannes/ })).toHaveCount(0);
+	await results.getByRole('link', { name: /1\.Mose 1,1/ }).click();
+	await expectReaderPath(page, '/1Mo1,1');
 	await expect(results).not.toBeVisible();
 });
 
@@ -954,7 +1185,7 @@ test('a book name without a chapter number stays a tab-scoped text search', asyn
 	await tabReference(page).fill('Judas');
 	await tabReference(page).press('Enter');
 
-	await expect(page).toHaveURL(/\/Joh1$/);
+	await expectReaderPath(page, '/Joh1');
 	await expect(page.getByLabel('Suchergebnisse in Testübersetzung')).toContainText(
 		'„Judas“ in Testübersetzung'
 	);
@@ -965,15 +1196,20 @@ test('a Strong number typed into a tab is restricted to that Bible resource', as
 	await tabReference(page).fill('G25');
 	await tabReference(page).press('Enter');
 
-	await expect(page).toHaveURL(/\/Joh3$/);
+	await expectReaderPath(page, '/Joh3');
 	const results = page
 		.locator('.reader-tile')
 		.first()
 		.getByLabel('Suchergebnisse in Testübersetzung');
-	await expect(results.getByRole('button', { name: 'Johannes 3,16', exact: true })).toBeVisible();
+	await expect(results.getByRole('link', { name: /Johannes 3,16/ })).toBeVisible();
 	await expect(results.locator('.strong.active[data-strong="G25"]')).toBeVisible();
 	await expect(results.locator('.book-distribution')).toBeVisible();
 	await expect(results.getByLabel('Übersetzt als')).toBeVisible();
+	await results
+		.locator('.strong-result')
+		.first()
+		.click({ position: { x: 8, y: 8 } });
+	await expectReaderPath(page, '/Joh3,16');
 });
 
 test('a commentary tab searches inside its own commentary text', async ({ page }) => {
@@ -982,9 +1218,9 @@ test('a commentary tab searches inside its own commentary text', async ({ page }
 	await tabReference(page, 2).fill('bekannteste');
 	await tabReference(page, 2).press('Enter');
 
-	await expect(page).toHaveURL(/\/Joh3$/);
+	await expectReaderPath(page, '/Joh3');
 	const results = page.locator('.reader-tile').nth(2).getByLabel('Suchergebnisse in Testkommentar');
-	await expect(results.getByRole('button', { name: 'Johannes 3,16', exact: true })).toBeVisible();
+	await expect(results.getByRole('link', { name: /Johannes 3,16/ })).toBeVisible();
 	await expect(results.getByText(/bekannteste Vers/)).toBeVisible();
 });
 
@@ -993,7 +1229,7 @@ test('a reference typed into one tab goes to the chapter', async ({ page }) => {
 	await tabReference(page).fill('1Mo 1,3');
 	await tabReference(page).press('Enter');
 
-	await expect(page).toHaveURL(/\/1Mo1,3$/);
+	await expectReaderPath(page, '/1Mo1,3');
 	await expect(page.getByText('Es werde Licht', { exact: false }).first()).toBeVisible();
 });
 
@@ -1025,14 +1261,14 @@ test('opening another resource tab keeps the currently visible chapter', async (
 		},
 		await nextChapter.evaluate((element) => (element as HTMLElement).offsetTop)
 	);
-	await expect(page).toHaveURL(/\/1Mo2,1$/);
+	await expectReaderPath(page, '/1Mo2,1');
 
 	await addResourceTab(page, 0, 'SEEDPLAIN');
 
 	await expect(page.locator('.reader-tile').first().locator('.resource-tab.active')).toContainText(
 		'Schlicht'
 	);
-	await expect(page).toHaveURL(/\/1Mo2,1$/);
+	await expectReaderPath(page, '/1Mo2,1');
 	await expect(column.locator('[data-chapter-key="1:2"]')).toBeAttached();
 });
 
@@ -1125,10 +1361,10 @@ test('the mobile tile switcher exposes real tab semantics without hiding desktop
 
 test('legacy URLs from the previous site still resolve', async ({ page }) => {
 	await page.goto('/async/Joh3');
-	await expect(page).toHaveURL(/\/Joh3$/);
+	await expectReaderPath(page, '/Joh3');
 
 	await page.goto('/Joh3/trans/0_2');
-	await expect(page).toHaveURL(/\/Joh3$/);
+	await expectReaderPath(page, '/Joh3');
 });
 
 test('a reference percent-encoded as Latin-1 does not crash the page', async ({ page }) => {
@@ -1142,12 +1378,12 @@ test('a reference percent-encoded as Latin-1 does not crash the page', async ({ 
 test('the Akribos logo returns to the remembered reader location', async ({ page }) => {
 	await loginAsAdmin(page);
 	await page.goto('/Joh3');
-	await expect(page).toHaveURL(/\/Joh3$/);
+	await expectReaderPath(page, '/Joh3');
 	await page.getByRole('button', { name: 'Konto-Menü' }).click();
 	await page.getByRole('menuitem', { name: 'Mein Konto' }).click();
 	await expect(page).toHaveURL(/\/account$/);
 
 	await page.getByRole('link', { name: 'Akribos – Startseite' }).click();
 
-	await expect(page).toHaveURL(/\/Joh3$/);
+	await expectReaderPath(page, '/Joh3');
 });

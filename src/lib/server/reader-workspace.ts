@@ -8,7 +8,7 @@ import {
 	type ReaderWorkspace
 } from '$lib/reader/workspace';
 import type { VerseRef } from '$lib/bible/reference';
-import { resolveColumns, writeColumns } from './columns.ts';
+import { COLUMNS_COOKIE, resolveColumns, writeColumns } from './columns.ts';
 import type { ReadableResource } from './repositories/resources.ts';
 
 export const READER_WORKSPACE_COOKIE = 'reader-workspace';
@@ -57,7 +57,16 @@ export function resolveReaderWorkspace(
 	accountColumns: readonly string[] = [],
 	fallbackReference?: VerseRef
 ): ReaderWorkspace {
-	const fallback = resolveColumns(cookies, available, accountColumns);
+	const known = new Set(available.map((resource) => resource.id));
+	const cookieColumns = (cookies.get(COLUMNS_COOKIE) ?? '')
+		.split(',')
+		.map((id) => id.trim())
+		.filter((id) => known.has(id));
+	const accountHasColumns = accountColumns.some((id) => known.has(id));
+	const fallback =
+		cookieColumns.length > 0 || accountHasColumns
+			? resolveColumns(cookies, available, accountColumns)
+			: defaultWorkspaceResources(available);
 	const stored = accountWorkspace ?? readReaderWorkspaceCookie(cookies);
 	return normalizeReaderWorkspace(
 		stored,
@@ -65,6 +74,15 @@ export function resolveReaderWorkspace(
 		fallback,
 		fallbackReference
 	);
+}
+
+/** A new reader starts with one complementary resource per tile instead of several translations. */
+function defaultWorkspaceResources(available: ReadableResource[]): string[] {
+	const ids = (['bible', 'commentary', 'lexicon'] as const).flatMap((kind) => {
+		const resource = available.find((candidate) => candidate.kind === kind);
+		return resource ? [resource.id] : [];
+	});
+	return ids.length > 0 ? ids : available.slice(0, 1).map((resource) => resource.id);
 }
 
 export function readReaderWorkspaceCookie(cookies: Cookies): unknown {

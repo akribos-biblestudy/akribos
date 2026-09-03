@@ -1,18 +1,40 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import type { SubmitFunction } from '@sveltejs/kit';
+	import {
+		readerActionUrl,
+		readerStateFromActionData,
+		readerStateFromUrl,
+		readerUrl
+	} from '$lib/reader/url-state';
 	import { READER_LAYOUT_DEFINITIONS, type ReaderLayout } from '$lib/reader/workspace';
+	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
 
 	let { layout }: { layout: ReaderLayout } = $props();
 	let menu = $state<Menu>();
 
 	const submitEnhancement: SubmitFunction = () => {
-		return async ({ update }) => {
+		return async ({ result, update }) => {
 			menu?.close();
-			await update({ reset: false });
+			const state = result.type === 'success' ? readerStateFromActionData(result.data) : null;
+			if (state) {
+				await goto(readerUrl(page.url.pathname, state), {
+					replaceState: true,
+					invalidateAll: true,
+					noScroll: true
+				});
+				return;
+			}
+			await update({ reset: false, invalidateAll: result.type !== 'success' });
 		};
 	};
+
+	function actionUrl(): string {
+		return readerActionUrl('setLayout', readerStateFromUrl(page.url));
+	}
 </script>
 
 <button
@@ -23,18 +45,14 @@
 	data-testid="layout-picker"
 	onclick={(event) => menu?.openAt(event.currentTarget)}
 >
-	<svg viewBox="0 0 20 20" class="size-4" fill="none" stroke="currentColor" aria-hidden="true">
-		<rect x="2.75" y="3" width="6" height="14" rx="1" />
-		<rect x="11.25" y="3" width="6" height="6" rx="1" />
-		<rect x="11.25" y="11" width="6" height="6" rx="1" />
-	</svg>
+	<Icon name="layout" />
 </button>
 
 <Menu bind:this={menu} label="Kachelanordnung">
 	<p class="menu-title">Kachelanordnung</p>
 	<div class="layout-options" role="none">
 		{#each READER_LAYOUT_DEFINITIONS as definition (definition.id)}
-			<form method="POST" action="?/setLayout" use:enhance={submitEnhancement} role="none">
+			<form method="POST" action={actionUrl()} use:enhance={submitEnhancement} role="none">
 				<input type="hidden" name="layout" value={definition.id} />
 				<button
 					type="submit"
@@ -67,10 +85,6 @@
 </Menu>
 
 <style>
-	.layout-trigger {
-		color: var(--color-stone-400);
-	}
-
 	.menu-title {
 		padding: 0.35rem 0.55rem 0.5rem;
 		font-size: 0.65rem;

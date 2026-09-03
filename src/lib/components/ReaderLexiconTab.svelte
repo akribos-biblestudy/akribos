@@ -2,12 +2,14 @@
 	import { bookShortName } from '$lib/bible/book-names';
 	import { formatReference, type VerseRef } from '$lib/bible/reference';
 	import type { VerseSegment } from '$lib/bible/segments';
+	import { readerContentLinks } from '$lib/actions/reader-content-links';
 	import { formatNumber } from '$lib/i18n';
 	import type { ReadableResource } from '$lib/server/repositories/resources';
 	import type { StrongEntry } from '$lib/server/repositories/strong';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import BookDistribution from './BookDistribution.svelte';
 	import GlossChart from './GlossChart.svelte';
+	import Icon from './Icon.svelte';
 	import MorphologyList from './MorphologyList.svelte';
 	import VerseText from './VerseText.svelte';
 
@@ -52,7 +54,9 @@
 		studyReference = null,
 		studyWord = null,
 		onLookup,
-		onOpenReference
+		onOpenReference,
+		lookupHref,
+		referenceHref
 	}: {
 		lookup: string | null;
 		entry: StrongEntry | null;
@@ -63,6 +67,8 @@
 		studyWord?: string | null;
 		onLookup: (lookup: string) => void;
 		onOpenReference: (reference: VerseRef) => void;
+		lookupHref: (lookup: string) => string;
+		referenceHref: (reference: VerseRef) => string;
 	} = $props();
 
 	let study = $state<StudyPayload | null>(null);
@@ -120,6 +126,13 @@
 		activeBook = activeBook === book ? null : book;
 		page = 1;
 	}
+
+	function openOccurrence(event: MouseEvent | KeyboardEvent, reference: VerseRef): void {
+		if ((event.target as Element).closest('button, a')) return;
+		if (event instanceof KeyboardEvent && !['Enter', ' '].includes(event.key)) return;
+		event.preventDefault();
+		onOpenReference(reference);
+	}
 </script>
 
 <section class="lexicon-tab" aria-label="Lexikoneintrag in {resourceTitle}" aria-live="polite">
@@ -128,7 +141,14 @@
 	{:else if !entry}
 		<p class="status">Kein Eintrag für „{lookup}“ in {resourceTitle}.</p>
 	{:else}
-		<article>
+		<article
+			use:readerContentLinks={{
+				onStrong: onLookup,
+				onReference: onOpenReference,
+				strongHref: lookupHref,
+				referenceHref
+			}}
+		>
 			<header class="headword">
 				<div>
 					<strong>{entry.strong}</strong>
@@ -168,7 +188,9 @@
 							{study.original.word}
 						</p>
 					{/if}
-					<MorphologyList morphology={study.morphology} />
+					<div class="grammar-details">
+						<MorphologyList morphology={study.morphology} />
+					</div>
 				</section>
 			{/if}
 
@@ -213,8 +235,10 @@
 							<p>in {sourceResource.selectionTitle}</p>
 						</div>
 						{#if study}
-							<strong>{formatNumber(study.statistics.occurrences)}</strong>
-							<span>Formen in {formatNumber(study.statistics.verseCount)} Versen</span>
+							<p class="study-total">
+								<strong>{formatNumber(study.statistics.occurrences)}</strong> Vorkommen in
+								{formatNumber(study.statistics.verseCount)} Versen
+							</p>
 						{/if}
 					</div>
 					{#if loading && !study}<p class="loading">Wortstudie wird geladen …</p>{/if}
@@ -224,7 +248,12 @@
 				{#if study?.glosses.length}
 					<section>
 						<h3>Übersetzt als</h3>
-						<GlossChart glosses={study.glosses} centerLabel groupBelowPercent={2} />
+						<GlossChart
+							glosses={study.glosses}
+							occurrenceTotal={study.statistics.occurrences}
+							centerLabel
+							groupBelowPercent={2}
+						/>
 					</section>
 				{/if}
 
@@ -253,14 +282,14 @@
 						{/if}
 						<div class="occurrences">
 							{#each study.occurrences.occurrences as occurrence (`${occurrence.book}:${occurrence.chapter}:${occurrence.verse}`)}
-								<div class="occurrence">
-									<button
-										type="button"
-										class="occurrence-reference"
-										onclick={() => onOpenReference(occurrence)}
-									>
-										{formatReference(occurrence)}
-									</button>
+								<div
+									class="occurrence"
+									role="link"
+									tabindex="0"
+									onclick={(event) => openOccurrence(event, occurrence)}
+									onkeydown={(event) => openOccurrence(event, occurrence)}
+								>
+									<strong class="occurrence-reference">{formatReference(occurrence)}</strong>
 									<p lang={sourceResource.language} dir={sourceResource.direction}>
 										<VerseText
 											segments={occurrence.segments}
@@ -273,16 +302,22 @@
 						</div>
 						{#if study.occurrences.pageCount > 1}
 							<nav class="pagination" aria-label="Fundstellen-Seiten">
-								<button type="button" disabled={page <= 1 || loading} onclick={() => (page -= 1)}>
-									Zurück
+								<button
+									type="button"
+									aria-label="Vorherige Fundstellenseite"
+									disabled={page <= 1 || loading}
+									onclick={() => (page -= 1)}
+								>
+									<Icon name="chevron-left" class="size-4" />
 								</button>
 								<span>{page} / {study.occurrences.pageCount}</span>
 								<button
 									type="button"
+									aria-label="Nächste Fundstellenseite"
 									disabled={page >= study.occurrences.pageCount || loading}
 									onclick={() => (page += 1)}
 								>
-									Weiter
+									<Icon name="chevron-right" class="size-4" />
 								</button>
 							</nav>
 						{/if}
@@ -311,7 +346,7 @@
 	article {
 		width: min(100%, 58rem);
 		padding: 1rem clamp(0.85rem, 3vw, 1.5rem) 4rem;
-		font-size: calc(0.95rem * var(--reader-font-scale));
+		font-size: var(--reader-text-size, 1.08rem);
 		line-height: 1.6;
 	}
 	.headword {
@@ -355,7 +390,12 @@
 	.original-word {
 		margin-bottom: 0.25rem;
 		font-family: var(--font-greek), var(--font-hebrew), serif;
-		font-size: 1.2em;
+		font-size: 1em;
+	}
+	.grammar-details {
+		font-family: ui-sans-serif, system-ui, sans-serif;
+		font-size: 0.82em;
+		line-height: 1.45;
 	}
 	.see-also {
 		display: flex;
@@ -386,21 +426,27 @@
 	.study-heading h3 {
 		margin: 0;
 	}
-	.study-heading p,
-	.study-heading span {
+	.study-heading > div p {
 		color: var(--color-stone-500);
 		font-size: 0.72em;
 	}
-	.study-heading strong {
-		grid-row: span 2;
-		font-size: 1.55em;
-		line-height: 1;
+	.study-total {
+		margin: 0;
+		color: var(--color-stone-600);
+		font-size: 0.74em;
+		font-weight: 500;
+		white-space: nowrap;
+	}
+	.study-total strong {
+		color: var(--text);
+		font-size: 1em;
 	}
 	.occurrence-heading {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 0.5rem;
+		margin-bottom: 0.7rem;
 	}
 	.occurrences {
 		display: grid;
@@ -411,12 +457,23 @@
 		border: 1px solid var(--line);
 		border-radius: 0.6rem;
 		background: color-mix(in oklab, var(--surface-raised) 75%, transparent);
+		font-size: var(--reader-text-size, 1.08rem);
+		line-height: 1.55;
+		text-align: left;
+		cursor: pointer;
+	}
+	.occurrence:hover,
+	.occurrence:focus-visible {
+		border-color: var(--color-accent-400);
+		background: var(--color-accent-50);
+		outline: none;
 	}
 	.occurrence-reference {
+		display: block;
 		margin-bottom: 0.15rem;
 		color: var(--color-accent-700);
 		font-family: ui-sans-serif, system-ui, sans-serif;
-		font-size: 0.72em;
+		font-size: 0.67em;
 		font-weight: 700;
 	}
 	.occurrence p {
@@ -458,6 +515,10 @@
 		color: var(--color-red-700, #b91c1c);
 	}
 	:global(.dark) .missing-source {
+		background: var(--color-stone-900);
+	}
+	:global(.dark) .occurrence:hover,
+	:global(.dark) .occurrence:focus-visible {
 		background: var(--color-stone-900);
 	}
 </style>

@@ -18,6 +18,11 @@
 	 * menu is hidden by the `open` class rather than by `:popover-open`, because a rule whose selector
 	 * cannot be parsed is dropped whole, which would leave every menu permanently open on the page.
 	 *
+	 * Native popovers run in `manual` mode so their light-dismiss step cannot close a menu on the
+	 * trigger's pointerdown just before `openAt()` receives the ensuing click and opens it again. The
+	 * shared dismissal listeners below provide the same outside-click and Escape behaviour while being
+	 * able to exclude the current anchor reliably.
+	 *
 	 * Open it from the parent through `bind:this`:
 	 *
 	 *   <Menu bind:this={menu}>…</Menu>
@@ -100,16 +105,17 @@
 		if (!element) return;
 		element.classList.add('open');
 		open = true;
+		document.addEventListener('pointerdown', onDismissPointerDown, true);
+		document.addEventListener('keydown', onDismissKeydown, true);
 		if (hasPopoverApi()) {
 			element.showPopover();
 			return;
 		}
-		document.addEventListener('pointerdown', onDismissPointerDown, true);
-		document.addEventListener('keydown', onDismissKeydown, true);
 	}
 
 	function finishClose(): void {
 		element?.classList.remove('open');
+		detachDismiss();
 		// A native close arrives here twice: from `close()` and again from the `toggle` event it fires.
 		if (!open) return;
 		open = false;
@@ -213,7 +219,7 @@
 
 <div
 	bind:this={element}
-	popover="auto"
+	popover="manual"
 	role="menu"
 	aria-label={label}
 	tabindex="-1"

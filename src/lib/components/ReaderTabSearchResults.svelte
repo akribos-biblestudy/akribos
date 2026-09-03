@@ -5,6 +5,7 @@
 	import BookDistribution from './BookDistribution.svelte';
 	import GlossChart from './GlossChart.svelte';
 	import HighlightedVerse from './HighlightedVerse.svelte';
+	import Icon from './Icon.svelte';
 	import VerseText from './VerseText.svelte';
 
 	let {
@@ -58,6 +59,13 @@
 			? `${label}–${hit.verseEnd}`
 			: label;
 	}
+
+	function openResult(event: MouseEvent | KeyboardEvent, reference: VerseRef): void {
+		if ((event.target as Element).closest('button, a')) return;
+		if (event instanceof KeyboardEvent && !['Enter', ' '].includes(event.key)) return;
+		event.preventDefault();
+		onOpenReference(reference);
+	}
 </script>
 
 <section
@@ -78,11 +86,7 @@
 			aria-label="Suchergebnisse schließen"
 			onclick={onClose}
 		>
-			<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-				<path
-					d="M4.47 3.53a.75.75 0 0 0-1.06 1.06L6.82 8l-3.41 3.41a.75.75 0 1 0 1.06 1.06L7.88 9.06l3.41 3.41a.75.75 0 0 0 1.06-1.06L8.94 8l3.41-3.41a.75.75 0 0 0-1.06-1.06L7.88 6.94 4.47 3.53Z"
-				/>
-			</svg>
+			<Icon name="x" class="size-3.5" />
 		</button>
 	</header>
 
@@ -109,7 +113,12 @@
 					{formatNumber(result.statistics.occurrences)} Vorkommen in
 					{formatNumber(result.statistics.verseCount)} Versen
 				</p>
-				<GlossChart glosses={result.glosses} groupBelowPercent={3} centerLabel />
+				<GlossChart
+					glosses={result.glosses}
+					occurrenceTotal={result.statistics.occurrences}
+					groupBelowPercent={3}
+					centerLabel
+				/>
 			</section>
 		{/if}
 		{#if loading && !result}
@@ -136,16 +145,18 @@
 			<ol>
 				{#each result.hits as hit (`${hit.book}:${hit.chapter}:${hit.verse}`)}
 					<li>
-						<button
-							type="button"
+						<div
 							class="result-card"
-							onclick={() => onOpenReference(referenceFor(hit))}
+							role="link"
+							tabindex="0"
+							onclick={(event) => openResult(event, referenceFor(hit))}
+							onkeydown={(event) => openResult(event, referenceFor(hit))}
 						>
 							<strong>{referenceLabel(hit)}</strong>
 							<span class="result-text" lang={language} dir={direction}>
 								<HighlightedVerse segments={hit.segments} needles={result.needles} />
 							</span>
-						</button>
+						</div>
 					</li>
 				{/each}
 			</ol>
@@ -153,14 +164,14 @@
 			<ol>
 				{#each result.hits as hit (`${hit.book}:${hit.chapter}:${hit.verse}`)}
 					<li>
-						<div class="result-card strong-result">
-							<button
-								type="button"
-								class="reference-link"
-								onclick={() => onOpenReference(referenceFor(hit))}
-							>
-								{referenceLabel(hit)}
-							</button>
+						<div
+							class="result-card strong-result"
+							role="link"
+							tabindex="0"
+							onclick={(event) => openResult(event, referenceFor(hit))}
+							onkeydown={(event) => openResult(event, referenceFor(hit))}
+						>
+							<strong>{referenceLabel(hit)}</strong>
 							<p class="result-text" lang={language} dir={direction}>
 								<VerseText
 									segments={hit.segments}
@@ -176,19 +187,19 @@
 			<ol>
 				{#each result.hits as hit (hit.id)}
 					<li>
-						<article class="result-card commentary-result">
-							<button
-								type="button"
-								class="reference-link"
-								onclick={() => onOpenReference(referenceFor(hit))}
-							>
-								{referenceLabel(hit)}
-							</button>
+						<div
+							class="result-card commentary-result"
+							role="link"
+							tabindex="0"
+							onclick={(event) => openResult(event, referenceFor(hit))}
+							onkeydown={(event) => openResult(event, referenceFor(hit))}
+						>
+							<strong>{referenceLabel(hit)}</strong>
 							{#if hit.title}<h3>{hit.title}</h3>{/if}
 							<!-- Commentary HTML is sanitized by every importer before it reaches the database. -->
 							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 							<div class="commentary-body">{@html hit.bodyHtml}</div>
-						</article>
+						</div>
 					</li>
 				{/each}
 			</ol>
@@ -198,14 +209,18 @@
 			<nav aria-label="Suchergebnisseiten">
 				<button
 					type="button"
+					aria-label="Vorherige Ergebnisseite"
 					disabled={loading || result.page <= 1}
-					onclick={() => onSearch(query, result.page - 1)}>←</button
+					onclick={() => onSearch(query, result.page - 1)}
+					><Icon name="chevron-left" class="mx-auto size-4" /></button
 				>
 				<span>{result.page} / {result.pageCount}</span>
 				<button
 					type="button"
+					aria-label="Nächste Ergebnisseite"
 					disabled={loading || result.page >= result.pageCount}
-					onclick={() => onSearch(query, result.page + 1)}>→</button
+					onclick={() => onSearch(query, result.page + 1)}
+					><Icon name="chevron-right" class="mx-auto size-4" /></button
 				>
 			</nav>
 		{/if}
@@ -266,10 +281,6 @@
 		background: var(--color-stone-100);
 		color: var(--color-stone-700);
 	}
-	.close-results svg {
-		width: 0.85rem;
-		height: 0.85rem;
-	}
 	.result-scroll {
 		min-height: 0;
 		flex: 1;
@@ -312,31 +323,32 @@
 		width: 100%;
 		padding: 0.65rem;
 		border: 1px solid var(--line);
-		border-radius: 0.5rem;
-		background: color-mix(in oklab, var(--surface) 96%, var(--color-stone-100));
+		border-radius: 0.6rem;
+		background: color-mix(in oklab, var(--surface-raised) 75%, transparent);
+		font-family: var(--reader-font-family, ui-serif, Georgia, serif);
+		font-size: var(--reader-text-size, 1.08rem);
+		line-height: 1.55;
 		text-align: left;
+		cursor: pointer;
 	}
-	button.result-card:hover,
-	button.result-card:focus-visible {
+	.result-card:hover,
+	.result-card:focus-visible {
 		border-color: var(--color-accent-400);
 		background: var(--color-accent-50);
+		outline: none;
 	}
-	.result-card > strong,
-	.reference-link {
+	.result-card > strong {
+		display: block;
 		color: var(--color-accent-700);
-		font-size: 0.72rem;
+		font-family: ui-sans-serif, system-ui, sans-serif;
+		font-size: 0.67em;
 		font-weight: 700;
-	}
-	.reference-link:hover {
-		text-decoration: underline;
 	}
 	.result-text,
 	.commentary-body {
 		display: block;
 		margin-top: 0.35rem;
-		font-family: var(--reader-font-family, ui-serif, Georgia, serif);
-		font-size: calc(1.08rem * var(--reader-font-scale, 1));
-		line-height: 1.55;
+		font: inherit;
 	}
 	.commentary-result h3 {
 		margin-top: 0.35rem;
@@ -386,8 +398,8 @@
 		background: var(--color-accent-500);
 		animation: pulse 800ms ease-in-out infinite alternate;
 	}
-	:global(.dark) button.result-card:hover,
-	:global(.dark) button.result-card:focus-visible {
+	:global(.dark) .result-card:hover,
+	:global(.dark) .result-card:focus-visible {
 		background: var(--color-stone-900);
 	}
 	:global(.dark) .close-results:hover {

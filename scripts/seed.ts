@@ -79,7 +79,7 @@ const LEXICON = `<?xml version="1.0" encoding="utf-8"?>
 	<entry strongs="00025"><strongs>25</strongs>
 		<greek BETA="A)GAPA/W" unicode="ἀγαπάω" translit="agapáō"/>
 		<pronunciation strongs="ag-ap-ah'-o"/>
-		<strongs_def>to love</strongs_def><kjv_def>:--(be-)love(-ed).</kjv_def>
+		<strongs_def>to love; compare <strongsref language="GREEK" strongs="2316"/> and <verseref href="/Joh3,16" book="43" chapter="3" verse="16">Joh 3:16</verseref></strongs_def><kjv_def>:--(be-)love(-ed).</kjv_def>
 	</entry>
 	<entry strongs="02316"><strongs>2316</strongs>
 		<greek BETA="QEO/S" unicode="θεός" translit="theós"/>
@@ -122,7 +122,13 @@ try {
 
 	// Deterministic column order, so the end-to-end tests can rely on which column is which.
 	await db.update(resources).set({ sortOrder: 10 }).where(eq(resources.id, 'SEEDDE'));
-	await db.update(resources).set({ sortOrder: 20 }).where(eq(resources.id, 'SEEDPLAIN'));
+	await db
+		.update(resources)
+		.set({
+			sortOrder: 20,
+			tabTitle: 'Schlicht Tab'
+		})
+		.where(eq(resources.id, 'SEEDPLAIN'));
 	await db.update(resources).set({ sortOrder: 30 }).where(eq(resources.id, 'SEEDCOMMENTARY'));
 	await db
 		.update(resources)

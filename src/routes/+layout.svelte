@@ -35,16 +35,19 @@
 	);
 </script>
 
-<svelte:head><link rel="icon" href="/icon.png" /></svelte:head>
+<svelte:head>
+	<title>Akribos - Die Bibel präzise studieren</title>
+	<link rel="icon" href="/icon.png" />
+</svelte:head>
 
 {#if standalonePage}
 	{@render children()}
 {:else}
 	<div
 		class="flex min-h-full flex-col"
-		style="--reader-font-scale: {data.readerFontScale / 100}; --header-height: {reader
-			? '3.25rem'
-			: '4rem'}"
+		style="--reader-font-scale: {data.readerFontScale /
+			100}; --reader-text-size: calc(1.08rem * {data.readerFontScale /
+			100}); --header-height: {reader ? '3.25rem' : '4rem'}"
 	>
 		<SiteHeader
 			{query}

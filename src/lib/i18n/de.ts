@@ -98,8 +98,9 @@ export const de = {
 	'strong.occurrencesCount': '{count} Vorkommen in {verses} Versen',
 	'strong.translations': 'Übersetzt als',
 	'strong.glossOthers': '+{count} andere',
-	'strong.glossCenterWord': 'Übersetzungen',
-	'strong.glossCenterHint': 'in {occurrences} Vorkommen',
+	'strong.glossUnlisted': 'weitere Wiedergaben',
+	'strong.glossCenterWord': 'Vorkommen',
+	'strong.glossCenterHint': '{count} häufigste Übersetzungen',
 	'strong.translationsHint':
 		'So oft wird dieses Wort in der gewählten Übersetzung mit dem jeweiligen Begriff wiedergegeben.',
 	'strong.filterTranslation': 'Nach Übersetzungsvariante filtern',
@@ -153,7 +154,7 @@ export const de = {
 	'account.readerFontPreview': 'Im Anfang schuf Gott Himmel und Erde.',
 	'account.readerTranslations': 'Ressourcen im Arbeitsbereich',
 	'account.readerTranslationsHint':
-		'Kachelanordnung, Tabs, aktive Ressourcen, Link-Sets und Größen werden im Bibelleser automatisch gespeichert.',
+		'Kachelanordnung, Tabs, aktive Ressourcen, Tabgruppen und Größen werden im Bibelleser automatisch gespeichert.',
 	'account.saved': 'Gespeichert.',
 	'account.emailHint': 'Die E-Mail-Adresse kann nicht geändert werden.',
 	'account.apiKeys': 'API-Schlüssel',

@@ -8,6 +8,7 @@
 	import GlossChart from '$lib/components/GlossChart.svelte';
 	import BookDistribution from '$lib/components/BookDistribution.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 
 	let { data } = $props();
 
@@ -25,7 +26,6 @@
 </script>
 
 <svelte:head>
-	<title>{data.strong}{data.entry ? ` — ${data.entry.lemma}` : ''} — Akribos</title>
 	<meta
 		name="description"
 		content="{data.strong}: {data.entry?.definitionHtml
@@ -272,7 +272,8 @@
 							href="{data.occurrences.page === 2
 								? pageBase
 								: `${pageBase}/${data.occurrences.page - 1}`}{filterQuery({})}"
-							rel="prev">←</a
+							rel="prev"
+							aria-label="Vorherige Seite"><Icon name="chevron-left" /></a
 						>
 					{/if}
 					<span class="text-stone-500 dark:text-stone-400">
@@ -285,7 +286,8 @@
 						<a
 							class="inline-flex size-11 items-center justify-center rounded-lg border border-stone-300 text-lg hover:border-accent-500 dark:border-stone-700"
 							href="{pageBase}/{data.occurrences.page + 1}{filterQuery({})}"
-							rel="next">→</a
+							rel="next"
+							aria-label="Nächste Seite"><Icon name="chevron-right" /></a
 						>
 					{/if}
 				</nav>

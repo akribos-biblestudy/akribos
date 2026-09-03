@@ -6,6 +6,7 @@
 	import { jumpToVerse } from '$lib/reader-location.svelte';
 	import { t } from '$lib/i18n';
 	import { tick, untrack } from 'svelte';
+	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
 	import ProductTour from './ProductTour.svelte';
 	import ReaderViewMenu from './ReaderViewMenu.svelte';
@@ -231,33 +232,17 @@
 						aria-label={t('nav.previousChapter')}
 						class="icon-button shrink-0"
 					>
-						<svg
-							viewBox="0 0 24 24"
-							class="size-5"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.7"
-							aria-hidden="true"
-						>
-							<path d="m14.5 6.5-5.5 5.5 5.5 5.5" stroke-linecap="round" stroke-linejoin="round" />
-						</svg>
+						<Icon name="chevron-left" />
 					</a>
 				{/if}
 
 				<form class="relative w-full max-w-md min-w-0" onsubmit={submit} role="search">
 					<label class="sr-only" for="site-search">{t('nav.search.placeholder')}</label>
 					<div class="relative">
-						<svg
-							viewBox="0 0 24 24"
+						<Icon
+							name="search"
 							class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-stone-400"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.8"
-							aria-hidden="true"
-						>
-							<circle cx="11" cy="11" r="6.5" />
-							<path d="m16 16 4 4" stroke-linecap="round" />
-						</svg>
+						/>
 						<input
 							bind:this={input}
 							bind:value
@@ -286,16 +271,7 @@
 									input?.focus();
 								}}
 							>
-								<svg
-									viewBox="0 0 20 20"
-									class="size-4"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="1.6"
-									aria-hidden="true"
-								>
-									<path d="m6 6 8 8M14 6l-8 8" stroke-linecap="round" />
-								</svg>
+								<Icon name="x" class="size-4" />
 							</button>
 						{/if}
 					</div>
@@ -318,16 +294,7 @@
 											aria-label={t('search.help.backToBooks')}
 											onclick={showBookChooser}
 										>
-											<svg
-												viewBox="0 0 20 20"
-												class="size-4"
-												fill="none"
-												stroke="currentColor"
-												stroke-width="1.7"
-												aria-hidden="true"
-											>
-												<path d="m12.5 5-5 5 5 5" stroke-linecap="round" stroke-linejoin="round" />
-											</svg>
+											<Icon name="chevron-left" class="size-4" />
 										</button>
 										<div>
 											<h2 class="text-sm font-semibold text-stone-900 dark:text-stone-100">
@@ -451,16 +418,7 @@
 						aria-label={t('nav.nextChapter')}
 						class="icon-button shrink-0"
 					>
-						<svg
-							viewBox="0 0 24 24"
-							class="size-5"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.7"
-							aria-hidden="true"
-						>
-							<path d="m9.5 6.5 5.5 5.5-5.5 5.5" stroke-linecap="round" stroke-linejoin="round" />
-						</svg>
+						<Icon name="chevron-right" />
 					</a>
 				{/if}
 			{/if}
@@ -498,16 +456,7 @@
 						class="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-500 transition-colors group-hover:bg-white dark:bg-white/7 dark:text-stone-300 dark:group-hover:bg-white/10"
 						aria-hidden="true"
 					>
-						<svg
-							viewBox="0 0 24 24"
-							class="size-4.5"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.75"
-						>
-							<circle cx="12" cy="8.25" r="3.1" />
-							<path d="M6.25 19c.65-3.2 2.75-5 5.75-5s5.1 1.8 5.75 5" stroke-linecap="round" />
-						</svg>
+						<Icon name="user" class="size-4.5" />
 					</span>
 				{/if}
 			</button>

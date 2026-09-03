@@ -23,15 +23,30 @@
 	// bar here means "no hits in this book", not "not applicable".
 	const oldTestament = $derived(counts.filter((entry) => entry.book <= 39));
 	const newTestament = $derived(counts.filter((entry) => entry.book >= 40));
+	const testaments = $derived([
+		{ label: t('search.help.oldTestament'), entries: oldTestament },
+		{ label: t('search.help.newTestament'), entries: newTestament }
+	]);
 
 	function maxCount(entries: { count: number }[]): number {
 		return entries.reduce((maximum, entry) => Math.max(maximum, entry.count), 1);
 	}
 
-	function rows(entries: { book: number; count: number }[]) {
-		if (!compact || entries.length < 14) return [entries];
-		const midpoint = Math.ceil(entries.length / 2);
-		return [entries.slice(0, midpoint), entries.slice(midpoint)];
+	function hasOccurrences(entries: { count: number }[]): boolean {
+		return entries.some((entry) => entry.count > 0);
+	}
+
+	function occurrenceTotal(entries: { count: number }[]): number {
+		return entries.reduce((sum, entry) => sum + entry.count, 0);
+	}
+
+	function bookTooltip(entry: { book: number; count: number }): string {
+		const occurrenceLabel = `${formatNumber(entry.count)} ${t('strong.occurrences')}`;
+		return hrefForBook || onBook
+			? `${bookShortName(entry.book)}: ${occurrenceLabel}. ${t('statistics.filterBook', {
+					book: bookShortName(entry.book)
+				})}`
+			: `${bookShortName(entry.book)}: ${occurrenceLabel}`;
 	}
 </script>
 
@@ -41,36 +56,51 @@
 			{label}
 		</figcaption>
 
-		{#each [...rows(oldTestament), ...rows(newTestament)] as entries, rowIndex (rowIndex)}
-			{#if entries.length > 0}
-				<div class:compact class="books" style="--book-count: {entries.length}">
-					{#each entries as entry (entry.book)}
-						<svelte:element
-							this={onBook ? 'button' : hrefForBook ? 'a' : 'div'}
-							href={hrefForBook?.(entry.book)}
-							type={onBook ? 'button' : undefined}
-							role={onBook ? 'button' : undefined}
-							onclick={onBook ? () => onBook(entry.book) : undefined}
-							class="book"
-							class:active={activeBook === entry.book}
-							title={hrefForBook || onBook
-								? t('statistics.filterBook', { book: bookShortName(entry.book) })
-								: undefined}
-							aria-current={!onBook && activeBook === entry.book ? 'true' : undefined}
-							aria-pressed={onBook ? activeBook === entry.book : undefined}
-						>
-							<span class="count">{formatNumber(entry.count)}</span>
-							<span
-								class="bar"
-								style="--height: {Math.max(5, (entry.count / maxCount(entries)) * 100)}%;
-								       --hue: {entry.book <= 39
-									? 42 - (entry.book / 39) * 28
-									: 105 + ((entry.book - 40) / 26) * 105}"
-							></span>
-							<span class="name">{bookShortName(entry.book)}</span>
-						</svelte:element>
-					{/each}
+		{#each testaments as testament (testament.label)}
+			{#if testament.entries.length > 0}
+				<div class="testament-summary">
+					<span>{testament.label}</span>
+					<strong
+						>{formatNumber(occurrenceTotal(testament.entries))} {t('strong.occurrences')}</strong
+					>
 				</div>
+				{#if !compact || hasOccurrences(testament.entries)}
+					<div
+						class:compact
+						class="books"
+						style="--book-count: {testament.entries.length}"
+						aria-label={testament.label}
+					>
+						{#each testament.entries as entry (entry.book)}
+							<svelte:element
+								this={onBook ? 'button' : hrefForBook ? 'a' : 'div'}
+								href={hrefForBook?.(entry.book)}
+								type={onBook ? 'button' : undefined}
+								role={onBook ? 'button' : undefined}
+								onclick={onBook ? () => onBook(entry.book) : undefined}
+								class="book"
+								class:active={activeBook === entry.book}
+								title={bookTooltip(entry)}
+								aria-label={bookTooltip(entry)}
+								aria-current={!onBook && activeBook === entry.book ? 'true' : undefined}
+								aria-pressed={onBook ? activeBook === entry.book : undefined}
+							>
+								{#if !compact}<span class="count">{formatNumber(entry.count)}</span>{/if}
+								<span
+									class="bar"
+									style="--height: {Math.max(
+										5,
+										(entry.count / maxCount(testament.entries)) * 100
+									)}%;
+								       --hue: {entry.book <= 39
+										? 42 - (entry.book / 39) * 28
+										: 105 + ((entry.book - 40) / 26) * 105}"
+								></span>
+								<span class="name">{bookShortName(entry.book)}</span>
+							</svelte:element>
+						{/each}
+					</div>
+				{/if}
 			{/if}
 		{/each}
 	</figure>
@@ -78,9 +108,7 @@
 
 <style>
 	.book-distribution {
-		overflow-x: auto;
-		overscroll-behavior-x: contain;
-		scrollbar-width: thin;
+		overflow-x: visible;
 	}
 
 	.books {
@@ -156,14 +184,48 @@
 	}
 
 	.books.compact {
-		grid-template-columns: repeat(var(--book-count), minmax(1.2rem, 1fr));
-		height: 5.75rem;
-		margin-bottom: 0.35rem;
+		grid-template-columns: repeat(var(--book-count), minmax(0, 1fr));
+		align-items: end;
+		min-width: 0;
+		height: 4.7rem;
+		margin-bottom: 0.4rem;
+		gap: 0;
+		overflow: visible;
+		border-bottom: 2px solid var(--color-stone-200);
 	}
 
 	.books.compact .book {
-		min-width: 1.2rem;
-		grid-template-rows: 1rem 3rem 1.25rem;
+		min-width: 0;
+		height: 100%;
+		grid-template-rows: 2.1rem 2.5rem;
+	}
+
+	.books.compact .name {
+		justify-self: center;
+		align-self: center;
+		padding: 0;
+		font-size: 0.58rem;
+		line-height: 1;
+		writing-mode: vertical-rl;
+		transform: rotate(180deg);
+	}
+
+	.testament-summary {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin: 0 0 0.15rem;
+		font-size: 0.68rem;
+		color: var(--color-stone-500);
+	}
+
+	.testament-summary strong {
+		font-weight: 600;
+	}
+
+	:global(.dark) .testament-summary {
+		color: var(--color-stone-400);
 	}
 
 	@media (max-width: 639px) {
@@ -180,6 +242,10 @@
 		.count,
 		.name {
 			font-size: 0.7rem;
+		}
+
+		.books.compact {
+			min-width: 0;
 		}
 	}
 </style>

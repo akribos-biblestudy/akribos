@@ -1,28 +1,65 @@
 <script lang="ts">
 	import type { ReadableResource } from '$lib/server/repositories/resources';
+	import Icon from './Icon.svelte';
 
 	let { kind, class: className = '' }: { kind: ReadableResource['kind']; class?: string } =
 		$props();
 </script>
 
-<svg viewBox="0 0 20 20" class={className} fill="currentColor" aria-hidden="true">
+<span class="resource-kind-icon kind-{kind} {className}" aria-hidden="true">
 	{#if kind === 'bible'}
-		<path
-			d="M3.5 3.75A1.75 1.75 0 0 1 5.25 2h2.5c.97 0 1.82.46 2.25 1.17A2.75 2.75 0 0 1 12.25 2h2.5a1.75 1.75 0 0 1 1.75 1.75v9.5A1.75 1.75 0 0 1 14.75 15h-2.19c-.7 0-1.37.29-1.85.8l-.34.36a.75.75 0 0 1-1.09 0l-.33-.36A2.5 2.5 0 0 0 7.1 15H5.25a1.75 1.75 0 0 1-1.75-1.75v-9.5ZM9.25 5A1.25 1.25 0 0 0 8 3.75H5.5a.25.25 0 0 0-.25.25v9.5c0 .14.11.25.25.25h2.19c.63 0 1.23.18 1.75.52L9.25 5Z"
-		/>
+		<Icon name="book-open" />
 	{:else if kind === 'commentary'}
-		<path
-			fill-rule="evenodd"
-			d="M2 10c0-3.5 3.36-6 8-6s8 2.5 8 6-3.36 6-8 6a9.7 9.7 0 0 1-2.4-.3L4.5 17l.6-2.87A5.6 5.6 0 0 1 2 10Z"
-			clip-rule="evenodd"
-		/>
+		<Icon name="message" />
 	{:else if kind === 'lexicon'}
-		<path
-			d="M4 2.5h9.75A2.25 2.25 0 0 1 16 4.75v11.5a.75.75 0 0 1-.75.75H5a2.5 2.5 0 0 1-2.5-2.5V4A1.5 1.5 0 0 1 4 2.5Zm.5 2v8.05c.16-.03.33-.05.5-.05h9.5V4.75a.75.75 0 0 0-.75-.75H5a.5.5 0 0 0-.5.5Zm.5 9.5a1 1 0 0 0 0 2h9.5v-2H5Z"
-		/>
+		<Icon name="book" />
 	{:else}
-		<path
-			d="M12.23 4.23a2.5 2.5 0 0 1 3.54 3.54l-1.23 1.22a.75.75 0 1 0 1.06 1.06l1.23-1.22a4 4 0 0 0-5.66-5.66l-3 3a4 4 0 0 0 .23 5.87.75.75 0 0 0 .97-1.14 2.5 2.5 0 0 1-.14-3.67l3-3ZM7.77 15.77a2.5 2.5 0 0 1-3.54-3.54l1.23-1.22a.75.75 0 1 0-1.06-1.06l-1.23 1.22a4 4 0 0 0 5.66 5.66l3-3a4 4 0 0 0-.23-5.87.75.75 0 0 0-.97 1.14 2.5 2.5 0 0 1 .14-3.67l-3 3Z"
-		/>
+		<Icon name="link" />
 	{/if}
-</svg>
+</span>
+
+<style>
+	.resource-kind-icon {
+		--resource-tone: #526b78;
+		position: relative;
+		display: inline-flex;
+		box-sizing: border-box;
+		width: 1.25rem;
+		height: 1.45rem;
+		flex: none;
+		align-items: center;
+		justify-content: center;
+		border: 1px solid color-mix(in oklab, var(--resource-tone) 48%, var(--line));
+		border-radius: 0.18rem 0.3rem 0.3rem 0.18rem;
+		background: color-mix(in oklab, var(--resource-tone) 13%, var(--surface));
+		box-shadow: inset 0.12rem 0 color-mix(in oklab, var(--resource-tone) 25%, transparent);
+		color: var(--resource-tone);
+	}
+
+	.resource-kind-icon :global(svg) {
+		width: 0.78rem;
+		height: 0.78rem;
+		stroke-width: 1.8;
+	}
+
+	.kind-bible {
+		--resource-tone: #39834b;
+	}
+
+	.kind-commentary {
+		--resource-tone: #806640;
+	}
+
+	.kind-lexicon {
+		--resource-tone: #2f70a7;
+	}
+
+	.kind-xrefs {
+		--resource-tone: #526b78;
+	}
+
+	:global(.dark) .resource-kind-icon {
+		background: color-mix(in oklab, var(--resource-tone) 22%, var(--surface));
+		color: color-mix(in oklab, var(--resource-tone) 72%, white);
+	}
+</style>

@@ -1,5 +1,4 @@
 <svelte:head>
-	<title>Datenschutz — Akribos</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
@@ -55,11 +54,23 @@
 		<h2 class="mb-2 text-lg font-semibold">Weitere technische Cookies</h2>
 		<p class="text-stone-700 dark:text-stone-300">
 			Weitere Cookies speichern ausschließlich Anzeigeeinstellungen: das gewählte Farbschema, die
-			Kachelanordnung, geöffnete Ressourcen-Tabs und deren Link-Sets A–E, die Schriftgröße sowie die
-			zuletzt gelesene Stelle. Sie dienen allein dazu, diese Einstellungen beim nächsten Besuch
+			Kachelanordnung, geöffnete Ressourcen-Tabs und deren Tabgruppen A–E, die Schriftgröße sowie
+			die zuletzt gelesene Stelle. Sie dienen allein dazu, diese Einstellungen beim nächsten Besuch
 			wiederherzustellen, werden nicht zu Werbe- oder Analysezwecken verwendet und nicht an Dritte
 			weitergegeben. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO; auch sie sind technisch
 			notwendig im Sinne von § 25 Abs. 2 TTDSG.
+		</p>
+	</section>
+
+	<section class="mb-8">
+		<h2 class="mb-2 text-lg font-semibold">Reader-Zustand in der Adresse</h2>
+		<p class="text-stone-700 dark:text-stone-300">
+			Damit Neuladen, das Duplizieren eines Browser-Tabs und kopierte Links dieselbe Reader-Ansicht
+			öffnen, enthält die Adresse mehrere lesbare Zustandsparameter. Darin stehen Kachellayout,
+			geöffnete Werke, Tabgruppen, Lesestellen, Lexikon-Kontext und ein aktuell angezeigter
+			Suchbegriff. Diese Angaben sind damit auch Teil des Browserverlaufs und eines kopierten Links.
+			Ein solcher Link überschreibt beim Empfänger nicht dessen dauerhaft gespeicherten persönlichen
+			Arbeitsbereich.
 		</p>
 	</section>
 

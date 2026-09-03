@@ -174,7 +174,7 @@ test('/api/docs renders the interactive API reference from the OpenAPI document'
 	expect((await spec.json()).info.title).toBe('Akribos API');
 
 	await page.goto('/api/docs');
-	await expect(page).toHaveTitle(/API-Referenz/);
+	await expect(page).toHaveTitle('Akribos - Die Bibel präzise studieren');
 	await expect(page.getByText('Akribos API').first()).toBeVisible();
 	await expect(page.getByText('/api/v1/books').first()).toBeVisible();
 });
