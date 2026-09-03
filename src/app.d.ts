@@ -23,6 +23,7 @@ declare global {
 				| 'displayName'
 				| 'role'
 				| 'readerColumns'
+				| 'readerWorkspace'
 				| 'readerFontScale'
 				| 'theme'
 				| 'tourCompletedAt'

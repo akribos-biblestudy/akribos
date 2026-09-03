@@ -16,8 +16,6 @@
 	);
 </script>
 
-<svelte:head><title>{t('auth.passwordReset.title')} — Akribos</title></svelte:head>
-
 <AuthForm title={t('auth.passwordReset.title')} error={message} submitLabel={t('action.save')}>
 	<TextField
 		name="password"

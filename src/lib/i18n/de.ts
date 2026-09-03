@@ -44,7 +44,7 @@ export const de = {
 	'nav.tour': 'Produkt-Tour',
 
 	// --- reader -------------------------------------------------------------
-	'reader.chooseTranslation': 'Übersetzung wählen',
+	'reader.chooseTranslation': 'Werk wählen',
 	'reader.addColumn': 'Spalte hinzufügen',
 	'reader.removeColumn': 'Spalte entfernen',
 	'reader.copyright': 'Rechte',
@@ -65,7 +65,7 @@ export const de = {
 	'resource.group.xrefs': 'Parallelstellen',
 	'resource.inUse': 'Bereits sichtbar',
 	'dialog.categories': 'Kategorien',
-	'dialog.searchTranslation': 'Suche Übersetzung…',
+	'dialog.searchTranslation': 'Werk suchen…',
 
 	// --- verse menu ---------------------------------------------------------
 	'verse.menu': 'Vers {reference}',
@@ -84,7 +84,7 @@ export const de = {
 	'comments.placeholder': 'Deine Gedanken zu diesem Vers …',
 	'comments.translation': 'Kommentar zu {translation}',
 
-	// --- study sidebar ------------------------------------------------------
+	// --- Strong word study --------------------------------------------------
 	'strong.title': 'Strong-Nummer {id}',
 	'strong.original': 'Urtext',
 	'strong.transliteration': 'Umschrift',
@@ -98,8 +98,9 @@ export const de = {
 	'strong.occurrencesCount': '{count} Vorkommen in {verses} Versen',
 	'strong.translations': 'Übersetzt als',
 	'strong.glossOthers': '+{count} andere',
-	'strong.glossCenterWord': 'Übersetzungen',
-	'strong.glossCenterHint': 'in {occurrences} Vorkommen',
+	'strong.glossUnlisted': 'weitere Wiedergaben',
+	'strong.glossCenterWord': 'Vorkommen',
+	'strong.glossCenterHint': '{count} häufigste Übersetzungen',
 	'strong.translationsHint':
 		'So oft wird dieses Wort in der gewählten Übersetzung mit dem jeweiligen Begriff wiedergegeben.',
 	'strong.filterTranslation': 'Nach Übersetzungsvariante filtern',
@@ -109,12 +110,6 @@ export const de = {
 	'strong.showAll': 'Alle Stellen anzeigen',
 	'strong.notFound': 'Diese Strong-Nummer existiert nicht.',
 	'strong.tryOther': 'Vielleicht meintest du {id}?',
-	'sidebar.tab.strong': 'Strong',
-	'sidebar.tab.crossReferences': 'Parallelstellen',
-	'sidebar.tab.commentaries': 'Kommentare',
-	'sidebar.tab.notes': 'Kommentare',
-	'sidebar.empty': 'Klicke auf ein hervorgehobenes Wort, um Informationen zum Urtext zu sehen.',
-
 	// --- search -------------------------------------------------------------
 	'search.results': '{count} Ergebnisse für „{query}“',
 	'search.noResults': 'Keine Ergebnisse für „{query}“',
@@ -157,9 +152,9 @@ export const de = {
 	'account.theme': 'Zwischen hellem und dunklem Design wechseln',
 	'account.readerFontSize': 'Textgröße im Bibeltext',
 	'account.readerFontPreview': 'Im Anfang schuf Gott Himmel und Erde.',
-	'account.readerTranslations': 'Gespeicherte Lesespalten',
+	'account.readerTranslations': 'Ressourcen im Arbeitsbereich',
 	'account.readerTranslationsHint':
-		'Auswahl und Reihenfolge von Bibeln und Nachschlagewerken werden im Bibelleser automatisch gespeichert.',
+		'Kachelanordnung, Tabs, aktive Ressourcen, Tabgruppen und Größen werden im Bibelleser automatisch gespeichert.',
 	'account.saved': 'Gespeichert.',
 	'account.emailHint': 'Die E-Mail-Adresse kann nicht geändert werden.',
 	'account.apiKeys': 'API-Schlüssel',
@@ -437,24 +432,21 @@ export const de = {
 	'tour.back': 'Zurück',
 	'tour.next': 'Weiter',
 	'tour.finish': 'Fertig',
-	'tour.searchChooser.title': 'Buch- und Kapitelauswahl',
+	'tour.searchChooser.title': 'Stelle und Werk durchsuchen',
 	'tour.searchChooser.body':
-		'Klicke ins Suchfeld: Zuerst wählst du ein Buch, dann ein Kapitel. Du kannst eine Stelle auch direkt eintippen, z.B. „Joh3,16“.',
-	'tour.searchSyntax.title': 'Nach Wörtern suchen',
-	'tour.searchSyntax.body':
-		'Suche nach einer genauen Wortfolge in Anführungszeichen, etwa „Gott liebt“, und schließe Wörter mit einem vorangestellten „-“ aus, z.B. „liebe -Welt“.',
+		'Jeder Tab hat sein eigenes Feld: Bibelstellen öffnen sich direkt, Treffer für Wörter und Strong-Nummern erscheinen im aktuellen Tab und nur für dieses Werk. Der Pfeil öffnet die Buch- und Kapitelauswahl.',
 	'tour.wordStudy.title': 'Wortstudie',
 	'tour.wordStudy.body':
 		'Unterstrichene Wörter tragen eine Strong-Nummer. Klicke darauf, um die Grundbedeutung, verwandte Stellen und die Grammatik dieses Urtextworts zu sehen.',
-	'tour.resourcePicker.title': 'Bibel- und Kommentarauswahl',
+	'tour.resourcePicker.title': 'Werkauswahl',
 	'tour.resourcePicker.body':
-		'Über den Spaltentitel wählst du, welche Übersetzung oder welcher Kommentar in dieser Spalte angezeigt wird.',
-	'tour.columnLink.title': 'Spalten verknüpfen',
+		'Jede Kachel hat eigene Tabs. Klicke auf einen Tab, um zwischen Bibeln, Kommentaren, Parallelstellen und Wörterbüchern zu wechseln.',
+	'tour.columnLink.title': 'Tabs verknüpfen',
 	'tour.columnLink.body':
-		'Standardmäßig scrollen alle Spalten gemeinsam. Über dieses Symbol lässt sich eine Spalte entkoppeln, damit sie unabhängig von den anderen scrollt.',
-	'tour.columnAdd.title': 'Spalte hinzufügen',
+		'Wähle A, B, C, D oder E: Sichtbare Tabs mit demselben Buchstaben folgen einander beim Scrollen. „–“ lässt einen Tab unabhängig.',
+	'tour.columnAdd.title': 'Tab hinzufügen',
 	'tour.columnAdd.body':
-		'Mit diesem Symbol fügst du eine weitere Übersetzung oder einen Kommentar als neue Spalte hinzu.',
+		'Mit diesem Symbol öffnest du eine weitere Übersetzung, einen Kommentar, Parallelstellen oder ein Wörterbuch als Tab in derselben Kachel.',
 	'tour.verseMenu.title': 'Versmenü',
 	'tour.verseMenu.body':
 		'Klicke auf eine Versnummer, um sie hervorzuheben, einen Kommentar zu schreiben oder sie einer Versliste zuzuordnen.',

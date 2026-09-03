@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
+	import Icon from './Icon.svelte';
 
 	/**
 	 * Switches between light and dark, remembering the choice.
@@ -38,30 +39,8 @@
 	class="icon-button"
 >
 	{#if dark}
-		<svg
-			viewBox="0 0 24 24"
-			class="size-5"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="1.7"
-			aria-hidden="true"
-		>
-			<circle cx="12" cy="12" r="3.5" />
-			<path
-				d="M12 2.75v2M12 19.25v2M2.75 12h2M19.25 12h2M5.45 5.45l1.4 1.4M17.15 17.15l1.4 1.4M18.55 5.45l-1.4 1.4M6.85 17.15l-1.4 1.4"
-				stroke-linecap="round"
-			/>
-		</svg>
+		<Icon name="sun" />
 	{:else}
-		<svg
-			viewBox="0 0 24 24"
-			class="size-5"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="1.7"
-			aria-hidden="true"
-		>
-			<path d="M20.3 15.1A8.7 8.7 0 0 1 8.9 3.7 8.7 8.7 0 1 0 20.3 15.1Z" stroke-linejoin="round" />
-		</svg>
+		<Icon name="moon" />
 	{/if}
 </button>

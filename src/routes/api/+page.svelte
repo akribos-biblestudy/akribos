@@ -8,10 +8,10 @@
 	 * /api directly.
 	 */
 	import Button from '$lib/components/Button.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 </script>
 
 <svelte:head>
-	<title>API — Akribos</title>
 	<meta
 		name="description"
 		content="Public API for Akribos: bible text, lexicon, search, verse lists and comments."
@@ -27,9 +27,9 @@
 			lexicon, commentaries and search, plus a signed-in reader's own verse lists and comments.
 			Everything lives under <code>/api/v1</code>.
 		</p>
-		<Button href="/api/docs" variant="primary" class="mt-4"
-			>View the interactive API reference →</Button
-		>
+		<Button href="/api/docs" variant="primary" class="mt-4">
+			View the interactive API reference <Icon name="arrow-right" class="size-4" />
+		</Button>
 	</section>
 
 	<section class="mb-8">

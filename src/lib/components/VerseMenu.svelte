@@ -15,6 +15,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { t } from '$lib/i18n';
+	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
 
 	/**
@@ -28,7 +29,7 @@
 	let {
 		lists,
 		signedIn,
-		/** Keys are `${verse}:${listId}` for every verse of this chapter that sits in a list. */
+		/** Keys are `${book}:${chapter}:${verse}:${listId}` for every loaded verse in a list. */
 		marks,
 		/** The reader's own highlight palette, in display order. */
 		highlightStyles
@@ -41,7 +42,6 @@
 
 	let menu: Menu | undefined = $state();
 	let context = $state<VerseContext | null>(null);
-	let verse = $state(0);
 	let copied = $state<'text' | 'link' | null>(null);
 	let activeStyleId = $state<string | null>(null);
 	let onHighlightChange: ((styleId: string | null) => void) | undefined;
@@ -56,7 +56,7 @@
 	 */
 	export function openAt(
 		anchor: HTMLElement,
-		verseNumber: number,
+		_verseNumber: number,
 		next: VerseContext,
 		highlight: string | null,
 		onChange: (styleId: string | null) => void,
@@ -65,7 +65,6 @@
 		focusMenu = true
 	): void {
 		context = next;
-		verse = verseNumber;
 		copied = null;
 		activeStyleId = highlight;
 		onHighlightChange = onChange;
@@ -77,7 +76,9 @@
 	const linkUrl = $derived(context ? new URL(context.path, page.url.origin).toString() : '');
 
 	const inList = $derived(
-		new Set(lists.filter((list) => marks.has(`${verse}:${list.id}`)).map((list) => list.id))
+		new Set(
+			lists.filter((list) => marks.has(`${context?.reference}:${list.id}`)).map((list) => list.id)
+		)
 	);
 
 	async function copy(what: 'text' | 'link', value: string): Promise<void> {
@@ -93,8 +94,9 @@
 
 	/** Optimistic, so the check mark flips at once instead of after a chapter reload. */
 	function mark(listId: string, present: boolean): void {
-		if (present) marks.add(`${verse}:${listId}`);
-		else marks.delete(`${verse}:${listId}`);
+		if (!context) return;
+		if (present) marks.add(`${context.reference}:${listId}`);
+		else marks.delete(`${context.reference}:${listId}`);
 	}
 
 	/** Clicking the active swatch again clears the highlight instead of re-picking the same colour. */
@@ -209,17 +211,7 @@
 					>
 						<span class="truncate">{list.title}</span>
 						{#if present}
-							<svg
-								viewBox="0 0 20 20"
-								class="menu-check size-4 shrink-0"
-								fill="currentColor"
-								aria-hidden="true"
-							>
-								<path
-									fill-rule="evenodd"
-									d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0l-3.5-3.5a1 1 0 0 1 1.4-1.4l2.8 2.8 6.8-6.8a1 1 0 0 1 1.4 0Z"
-								/>
-							</svg>
+							<Icon name="check" class="menu-check size-4 shrink-0" />
 						{/if}
 					</button>
 				</form>
@@ -240,11 +232,7 @@
 				<input type="hidden" name="reference" value={context.reference} />
 				<input type="hidden" name="title" value={context.label} />
 				<button type="submit" role="menuitem" class="new-list">
-					<svg viewBox="0 0 20 20" class="size-4 shrink-0" fill="currentColor" aria-hidden="true">
-						<path
-							d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"
-						/>
-					</svg>
+					<Icon name="plus" class="size-4 shrink-0" />
 					{t('lists.newWithVerse')}
 				</button>
 			</form>

@@ -2,6 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { onDestroy } from 'svelte';
 	import BackupJobList from '$lib/components/admin/BackupJobList.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import type { BackupJob } from '$lib/server/db/schema';
 
 	let { data, form } = $props();
@@ -113,8 +114,6 @@
 	const canRestore = $derived(stagedId !== '' && confirmMatches);
 </script>
 
-<svelte:head><title>Backup — Akribos</title></svelte:head>
-
 <h1 class="mb-1 text-2xl font-semibold tracking-tight">Backup und Wiederherstellung</h1>
 <p class="mb-5 max-w-2xl text-sm text-stone-600 dark:text-stone-300">
 	Sicherungen der gesamten Datenbank: sofort herunterladen oder automatisch nach S3-kompatiblem
@@ -165,9 +164,10 @@
 	<summary
 		class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-red-700 dark:text-red-300 [&::-webkit-details-marker]:hidden"
 	>
-		<span>Bestätigung für Wiederherstellung</span><span
-			class="transition-transform group-open:rotate-180">⌄</span
-		>
+		<span>Bestätigung für Wiederherstellung</span><Icon
+			name="chevron-down"
+			class="size-4 transition-transform group-open:rotate-180"
+		/>
 	</summary>
 	<div class="border-t border-red-200 p-4 dark:border-red-900">
 		<p class="mb-3 text-sm text-stone-600 dark:text-stone-300">

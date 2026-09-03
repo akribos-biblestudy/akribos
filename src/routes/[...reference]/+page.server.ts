@@ -1,8 +1,10 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { randomUUID } from 'node:crypto';
 import { bookById } from '$lib/bible/books';
 import { bookName, bookShortName } from '$lib/bible/book-names';
 import {
 	formatReference,
+	isReferenceInCanon,
 	nextChapter,
 	parseReference,
 	previousChapter,
@@ -11,28 +13,48 @@ import {
 import { normalizeStrongId } from '$lib/bible/strong';
 import { getDb } from '$lib/server/db';
 import {
-	addColumn,
-	moveColumn,
-	resolveColumns,
-	resolveColumnWidths,
-	removeColumn,
-	setColumn,
-	writeColumns,
-	writeColumnWidths
-} from '$lib/server/columns';
-import { loadChapter } from '$lib/server/repositories/chapter';
-import { loadReferenceResources } from '$lib/server/repositories/reference-resources';
+	activateReaderTab,
+	activeReaderTab,
+	activeResourceIds,
+	addReaderTab,
+	changeReaderLayout,
+	closeReaderTab,
+	isReaderLayout,
+	isReaderLinkSet,
+	moveReaderTab,
+	normalizeReaderWorkspace,
+	replaceReaderTabResource,
+	readerLayoutDefinition,
+	setReaderLayoutSize,
+	setReaderTabLinkSet,
+	setReaderTabLookup,
+	setReaderTabReference,
+	setReaderTabStudy,
+	type ReaderWorkspace
+} from '$lib/reader/workspace';
 import {
-	loadChapterVerseComments,
-	saveVerseComment
-} from '$lib/server/repositories/verse-comments';
+	decodeReaderUrlState,
+	encodeReaderUrlState,
+	readerStateFromUrl,
+	readerUrl,
+	sameReaderUrlWorkspace,
+	type ReaderSearchQueries
+} from '$lib/reader/url-state';
+import {
+	resolveReaderWorkspace,
+	workspaceColumns,
+	writeWorkspaceCompatibilityCookies
+} from '$lib/server/reader-workspace';
+import { loadReaderTabChapter } from '$lib/server/reader-chapter';
+import { saveVerseComment } from '$lib/server/repositories/verse-comments';
 import {
 	bookCoverage,
 	chapterCount,
 	listBibles,
 	listReaderResources
 } from '$lib/server/repositories/resources';
-import { updateReaderColumns, updateReaderFontScale } from '$lib/server/repositories/users';
+import { findLexiconEntry } from '$lib/server/repositories/strong';
+import { updateReaderFontScale, updateReaderWorkspace } from '$lib/server/repositories/users';
 import {
 	MAX_FONT_SCALE,
 	MIN_FONT_SCALE,
@@ -44,12 +66,10 @@ import {
 	createVerseList,
 	findListAccess,
 	listVerseLists,
-	markedVersesByList,
 	removeVerseFromList
 } from '$lib/server/repositories/verse-lists';
 import { listHighlightStyles } from '$lib/server/repositories/highlight-styles';
 import {
-	loadChapterHighlights,
 	removeVerseHighlight,
 	setVerseHighlight,
 	type SectionReference,
@@ -108,8 +128,28 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 	}
 
 	const readerResources = await listReaderResources(db);
-	const columns = resolveColumns(cookies, readerResources, locals.user?.readerColumns);
-	const selectedBibles = columns.filter((id) => bibles.some((bible) => bible.id === id));
+	const persistedWorkspace = resolveReaderWorkspace(
+		cookies,
+		readerResources,
+		locals.user?.readerWorkspace,
+		locals.user?.readerColumns,
+		reference
+	);
+	const decodedUrlState = decodeReaderUrlState(url);
+	let workspace = decodedUrlState
+		? normalizeReaderWorkspace(
+				decodedUrlState.workspace,
+				readerResources.map((resource) => resource.id),
+				workspaceColumns(persistedWorkspace),
+				reference
+			)
+		: persistedWorkspace;
+	// Divider ratios are a personal device preference, not part of a copied or duplicated URL.
+	workspace.layoutSizes = structuredClone(persistedWorkspace.layoutSizes);
+	const searchQueries = decodedUrlState?.searchQueries ?? {};
+	const byId = new Map(readerResources.map((resource) => [resource.id, resource]));
+	const activeIds = activeResourceIds(workspace);
+	const selectedBibles = activeIds.filter((id) => byId.get(id)?.kind === 'bible');
 
 	/**
 	 * Highest chapter the selected translations have for this book; 0 when none of them contains it.
@@ -125,52 +165,71 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 		reference.book
 	);
 	if (maxChapter > 0 && reference.chapter > maxChapter) {
-		redirect(302, referencePath({ book: reference.book, chapter: maxChapter }));
+		redirect(302, `${referencePath({ book: reference.book, chapter: maxChapter })}${url.search}`);
 	}
 
-	const [chapter, referenceResources] = await Promise.all([
-		loadChapter(db, {
-			resourceIds: selectedBibles,
-			book: reference.book,
-			chapter: reference.chapter
-		}),
-		loadReferenceResources(db, {
-			resourceIds: columns,
-			book: reference.book,
-			chapter: reference.chapter
+	// The canonical URL belongs to the most recently focused tile. A direct link therefore changes
+	// that tab (and every active or inactive peer in its link set) while every unrelated set retains
+	// its own location.
+	const focusedTile =
+		workspace.tiles.find((tile) => tile.id === workspace.focusedTileId && activeReaderTab(tile)) ??
+		workspace.tiles.find((tile) => activeReaderTab(tile));
+	const focusedTab = focusedTile ? activeReaderTab(focusedTile) : null;
+	if (focusedTile && focusedTab) {
+		workspace = setReaderTabReference(workspace, focusedTile.id, focusedTab.id, reference);
+	}
+
+	const readerState = encodeReaderUrlState(workspace, searchQueries);
+	if (readerStateFromUrl(url) !== readerState) {
+		// A plain passage URL starts a personal branch and may safely become the account/device default.
+		// A valid URL snapshot is never persisted by this GET: it may have come from somebody else.
+		if (!decodedUrlState) await commitWorkspace(cookies, locals.user, workspace, true);
+		redirect(302, readerUrl(canonical, readerState));
+	}
+
+	const coverage = await bookCoverage(db, [...new Set(selectedBibles)]);
+	let columnIndex = 0;
+	const columnDefinitions = workspace.tiles.flatMap((tile, tileIndex) => {
+		const activeTab = activeReaderTab(tile);
+		const resource = activeTab ? byId.get(activeTab.resourceId) : undefined;
+		if (!activeTab || !resource) return [];
+		return [
+			{
+				index: columnIndex++,
+				tileIndex,
+				tileId: tile.id,
+				activeTab,
+				resource,
+				bibleCellIndex: resource.kind === 'bible' ? 0 : null,
+				/** False when this translation does not contain the current book at all. */
+				covers: coverage.get(resource.id)?.has(activeTab.reference.book) ?? false
+			}
+		];
+	});
+	const columns = await Promise.all(
+		columnDefinitions.map(async (column) => {
+			const [initialChapter, lexiconEntry] = await Promise.all([
+				loadReaderTabChapter(
+					db,
+					column.resource,
+					{
+						book: column.activeTab.reference.book,
+						chapter: column.activeTab.reference.chapter
+					},
+					locals.user?.id ?? null
+				),
+				column.resource.kind === 'lexicon' && column.activeTab.lookup
+					? findLexiconEntry(db, column.resource.id, column.activeTab.lookup)
+					: Promise.resolve(undefined)
+			]);
+			return { ...column, initialChapter, lexiconEntry: lexiconEntry ?? null };
 		})
-	]);
-	for (const verse of referenceResources.verseNumbers) {
-		if (!chapter.rows.some((row) => row.verse === verse)) {
-			chapter.rows.push({ verse, cells: selectedBibles.map(() => null) });
-		}
-	}
-	chapter.rows.sort((left, right) => left.verse - right.verse);
-	chapter.empty = chapter.rows.length === 0;
-
-	const coverage = await bookCoverage(db, selectedBibles);
-	const byId = new Map(readerResources.map((resource) => [resource.id, resource]));
-	const bibleCellIndex = new Map(selectedBibles.map((id, index) => [id, index]));
+	);
 
 	// Verse lists, so a signed-in reader can add a verse without leaving the chapter. The most recently
 	// used list is offered first, which is the one they are working in.
 	const lists = locals.user ? await listVerseLists(db, locals.user.id) : [];
-	const marked = locals.user
-		? await markedVersesByList(db, locals.user.id, reference.book, reference.chapter)
-		: [];
-	const verseComments = locals.user
-		? await loadChapterVerseComments(
-				db,
-				locals.user.id,
-				selectedBibles,
-				reference.book,
-				reference.chapter
-			)
-		: [];
 	const highlightStyles = locals.user ? await listHighlightStyles(db, locals.user.id) : [];
-	const highlights = locals.user
-		? await loadChapterHighlights(db, locals.user.id, reference.book, reference.chapter)
-		: [];
 
 	// Public scripture text is the same for everyone; a signed-in reader's page is not.
 	setHeaders({
@@ -183,37 +242,17 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 		reference,
 		title: formatReference(reference),
 		fullTitle: `${bookName(reference.book)} ${reference.chapter}`,
-		shortBookName: bookShortName(reference.book),
-		chapter: {
-			...chapter,
-			// Maps do not survive serialisation to the browser.
-			headings: [...chapter.headings.entries()]
-		},
-		referenceResources,
-		columns: columns.map((id, index) => {
-			const resource = byId.get(id)!;
-			return {
-				index,
-				resource,
-				bibleCellIndex: bibleCellIndex.get(id) ?? null,
-				/** False when this translation does not contain the current book at all. */
-				covers: coverage.get(id)?.has(reference.book) ?? false
-			};
-		}),
-		/** Custom per-column widths, in the same order as `columns` above, or `null` when the reader has
-		 *  not resized anything — the client then falls back to an even split via CSS. */
-		columnWidths: resolveColumnWidths(cookies, columns),
+		workspace,
+		readerState,
+		searchQueries,
+		columns,
 		navigation: {
 			previous: previousChapter(reference.book, reference.chapter),
 			next: nextChapter(reference.book, reference.chapter),
 			maxChapter
 		},
 		lists: lists.map((list) => ({ id: list.id, title: list.title })),
-		/** Which of this chapter's verses sit in which list, for the verse menu's check marks. */
-		markedVerses: marked,
-		highlightStyles,
-		highlights,
-		verseComments
+		highlightStyles
 	};
 }
 
@@ -222,85 +261,378 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
  * selection is stored where server rendering can see it.
  */
 export const actions = {
-	setColumn: async ({ request, cookies, locals }) => {
+	setLayout: async ({ request, cookies, locals, params, url }) => {
 		const form = await request.formData();
-		const index = Number(form.get('index'));
-		const resource = String(form.get('resource') ?? '');
+		const layout = form.get('layout');
+		if (!isReaderLayout(layout)) return fail(400, { error: 'layout' });
+		const current = await currentWorkspace(
+			cookies,
+			locals.user,
+			url,
+			undefined,
+			actionReference(params)
+		);
+		return finishWorkspaceMutation(
+			cookies,
+			locals.user,
+			current,
+			changeReaderLayout(current.workspace, layout, randomUUID)
+		);
+	},
 
+	addTab: async ({ request, cookies, locals, params, url }) => {
+		const form = await request.formData();
+		const tileId = String(form.get('tileId') ?? '');
+		const resourceId = String(form.get('resource') ?? '');
 		const available = await listReaderResources(getDb());
-		if (!Number.isInteger(index) || !available.some((item) => item.id === resource)) {
-			return { success: false };
+		if (!available.some((resource) => resource.id === resourceId)) {
+			return fail(400, { error: 'resource' });
 		}
-
-		await commitColumns(
+		const current = await currentWorkspace(
 			cookies,
 			locals.user,
-			setColumn(resolveColumns(cookies, available, locals.user?.readerColumns), index, resource)
+			url,
+			available,
+			actionReference(params)
 		);
-		return { success: true };
+		const { workspace } = current;
+		if (!workspace.tiles.some((tile) => tile.id === tileId)) {
+			return fail(400, { error: 'tile' });
+		}
+		return finishWorkspaceMutation(
+			cookies,
+			locals.user,
+			current,
+			addReaderTab(workspace, tileId, resourceId, randomUUID)
+		);
 	},
 
-	addColumn: async ({ request, cookies, locals }) => {
+	replaceTabResource: async ({ request, cookies, locals, params, url }) => {
 		const form = await request.formData();
-		const resource = form.get('resource');
-
-		const bibles = await listReaderResources(getDb());
-		await commitColumns(
+		const tileId = String(form.get('tileId') ?? '');
+		const tabId = String(form.get('tabId') ?? '');
+		const resourceId = String(form.get('resource') ?? '');
+		const available = await listReaderResources(getDb());
+		if (!available.some((resource) => resource.id === resourceId)) {
+			return fail(400, { error: 'resource' });
+		}
+		const current = await currentWorkspace(
 			cookies,
 			locals.user,
-			addColumn(
-				resolveColumns(cookies, bibles, locals.user?.readerColumns),
-				bibles,
-				// Absent when the button was submitted without a choice, which appends the next unused one.
-				resource === null ? undefined : String(resource)
+			url,
+			available,
+			actionReference(params)
+		);
+		const { workspace } = current;
+		if (
+			!workspace.tiles.some(
+				(tile) => tile.id === tileId && tile.tabs.some((tab) => tab.id === tabId)
 			)
-		);
-		return { success: true };
-	},
-
-	removeColumn: async ({ request, cookies, locals }) => {
-		const form = await request.formData();
-		const index = Number(form.get('index'));
-		if (!Number.isInteger(index)) return { success: false };
-
-		const bibles = await listReaderResources(getDb());
-		await commitColumns(
+		) {
+			return fail(400, { error: 'tab' });
+		}
+		delete current.searchQueries[tabId];
+		return finishWorkspaceMutation(
 			cookies,
 			locals.user,
-			removeColumn(resolveColumns(cookies, bibles, locals.user?.readerColumns), index)
+			current,
+			replaceReaderTabResource(workspace, tileId, tabId, resourceId)
 		);
-		return { success: true };
 	},
 
-	moveColumn: async ({ request, cookies, locals }) => {
+	activateTab: async ({ request, cookies, locals, url }) => {
 		const form = await request.formData();
-		const from = Number(form.get('from'));
-		const to = Number(form.get('to'));
-		const bibles = await listReaderResources(getDb());
-		await commitColumns(
+		const tileId = String(form.get('tileId') ?? '');
+		const tabId = String(form.get('tabId') ?? '');
+		const currentReference = parseReference(String(form.get('currentReference') ?? ''));
+		const requestedTargetReference = parseReference(String(form.get('targetReference') ?? ''));
+		const current = await currentWorkspace(cookies, locals.user, url);
+		let { workspace } = current;
+		const sourceTile = workspace.tiles.find((tile) => tile.id === tileId);
+		const sourceTab = sourceTile ? activeReaderTab(sourceTile) : null;
+		if (sourceTile && sourceTab && currentReference && isReferenceInCanon(currentReference)) {
+			workspace = setReaderTabReference(workspace, sourceTile.id, sourceTab.id, currentReference);
+		}
+		const targetTile = workspace.tiles.find((tile) => tile.id === tileId);
+		const targetTab = targetTile?.tabs.find((tab) => tab.id === tabId);
+		const linkedActivePeer = targetTab?.linkSet
+			? workspace.tiles
+					.filter((tile) => tile.id !== tileId)
+					.map((tile) => activeReaderTab(tile))
+					.find((tab) => tab?.linkSet === targetTab.linkSet)
+			: null;
+		const targetReference =
+			requestedTargetReference && isReferenceInCanon(requestedTargetReference)
+				? requestedTargetReference
+				: linkedActivePeer?.reference;
+		if (targetTile && targetTab && targetReference) {
+			// A newly shown linked tab joins the visible group's current position. Its previously stored
+			// position must never pull the already visible members of that group backwards.
+			workspace = setReaderTabReference(workspace, targetTile.id, targetTab.id, targetReference);
+		}
+		const next = activateReaderTab(workspace, tileId, tabId);
+		const active = activeReaderTab(next.tiles.find((tile) => tile.id === tileId) ?? next.tiles[0]!);
+		return finishWorkspaceMutation(cookies, locals.user, current, next, {
+			...(active ? { path: referencePath(active.reference) } : {})
+		});
+	},
+
+	closeTab: async ({ request, cookies, locals, params, url }) => {
+		const form = await request.formData();
+		const tileId = String(form.get('tileId') ?? '');
+		const tabId = String(form.get('tabId') ?? '');
+		const current = await currentWorkspace(
 			cookies,
 			locals.user,
-			moveColumn(resolveColumns(cookies, bibles, locals.user?.readerColumns), from, to)
+			url,
+			undefined,
+			actionReference(params)
 		);
-		return { success: true };
+		return finishWorkspaceMutation(
+			cookies,
+			locals.user,
+			current,
+			closeReaderTab(current.workspace, tileId, tabId)
+		);
 	},
 
-	/** Commits a drag-resize of the column boundaries. Widths are normalized and clamped again here —
-	 *  the client already does both live, but a request is never trusted at face value. */
-	setColumnWidths: async ({ request, cookies, locals }) => {
+	moveTab: async ({ request, cookies, locals, params, url }) => {
 		const form = await request.formData();
-		const widths = String(form.get('widths') ?? '')
-			.split(',')
-			.map(Number);
+		const fromTileId = String(form.get('fromTileId') ?? '');
+		const tabId = String(form.get('tabId') ?? '');
+		const toTileId = String(form.get('toTileId') ?? '');
+		const toIndex = Number(form.get('toIndex'));
+		if (!Number.isInteger(toIndex)) return fail(400, { error: 'position' });
+		const current = await currentWorkspace(
+			cookies,
+			locals.user,
+			url,
+			undefined,
+			actionReference(params)
+		);
+		return finishWorkspaceMutation(
+			cookies,
+			locals.user,
+			current,
+			moveReaderTab(current.workspace, fromTileId, tabId, toTileId, toIndex)
+		);
+	},
 
-		const bibles = await listReaderResources(getDb());
-		const columns = resolveColumns(cookies, bibles, locals.user?.readerColumns);
-		if (widths.length !== columns.length || widths.some((width) => !Number.isFinite(width))) {
-			return fail(400, { error: 'widths' });
+	setTabLinkSet: async ({ request, cookies, locals, params, url }) => {
+		const form = await request.formData();
+		const tileId = String(form.get('tileId') ?? '');
+		const tabId = String(form.get('tabId') ?? '');
+		const rawLinkSet = form.get('linkSet');
+		const linkSet = rawLinkSet === '' ? null : rawLinkSet;
+		if (!isReaderLinkSet(linkSet)) return fail(400, { error: 'linkSet' });
+		const current = await currentWorkspace(
+			cookies,
+			locals.user,
+			url,
+			undefined,
+			actionReference(params)
+		);
+		return finishWorkspaceMutation(
+			cookies,
+			locals.user,
+			current,
+			setReaderTabLinkSet(current.workspace, tileId, tabId, linkSet)
+		);
+	},
+
+	setTabReference: async ({ request, cookies, locals, params, url }) => {
+		const form = await request.formData();
+		const tileId = String(form.get('tileId') ?? '');
+		const tabId = String(form.get('tabId') ?? '');
+		const reference = parseReference(String(form.get('reference') ?? ''));
+		if (!reference || !isReferenceInCanon(reference)) {
+			return fail(400, { error: 'reference' });
+		}
+		const current = await currentWorkspace(
+			cookies,
+			locals.user,
+			url,
+			undefined,
+			actionReference(params)
+		);
+		const { workspace } = current;
+		if (
+			!workspace.tiles.some(
+				(tile) => tile.id === tileId && tile.tabs.some((tab) => tab.id === tabId)
+			)
+		) {
+			return fail(400, { error: 'tab' });
+		}
+		delete current.searchQueries[tabId];
+		return finishWorkspaceMutation(
+			cookies,
+			locals.user,
+			current,
+			setReaderTabReference(workspace, tileId, tabId, reference),
+			{ path: referencePath(reference) }
+		);
+	},
+
+	setTabLookup: async ({ request, cookies, locals, params, url }) => {
+		const form = await request.formData();
+		const tileId = String(form.get('tileId') ?? '');
+		const tabId = String(form.get('tabId') ?? '');
+		const lookup = String(form.get('lookup') ?? '')
+			.trim()
+			.slice(0, 200);
+		if (!lookup) return fail(400, { error: 'lookup' });
+		const available = await listReaderResources(getDb());
+		const current = await currentWorkspace(
+			cookies,
+			locals.user,
+			url,
+			available,
+			actionReference(params)
+		);
+		const { workspace } = current;
+		const tab = workspace.tiles
+			.find((tile) => tile.id === tileId)
+			?.tabs.find((candidate) => candidate.id === tabId);
+		if (!tab || available.find((resource) => resource.id === tab.resourceId)?.kind !== 'lexicon') {
+			return fail(400, { error: 'tab' });
+		}
+		return finishWorkspaceMutation(
+			cookies,
+			locals.user,
+			current,
+			setReaderTabLookup(workspace, tileId, tabId, lookup)
+		);
+	},
+
+	/** Reuses the lexicon tab belonging to the source tab's A–E group, or opens one. */
+	openLexiconTab: async ({ request, cookies, locals, url }) => {
+		const form = await request.formData();
+		const sourceTileId = String(form.get('tileId') ?? '');
+		const sourceTabId = String(form.get('tabId') ?? '');
+		const lookup = String(form.get('lookup') ?? '')
+			.trim()
+			.slice(0, 200);
+		const currentReference = parseReference(String(form.get('currentReference') ?? ''));
+		const clickedWord = String(form.get('word') ?? '')
+			.trim()
+			.slice(0, 200);
+		if (!lookup) return fail(400, { error: 'lookup' });
+
+		const db = getDb();
+		const available = await listReaderResources(db);
+		const current = await currentWorkspace(cookies, locals.user, url, available);
+		let { workspace } = current;
+		let sourceTile = workspace.tiles.find((tile) => tile.id === sourceTileId);
+		const initialSourceTab = sourceTile?.tabs.find((tab) => tab.id === sourceTabId);
+		if (!sourceTile || !initialSourceTab) return fail(400, { error: 'tab' });
+		const sourceResourceId = initialSourceTab.resourceId;
+		const sourceResource = available.find((resource) => resource.id === sourceResourceId);
+		if (sourceResource?.kind !== 'bible') return fail(400, { error: 'source' });
+
+		// The route URL can belong to another group. The clicked tab and its exact verse are the only
+		// authority here, otherwise a click in B can accidentally move every tab in A.
+		const studyReference =
+			currentReference && isReferenceInCanon(currentReference)
+				? currentReference
+				: initialSourceTab.reference;
+		workspace = setReaderTabReference(workspace, sourceTileId, sourceTabId, studyReference);
+		sourceTile = workspace.tiles.find((tile) => tile.id === sourceTileId);
+		const sourceTab = sourceTile?.tabs.find((tab) => tab.id === sourceTabId);
+		if (!sourceTile || !sourceTab) return fail(400, { error: 'tab' });
+
+		const resourceById = new Map(available.map((resource) => [resource.id, resource]));
+		const existing = workspace.tiles.flatMap((tile) =>
+			tile.tabs.flatMap((tab) => {
+				if (resourceById.get(tab.resourceId)?.kind !== 'lexicon') return [];
+				const belongsToGroup = sourceTab.linkSet
+					? tab.linkSet === sourceTab.linkSet
+					: tile.id === sourceTile.id && tab.linkSet === null;
+				return belongsToGroup ? [{ tile, tab }] : [];
+			})
+		)[0];
+		if (existing) {
+			// The chosen dictionary belongs to the tab. A click may change its entry, but must not
+			// silently swap it for a different lexicon merely because that one also covers the number.
+			let next = workspace;
+			next = setReaderTabReference(next, existing.tile.id, existing.tab.id, studyReference);
+			next = setReaderTabStudy(next, existing.tile.id, existing.tab.id, lookup, {
+				sourceResourceId,
+				reference: studyReference,
+				word: clickedWord || null
+			});
+			return finishWorkspaceMutation(cookies, locals.user, current, next, {
+				tileId: existing.tile.id,
+				tabId: existing.tab.id,
+				reused: true
+			});
 		}
 
-		writeColumnWidths(cookies, columns, widths);
-		return { success: true };
+		const lexicon = await firstLexiconForLookup(db, available, lookup);
+		if (!lexicon) return fail(404, { error: 'lexicon' });
+
+		// A–E define a real cross-tile group, so a visible peer is the most useful home for the
+		// dictionary. An unlinked tab has no group beyond its own tab strip: placing its dictionary in
+		// another unrelated, likewise unlinked tile would prevent the next Strong click from reusing it.
+		const linkedTarget = sourceTab.linkSet
+			? workspace.tiles.find(
+					(tile) =>
+						tile.id !== sourceTile.id && activeReaderTab(tile)?.linkSet === sourceTab.linkSet
+				)
+			: undefined;
+		const targetTile =
+			linkedTarget ??
+			(sourceTab.linkSet
+				? workspace.tiles.find((tile) => tile.id !== sourceTile.id && tile.tabs.length === 0)
+				: undefined) ??
+			sourceTile;
+		let next = addReaderTab(workspace, targetTile.id, lexicon.id, randomUUID);
+		const added = activeReaderTab(
+			next.tiles.find((tile) => tile.id === targetTile.id) ?? targetTile
+		);
+		if (!added) return fail(409, { error: 'workspace' });
+		next = setReaderTabLinkSet(next, targetTile.id, added.id, sourceTab.linkSet);
+		next = setReaderTabReference(next, targetTile.id, added.id, studyReference);
+		next = setReaderTabStudy(next, targetTile.id, added.id, lookup, {
+			sourceResourceId,
+			reference: studyReference,
+			word: clickedWord || null
+		});
+		return finishWorkspaceMutation(cookies, locals.user, current, next, {
+			tileId: targetTile.id,
+			tabId: added.id,
+			reused: false
+		});
+	},
+
+	setLayoutSize: async ({ request, cookies, locals, params, url }) => {
+		const form = await request.formData();
+		const layout = form.get('layout');
+		if (!isReaderLayout(layout)) return fail(400, { error: 'layout' });
+		const columns = parseFractions(form.get('columns'));
+		const rows = parseFractions(form.get('rows'));
+		const definition = readerLayoutDefinition(layout);
+		if (columns.length !== definition.columns || rows.length !== definition.rows) {
+			return fail(400, { error: 'sizes' });
+		}
+		const current = await currentWorkspace(
+			cookies,
+			locals.user,
+			url,
+			undefined,
+			actionReference(params)
+		);
+		const next = setReaderLayoutSize(current.workspace, layout, columns, rows);
+		// Divider ratios are personal and may be saved without adopting a foreign URL workspace.
+		await commitWorkspace(
+			cookies,
+			locals.user,
+			setReaderLayoutSize(current.persistedWorkspace, layout, columns, rows),
+			true
+		);
+		return {
+			success: true,
+			readerState: encodeReaderUrlState(next, current.searchQueries)
+		};
 	},
 
 	saveVerseComment: async ({ request, locals }) => {
@@ -453,6 +785,19 @@ function endVerseFromForm(form: FormData, verse: number): number | null {
 	return endVerse;
 }
 
+async function firstLexiconForLookup(
+	db: ReturnType<typeof getDb>,
+	available: Awaited<ReturnType<typeof listReaderResources>>,
+	lookup: string
+) {
+	for (const candidate of available) {
+		if (candidate.kind === 'lexicon' && (await findLexiconEntry(db, candidate.id, lookup))) {
+			return candidate;
+		}
+	}
+	return undefined;
+}
+
 function sectionReferenceFromForm(
 	reference: { book: number; chapter: number },
 	verse: number,
@@ -504,23 +849,113 @@ function decodeReferenceParam(raw: string): string {
 const LOCATION_COOKIE = 'location';
 
 /** Where `/` sends a returning visitor: the last chapter they read, or John 1. */
-async function commitColumns(
-	cookies: Parameters<typeof writeColumns>[0],
+type CurrentWorkspace = {
+	workspace: ReaderWorkspace;
+	persistedWorkspace: ReaderWorkspace;
+	searchQueries: ReaderSearchQueries;
+	persist: boolean;
+};
+
+async function currentWorkspace(
+	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
 	user: App.Locals['user'],
-	columns: string[]
-): Promise<void> {
-	writeColumns(cookies, columns);
-	if (user) await updateReaderColumns(getDb(), user.id, columns);
+	url: URL,
+	available?: Awaited<ReturnType<typeof listReaderResources>>,
+	reference?: { book: number; chapter: number; verse?: number }
+): Promise<CurrentWorkspace> {
+	const resources = available ?? (await listReaderResources(getDb()));
+	const persistedWorkspace = resolveReaderWorkspace(
+		cookies,
+		resources,
+		user?.readerWorkspace,
+		user?.readerColumns,
+		reference
+	);
+	const decoded = decodeReaderUrlState(url);
+	let workspace = decoded
+		? normalizeReaderWorkspace(
+				decoded.workspace,
+				resources.map((resource) => resource.id),
+				workspaceColumns(persistedWorkspace),
+				reference
+			)
+		: persistedWorkspace;
+	workspace.layoutSizes = structuredClone(persistedWorkspace.layoutSizes);
+	const persist = !decoded || sameReaderUrlWorkspace(workspace, persistedWorkspace);
+	if (!reference) {
+		return { workspace, persistedWorkspace, searchQueries: decoded?.searchQueries ?? {}, persist };
+	}
+
+	// A GET aligns the focused tab with the canonical route in memory. Reconcile that same state before
+	// every workspace mutation too, otherwise an unrelated action (changing a link letter, moving a
+	// tab, ...) could write the older cookie/database reference back over what is currently visible.
+	const focusedTile =
+		workspace.tiles.find((tile) => tile.id === workspace.focusedTileId && activeReaderTab(tile)) ??
+		workspace.tiles.find((tile) => activeReaderTab(tile));
+	const focusedTab = focusedTile ? activeReaderTab(focusedTile) : null;
+	if (focusedTile && focusedTab) {
+		workspace = setReaderTabReference(workspace, focusedTile.id, focusedTab.id, reference);
+	}
+	return { workspace, persistedWorkspace, searchQueries: decoded?.searchQueries ?? {}, persist };
 }
 
-function defaultLocation(cookies: Parameters<typeof writeColumns>[0]): string {
+function actionReference(params: {
+	reference?: string;
+}): { book: number; chapter: number; verse?: number } | undefined {
+	const raw = decodeReferenceParam(params.reference ?? '').replace(/\/+$/, '');
+	const cleaned = raw.replace(/^async\//, '').replace(/\/?trans\/\d+_\d+$/, '');
+	return parseReference(cleaned) ?? undefined;
+}
+
+async function commitWorkspace(
+	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
+	user: App.Locals['user'],
+	workspace: ReaderWorkspace,
+	persist = true
+): Promise<void> {
+	if (!persist) return;
+	const written = writeWorkspaceCompatibilityCookies(cookies, workspace);
+	if (!written && !user) {
+		// A browser cookie is the only persistence available to a guest. Do not pretend a mutation was
+		// saved once the exceptionally large workspace no longer fits in it.
+		error(409, 'Der Arbeitsbereich ist für die lokale Speicherung zu groß.');
+	}
+	if (user) await updateReaderWorkspace(getDb(), user.id, workspace, workspaceColumns(workspace));
+}
+
+async function finishWorkspaceMutation<T extends Record<string, unknown>>(
+	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
+	user: App.Locals['user'],
+	current: CurrentWorkspace,
+	next: ReaderWorkspace,
+	extra?: T
+): Promise<{ success: true; readerState: string } & T> {
+	await commitWorkspace(cookies, user, next, current.persist);
+	return {
+		success: true,
+		readerState: encodeReaderUrlState(next, current.searchQueries),
+		...(extra ?? ({} as T))
+	};
+}
+
+function parseFractions(value: FormDataEntryValue | null): number[] {
+	return String(value ?? '')
+		.split(',')
+		.filter(Boolean)
+		.map(Number)
+		.filter(Number.isFinite);
+}
+
+function defaultLocation(
+	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0]
+): string {
 	const stored = cookies.get(LOCATION_COOKIE);
 	const reference = stored ? parseReference(stored) : null;
 	return referencePath(reference ?? { book: 43, chapter: 1 });
 }
 
 function rememberLocation(
-	cookies: Parameters<typeof writeColumns>[0],
+	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
 	reference: { book: number; chapter: number }
 ): void {
 	cookies.set(LOCATION_COOKIE, `${bookShortName(reference.book)}${reference.chapter}`, {

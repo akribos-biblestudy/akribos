@@ -37,6 +37,19 @@ export default defineConfig({
 					httpOnly: false,
 					secure: false,
 					sameSite: 'Lax'
+				},
+				{
+					// Most established reader scenarios predate the workspace onboarding default and
+					// intentionally exercise the two-translation legacy migration. A dedicated test below
+					// clears this cookie and verifies the actual first-visit workspace.
+					name: 'columns',
+					value: 'SEEDDE,SEEDPLAIN',
+					domain: 'localhost',
+					path: '/',
+					expires: -1,
+					httpOnly: false,
+					secure: false,
+					sameSite: 'Lax'
 				}
 			],
 			origins: []

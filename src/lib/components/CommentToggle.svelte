@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
+	import Icon from './Icon.svelte';
 
 	let {
 		hasComment,
@@ -17,11 +18,7 @@
 	aria-label={hasComment ? (active ? t('comments.hide') : t('comments.show')) : t('comments.add')}
 	{onclick}
 >
-	<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-		<path
-			d="M4.5 3.5h11A1.5 1.5 0 0 1 17 5v7a1.5 1.5 0 0 1-1.5 1.5H9L5.2 16.7a.75.75 0 0 1-1.2-.6V13A1.5 1.5 0 0 1 3 11.6V5a1.5 1.5 0 0 1 1.5-1.5Z"
-		/>
-	</svg>
+	<Icon name="message" class="size-[0.82em]" />
 </button>
 
 <style>
@@ -38,11 +35,6 @@
 		transition:
 			color 120ms ease,
 			background 120ms ease;
-	}
-
-	.comment-toggle svg {
-		width: 0.82em;
-		height: 0.82em;
 	}
 
 	.comment-toggle:hover,

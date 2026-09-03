@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "reader_workspace" jsonb;

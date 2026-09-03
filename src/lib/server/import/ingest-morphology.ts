@@ -2,7 +2,7 @@
  * Applies a morphology overlay to an existing Greek resource.
  *
  * Unlike the other importers this one writes no new verses: it fills in `verse_words.lemma`,
- * `translit` and any missing `morph` on a resource that is already present, so the study sidebar can
+ * `translit` and any missing `morph` on a resource that is already present, so a word study can
  * show the dictionary form of an inflected word.
  *
  * Alignment is the whole problem. The overlay numbers words 1-based within a verse; our rows are

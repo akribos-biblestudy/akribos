@@ -16,7 +16,7 @@
  *   └ book code in the OLB abbreviation scheme
  *
  * This is an overlay rather than a text: it annotates an existing Greek resource with the dictionary
- * form of each word, which is what lets the study sidebar show "ἀγαπάω" for an inflected ἠγάπησεν.
+ * form of each word, which is what lets the word study show "ἀγαπάω" for an inflected ἠγάπησεν.
  * The morphology code and Strong's number are already present in the Textus Receptus source, so they
  * are used here only to align the two.
  */

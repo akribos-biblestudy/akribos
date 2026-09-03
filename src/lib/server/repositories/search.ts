@@ -40,6 +40,26 @@ export type SearchResult = {
 	suggestion: string | null;
 };
 
+export type CommentarySearchHit = {
+	id: number;
+	book: number;
+	chapter: number;
+	verseStart: number | null;
+	verseEnd: number | null;
+	title: string | null;
+	bodyHtml: string;
+};
+
+export type CommentarySearchResult = {
+	query: ParsedQuery;
+	hits: CommentarySearchHit[];
+	total: number;
+	page: number;
+	pageCount: number;
+	bookCounts: { book: number; count: number }[];
+	suggestion: string | null;
+};
+
 export type SearchOptions = {
 	resourceIds: string[];
 	book?: number;
@@ -60,7 +80,10 @@ export type SearchOptions = {
  * index and a word-boundary regex over the plain text confirms them. `unaccent` is applied on both
  * sides to match the folding the index does.
  */
-function buildPredicate(query: ParsedQuery): {
+function buildPredicate(
+	query: ParsedQuery,
+	searchableText: SQL = sql`text`
+): {
 	include: SQL | null;
 	exclude: SQL | null;
 	phrases: SQL[];
@@ -82,7 +105,9 @@ function buildPredicate(query: ParsedQuery): {
 			includes.push(sql`phraseto_tsquery(${SEARCH_CONFIG}, ${term.text})`);
 			// The backslashes are doubled because this is a JavaScript template literal: PostgreSQL has
 			// to receive \m and \M, its word-boundary markers.
-			phrases.push(sql`unaccent(lower(text)) ~ ('\\m' || unaccent(lower(${term.text})) || '\\M')`);
+			phrases.push(
+				sql`unaccent(lower(${searchableText})) ~ ('\\m' || unaccent(lower(${term.text})) || '\\M')`
+			);
 		} else {
 			includes.push(sql`to_tsquery(${SEARCH_CONFIG}, ${`${term.text}:*`})`);
 		}
@@ -92,6 +117,103 @@ function buildPredicate(query: ParsedQuery): {
 		include: includes.length > 0 ? sql.join(includes, sql` && `) : null,
 		exclude: excludes.length > 0 ? sql.join(excludes, sql` || `) : null,
 		phrases
+	};
+}
+
+/**
+ * Full-text search within one commentary resource. Commentary imports store safe HTML rather than a
+ * second flattened text column, so the allowed tags are stripped inside the query before building a
+ * PostgreSQL search vector. This keeps tab-scoped searching available without duplicating imported
+ * content or introducing another migration merely for the first iteration of commentary search.
+ */
+export async function searchCommentary(
+	db: Database,
+	resourceId: string,
+	rawQuery: string,
+	options: Omit<SearchOptions, 'resourceIds'> = {}
+): Promise<CommentarySearchResult> {
+	const query = parseSearchQuery(rawQuery);
+	const pageSize = options.pageSize ?? 25;
+	const page = Math.max(1, options.page ?? 1);
+	const empty: CommentarySearchResult = {
+		query,
+		hits: [],
+		total: 0,
+		page: 1,
+		pageCount: 1,
+		bookCounts: [],
+		suggestion: null
+	};
+	if (query.empty) return empty;
+
+	const searchableText = sql`concat_ws(' ', coalesce(title, ''), regexp_replace(body_html, '<[^>]*>', ' ', 'g'))`;
+	const { include, exclude, phrases } = buildPredicate(query, searchableText);
+	if (!include) return empty;
+
+	const vector = sql`to_tsvector(${SEARCH_CONFIG}, ${searchableText})`;
+	const conditions = [sql`${vector} @@ (${include})`, ...phrases];
+	if (exclude) conditions.push(sql`not (${vector} @@ (${exclude}))`);
+	const baseMatches = sql.join(conditions, sql` and `);
+	const matches = options.book ? sql`${baseMatches} and book_id = ${options.book}` : baseMatches;
+
+	const [countRow] = await db.execute<{ total: number }>(sql`
+		select count(*)::int as total
+		from commentary_entries
+		where resource_id = ${resourceId} and ${matches}
+	`);
+	const total = Number(countRow?.total ?? 0);
+	const bookCounts = await db.execute<{ book_id: number; count: number }>(sql`
+		select book_id, count(*)::int as count
+		from commentary_entries
+		where resource_id = ${resourceId} and ${baseMatches}
+		group by book_id
+		order by book_id
+	`);
+	const countsByBook = new Map(bookCounts.map((row) => [row.book_id, Number(row.count)]));
+	const allBookCounts = BOOKS.map((book) => ({
+		book: book.id,
+		count: countsByBook.get(book.id) ?? 0
+	}));
+	if (total === 0) {
+		const hasUnfilteredMatches = bookCounts.some((row) => Number(row.count) > 0);
+		return {
+			...empty,
+			bookCounts: allBookCounts,
+			suggestion: hasUnfilteredMatches ? null : await suggest(db, query.highlight[0])
+		};
+	}
+
+	const rows = await db.execute<{
+		id: number;
+		book_id: number;
+		chapter: number;
+		verse_start: number | null;
+		verse_end: number | null;
+		title: string | null;
+		body_html: string;
+	}>(sql`
+		select id, book_id, chapter, verse_start, verse_end, title, body_html
+		from commentary_entries
+		where resource_id = ${resourceId} and ${matches}
+		order by book_id, chapter, verse_start nulls first, id
+		limit ${pageSize} offset ${(page - 1) * pageSize}
+	`);
+	return {
+		query,
+		hits: rows.map((row) => ({
+			id: row.id,
+			book: row.book_id,
+			chapter: row.chapter,
+			verseStart: row.verse_start,
+			verseEnd: row.verse_end,
+			title: row.title,
+			bodyHtml: row.body_html
+		})),
+		total,
+		page,
+		pageCount: Math.max(1, Math.ceil(total / pageSize)),
+		bookCounts: allBookCounts,
+		suggestion: null
 	};
 }
 
@@ -140,17 +262,6 @@ export async function search(
 	`);
 	const total = Number(countRow?.total ?? 0);
 
-	if (total === 0) {
-		return { ...empty, suggestion: await suggest(db, query.highlight[0]) };
-	}
-
-	const counts = await db.execute<{ resource_id: string; count: number }>(sql`
-		select resource_id, count(*)::int as count
-		from verses
-		where resource_id in (${resources}) and ${matches}
-		group by resource_id
-	`);
-
 	const bookCounts = await db.execute<{ book_id: number; count: number }>(sql`
 		select book_id, count(*)::int as count from (
 			select distinct book_id, chapter, verse
@@ -159,6 +270,26 @@ export async function search(
 		) matched
 		group by book_id
 		order by book_id
+	`);
+	const bookCountsByBook = new Map(bookCounts.map((row) => [row.book_id, Number(row.count)]));
+	const allBookCounts = BOOKS.map((book) => ({
+		book: book.id,
+		count: bookCountsByBook.get(book.id) ?? 0
+	}));
+	if (total === 0) {
+		const hasUnfilteredMatches = bookCounts.some((row) => Number(row.count) > 0);
+		return {
+			...empty,
+			bookCounts: allBookCounts,
+			suggestion: hasUnfilteredMatches ? null : await suggest(db, query.highlight[0])
+		};
+	}
+
+	const counts = await db.execute<{ resource_id: string; count: number }>(sql`
+		select resource_id, count(*)::int as count
+		from verses
+		where resource_id in (${resources}) and ${matches}
+		group by resource_id
 	`);
 
 	const references = await db.execute<{
@@ -177,10 +308,6 @@ export async function search(
 
 	const hits = await attachParallelText(db, references, options.resourceIds);
 
-	// Zero-filled for every book, not just ones with a hit, so the chart's book axis stays the whole
-	// canon instead of growing and shrinking with the result set.
-	const bookCountsByBook = new Map(bookCounts.map((row) => [row.book_id, Number(row.count)]));
-
 	return {
 		query,
 		hits,
@@ -188,7 +315,8 @@ export async function search(
 		page,
 		pageCount: Math.max(1, Math.ceil(total / pageSize)),
 		counts: counts.map((row) => ({ resourceId: row.resource_id, count: Number(row.count) })),
-		bookCounts: BOOKS.map((book) => ({ book: book.id, count: bookCountsByBook.get(book.id) ?? 0 })),
+		// Zero-filled for every book so the chart's axis never grows or shrinks with the result set.
+		bookCounts: allBookCounts,
 		suggestion: null
 	};
 }

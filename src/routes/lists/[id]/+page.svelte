@@ -6,6 +6,7 @@
 	import Button from '$lib/components/Button.svelte';
 	import Card from '$lib/components/Card.svelte';
 	import CommentThread from '$lib/components/CommentThread.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import VerseText from '$lib/components/VerseText.svelte';
 
 	let { data, form } = $props();
@@ -43,12 +44,11 @@
 	);
 </script>
 
-<svelte:head><title>{data.list.title} — Akribos</title></svelte:head>
-
 <main class="mx-auto w-full max-w-3xl space-y-6 px-4 py-8">
 	<nav class="text-sm">
 		<Button href="/account?tab=lists" size="sm" variant="secondary">
-			← {t('lists.backToOverview')}
+			<Icon name="chevron-left" class="size-4" />
+			{t('lists.backToOverview')}
 		</Button>
 	</nav>
 
@@ -126,7 +126,9 @@
 										verse: item.verse
 									})}
 								/>
-								<Button variant="ghost" size="sm" ariaLabel={t('lists.removeVerse')}>×</Button>
+								<Button variant="ghost" size="sm" ariaLabel={t('lists.removeVerse')}>
+									<Icon name="x" class="size-4" />
+								</Button>
 							</form>
 						{/if}
 					</div>

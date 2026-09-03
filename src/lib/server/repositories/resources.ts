@@ -77,11 +77,11 @@ export async function listBibles(db: Database): Promise<ReadableResource[]> {
 	return (await listResources(db)).filter((resource) => resource.kind === 'bible');
 }
 
-/** Resources that have chapter/verse keyed content and can therefore be shown as reader columns. */
+/** Public resources that can be opened as workspace tabs. */
 export async function listReaderResources(db: Database): Promise<ReadableResource[]> {
 	return (await listResources(db)).filter((resource) =>
-		(['bible', 'commentary', 'xrefs'] as const).includes(
-			resource.kind as 'bible' | 'commentary' | 'xrefs'
+		(['bible', 'commentary', 'xrefs', 'lexicon'] as const).includes(
+			resource.kind as 'bible' | 'commentary' | 'xrefs' | 'lexicon'
 		)
 	);
 }

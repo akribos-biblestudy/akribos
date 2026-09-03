@@ -1,7 +1,11 @@
 import { getDb } from '$lib/server/db';
 import { listBibles, listReaderResources } from '$lib/server/repositories/resources';
-import { MAX_COLUMNS, resolveColumns, writeColumns } from '$lib/server/columns';
-import { updateReaderColumns } from '$lib/server/repositories/users';
+import {
+	resolveReaderWorkspace,
+	workspaceColumns,
+	writeWorkspaceCompatibilityCookies
+} from '$lib/server/reader-workspace';
+import { updateReaderWorkspace } from '$lib/server/repositories/users';
 import {
 	readFontScale,
 	readTheme,
@@ -19,13 +23,18 @@ export async function load({ cookies, locals }) {
 	const db = getDb();
 	const bibles = await listBibles(db);
 	const readerResources = await listReaderResources(db);
-	const columns = resolveColumns(cookies, readerResources, locals.user?.readerColumns);
-	if (locals.user && locals.user.readerColumns.length === 0) {
-		await updateReaderColumns(db, locals.user.id, columns);
+	const workspace = resolveReaderWorkspace(
+		cookies,
+		readerResources,
+		locals.user?.readerWorkspace,
+		locals.user?.readerColumns
+	);
+	const columns = workspaceColumns(workspace);
+	if (locals.user && !locals.user.readerWorkspace) {
+		await updateReaderWorkspace(db, locals.user.id, workspace, columns);
 	}
-	// Keep the device fallback aligned with whatever was just resolved, so a device's own cookie is
-	// always what the next request sees — signing out does not reshuffle the reader either.
-	writeColumns(cookies, columns);
+	// Also keep a device fallback for guests and after sign-out. Signed-in readers use the account copy.
+	writeWorkspaceCompatibilityCookies(cookies, workspace);
 	const readerFontScale = readFontScale(cookies, locals.user?.readerFontScale);
 	writeFontScale(cookies, readerFontScale);
 	const theme = readTheme(cookies, locals.user?.theme);
@@ -35,11 +44,9 @@ export async function load({ cookies, locals }) {
 		bibles,
 		readerResources,
 		columns,
+		workspace,
 		readerFontScale,
 		theme,
-		// The limit lives in $lib/server, so the reader cannot import it to decide whether to offer a
-		// further column.
-		maxColumns: MAX_COLUMNS,
 		user: locals.user,
 		tourGuestDone: readTourGuestDone(cookies)
 	};

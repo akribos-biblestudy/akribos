@@ -17,12 +17,13 @@
 	 *
 	 * One series, ranked by frequency — a single accent hue, light-to-dark by rank, is what a
 	 * sequential (magnitude) encoding calls for. Rendered with Chart.js rather than hand-drawn SVG, so
-	 * layout, legend wrapping and hover tooltips stay correct at any width — including the narrow study
-	 * sidebar, where a hand-rolled leader-line layout had no room to breathe.
+	 * layout, legend wrapping and hover tooltips stay correct at any width — including narrow reader
+	 * tiles, where a hand-rolled leader-line layout has no room to breathe.
 	 */
 	let {
 		glosses,
 		groupBelowPercent,
+		occurrenceTotal,
 		centerLabel = false,
 		hrefForGloss,
 		activeGloss = null
@@ -30,6 +31,8 @@
 		glosses: { display: string; occurrences: number }[];
 		/** Renderings below this share of the total are folded into one "+N andere" slice. */
 		groupBelowPercent?: number;
+		/** Full Strong count, including renderings beyond the repository's result limit. */
+		occurrenceTotal?: number;
 		/** Shows the total rendering count and occurrences in the donut's hollow centre. */
 		centerLabel?: boolean;
 		/** Makes every ungrouped rendering a filter link in full-page statistics views. */
@@ -39,12 +42,23 @@
 
 	const SHADES = ['700', '600', '500', '400', '300', '200', '100', '50'];
 
-	const total = $derived(glosses.reduce((sum, gloss) => sum + gloss.occurrences, 0));
+	const listedTotal = $derived(glosses.reduce((sum, gloss) => sum + gloss.occurrences, 0));
+	const total = $derived(Math.max(listedTotal, occurrenceTotal ?? listedTotal));
+	const unlistedOccurrences = $derived(total - listedTotal);
 
 	/** The chart's own series: the grouped tail (if any) is a distinct, muted "other" entry. */
 	const chartGlosses = $derived.by(() => {
-		if (!groupBelowPercent || total === 0)
-			return glosses.map((gloss) => ({ ...gloss, other: false }));
+		if (!groupBelowPercent || total === 0) {
+			const result = glosses.map((gloss) => ({ ...gloss, other: false }));
+			if (unlistedOccurrences > 0) {
+				result.push({
+					display: t('strong.glossUnlisted'),
+					occurrences: unlistedOccurrences,
+					other: true
+				});
+			}
+			return result;
+		}
 
 		const threshold = (groupBelowPercent / 100) * total;
 		const kept = glosses.filter((gloss) => gloss.occurrences >= threshold);
@@ -54,6 +68,13 @@
 			result.push({
 				display: t('strong.glossOthers', { count: grouped.length }),
 				occurrences: grouped.reduce((sum, gloss) => sum + gloss.occurrences, 0),
+				other: true
+			});
+		}
+		if (unlistedOccurrences > 0) {
+			result.push({
+				display: t('strong.glossUnlisted'),
+				occurrences: unlistedOccurrences,
 				other: true
 			});
 		}
@@ -86,13 +107,13 @@
 				ctx.textBaseline = 'middle';
 				ctx.fillStyle = dark ? cssVar('--color-stone-100') : cssVar('--color-stone-800');
 				ctx.font = '700 26px var(--font-serif), Georgia, serif';
-				ctx.fillText(formatNumber(glosses.length), cx, cy - 12);
+				ctx.fillText(formatNumber(total), cx, cy - 12);
 
 				ctx.fillStyle = dark ? cssVar('--color-stone-400') : cssVar('--color-stone-500');
 				ctx.font = '11px system-ui, sans-serif';
 				ctx.fillText(t('strong.glossCenterWord'), cx, cy + 8);
 				ctx.fillText(
-					t('strong.glossCenterHint', { occurrences: formatNumber(total) }),
+					t('strong.glossCenterHint', { count: formatNumber(glosses.length) }),
 					cx,
 					cy + 22
 				);
@@ -191,6 +212,12 @@
 					<td>{formatNumber(gloss.occurrences)}</td>
 				</tr>
 			{/each}
+			{#if unlistedOccurrences > 0}
+				<tr>
+					<td>{t('strong.glossUnlisted')}</td>
+					<td>{formatNumber(unlistedOccurrences)}</td>
+				</tr>
+			{/if}
 		</tbody>
 	</table>
 

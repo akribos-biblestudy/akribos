@@ -50,8 +50,6 @@
 	const needsTarget = $derived(selectedFormat === 'tsp');
 </script>
 
-<svelte:head><title>Importieren — Akribos</title></svelte:head>
-
 <header class="mb-5 flex flex-wrap items-start justify-between gap-3">
 	<div>
 		<h1 class="text-2xl font-semibold tracking-tight">Ressource importieren</h1>

@@ -169,6 +169,13 @@
       "when": 1788172411725,
       "tag": "0023_bitter_morlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788429869109,
+      "tag": "0024_famous_maestro",
+      "breakpoints": true
     }
   ]
 }

@@ -7,8 +7,6 @@
 	const redirectTo = $derived(encodeURIComponent(page.url.pathname));
 </script>
 
-<svelte:head><title>{t('invites.title')} — Akribos</title></svelte:head>
-
 <main
 	class="mx-auto my-8 w-[calc(100%-2rem)] max-w-sm rounded-xl border border-stone-200 bg-white px-6 py-7
 			 shadow-[0_12px_40px_rgb(28_25_23/0.08)] dark:border-stone-800 dark:bg-stone-900/70"

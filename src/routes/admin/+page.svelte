@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { formatNumber, t, type MessageKey } from '$lib/i18n';
 	import JobList from '$lib/components/admin/JobList.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 
 	let { data } = $props();
 
@@ -17,8 +18,6 @@
 
 	const kindLabel = (kind: string) => t(`resource.kind.${kind}` as MessageKey);
 </script>
-
-<svelte:head><title>Verwaltung — Akribos</title></svelte:head>
 
 <header class="mb-6 flex flex-wrap items-start justify-between gap-3">
 	<div>
@@ -80,9 +79,10 @@
 	>
 		<span>Datenbankdetails</span>
 		<span class="flex items-center gap-2 text-xs font-normal text-stone-500"
-			><span>{data.databaseSize}</span><span class="transition-transform group-open:rotate-180"
-				>⌄</span
-			></span
+			><span>{data.databaseSize}</span><Icon
+				name="chevron-down"
+				class="size-4 transition-transform group-open:rotate-180"
+			/></span
 		>
 	</summary>
 	<div class="overflow-x-auto border-t border-stone-200 px-4 py-3 dark:border-stone-800">

@@ -1,22 +1,45 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
-	import { afterNavigate, beforeNavigate, pushState, replaceState } from '$app/navigation';
+	import { deserialize, enhance } from '$app/forms';
+	import { beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	import { onDestroy, tick } from 'svelte';
-	import { SvelteSet } from 'svelte/reactivity';
+	import { onDestroy, tick, untrack } from 'svelte';
+	import { SvelteMap, SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity';
 	import { formatReference, referencePath, type VerseRef } from '$lib/bible/reference';
 	import { countVerseWords, segmentsToText, splitVerseLead } from '$lib/bible/segments';
 	import { spanRangeForVerse } from '$lib/bible/highlight-span';
 	import { readerLocation, setJumpToVerse } from '$lib/reader-location.svelte';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
+	import { readerContentLinks } from '$lib/actions/reader-content-links';
 	import { t } from '$lib/i18n';
-	import ColumnPicker from '$lib/components/ColumnPicker.svelte';
 	import CommentBubble from '$lib/components/CommentBubble.svelte';
 	import CommentToggle from '$lib/components/CommentToggle.svelte';
-	import StudySidebar from '$lib/components/StudySidebar.svelte';
+	import Icon from '$lib/components/Icon.svelte';
+	import ReaderLexiconTab from '$lib/components/ReaderLexiconTab.svelte';
+	import ReaderResourceTabs from '$lib/components/ReaderResourceTabs.svelte';
+	import ReaderTabSearchResults from '$lib/components/ReaderTabSearchResults.svelte';
+	import ReaderTabToolbar from '$lib/components/ReaderTabToolbar.svelte';
 	import TranslationDialog from '$lib/components/TranslationDialog.svelte';
 	import VerseMenu from '$lib/components/VerseMenu.svelte';
 	import VerseText from '$lib/components/VerseText.svelte';
+	import {
+		MIN_READER_TRACK_FRACTION,
+		normalizeReaderTracks,
+		readerLayoutDefinition,
+		readerLayoutSize,
+		setReaderTabLookup,
+		setReaderTabReference,
+		type ReaderTab,
+		type ReaderWorkspace
+	} from '$lib/reader/workspace';
+	import {
+		encodeReaderUrlState,
+		readerActionUrl,
+		readerStateFromActionData,
+		readerStateFromUrl,
+		readerUrl,
+		type ReaderSearchQueries
+	} from '$lib/reader/url-state';
+	import type { ReaderTabSearchResponse } from '$lib/reader/tab-search';
 
 	let { data } = $props();
 
@@ -33,28 +56,8 @@
 	 * A reactive set the verse menu writes to, so ticking a list flips the mark immediately; it is
 	 * derived from page data, so it is rebuilt from the server's answer on every navigation.
 	 */
-	const marks = $derived(
-		new SvelteSet(data.markedVerses.map((mark) => `${mark.verse}:${mark.listId}`))
-	);
-
-	/**
-	 * Verses that sit in at least one list, which colours their number.
-	 *
-	 * Read back out of `marks` rather than from page data, so ticking a list in the menu recolours the
-	 * number at once — the add does not re-run `load`, since the chapter itself has not changed.
-	 */
-	const inAnyList = $derived(new Set([...marks].map((key) => Number(key.split(':')[0]))));
-
 	let verseMenu = $state<VerseMenu | undefined>();
 	let translationDialog = $state<TranslationDialog | undefined>();
-
-	/** Columns excluded from the flow layout's cross-column scroll sync — empty means everyone follows. */
-	const unlinkedColumns = new SvelteSet<number>();
-
-	function toggleLink(index: number) {
-		if (unlinkedColumns.has(index)) unlinkedColumns.delete(index);
-		else unlinkedColumns.add(index);
-	}
 
 	/** The translation the commentary auto-link popover fetches verse text from: whichever Bible
 	 *  translation is actually showing in a column right now, so hovering a reference in a commentary
@@ -63,41 +66,53 @@
 		data.columns.find((column) => column.resource.kind === 'bible')?.resource.id ?? null
 	);
 
-	const unusedResources = $derived(
-		data.readerResources.filter(
-			(resource) => !data.columns.some((column) => column.resource.id === resource.id)
-		)
-	);
-	const canAddColumn = $derived(
-		data.columns.length < data.maxColumns && unusedResources.length > 0
-	);
-	const visibleColumnCount = $derived(data.columns.length);
-	const chosenResourceIds = $derived(data.columns.map((column) => column.resource.id));
-	function currentReaderUrl(): string {
-		const path = referencePath(readerLocation.reference ?? data.reference);
-		return `${path}${window.location.search}${window.location.hash}`;
+	function currentReaderUrl(reference?: VerseRef): string {
+		const path = referencePath(reference ?? readerLocation.reference ?? data.reference);
+		return readerUrl(path, currentReaderState());
 	}
 
-	function openTranslationDialog(index: number) {
-		translationDialog?.openAt({
-			action: '?/setColumn',
-			readerUrl: currentReaderUrl(),
-			index,
-			selectedId: data.columns[index]?.resource.id,
-			chosen: chosenResourceIds
-		});
+	function currentReaderState(): string {
+		return readerStateFromUrl(page.url) ?? data.readerState;
 	}
 
-	function openAddDialog() {
-		translationDialog?.openAt({
-			action: '?/addColumn',
-			readerUrl: currentReaderUrl(),
-			chosen: chosenResourceIds
-		});
+	function actionUrl(action: string): string {
+		return readerActionUrl(action, currentReaderState());
 	}
+
+	function openResourceDialog(tileId: string, anchor: HTMLElement) {
+		translationDialog?.openAt(
+			{
+				action: actionUrl('addTab'),
+				readerUrl: currentReaderUrl(),
+				tileId
+			},
+			anchor
+		);
+	}
+
+	function replaceResourceDialog(tileId: string, tabId: string, anchor: HTMLElement) {
+		const tile = data.workspace.tiles.find((candidate) => candidate.id === tileId);
+		const tab = tile?.tabs.find((candidate) => candidate.id === tabId);
+		if (!tile || !tab) return;
+		translationDialog?.openAt(
+			{
+				action: actionUrl('replaceTabResource'),
+				readerUrl: currentReaderUrl(tab.reference),
+				tileId,
+				tabId
+			},
+			anchor
+		);
+	}
+
+	function columnForTile(tileId: string) {
+		return data.columns.find((column) => column.tileId === tileId);
+	}
+
+	const TILE_AREAS = ['a', 'b', 'c', 'd'] as const;
 
 	function commentaryAt(
-		referenceResources: typeof data.referenceResources,
+		referenceResources: (typeof data.columns)[number]['initialChapter']['referenceResources'],
 		resourceId: string,
 		verse: number
 	) {
@@ -107,7 +122,7 @@
 	}
 
 	function crossReferencesAt(
-		referenceResources: typeof data.referenceResources,
+		referenceResources: (typeof data.columns)[number]['initialChapter']['referenceResources'],
 		resourceId: string,
 		verse: number
 	) {
@@ -116,111 +131,50 @@
 		);
 	}
 
-	let draggedColumn = $state<number | null>(null);
-	let dropColumn = $state<number | null>(null);
-	let reorderForm = $state<HTMLFormElement | undefined>();
-	let reorderFromInput = $state<HTMLInputElement | undefined>();
-	let reorderToInput = $state<HTMLInputElement | undefined>();
-
-	function startColumnDrag(event: DragEvent, index: number) {
-		draggedColumn = index;
-		event.dataTransfer?.setData('text/plain', String(index));
-		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-	}
-
-	function dropOnColumn(event: DragEvent, index: number) {
-		event.preventDefault();
-		const from = draggedColumn ?? Number(event.dataTransfer?.getData('text/plain'));
-		draggedColumn = null;
-		dropColumn = null;
-		if (
-			!Number.isInteger(from) ||
-			from === index ||
-			!reorderForm ||
-			!reorderFromInput ||
-			!reorderToInput
-		)
-			return;
-		reorderFromInput.value = String(from);
-		reorderToInput.value = String(index);
-		reorderForm.requestSubmit();
-	}
-
-	/**
-	 * Drag-resizable column widths, as fractions of the row that sum to 1.
-	 *
-	 * `null` means "not customized yet" — the grid then falls back to an even split via the
-	 * `--column-track` CSS variable's own fallback, rather than this rendering an explicit (if
-	 * numerically equivalent) track of its own for no reason.
-	 */
-	let columnWidths = $state<number[] | null>(data.columnWidths);
-	/** Detects a reorder, add, remove or swap — not a mere navigation, which leaves the id list (and
-	 *  therefore this key) unchanged — so a resize commit's own round trip does not clobber the widths
-	 *  the reader just set. Kept separate from `streamColumnsKey` above: that one resets the *chapter*
-	 *  stream, this one only cares whether the *columns* changed. */
-	let columnWidthsKey = data.columns.map((column) => column.resource.id).join(',');
-	const MIN_COLUMN_FRACTION = 0.12;
 	/** The address/sync anchor sits at the inner edge of the top fade, not beneath its veil. */
 	const FLOW_EDGE_FADE_PX = 24;
 
+	const layoutDefinition = $derived(readerLayoutDefinition(data.workspace.layout));
+	let layoutColumns = $state(untrack(() => readerLayoutSize(data.workspace).columns));
+	let layoutRows = $state(untrack(() => readerLayoutSize(data.workspace).rows));
+	let layoutSizeKey = $state('');
+	const columnTrack = $derived(
+		layoutColumns.map((fraction) => `minmax(0, ${fraction}fr)`).join(' ')
+	);
+	const rowTrack = $derived(layoutRows.map((fraction) => `minmax(0, ${fraction}fr)`).join(' '));
+	const columnBoundaries = $derived(trackBoundaries(layoutColumns));
+	const rowBoundaries = $derived(trackBoundaries(layoutRows));
+
 	$effect(() => {
-		const key = data.columns.map((column) => column.resource.id).join(',');
-		if (key !== columnWidthsKey) {
-			columnWidthsKey = key;
-			// The server already recomputed this in the new order (a reorder) or decided the old
-			// widths no longer apply (an add/remove/swap, where it comes back `null`) — either way,
-			// adopting its answer is correct, not just a reset.
-			columnWidths = data.columnWidths;
-		}
+		const size = readerLayoutSize(data.workspace);
+		const key = `${data.workspace.layout}:${size.columns.join(',')}:${size.rows.join(',')}`;
+		if (key === layoutSizeKey) return;
+		layoutSizeKey = key;
+		layoutColumns = size.columns;
+		layoutRows = size.rows;
 	});
 
-	function equalColumnWidths(): number[] {
-		return data.columns.map(() => 1 / data.columns.length);
+	function trackBoundaries(fractions: number[]): { percent: number; offsetRem: number }[] {
+		const gapCount = fractions.length - 1;
+		let cumulative = 0;
+		return fractions.slice(0, -1).map((fraction, index) => {
+			cumulative += fraction;
+			return {
+				percent: cumulative * 100,
+				offsetRem: 0.75 * (index + 0.5 - gapCount * cumulative)
+			};
+		});
 	}
 
-	/** The row's grid track, or `undefined` while `columnWidths` is `null` so the CSS fallback (an
-	 *  even `repeat()` split) applies untouched. `minmax(0, …)` matches the original bare `1fr` tracks
-	 *  so a narrow custom width can still shrink below its content's own minimum, exactly like before. */
-	const columnTrack = $derived(
-		columnWidths ? columnWidths.map((width) => `minmax(0, ${width}fr)`).join(' ') : undefined
-	);
-	/** The desktop header bar sets `grid-template-columns` inline rather than through a class, so it
-	 *  cannot lean on the CSS variable's own fallback and needs the equivalent literal spelled out. */
-	const headerGridTemplate = $derived(
-		columnTrack ?? `repeat(${visibleColumnCount}, minmax(0, 1fr))`
-	);
-
-	/** Position of each boundary between two real columns. A pure percentage only centers the middle
-	 *  splitter: CSS Grid removes every gap before distributing the fractional tracks, so the outer
-	 *  splitters also need a small gap-dependent offset. */
-	const columnBoundaries = $derived.by(() => {
-		const fractions = columnWidths ?? equalColumnWidths();
-		const totalUnits = 1;
-		const gapCount = visibleColumnCount - 1;
-		const boundaries: { percent: number; offsetRem: number }[] = [];
-		let cumulative = 0;
-		for (let index = 0; index < fractions.length - 1; index += 1) {
-			cumulative += fractions[index] ?? 0;
-			const fraction = cumulative / totalUnits;
-			boundaries.push({
-				percent: fraction * 100,
-				// Both the header and reader use Tailwind's `gap-3`, i.e. 0.75rem. This moves the
-				// handle from the fractional track edge to the exact centre of its adjacent gap.
-				offsetRem: 0.75 * (index + 0.5 - gapCount * fraction)
-			});
-		}
-		return boundaries;
-	});
-
-	let columnHeaderBar = $state<HTMLElement>();
 	let flowReader = $state<HTMLElement>();
-	let isResizingColumns = false;
+	let resizeAxis: 'columns' | 'rows' | null = null;
 	let resizeBoundaryIndex: number | null = null;
-	let resizeStartX = 0;
+	let resizeStartPosition = 0;
 	let resizeStartWidths: number[] = [];
-	let resizeBarWidth = 0;
-	let widthsForm = $state<HTMLFormElement | undefined>();
-	let widthsInput = $state<HTMLInputElement | undefined>();
+	let resizeAvailableSize = 0;
+	let sizesForm = $state<HTMLFormElement | undefined>();
+	let sizesColumnsInput = $state<HTMLInputElement | undefined>();
+	let sizesRowsInput = $state<HTMLInputElement | undefined>();
 
 	function clampBoundary(widths: number[], boundaryIndex: number, nextLeft: number): number[] {
 		const next = [...widths];
@@ -228,72 +182,84 @@
 		const right = next[boundaryIndex + 1] ?? 0;
 		const pairTotal = left + right;
 		const clampedLeft = Math.max(
-			MIN_COLUMN_FRACTION,
-			Math.min(pairTotal - MIN_COLUMN_FRACTION, nextLeft)
+			MIN_READER_TRACK_FRACTION,
+			Math.min(pairTotal - MIN_READER_TRACK_FRACTION, nextLeft)
 		);
 		next[boundaryIndex] = clampedLeft;
 		next[boundaryIndex + 1] = pairTotal - clampedLeft;
 		return next;
 	}
 
-	function startColumnResize(event: PointerEvent, boundaryIndex: number) {
+	function startLayoutResize(event: PointerEvent, axis: 'columns' | 'rows', boundaryIndex: number) {
 		if (!flowReader) return;
-		isResizingColumns = true;
+		resizeAxis = axis;
 		resizeBoundaryIndex = boundaryIndex;
-		resizeStartX = event.clientX;
-		resizeStartWidths = columnWidths ?? equalColumnWidths();
+		resizeStartPosition = axis === 'columns' ? event.clientX : event.clientY;
+		resizeStartWidths = axis === 'columns' ? [...layoutColumns] : [...layoutRows];
 		const style = getComputedStyle(flowReader);
-		resizeBarWidth =
-			flowReader.getBoundingClientRect().width -
-			parseFloat(style.columnGap) * (visibleColumnCount - 1);
+		const rect = flowReader.getBoundingClientRect();
+		resizeAvailableSize =
+			(axis === 'columns' ? rect.width : rect.height) -
+			parseFloat(axis === 'columns' ? style.columnGap : style.rowGap) *
+				(resizeStartWidths.length - 1);
+		(event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
 	}
 
 	/** Bound to `<svelte:window>`, not the handle itself: a pointer that leaves the handle mid-drag
 	 *  (fast movement, or the handle itself moving out from under the pointer) must keep resizing. */
-	function onColumnResizeMove(event: PointerEvent) {
-		if (!isResizingColumns || resizeBoundaryIndex === null || resizeBarWidth <= 0) return;
-		const deltaFraction = (event.clientX - resizeStartX) / resizeBarWidth;
-		columnWidths = clampBoundary(
+	function onLayoutResizeMove(event: PointerEvent) {
+		if (!resizeAxis || resizeBoundaryIndex === null || resizeAvailableSize <= 0) return;
+		const position = resizeAxis === 'columns' ? event.clientX : event.clientY;
+		const deltaFraction = (position - resizeStartPosition) / resizeAvailableSize;
+		const resized = clampBoundary(
 			resizeStartWidths,
 			resizeBoundaryIndex,
 			(resizeStartWidths[resizeBoundaryIndex] ?? 0) + deltaFraction
 		);
+		if (resizeAxis === 'columns') layoutColumns = resized;
+		else layoutRows = resized;
 	}
 
-	function onColumnResizeEnd() {
-		if (!isResizingColumns) return;
-		isResizingColumns = false;
+	function onLayoutResizeEnd() {
+		if (!resizeAxis) return;
+		resizeAxis = null;
 		resizeBoundaryIndex = null;
-		commitColumnWidths();
+		commitLayoutSize();
 	}
 
 	/** Keyboard equivalent of a pointer drag: `ArrowLeft`/`ArrowRight` nudge one boundary a couple of
 	 *  percentage points and commit immediately, since there is no separate "release" event. */
-	function onResizeHandleKeydown(event: KeyboardEvent, boundaryIndex: number) {
+	function onResizeHandleKeydown(
+		event: KeyboardEvent,
+		axis: 'columns' | 'rows',
+		boundaryIndex: number
+	) {
 		const step = 0.02;
-		if (event.key === 'ArrowLeft') {
+		const negative = axis === 'columns' ? 'ArrowLeft' : 'ArrowUp';
+		const positive = axis === 'columns' ? 'ArrowRight' : 'ArrowDown';
+		const current = axis === 'columns' ? layoutColumns : layoutRows;
+		if (event.key === negative) {
 			event.preventDefault();
-			columnWidths = clampBoundary(
-				columnWidths ?? equalColumnWidths(),
-				boundaryIndex,
-				(columnWidths ?? equalColumnWidths())[boundaryIndex]! - step
-			);
-			commitColumnWidths();
-		} else if (event.key === 'ArrowRight') {
+			const resized = clampBoundary(current, boundaryIndex, current[boundaryIndex]! - step);
+			if (axis === 'columns') layoutColumns = resized;
+			else layoutRows = resized;
+			commitLayoutSize();
+		} else if (event.key === positive) {
 			event.preventDefault();
-			columnWidths = clampBoundary(
-				columnWidths ?? equalColumnWidths(),
-				boundaryIndex,
-				(columnWidths ?? equalColumnWidths())[boundaryIndex]! + step
-			);
-			commitColumnWidths();
+			const resized = clampBoundary(current, boundaryIndex, current[boundaryIndex]! + step);
+			if (axis === 'columns') layoutColumns = resized;
+			else layoutRows = resized;
+			commitLayoutSize();
 		}
 	}
 
-	function commitColumnWidths() {
-		if (!columnWidths || !widthsForm || !widthsInput) return;
-		widthsInput.value = columnWidths.join(',');
-		widthsForm.requestSubmit();
+	function commitLayoutSize() {
+		if (!sizesForm || !sizesColumnsInput || !sizesRowsInput) return;
+		layoutColumns = normalizeReaderTracks(layoutColumns, layoutDefinition.columns);
+		layoutRows = normalizeReaderTracks(layoutRows, layoutDefinition.rows);
+		sizesColumnsInput.value = layoutColumns.join(',');
+		sizesRowsInput.value = layoutRows.join(',');
+		sizesForm.requestSubmit();
 	}
 
 	/** Opens the whole-verse menu (verse-number click, or a selection covering the entire verse). */
@@ -362,16 +328,23 @@
 		);
 	}
 
-	/** Which column a reader is looking at on a phone, where only one fits. */
-	let mobileColumn = $state(0);
+	/** Which workspace tile a reader is looking at on a phone, where only one tile fits. */
+	let mobileTile = $state(0);
+
+	/** A desktop layout can be reduced while its last tile is selected on a phone-sized viewport.
+	 * Keep the mobile selection inside the new tile range so that this never leaves an empty reader. */
+	$effect(() => {
+		const lastTile = Math.max(0, data.workspace.tiles.length - 1);
+		if (mobileTile > lastTile) mobileTile = lastTile;
+	});
 
 	/**
 	 * Whether the phone-width layout (one column visible, switched by tabs) is actually in effect —
 	 * not merely "the reader happens to be on a phone", since a desktop window can be narrowed too.
 	 *
-	 * `mobileColumn` only means something once this is true: on desktop every column is visible at
+	 * `mobileTile` only means something once this is true: on desktop every tile is visible at
 	 * once, so gating `role="tabpanel"`/`aria-hidden` purely on `columnIndex !== mobileColumn` would
-	 * incorrectly hide every non-selected column from assistive tech there too, even though a sighted
+	 * incorrectly hide every non-selected tile from assistive tech there too, even though a sighted
 	 * desktop reader sees them all just fine.
 	 */
 	let isMobileViewport = $state(false);
@@ -390,7 +363,7 @@
 
 	/**
 	 * Roving focus for the mobile column tabs, matching `Menu.svelte`'s own arrow-key handling.
-	 * "Automatic activation": moving focus also switches `mobileColumn`, the same as a click — there
+	 * "Automatic activation": moving focus also switches `mobileTile`, the same as a click — there
 	 * is no separate "activate" step, matching the existing click-to-switch behaviour exactly.
 	 */
 	function onMobileTabKeydown(event: KeyboardEvent) {
@@ -411,114 +384,394 @@
 		const target = tabs[next];
 		target?.focus();
 		const index = Number(target?.id.replace('mobile-tab-', ''));
-		if (Number.isFinite(index)) mobileColumn = index;
+		if (Number.isFinite(index)) mobileTile = index;
 	}
 
-	/** Strong's number shown in the study sidebar, kept in the URL hash so it can be shared. */
-	let activeStrong = $state<{ strong: string; word: string; reference: string } | null>(null);
-
 	/**
-	 * Strong's number currently under the mouse, highlighted the same way as `activeStrong` but
-	 * without opening the sidebar or touching the URL/history. Cleared again on pointer leave; see
+	 * Strong's number currently under the mouse. Cleared again on pointer leave; see
 	 * `VerseText.svelte` for why this uses pointer events rather than `mouseenter`/`mouseleave`.
 	 */
 	let hoverStrong = $state<string | null>(null);
 
-	/**
-	 * Restores the sidebar from the browser's real URL after a navigation.
-	 *
-	 * The reader also changes its address with shallow `replaceState` calls. Those deliberately do not
-	 * make `page.url` reactive, so a later history traversal must read `window.location` rather than a
-	 * potentially stale route URL.
-	 */
-	function restoreStrongFromHash(hashValue: string) {
-		const hash = hashValue.replace(/^#/, '');
-		if (!hash) {
-			activeStrong = null;
-			return;
-		}
-		const [strong, word, verseValue] = hash.split('/');
-		if (strong) {
-			const verse = Number.parseInt(verseValue ?? '', 10);
-			activeStrong = {
-				strong: decodeURIComponent(strong),
-				word: decodeURIComponent(word ?? ''),
-				reference: formatReference({
-					book: data.reference.book,
-					chapter: data.reference.chapter,
-					...(Number.isSafeInteger(verse) && verse > 0
-						? { verse }
-						: data.reference.verse !== undefined
-							? { verse: data.reference.verse }
-							: {})
-				})
-			};
+	async function openLexiconForLookup(
+		columnIndex: number,
+		lookup: string,
+		reference?: VerseRef,
+		word?: string
+	): Promise<void> {
+		const column = data.columns[columnIndex];
+		if (!column || !lookup.trim()) return;
+		const form = new FormData();
+		form.set('tileId', column.tileId);
+		form.set('tabId', column.activeTab.id);
+		form.set('lookup', lookup);
+		form.set(
+			'currentReference',
+			formatReference(reference ?? visibleReferences[columnIndex] ?? column.activeTab.reference)
+		);
+		if (word) form.set('word', word);
+		const response = await fetch(actionUrl('openLexiconTab'), {
+			method: 'POST',
+			body: form,
+			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
+		});
+		if (!response.ok) return;
+		const result = deserialize(await response.text());
+		if (result.type !== 'success') return;
+		const state = readerStateFromActionData(result.data);
+		if (!state) return;
+		await goto(readerUrl(window.location.pathname, state), {
+			replaceState: true,
+			invalidateAll: true,
+			noScroll: true
+		});
+		if (
+			window.matchMedia('(max-width: 639px)').matches &&
+			result.data &&
+			typeof result.data === 'object' &&
+			'tileId' in result.data &&
+			typeof result.data.tileId === 'string'
+		) {
+			const targetIndex = data.workspace.tiles.findIndex((tile) => tile.id === result.data?.tileId);
+			if (targetIndex >= 0) mobileTile = targetIndex;
 		}
 	}
 
-	afterNavigate(() => restoreStrongFromHash(window.location.hash));
+	async function lookupInLexicon(columnIndex: number, lookup: string): Promise<void> {
+		const column = data.columns[columnIndex];
+		if (!column || column.resource.kind !== 'lexicon' || !lookup.trim()) return;
+		const form = new FormData();
+		form.set('tileId', column.tileId);
+		form.set('tabId', column.activeTab.id);
+		form.set('lookup', lookup);
+		const response = await fetch(actionUrl('setTabLookup'), {
+			method: 'POST',
+			body: form,
+			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
+		});
+		if (!response.ok) return;
+		const result = deserialize(await response.text());
+		if (result.type !== 'success') return;
+		const state = readerStateFromActionData(result.data);
+		if (!state) return;
+		await goto(readerUrl(window.location.pathname, state), {
+			replaceState: true,
+			invalidateAll: true,
+			noScroll: true
+		});
+	}
 
 	function openStrong(
 		strong: string,
 		word: string,
 		verse: number,
 		book = data.reference.book,
-		chapter = data.reference.chapter
+		chapter = data.reference.chapter,
+		sourceColumnIndex = activeFlowSource
 	) {
-		activeStrong = {
-			strong,
-			word,
-			reference: formatReference({
-				book,
-				chapter,
-				verse
-			})
-		};
-		const url = `${window.location.pathname}${window.location.search}#${encodeURIComponent(strong)}/${encodeURIComponent(word)}/${verse}`;
-		pushState(url, { ...page.state, studySidebar: true });
+		void openLexiconForLookup(sourceColumnIndex, strong, { book, chapter, verse }, word);
 	}
 
-	function closeStrong() {
-		activeStrong = null;
-		pushState(`${window.location.pathname}${window.location.search}`, {
-			...page.state,
-			studySidebar: false
-		});
-	}
-
-	const previousPath = $derived(
-		data.navigation.previous ? referencePath(data.navigation.previous) : null
-	);
-	const nextPath = $derived(data.navigation.next ? referencePath(data.navigation.next) : null);
-
-	type StreamChapter = {
-		reference: { book: number; chapter: number };
-		fullTitle: string;
-		shortBookName: string;
-		chapter: typeof data.chapter;
-		verseComments: typeof data.verseComments;
-		referenceResources: typeof data.referenceResources;
-		highlights: typeof data.highlights;
-		navigation: {
-			previous: { book: number; chapter: number } | null;
-			next: { book: number; chapter: number } | null;
-		};
+	type StreamChapter = (typeof data.columns)[number]['initialChapter'];
+	type ColumnStream = {
+		chapters: StreamChapter[];
+		loadingPrevious: boolean;
+		loadingNext: boolean;
+		generation: number;
 	};
 
-	function initialStreamChapter(): StreamChapter {
+	function columnStreamFromInitial(column: (typeof data.columns)[number]): ColumnStream {
 		return {
-			reference: { book: data.reference.book, chapter: data.reference.chapter },
-			fullTitle: data.fullTitle,
-			shortBookName: data.shortBookName,
-			chapter: data.chapter,
-			verseComments: data.verseComments,
-			referenceResources: data.referenceResources,
-			highlights: data.highlights,
-			navigation: data.navigation
+			chapters: [column.initialChapter],
+			loadingPrevious: false,
+			loadingNext: false,
+			generation: 0
 		};
 	}
 
-	let streamChapters = $state<StreamChapter[]>([initialStreamChapter()]);
+	function initialColumnStreams(): ColumnStream[] {
+		return data.columns.map(columnStreamFromInitial);
+	}
+
+	let columnStreams = $state<ColumnStream[]>(initialColumnStreams());
+	let visibleReferences = $state<VerseRef[]>(
+		untrack(() => data.columns.map((column) => ({ ...column.activeTab.reference })))
+	);
+	let visibleReferenceTabKeys = $state<string[]>(
+		untrack(() => data.columns.map((column) => columnReferenceKey(column)))
+	);
+
+	function columnReferenceKey(column: (typeof data.columns)[number]): string {
+		const reference = column.activeTab.reference;
+		return `${column.activeTab.id}:${column.resource.id}:${reference.book}:${reference.chapter}:${reference.verse ?? ''}`;
+	}
+
+	function columnStreamKey(column: (typeof data.columns)[number]): string {
+		return `${column.activeTab.id}:${column.resource.id}`;
+	}
+
+	function sameReference(left: VerseRef | undefined, right: VerseRef): boolean {
+		return (
+			left?.book === right.book &&
+			left.chapter === right.chapter &&
+			(left.verse ?? null) === (right.verse ?? null)
+		);
+	}
+
+	function toolbarReference(column: (typeof data.columns)[number]): VerseRef {
+		return visibleReferenceTabKeys[column.index] === columnReferenceKey(column)
+			? (visibleReferences[column.index] ?? column.activeTab.reference)
+			: column.activeTab.reference;
+	}
+
+	function tabActivationReference(tileId: string, tab: ReaderTab): VerseRef {
+		const currentColumn = data.columns.find((column) => column.tileId === tileId);
+		if (currentColumn?.activeTab.id === tab.id) return toolbarReference(currentColumn);
+		if (!tab.linkSet) return tab.reference;
+
+		const visiblePeer = data.columns.find(
+			(column) => column.tileId !== tileId && column.activeTab.linkSet === tab.linkSet
+		);
+		return visiblePeer ? toolbarReference(visiblePeer) : tab.reference;
+	}
+
+	function lexiconStudyContext(column: (typeof data.columns)[number]) {
+		const stored = column.activeTab.studyContext;
+		if (stored) {
+			const resource = data.readerResources.find(
+				(candidate) => candidate.id === stored.sourceResourceId && candidate.kind === 'bible'
+			);
+			if (resource) return { resource, reference: stored.reference, word: stored.word };
+		}
+
+		const linkedBible = data.columns.find(
+			(candidate) =>
+				candidate.resource.kind === 'bible' &&
+				column.activeTab.linkSet !== null &&
+				candidate.activeTab.linkSet === column.activeTab.linkSet
+		);
+		const source =
+			linkedBible ?? data.columns.find((candidate) => candidate.resource.kind === 'bible');
+		return source
+			? { resource: source.resource, reference: toolbarReference(source), word: null }
+			: { resource: null, reference: null, word: null };
+	}
+	type TabSearchState = {
+		resourceId: string;
+		query: string;
+		book: number | null;
+		loading: boolean;
+		result: ReaderTabSearchResponse | null;
+		error: string | null;
+	};
+	let tabSearches = $state<Record<string, TabSearchState>>({});
+	const tabSearchRequests = new SvelteMap<string, AbortController>();
+	let restoredReaderState = $state('');
+
+	function currentSearchQueries(): ReaderSearchQueries {
+		return Object.fromEntries(
+			Object.entries(tabSearches).map(([tabId, state]) => [tabId, state.query])
+		);
+	}
+
+	function workspaceAtVisibleReferences(): ReaderWorkspace {
+		let workspace = data.workspace as ReaderWorkspace;
+		for (const column of data.columns) {
+			const reference = toolbarReference(column);
+			workspace = setReaderTabReference(workspace, column.tileId, column.activeTab.id, reference);
+		}
+		return workspace;
+	}
+
+	function syncReaderUrl(path = window.location.pathname): void {
+		try {
+			const state = encodeReaderUrlState(workspaceAtVisibleReferences(), currentSearchQueries());
+			const next = readerUrl(path, state);
+			if (`${window.location.pathname}${window.location.search}` !== next) {
+				replaceState(next, page.state);
+			}
+		} catch (error) {
+			console.error(error);
+		}
+	}
+
+	function tabSearchFor(column: (typeof data.columns)[number]): TabSearchState | null {
+		const state = tabSearches[column.activeTab.id];
+		return state?.resourceId === column.resource.id ? state : null;
+	}
+
+	function clearTabSearch(tabId: string): void {
+		tabSearchRequests.get(tabId)?.abort();
+		tabSearchRequests.delete(tabId);
+		if (!(tabId in tabSearches)) return;
+		const next = { ...tabSearches };
+		delete next[tabId];
+		tabSearches = next;
+		syncReaderUrl();
+	}
+
+	async function runTabSearch(
+		columnIndex: number,
+		rawQuery: string,
+		pageNumber = 1,
+		requestedBook?: number | null
+	): Promise<void> {
+		const column = data.columns[columnIndex];
+		const query = rawQuery.trim();
+		if (!column || !query) return;
+		const tabId = column.activeTab.id;
+		const resourceId = column.resource.id;
+		const previous = tabSearches[tabId];
+		const sameSearch = previous?.resourceId === resourceId && previous.query === query;
+		const book =
+			requestedBook === undefined && sameSearch ? previous.book : (requestedBook ?? null);
+
+		tabSearchRequests.get(tabId)?.abort();
+		const controller = new AbortController();
+		tabSearchRequests.set(tabId, controller);
+		tabSearches = {
+			...tabSearches,
+			[tabId]: {
+				resourceId,
+				query,
+				book,
+				loading: true,
+				result: sameSearch && previous.book === book ? previous.result : null,
+				error: null
+			}
+		};
+		syncReaderUrl();
+
+		try {
+			const params = new SvelteURLSearchParams({
+				resource: resourceId,
+				q: query,
+				page: String(Math.max(1, pageNumber))
+			});
+			if (book !== null) params.set('book', String(book));
+			const response = await fetch(`/api/reader/search?${params}`, { signal: controller.signal });
+			if (!response.ok) throw new Error('Die Suche konnte nicht geladen werden.');
+			const result = (await response.json()) as ReaderTabSearchResponse;
+			if (tabSearchRequests.get(tabId) !== controller) return;
+			tabSearches = {
+				...tabSearches,
+				[tabId]: { resourceId, query, book, loading: false, result, error: null }
+			};
+		} catch (searchError) {
+			if (controller.signal.aborted || tabSearchRequests.get(tabId) !== controller) return;
+			tabSearches = {
+				...tabSearches,
+				[tabId]: {
+					resourceId,
+					query,
+					book,
+					loading: false,
+					result: sameSearch && previous.book === book ? (previous.result ?? null) : null,
+					error:
+						searchError instanceof Error
+							? searchError.message
+							: 'Die Suche konnte nicht geladen werden.'
+				}
+			};
+		} finally {
+			if (tabSearchRequests.get(tabId) === controller) tabSearchRequests.delete(tabId);
+		}
+	}
+
+	$effect(() => {
+		const state = data.readerState;
+		if (state === restoredReaderState) return;
+		restoredReaderState = state;
+		for (const request of tabSearchRequests.values()) request.abort();
+		tabSearchRequests.clear();
+		tabSearches = {};
+		for (const column of data.columns) {
+			const query = data.searchQueries[column.activeTab.id];
+			if (query) void runTabSearch(column.index, query);
+		}
+	});
+
+	async function openTabSearchReference(columnIndex: number, reference: VerseRef): Promise<void> {
+		const column = data.columns[columnIndex];
+		if (!column) return;
+		const form = new FormData();
+		form.set('tileId', column.tileId);
+		form.set('tabId', column.activeTab.id);
+		form.set('reference', formatReference(reference));
+		const response = await fetch(actionUrl('setTabReference'), {
+			method: 'POST',
+			body: form,
+			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
+		});
+		if (!response.ok) return;
+		const result = deserialize(await response.text());
+		if (result.type !== 'success') return;
+		const state = readerStateFromActionData(result.data);
+		if (!state) return;
+		clearTabSearch(column.activeTab.id);
+		await goto(readerUrl(referencePath(reference), state), { invalidateAll: true, noScroll: true });
+	}
+
+	function contextualReferenceUrl(columnIndex: number, reference: VerseRef): string {
+		const column = data.columns[columnIndex];
+		if (!column) return referencePath(reference);
+		const workspace = setReaderTabReference(
+			workspaceAtVisibleReferences(),
+			column.tileId,
+			column.activeTab.id,
+			reference
+		);
+		return readerUrl(
+			referencePath(reference),
+			encodeReaderUrlState(workspace, currentSearchQueries())
+		);
+	}
+
+	function contextualLexiconLookupUrl(columnIndex: number, lookup: string): string {
+		const column = data.columns[columnIndex];
+		if (!column || column.resource.kind !== 'lexicon') return window.location.href;
+		const workspace = setReaderTabLookup(
+			workspaceAtVisibleReferences(),
+			column.tileId,
+			column.activeTab.id,
+			lookup
+		);
+		return readerUrl(
+			window.location.pathname,
+			encodeReaderUrlState(workspace, currentSearchQueries())
+		);
+	}
+
+	$effect(() => {
+		const resourcesByTab = new Map(
+			data.workspace.tiles.flatMap((tile) =>
+				tile.tabs.map((tab) => [tab.id, tab.resourceId] as const)
+			)
+		);
+		for (const [tabId, state] of Object.entries(tabSearches)) {
+			if (resourcesByTab.get(tabId) !== state.resourceId) clearTabSearch(tabId);
+		}
+	});
+	const allStreamChapters = $derived(columnStreams.flatMap((stream) => stream.chapters));
+	const marks = $derived(
+		new SvelteSet(
+			allStreamChapters.flatMap((stream) =>
+				stream.markedVerses.map(
+					(mark) =>
+						`${formatReference({
+							book: stream.reference.book,
+							chapter: stream.reference.chapter,
+							verse: mark.verse
+						})}:${mark.listId}`
+				)
+			)
+		)
+	);
+
+	function isInAnyList(book: number, chapter: number, verse: number): boolean {
+		const prefix = `${formatReference({ book, chapter, verse })}:`;
+		return [...marks].some((key) => key.startsWith(prefix));
+	}
 	/** Empty editors opened through the verse menu but not saved yet. */
 	const draftCommentKeys = new SvelteSet<string>();
 	/** Existing comments explicitly expanded through the icon at the end of their verse. */
@@ -574,7 +827,7 @@
 	 *  translation-specific highlights are looked up separately through `partialHighlightsByKey`. */
 	const highlightByKey = $derived(
 		new Map(
-			streamChapters.flatMap((stream) =>
+			allStreamChapters.flatMap((stream) =>
 				stream.highlights
 					.filter((highlight) => highlight.resourceId === null)
 					.map(
@@ -611,22 +864,17 @@
 				endWord: number;
 			}[]
 		> = {};
-		for (const stream of streamChapters) {
+		for (const stream of allStreamChapters) {
 			for (const highlight of stream.highlights) {
 				if (highlight.resourceId === null) continue;
-				const column = data.columns.find(
-					(candidate) => candidate.resource.id === highlight.resourceId
-				);
-				if (!column || column.bibleCellIndex === null) continue;
+				if (stream.resourceId !== highlight.resourceId) continue;
 
 				const span = {
 					from: { verse: highlight.verse, word: highlight.startWord! },
 					to: { verse: highlight.endVerse, word: highlight.endWord! }
 				};
 				for (let verse = highlight.verse; verse <= highlight.endVerse; verse += 1) {
-					const cell = stream.chapter.rows.find((row) => row.verse === verse)?.cells[
-						column.bibleCellIndex
-					];
+					const cell = stream.chapter.rows.find((row) => row.verse === verse)?.cells[0];
 					if (!cell) continue;
 					const range = spanRangeForVerse(span, verse, countVerseWords(cell.segments));
 					if (!range) continue;
@@ -655,40 +903,39 @@
 		verse: number,
 		styleId: string | null
 	): void {
-		const stream = streamChapters.find(
+		const streams = allStreamChapters.filter(
 			(candidate) => candidate.reference.book === book && candidate.reference.chapter === chapter
 		);
-		if (!stream) return;
+		if (streams.length === 0) return;
 
-		stream.highlights = stream.highlights.filter(
-			(highlight) => !(highlight.verse === verse && highlight.resourceId === null)
-		);
 		const style = styleId
 			? data.highlightStyles.find((candidate) => candidate.id === styleId)
 			: undefined;
-		if (style)
-			stream.highlights.push({
-				verse,
-				endVerse: verse,
-				styleId: style.id,
-				color: style.color,
-				name: style.name,
-				resourceId: null,
-				startWord: null,
-				endWord: null
-			});
+		for (const stream of streams) {
+			stream.highlights = stream.highlights.filter(
+				(highlight) => !(highlight.verse === verse && highlight.resourceId === null)
+			);
+			if (style)
+				stream.highlights.push({
+					verse,
+					endVerse: verse,
+					styleId: style.id,
+					color: style.color,
+					name: style.name,
+					resourceId: null,
+					startWord: null,
+					endWord: null
+				});
+		}
 	}
 
 	let flowColumns = $state<HTMLElement[]>([]);
-	let loadingPrevious = $state(false);
-	let loadingNext = $state(false);
 	let activeFlowSource = 0;
-	let visibleChapterKey = $state('');
 	let streamSignature = '';
-	let streamColumnsKey = data.columns.map((column) => column.resource.id).join(',');
-	let jumpedSignature = '';
-	/** Invalidates chapter requests that were started for an earlier reader navigation. */
-	let streamGeneration = 0;
+	let activeStreamKeys: string[] = [];
+	const streamsByTab = new SvelteMap<string, ColumnStream>();
+	const referencesByTab = new SvelteMap<string, VerseRef>();
+	const scrollTopsByTab = new SvelteMap<string, number>();
 	/**
 	 * Columns whose next scroll events were caused by our own alignment/prepend compensation.
 	 *
@@ -711,59 +958,87 @@
 	 * crossing into the next range's block triggers the single jump that brings it to the anchor line.
 	 */
 	let lastAlignedElement: (Element | null)[] = [];
-	const visibleStreamChapter = $derived(
-		streamChapters.find(
-			(stream) => `${stream.reference.book}:${stream.reference.chapter}` === visibleChapterKey
-		) ?? streamChapters[0]
-	);
 
 	$effect(() => {
-		const columnsKey = data.columns.map((column) => column.resource.id).join(',');
-		const signature = `${data.reference.book}:${data.reference.chapter}:${columnsKey}`;
-		if (signature !== streamSignature) {
-			streamGeneration += 1;
-			const generation = streamGeneration;
-			loadingPrevious = false;
-			loadingNext = false;
-			cancelScheduledReaderWork();
-			const columnsChanged = columnsKey !== streamColumnsKey;
-			const startsAtChapterTop = data.reference.verse === undefined;
-			if (startsAtChapterTop) resetFlowColumnsToTop();
-			streamSignature = signature;
-			streamColumnsKey = columnsKey;
-			streamChapters = [initialStreamChapter()];
-			if (columnsChanged) {
-				// A column that merely swaps translation keeps its position but changes its
-				// `column.resource.id` key, so the keyed `#each` below tears down and remounts only *that*
-				// column — every other column's element is reused as-is and never re-runs `bind:this`. If
-				// `flowColumns` were simply reset to `[]` here, those untouched columns would stay
-				// permanently missing from it (that used to be the bug: cross-column scroll sync broke
-				// after switching a translation, until a reload remounted everything). Requerying by the
-				// stable position attribute instead of trusting which elements happened to remount fixes
-				// every column at once, whatever combination of add/remove/reorder/swap caused the change.
-				tick().then(() => {
-					flowColumns = data.columns
-						.map((_, index) =>
-							document.querySelector<HTMLElement>(`.flow-column[data-flow-column-index="${index}"]`)
-						)
-						.filter((element): element is HTMLElement => element !== null);
-				});
-			}
-			visibleChapterKey = `${data.reference.book}:${data.reference.chapter}`;
-			readerLocation.reference = data.reference;
-			activeFlowSource = 0;
-			jumpedSignature = '';
-			if (startsAtChapterTop) {
-				// SvelteKit reuses the inner scrolling columns across reader navigations. Reset them once
-				// before replacing their contents and again after the DOM update: the first reset prevents
-				// scroll anchoring from retaining the old position, while the second covers remounted columns.
-				tick().then(() => {
-					if (generation !== streamGeneration) return;
-					resetFlowColumnsToTop();
-					window.scrollTo({ top: 0, behavior: 'instant' });
-				});
-			}
+		const columnsKey = data.columns
+			.map(
+				(column) =>
+					`${column.tileId}:${column.activeTab.id}:${column.resource.id}:${column.activeTab.reference.book}:${column.activeTab.reference.chapter}:${column.activeTab.reference.verse ?? ''}`
+			)
+			.join(',');
+		if (columnsKey === streamSignature) return;
+		cancelScheduledReaderWork();
+		streamSignature = columnsKey;
+
+		// Keep streams and scroll positions with their tabs, not with the temporary visible column
+		// index. Switching one tile can then reveal its already loaded tab without rebuilding unrelated
+		// Bible/commentary columns or requesting their next chapters again.
+		for (const [index, key] of activeStreamKeys.entries()) {
+			const stream = columnStreams[index];
+			const reference = visibleReferences[index];
+			const flowColumn = flowColumns[index];
+			if (stream) streamsByTab.set(key, stream);
+			if (reference) referencesByTab.set(key, { ...reference });
+			if (flowColumn) scrollTopsByTab.set(key, flowColumn.scrollTop);
 		}
+
+		const nextStreamKeys = data.columns.map(columnStreamKey);
+		const reusedStreams: boolean[] = [];
+		columnStreams = data.columns.map((column, index) => {
+			const key = nextStreamKeys[index]!;
+			const cached = streamsByTab.get(key);
+			const containsTarget = cached?.chapters.some(
+				(chapter) =>
+					chapter.reference.book === column.activeTab.reference.book &&
+					chapter.reference.chapter === column.activeTab.reference.chapter
+			);
+			reusedStreams[index] = Boolean(cached && containsTarget);
+			const stream = cached && containsTarget ? cached : columnStreamFromInitial(column);
+			stream.loadingPrevious = false;
+			stream.loadingNext = false;
+			streamsByTab.set(key, stream);
+			return stream;
+		});
+		activeStreamKeys = nextStreamKeys;
+		visibleReferences = data.columns.map((column) => ({ ...column.activeTab.reference }));
+		visibleReferenceTabKeys = data.columns.map((column) => columnReferenceKey(column));
+		activeFlowSource = Math.max(
+			0,
+			data.columns.findIndex((column) => column.tileId === data.workspace.focusedTileId)
+		);
+		readerLocation.reference = visibleReferences[activeFlowSource] ?? data.reference;
+		tick().then(() => {
+			flowColumns = data.columns
+				.map((_, index) =>
+					document.querySelector<HTMLElement>(`.flow-column[data-flow-column-index="${index}"]`)
+				)
+				.filter((element): element is HTMLElement => element !== null);
+			for (const [index, column] of data.columns.entries()) {
+				if (column.resource.kind === 'lexicon') continue;
+				const key = nextStreamKeys[index]!;
+				const flowColumn = flowColumns[index];
+				const reference = column.activeTab.reference;
+				const previousReference = referencesByTab.get(key);
+				if (flowColumn && sameReference(previousReference, reference)) {
+					const scrollTop = scrollTopsByTab.get(key);
+					if (scrollTop !== undefined) {
+						suppressProgrammaticFlowScroll(index);
+						flowColumn.scrollTop = scrollTop;
+					}
+					updateFlowEdgeState(index, flowColumn);
+				} else if (flowColumn) {
+					lastAlignedElement[index] = null;
+					suppressProgrammaticFlowScroll(index);
+					flowColumn.scrollTop = 0;
+					updateFlowEdgeState(index, flowColumn);
+				}
+				if (!sameReference(previousReference, reference) && reference.verse) {
+					scrollColumnToVerse(index, reference.book, reference.chapter, reference.verse, true);
+				}
+				referencesByTab.set(key, { ...reference });
+				if (!reusedStreams[index]) void loadStreamNext(index);
+			}
+		});
 	});
 
 	function suppressProgrammaticFlowScroll(columnIndex: number) {
@@ -776,76 +1051,75 @@
 		}, 80);
 	}
 
-	function resetFlowColumnsToTop() {
-		for (const [index, column] of flowColumns.entries()) {
-			if (!column) continue;
-			lastAlignedElement[index] = null;
-			suppressProgrammaticFlowScroll(index);
-			column.scrollTop = 0;
-			updateFlowEdgeState(index, column);
-		}
-	}
-
-	async function fetchStreamChapter(reference: { book: number; chapter: number }) {
-		const response = await fetch(`/api/reader/${reference.book}/${reference.chapter}`);
+	async function fetchStreamChapter(
+		columnIndex: number,
+		reference: { book: number; chapter: number }
+	) {
+		const resourceId = data.columns[columnIndex]?.resource.id;
+		const response = await fetch(
+			`/api/reader/${reference.book}/${reference.chapter}?resource=${encodeURIComponent(resourceId ?? '')}`
+		);
 		if (!response.ok) throw new Error(`Kapitel konnte nicht geladen werden (${response.status})`);
 		return (await response.json()) as StreamChapter;
 	}
 
-	async function loadStreamPrevious() {
-		const reference = streamChapters[0]?.navigation.previous;
-		if (!reference || flowColumns.length === 0 || loadingPrevious) return;
-		const generation = streamGeneration;
-		loadingPrevious = true;
+	async function loadStreamPrevious(columnIndex: number) {
+		if (data.columns[columnIndex]?.resource.kind === 'lexicon') return;
+		const stream = columnStreams[columnIndex];
+		const column = flowColumns[columnIndex];
+		const reference = stream?.chapters[0]?.navigation.previous;
+		if (!stream || !column || !reference || stream.loadingPrevious) return;
+		const generation = stream.generation;
+		stream.loadingPrevious = true;
 		try {
-			const chapter = await fetchStreamChapter(reference);
-			if (generation !== streamGeneration) return;
+			const chapter = await fetchStreamChapter(columnIndex, reference);
+			if (generation !== stream.generation) return;
 			// Capture immediately before the mutation, not before the request: touch momentum may continue
 			// while the chapter is in flight and that genuine user movement must not be rolled back.
-			const oldHeights = flowColumns.map((column) => column?.scrollHeight ?? 0);
+			const oldHeight = column.scrollHeight;
 			// Keep the pre-mutation positions as well as the heights. Browsers may apply CSS scroll
 			// anchoring as soon as the prepended chapter reaches the DOM and increase `scrollTop` on their
 			// own. Reading `column.scrollTop` after `tick()` and adding the height delta to that value would
 			// then compensate twice — the race behind the occasional multi-verse/chapter jump on the first
 			// quick wheel or touch scroll after a reload.
-			const oldScrollTops = flowColumns.map((column) => column?.scrollTop ?? 0);
-			streamChapters.unshift(chapter);
+			const oldScrollTop = column.scrollTop;
+			stream.chapters.unshift(chapter);
 			await tick();
-			for (const [index, column] of flowColumns.entries()) {
-				if (column) {
-					const next = (oldScrollTops[index] ?? 0) + column.scrollHeight - (oldHeights[index] ?? 0);
-					suppressProgrammaticFlowScroll(index);
-					column.scrollTop = next;
-				}
-			}
+			if (generation !== stream.generation) return;
+			suppressProgrammaticFlowScroll(columnIndex);
+			column.scrollTop = oldScrollTop + column.scrollHeight - oldHeight;
 		} finally {
-			if (generation === streamGeneration) loadingPrevious = false;
+			if (generation === stream.generation) stream.loadingPrevious = false;
 		}
 	}
 
-	async function loadStreamNext() {
-		const reference = streamChapters.at(-1)?.navigation.next;
-		if (!reference || loadingNext) return;
-		const generation = streamGeneration;
-		loadingNext = true;
+	async function loadStreamNext(columnIndex: number) {
+		if (data.columns[columnIndex]?.resource.kind === 'lexicon') return;
+		const stream = columnStreams[columnIndex];
+		const reference = stream?.chapters.at(-1)?.navigation.next;
+		if (!stream || !reference || stream.loadingNext) return;
+		const generation = stream.generation;
+		stream.loadingNext = true;
 		try {
-			const chapter = await fetchStreamChapter(reference);
-			if (generation !== streamGeneration) return;
-			streamChapters.push(chapter);
+			const chapter = await fetchStreamChapter(columnIndex, reference);
+			if (generation !== stream.generation) return;
+			stream.chapters.push(chapter);
 			await tick();
-			if (generation !== streamGeneration) return;
+			if (generation !== stream.generation) return;
 			syncFlowColumns(activeFlowSource);
 		} finally {
-			if (generation === streamGeneration) loadingNext = false;
+			if (generation === stream.generation) stream.loadingNext = false;
 		}
 	}
 
-	function updateVisibleChapter(source: HTMLElement, inset: number) {
+	function updateVisibleChapter(columnIndex: number, source: HTMLElement, inset: number) {
 		const top = source.getBoundingClientRect().top + inset;
 		const chapters = [...source.querySelectorAll<HTMLElement>('[data-chapter-key]')];
 		const chapter =
 			chapters.findLast((section) => section.getBoundingClientRect().top <= top) ?? chapters[0];
-		if (chapter?.dataset.chapterKey) visibleChapterKey = chapter.dataset.chapterKey;
+		if (!chapter?.dataset.chapterKey) return;
+		const [book, chapterNumber] = chapter.dataset.chapterKey.split(':').map(Number);
+		if (book && chapterNumber) visibleReferences[columnIndex] = { book, chapter: chapterNumber };
 	}
 
 	let addressBarTimer: ReturnType<typeof setTimeout> | undefined;
@@ -858,7 +1132,7 @@
 	 * The search field follows the visible anchor immediately. Only the actual address-bar rewrite is
 	 * debounced, avoiding needless churn and `history` rate limits while scrolling continues.
 	 */
-	function scheduleAddressBarUpdate(verseKey: string | undefined) {
+	function scheduleAddressBarUpdate(columnIndex: number, verseKey: string | undefined) {
 		if (!verseKey) return;
 		const [book, chapter, verse] = verseKey.split(':').map(Number);
 		if (!book || !chapter || !verse) return;
@@ -867,14 +1141,33 @@
 		// `SiteHeader.svelte`), so there is no risk of clobbering something the reader is typing. Only
 		// the actual address bar write stays debounced, since rewriting `history` on every settle would
 		// be needless churn.
-		readerLocation.reference = { book, chapter, verse };
+		const reference = { book, chapter, verse };
+		visibleReferences[columnIndex] = reference;
+		readerLocation.reference = reference;
 
 		if (addressBarTimer) clearTimeout(addressBarTimer);
 		addressBarTimer = setTimeout(() => {
 			addressBarTimer = undefined;
-			const path = referencePath({ book, chapter, verse });
-			if (path === window.location.pathname) return;
-			replaceState(`${path}${window.location.search}${window.location.hash}`, page.state);
+			const column = data.columns[columnIndex];
+			if (!column) return;
+			const form = new FormData();
+			form.set('tileId', column.tileId);
+			form.set('tabId', column.activeTab.id);
+			form.set('reference', formatReference(reference));
+			const request = fetch(actionUrl('setTabReference'), {
+				method: 'POST',
+				body: form,
+				headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
+			});
+			const path = referencePath(reference);
+			syncReaderUrl(path);
+			void request.then(async (response) => {
+				if (!response.ok) return;
+				const result = deserialize(await response.text());
+				if (result.type !== 'success') return;
+				const state = readerStateFromActionData(result.data);
+				if (state) replaceState(readerUrl(path, state), page.state);
+			});
 		}, 200);
 	}
 
@@ -892,11 +1185,19 @@
 	}
 
 	beforeNavigate(() => {
-		streamGeneration += 1;
+		for (const stream of columnStreams) {
+			stream.generation += 1;
+			stream.loadingPrevious = false;
+			stream.loadingNext = false;
+		}
 		cancelScheduledReaderWork();
 	});
 
 	onDestroy(cancelScheduledReaderWork);
+	onDestroy(() => {
+		for (const request of tabSearchRequests.values()) request.abort();
+		tabSearchRequests.clear();
+	});
 
 	/**
 	 * Finds the element for a verse within a flow column, matching a ranged block (a commentary entry or
@@ -925,8 +1226,9 @@
 
 	function firstVisibleVerse(source: HTMLElement): HTMLElement | undefined {
 		const sourceTop = source.getBoundingClientRect().top + FLOW_EDGE_FADE_PX;
-		return [...source.querySelectorAll<HTMLElement>('[data-verse-key]')].find(
-			(verse) => verse.getBoundingClientRect().bottom > sourceTop
+		const verses = [...source.querySelectorAll<HTMLElement>('[data-verse-key]')];
+		return (
+			verses.find((verse) => verse.getBoundingClientRect().bottom > sourceTop) ?? verses.at(-1)
 		);
 	}
 
@@ -939,36 +1241,36 @@
 	 * Returns whether the reference was actually found, so a caller like the header can fall back to a
 	 * real navigation for anything not already loaded.
 	 */
-	function scrollToVerse(
+	function scrollColumnToVerse(
+		columnIndex: number,
 		book: number,
 		chapter: number,
 		verse: number,
 		allowHighlightedFallback = false
 	): boolean {
 		const key = `${book}:${chapter}:${verse}`;
-		let found = false;
-		for (const [index, column] of flowColumns.entries()) {
-			const target =
-				(column && findVerseElement(column, key, verse)) ??
-				(allowHighlightedFallback
-					? column?.querySelector<HTMLElement>('.flow-verse.highlighted')
-					: null);
-			if (column && target) {
-				found = true;
-				lastAlignedElement[index] = target;
-				const next =
-					column.scrollTop +
-					target.getBoundingClientRect().top -
-					column.getBoundingClientRect().top -
-					FLOW_EDGE_FADE_PX;
-				suppressProgrammaticFlowScroll(index);
-				column.scrollTop = next;
-			}
-		}
-		if (found) {
-			visibleChapterKey = `${book}:${chapter}`;
-			scheduleAddressBarUpdate(key);
-		}
+		const column = flowColumns[columnIndex];
+		const target =
+			(column && findVerseElement(column, key, verse)) ??
+			(allowHighlightedFallback
+				? column?.querySelector<HTMLElement>('.flow-verse.highlighted')
+				: null);
+		if (!column || !target) return false;
+		lastAlignedElement[columnIndex] = target;
+		const next =
+			column.scrollTop +
+			target.getBoundingClientRect().top -
+			column.getBoundingClientRect().top -
+			FLOW_EDGE_FADE_PX;
+		suppressProgrammaticFlowScroll(columnIndex);
+		column.scrollTop = next;
+		visibleReferences[columnIndex] = { book, chapter, verse };
+		return true;
+	}
+
+	function scrollToVerse(book: number, chapter: number, verse: number): boolean {
+		const found = scrollColumnToVerse(activeFlowSource, book, chapter, verse);
+		if (found) scheduleAddressBarUpdate(activeFlowSource, `${book}:${chapter}:${verse}`);
 		return found;
 	}
 
@@ -987,23 +1289,35 @@
 	 * scrolled past the anchor line by the time this first runs), even though nothing was scrolled.
 	 */
 	function syncFlowColumns(sourceIndex = 0, trackAddress = false) {
+		if (data.columns[sourceIndex]?.resource.kind === 'lexicon') return;
 		const source = flowColumns[sourceIndex];
 		if (!source) return;
-		// An unlinked source doesn't drag the others along, and an unlinked column isn't dragged by them
-		// — that decoupling is the whole point of the per-column link toggle.
-		if (unlinkedColumns.has(sourceIndex)) return;
+		const sourceLinkSet = data.columns[sourceIndex]?.activeTab.linkSet ?? null;
 		const anchorInset = FLOW_EDGE_FADE_PX;
-		updateVisibleChapter(source, anchorInset);
 		const anchor = firstVisibleVerse(source);
 		if (!anchor?.dataset.verseKey) return;
-		if (trackAddress) scheduleAddressBarUpdate(anchor.dataset.verseKey);
-		const anchorVerse = Number(anchor.dataset.verseKey.split(':').at(-1));
-
+		const anchorVerse = Number(anchor.dataset.verseKey.split(':')[2]);
+		if (trackAddress) scheduleAddressBarUpdate(sourceIndex, anchor.dataset.verseKey);
+		// A tab without a letter remains independent. A–E are separate groups: only currently active
+		// tabs carrying the exact same letter follow the source.
+		if (!sourceLinkSet) return;
 		for (let index = 0; index < flowColumns.length; index += 1) {
-			if (index === sourceIndex || unlinkedColumns.has(index)) continue;
+			if (
+				index === sourceIndex ||
+				data.columns[index]?.resource.kind === 'lexicon' ||
+				data.columns[index]?.activeTab.linkSet !== sourceLinkSet
+			)
+				continue;
 			const column = flowColumns[index];
 			const target = column && findVerseElement(column, anchor.dataset.verseKey, anchorVerse);
-			if (!column || !target) continue;
+			if (!column) continue;
+			if (!target) {
+				const [book, chapter] = anchor.dataset.verseKey.split(':').map(Number);
+				if (book && chapter) {
+					void resetColumnStream(index, { book, chapter, verse: anchorVerse });
+				}
+				continue;
+			}
 
 			// Only a genuine change of the block covering the anchor verse moves this column — as long as
 			// scrolling the source stays within the same ranged block (e.g. a comment on verses 3-5), the
@@ -1017,11 +1331,36 @@
 			const next = column.scrollTop + target.getBoundingClientRect().top - columnTop;
 			suppressProgrammaticFlowScroll(index);
 			column.scrollTop = next;
+			const [book, chapter] = anchor.dataset.verseKey.split(':').map(Number);
+			if (trackAddress && book && chapter) {
+				visibleReferences[index] = { book, chapter, verse: anchorVerse };
+			}
 		}
 	}
 
+	async function resetColumnStream(columnIndex: number, reference: VerseRef): Promise<void> {
+		const stream = columnStreams[columnIndex];
+		if (!stream) return;
+		stream.generation += 1;
+		const generation = stream.generation;
+		stream.loadingPrevious = false;
+		stream.loadingNext = false;
+		const chapter = await fetchStreamChapter(columnIndex, reference);
+		if (generation !== stream.generation) return;
+		stream.chapters = [chapter];
+		visibleReferences[columnIndex] = { ...reference };
+		await tick();
+		if (generation !== stream.generation) return;
+		const column = flowColumns[columnIndex];
+		if (column) {
+			suppressProgrammaticFlowScroll(columnIndex);
+			column.scrollTop = 0;
+		}
+		scrollColumnToVerse(columnIndex, reference.book, reference.chapter, reference.verse ?? 1);
+		void loadStreamNext(columnIndex);
+	}
+
 	function makeFlowSource(columnIndex: number) {
-		if (unlinkedColumns.has(columnIndex)) return;
 		activeFlowSource = columnIndex;
 		// A real interaction only overrides suppression for the column being touched. Other columns may
 		// still have delayed scroll events queued from our own alignment and must remain suppressed.
@@ -1071,20 +1410,18 @@
 	 * scrollbar dragging, or keyboard paging), and this handler is the one signal that always fires.
 	 */
 	function onFlowScroll(columnIndex: number) {
+		if (data.columns[columnIndex]?.resource.kind === 'lexicon') return;
 		const source = flowColumns[columnIndex];
 		if (!source) return;
 		updateFlowEdgeState(columnIndex, source);
 		if (suppressedFlowColumns.has(columnIndex)) return;
-		// Sync off does not stop this column's own endless-scroll loading below — only the two lines
-		// that would make it the sync source are skipped.
-		if (!unlinkedColumns.has(columnIndex)) {
-			activeFlowSource = columnIndex;
-			scheduleAddressBarUpdate(firstVisibleVerse(source)?.dataset.verseKey);
-			scheduleFlowSync(columnIndex);
-		}
-		updateVisibleChapter(source, FLOW_EDGE_FADE_PX);
-		if (source.scrollTop < 500) void loadStreamPrevious();
-		if (source.scrollHeight - source.scrollTop - source.clientHeight < 900) void loadStreamNext();
+		activeFlowSource = columnIndex;
+		updateVisibleChapter(columnIndex, source, FLOW_EDGE_FADE_PX);
+		scheduleAddressBarUpdate(columnIndex, firstVisibleVerse(source)?.dataset.verseKey);
+		scheduleFlowSync(columnIndex);
+		if (source.scrollTop < 500) void loadStreamPrevious(columnIndex);
+		if (source.scrollHeight - source.scrollTop - source.clientHeight < 900)
+			void loadStreamNext(columnIndex);
 	}
 
 	function updateFlowEdgeState(columnIndex: number, source: HTMLElement) {
@@ -1092,31 +1429,6 @@
 		flowHasContentBelow[columnIndex] =
 			source.scrollHeight - source.scrollTop - source.clientHeight > 4;
 	}
-
-	$effect(() => {
-		tick().then(() => {
-			syncFlowColumns(activeFlowSource);
-			flowColumns.forEach((column, index) => updateFlowEdgeState(index, column));
-			void loadStreamNext().then(() => {
-				flowColumns.forEach((column, index) => updateFlowEdgeState(index, column));
-			});
-		});
-	});
-
-	$effect(() => {
-		const verse = data.reference.verse;
-		if (verse === undefined) return;
-		const signature = `${data.reference.book}:${data.reference.chapter}:${verse}`;
-		if (signature === jumpedSignature) return;
-		jumpedSignature = signature;
-
-		// The highlighted-verse fallback covers a merged range (e.g. "16-17"): only the range's first
-		// verse carries that exact `data-verse-key`, so a deep link straight to "17" would otherwise
-		// find nothing.
-		tick().then(() => {
-			scrollToVerse(data.reference.book, data.reference.chapter, verse, true);
-		});
-	});
 
 	function firstCellVerse(stream: StreamChapter, bibleCellIndex: number | null): number | null {
 		if (bibleCellIndex === null) return null;
@@ -1128,22 +1440,15 @@
 	}
 </script>
 
-<svelte:window
-	onpointermove={onColumnResizeMove}
-	onpointerup={onColumnResizeEnd}
-	onpopstate={() => restoreStrongFromHash(window.location.hash)}
-/>
+<svelte:window onpointermove={onLayoutResizeMove} onpointerup={onLayoutResizeEnd} />
 
 <svelte:head>
-	<title>{data.fullTitle} — Akribos</title>
 	<meta
 		name="description"
 		content="{data.fullTitle} in {data.columns
 			.map((column) => column.resource.tabTitle)
 			.join(', ')} — mit Strong-Nummern, Grammatik und Wörterbuch."
 	/>
-	{#if previousPath}<link rel="prev" href={previousPath} />{/if}
-	{#if nextPath}<link rel="next" href={nextPath} />{/if}
 </svelte:head>
 
 <div class="min-h-0 flex-1">
@@ -1151,83 +1456,23 @@
 	     would then stick to a box that never scrolls vertically. The grid's `minmax(0, 1fr)` tracks
 	     cannot overflow anyway. -->
 	<main>
-		<div
-			class="mx-auto max-w-[var(--content-max-width)] px-3 py-5 sm:px-6 sm:py-6"
-			class:pb-sheet={activeStrong !== null}
-		>
-			<div
-				class="mb-5 flex items-center gap-3 pt-2 pb-1 sm:mb-6 sm:pt-3 sm:pb-2"
-				data-testid="reader-location"
-			>
-				<h1
-					class="mr-auto truncate text-3xl font-semibold tracking-[-0.035em] text-stone-900 sm:text-4xl
-					       dark:text-stone-100"
-				>
-					{visibleStreamChapter?.fullTitle ?? data.fullTitle}
-				</h1>
-			</div>
-
-			<!-- Column headers double as the translation picker. The bar sticks as one piece; a single
-			     header cell is never taller than itself and so could never stick on its own. -->
-			<div
-				bind:this={columnHeaderBar}
-				class="relative sticky top-[var(--header-height)] z-10 -mx-2 mb-3 hidden gap-3
-				       rounded-xl bg-[color:var(--paper)]/94 p-2 backdrop-blur-xl sm:grid"
-				data-testid="column-picker-bar"
-				style="grid-template-columns: {headerGridTemplate}"
-			>
-				{#each data.columns as column (column.resource.id)}
-					<div
-						draggable="true"
-						role="group"
-						aria-label="{column.resource.tabTitle}: {t('reader.dragColumn')}"
-						class="min-w-0 rounded-lg border border-stone-200/80 bg-[color:var(--surface)] px-1 shadow-sm dark:border-white/8"
-						class:opacity-40={draggedColumn === column.index}
-						class:ring-2={dropColumn === column.index}
-						class:ring-accent-400={dropColumn === column.index}
-						ondragstart={(event) => startColumnDrag(event, column.index)}
-						ondragover={(event) => {
-							event.preventDefault();
-							dropColumn = column.index;
-						}}
-						ondragleave={() => (dropColumn = null)}
-						ondrop={(event) => dropOnColumn(event, column.index)}
-						ondragend={() => {
-							draggedColumn = null;
-							dropColumn = null;
-						}}
-					>
-						<ColumnPicker
-							index={column.index}
-							selected={column.resource}
-							canRemove={data.columns.length > 1}
-							canAdd={canAddColumn && column.index === data.columns.length - 1}
-							linked={!unlinkedColumns.has(column.index)}
-							onOpenTranslation={openTranslationDialog}
-							onOpenAdd={openAddDialog}
-							onToggleLink={() => toggleLink(column.index)}
-						/>
-					</div>
-				{/each}
-			</div>
-			<form bind:this={reorderForm} method="POST" action="?/moveColumn" use:enhance class="hidden">
-				<input bind:this={reorderFromInput} type="hidden" name="from" />
-				<input bind:this={reorderToInput} type="hidden" name="to" />
-			</form>
+		<div class="mx-auto max-w-[var(--content-max-width)] px-2 py-2 sm:px-3 sm:py-3">
 			<form
-				bind:this={widthsForm}
+				bind:this={sizesForm}
 				method="POST"
-				action="?/setColumnWidths"
+				action={actionUrl('setLayoutSize')}
 				use:enhance
 				class="hidden"
 			>
-				<input bind:this={widthsInput} type="hidden" name="widths" />
+				<input type="hidden" name="layout" value={data.workspace.layout} />
+				<input bind:this={sizesColumnsInput} type="hidden" name="columns" />
+				<input bind:this={sizesRowsInput} type="hidden" name="rows" />
 			</form>
 
-			<!-- On a phone one column fits; tabs switch between translations. -->
+			<!-- On a phone the desktop arrangement stays intact, while this switcher selects one tile. -->
 			<div
-				class="sticky top-[var(--header-height)] z-10 -mx-3 flex gap-1 overflow-x-auto border-b
-				       border-stone-200 bg-white/95 px-3 py-2 backdrop-blur sm:hidden
+				class="sticky top-[var(--header-height)] z-10 -mx-2 flex gap-1 overflow-x-auto border-b
+				       border-stone-200 bg-white/95 px-2 py-1.5 backdrop-blur sm:hidden
 				       dark:border-stone-800 dark:bg-stone-950/95"
 				data-testid="column-picker-bar"
 			>
@@ -1237,466 +1482,524 @@
 				<div
 					bind:this={mobileTablist}
 					role="tablist"
-					aria-label={t('reader.mobileColumnsTablist')}
+					aria-label="Reader-Bereiche"
 					class="contents"
 					onkeydown={onMobileTabKeydown}
 				>
-					{#each data.columns as column (column.resource.id)}
-						<span
-							class="mobile-tab flex shrink-0 items-center gap-1 rounded-full px-1 py-1 pl-3 text-sm"
-							class:bg-accent-600={mobileColumn === column.index}
-							class:text-white={mobileColumn === column.index}
-							class:bg-stone-100={mobileColumn !== column.index}
-							class:dark:bg-stone-800={mobileColumn !== column.index}
+					{#each data.workspace.tiles as tile, tileIndex (tile.id)}
+						{@const mobileColumn = columnForTile(tile.id)}
+						<button
+							type="button"
+							role="tab"
+							id="mobile-tab-{tileIndex}"
+							aria-selected={mobileTile === tileIndex}
+							aria-controls="mobile-tabpanel-{tileIndex}"
+							tabindex={mobileTile === tileIndex ? 0 : -1}
+							class="mobile-tab shrink-0 rounded-full px-3 py-1.5 text-sm"
+							class:bg-accent-600={mobileTile === tileIndex}
+							class:text-white={mobileTile === tileIndex}
+							class:bg-stone-100={mobileTile !== tileIndex}
+							class:dark:bg-stone-800={mobileTile !== tileIndex}
+							onclick={() => (mobileTile = tileIndex)}
 						>
-							<button
-								type="button"
-								role="tab"
-								id="mobile-tab-{column.index}"
-								aria-selected={mobileColumn === column.index}
-								aria-controls="mobile-tabpanel-{column.index}"
-								tabindex={mobileColumn === column.index ? 0 : -1}
-								class="shrink-0"
-								aria-label={mobileColumn === column.index
-									? `${t('reader.chooseTranslation')}: ${column.resource.tabTitle}`
-									: column.resource.tabTitle}
-								onclick={() => {
-									if (mobileColumn === column.index) openTranslationDialog(column.index);
-									else mobileColumn = column.index;
-								}}
-							>
-								{column.resource.tabTitle}
-							</button>
-							{#if data.columns.length > 1}
-								<form method="POST" action="?/removeColumn" use:enhance>
-									<input type="hidden" name="index" value={column.index} />
-									<button
-										type="submit"
-										aria-label="{t('reader.removeColumn')}: {column.resource.tabTitle}"
-										class="inline-flex size-5 shrink-0 items-center justify-center rounded-full opacity-70 hover:opacity-100"
-										onclick={(event) => {
-											if (mobileColumn === column.index)
-												mobileColumn = Math.max(0, column.index - 1);
-											event.stopPropagation();
-										}}
-									>
-										<svg
-											viewBox="0 0 20 20"
-											class="size-3.5"
-											fill="currentColor"
-											aria-hidden="true"
-										>
-											<path
-												d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"
-											/>
-										</svg>
-									</button>
-								</form>
-							{/if}
-						</span>
+							{mobileColumn?.resource.abbrev ?? `Bereich ${tileIndex + 1}`}
+						</button>
 					{/each}
 				</div>
-
-				{#if canAddColumn}
-					<button
-						type="button"
-						title={t('reader.addColumn')}
-						aria-label={t('reader.addColumn')}
-						class="shrink-0 rounded-full border border-dashed border-stone-300 px-3 py-1
-						       text-sm text-stone-500 dark:border-stone-700 dark:text-stone-400"
-						onclick={openAddDialog}
-					>
-						+
-					</button>
-				{/if}
 			</div>
 
-			{#if data.chapter.empty}
-				<p class="rounded-lg bg-stone-50 p-6 text-stone-600 dark:bg-stone-900 dark:text-stone-300">
-					{t('reader.chapterEmpty')}
-				</p>
-			{:else}
-				<div
-					bind:this={flowReader}
-					class="flow-reader"
-					style="--columns: {visibleColumnCount}"
-					style:--column-track={columnTrack}
-					style:--flow-edge-fade-height={`${FLOW_EDGE_FADE_PX}px`}
-					data-testid="flow-reader"
-				>
-					<!-- The splitter belongs to the text it resizes. Keeping its overlay outside the individual
-					     scrolling columns leaves it stationary and centered while either text column scrolls. -->
-					<div class="pointer-events-none absolute inset-0 z-10 hidden sm:block">
-						{#each columnBoundaries as boundary, boundaryIndex (boundaryIndex)}
-							<!-- A focusable, draggable separator is the documented WAI-ARIA window-splitter
-							     pattern and also supports ArrowLeft/ArrowRight. -->
-							<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-							<div
-								role="separator"
-								aria-orientation="vertical"
-								aria-label={t('reader.resizeColumns')}
-								aria-valuenow={Math.round(
-									(columnWidths ?? equalColumnWidths())[boundaryIndex]! * 100
-								)}
-								aria-valuemin={Math.round(MIN_COLUMN_FRACTION * 100)}
-								aria-valuemax={Math.round(
-									(1 - MIN_COLUMN_FRACTION * (data.columns.length - 1)) * 100
-								)}
-								tabindex="0"
-								class="column-resize-handle"
-								style="left: calc({boundary.percent}% {boundary.offsetRem >= 0
-									? '+'
-									: '-'} {Math.abs(boundary.offsetRem)}rem)"
-								onpointerdown={(event) => startColumnResize(event, boundaryIndex)}
-								onkeydown={(event) => onResizeHandleKeydown(event, boundaryIndex)}
-							>
-								<span aria-hidden="true"><i></i><i></i><i></i></span>
-							</div>
-						{/each}
-					</div>
-
-					<div class="flow-fade-grid pointer-events-none absolute inset-0 z-5 hidden sm:grid">
-						{#each data.columns as column, columnIndex (column.resource.id)}
-							<div class="relative min-w-0">
-								<span
-									class="flow-edge-fade top"
-									class:visible={flowHasContentAbove[columnIndex]}
-									aria-hidden="true"
-								></span>
-								<span
-									class="flow-edge-fade bottom"
-									class:visible={flowHasContentBelow[columnIndex]}
-									aria-hidden="true"
-								></span>
-							</div>
-						{/each}
-					</div>
-
-					{#if mobileColumn < data.columns.length}
-						<div class="pointer-events-none absolute inset-0 z-5 sm:hidden">
-							<span
-								class="flow-edge-fade top"
-								class:visible={flowHasContentAbove[mobileColumn]}
-								aria-hidden="true"
-							></span>
-							<span
-								class="flow-edge-fade bottom"
-								class:visible={flowHasContentBelow[mobileColumn]}
-								aria-hidden="true"
-							></span>
-						</div>
-					{/if}
-
-					{#each data.columns as column, columnIndex (column.resource.id)}
+			<div
+				bind:this={flowReader}
+				class="flow-reader"
+				style:grid-template-columns={columnTrack}
+				style:grid-template-rows={rowTrack}
+				style:grid-template-areas={layoutDefinition.areas}
+				style:--flow-edge-fade-height={`${FLOW_EDGE_FADE_PX}px`}
+				data-testid="flow-reader"
+				data-layout={data.workspace.layout}
+			>
+				<!-- Splitters overlay the gaps and resize the persisted column/row tracks. -->
+				<div class="pointer-events-none absolute inset-0 z-10 hidden sm:block">
+					{#each columnBoundaries as boundary, boundaryIndex (boundaryIndex)}
+						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 						<div
-							bind:this={flowColumns[columnIndex]}
-							data-flow-column-index={columnIndex}
-							data-resource-id={column.resource.id}
-							class="flow-column"
-							class:hidden-on-mobile={columnIndex !== mobileColumn}
-							role={isMobileViewport ? 'tabpanel' : 'region'}
-							id={isMobileViewport ? `mobile-tabpanel-${columnIndex}` : undefined}
-							aria-labelledby={isMobileViewport ? `mobile-tab-${columnIndex}` : undefined}
-							aria-label={isMobileViewport ? undefined : column.resource.selectionTitle}
-							aria-hidden={isMobileViewport && columnIndex !== mobileColumn}
-							onwheel={(event) => onFlowWheel(event, columnIndex)}
-							ontouchstart={() => makeFlowSource(columnIndex)}
-							onpointerdown={() => makeFlowSource(columnIndex)}
-							onfocusin={() => makeFlowSource(columnIndex)}
-							onscroll={() => onFlowScroll(columnIndex)}
+							role="separator"
+							aria-orientation="vertical"
+							aria-label={t('reader.resizeColumns')}
+							aria-valuenow={Math.round(layoutColumns[boundaryIndex]! * 100)}
+							aria-valuemin={Math.round(MIN_READER_TRACK_FRACTION * 100)}
+							aria-valuemax={Math.round(
+								(1 - MIN_READER_TRACK_FRACTION * (layoutColumns.length - 1)) * 100
+							)}
+							tabindex="0"
+							class="layout-resize-handle vertical"
+							style="left: calc({boundary.percent}% {boundary.offsetRem >= 0 ? '+' : '-'} {Math.abs(
+								boundary.offsetRem
+							)}rem)"
+							onpointerdown={(event) => startLayoutResize(event, 'columns', boundaryIndex)}
+							onkeydown={(event) => onResizeHandleKeydown(event, 'columns', boundaryIndex)}
 						>
-							{#if loadingPrevious}
-								<p class="loading-chapter" aria-live="polite">…</p>
-							{/if}
-							{#each streamChapters as stream (`${stream.reference.book}:${stream.reference.chapter}`)}
-								{@const firstVerse = firstCellVerse(stream, column.bibleCellIndex)}
-								<section
-									class="flow-chapter"
-									data-chapter-key={`${stream.reference.book}:${stream.reference.chapter}`}
-								>
-									{#each stream.chapter.rows as row (row.verse)}
-										{@const cell =
-											column.bibleCellIndex === null ? null : row.cells[column.bibleCellIndex]}
-										{#if column.resource.kind === 'bible' && cell?.heading}
-											<h3 class="flow-heading">{cell.heading}</h3>
-										{/if}
-										{#if column.resource.kind === 'bible' && cell}
-											{@const [leadSegments, remainingSegments] = splitVerseLead(cell.segments)}
-											{@const leadWordCount = countVerseWords(leadSegments)}
-											{@const mark = highlightByKey.get(
-												`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}`
-											)}
-											{@const partial =
-												partialHighlightsByKey.get(
-													`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}:${column.resource.id}`
-												) ?? []}
-											{@const comment = verseCommentAt(stream, column.resource.id, cell.verse)}
-											{@const commentKey = verseCommentKey(
-												stream.reference.book,
-												stream.reference.chapter,
-												cell.verse,
-												column.resource.id
-											)}
-											{@const commentVisible =
-												draftCommentKeys.has(commentKey) ||
-												Boolean(comment && expandedCommentKeys.has(commentKey))}
-											<div class="verse-comment-row" class:with-comment={commentVisible}>
-												<p
-													class="flow-verse"
-													data-verse-key={`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}`}
-													data-verse-end={cell.verseEnd ?? cell.verse}
-													id={columnIndex === 0
-														? `${stream.shortBookName}${stream.reference.chapter}_${cell.verse}`
-														: undefined}
-													class:highlighted={stream.reference.book === data.reference.book &&
-														stream.reference.chapter === data.reference.chapter &&
-														data.reference.verse !== undefined &&
-														cell.verse <= data.reference.verse &&
-														(cell.verseEnd ?? cell.verse) >= data.reference.verse}
-													class:has-highlight={mark?.color}
-													style:background-color={mark?.color}
-												>
-													<span class="verse-lead">
-														{#if cell.verse === firstVerse}
-															<a
-																class="flow-chapter-number"
-																class:in-list={stream.reference.book === data.reference.book &&
-																	stream.reference.chapter === data.reference.chapter &&
-																	inAnyList.has(cell.verse)}
-																title={stream.fullTitle}
-																href={referencePath({
-																	book: stream.reference.book,
-																	chapter: stream.reference.chapter,
-																	verse: cell.verse
-																})}
-																aria-haspopup="menu"
-																aria-label={t('verse.menu', {
-																	reference: formatReference(
-																		{
-																			book: stream.reference.book,
-																			chapter: stream.reference.chapter,
-																			verse: cell.verse
-																		},
-																		{ style: 'full' }
-																	)
-																})}
-																onclick={(event) =>
-																	onVerseNumberClick(
-																		event,
-																		stream.reference.book,
-																		stream.reference.chapter,
-																		cell.verse,
-																		cell.verseEnd,
-																		cell.segments,
-																		{ id: column.resource.id, name: column.resource.tabTitle }
-																	)}
-															>
-																{stream.reference.chapter}
-															</a>
-														{/if}
-														{#if cell.verse !== 1 || cell.verse !== firstVerse}
-															<a
-																class="verse-number"
-																class:in-list={stream.reference.book === data.reference.book &&
-																	stream.reference.chapter === data.reference.chapter &&
-																	inAnyList.has(cell.verse)}
-																href={referencePath({
-																	book: stream.reference.book,
-																	chapter: stream.reference.chapter,
-																	verse: cell.verse
-																})}
-																aria-haspopup="menu"
-																aria-label={t('verse.menu', {
-																	reference: formatReference(
-																		{
-																			book: stream.reference.book,
-																			chapter: stream.reference.chapter,
-																			verse: cell.verse
-																		},
-																		{ style: 'full' }
-																	)
-																})}
-																onclick={(event) =>
-																	onVerseNumberClick(
-																		event,
-																		stream.reference.book,
-																		stream.reference.chapter,
-																		cell.verse,
-																		cell.verseEnd,
-																		cell.segments,
-																		{ id: column.resource.id, name: column.resource.tabTitle }
-																	)}
-															>
-																{cell.verse}{#if cell.verseEnd && cell.verseEnd > cell.verse}-{cell.verseEnd}{/if}
-															</a>
-														{/if}<span
-															class="verse-text"
-															lang={column.resource.language}
-															dir={column.resource.direction}
-															><VerseText
-																segments={leadSegments}
-																onStrongClick={(strong, word) =>
-																	openStrong(
-																		strong,
-																		word,
-																		cell.verse,
-																		stream.reference.book,
-																		stream.reference.chapter
-																	)}
-																activeStrong={activeStrong?.strong ?? null}
-																highlights={partial}
-																{hoverStrong}
-																onStrongHover={(strong) => (hoverStrong = strong)}
-															/></span
-														></span
-													><span
-														class="verse-text"
-														lang={column.resource.language}
-														dir={column.resource.direction}
-													>
-														<VerseText
-															segments={remainingSegments}
-															onStrongClick={(strong, word) =>
-																openStrong(
-																	strong,
-																	word,
-																	cell.verse,
-																	stream.reference.book,
-																	stream.reference.chapter
-																)}
-															activeStrong={activeStrong?.strong ?? null}
-															highlights={partial}
-															wordOffset={leadWordCount}
-															{hoverStrong}
-															onStrongHover={(strong) => (hoverStrong = strong)}
-														/>
-													</span>
-													{#if data.user && comment}
-														<CommentToggle
-															hasComment
-															active={commentVisible}
-															onclick={() => toggleVerseComment(commentKey)}
-														/>
-													{/if}
-												</p>
-												{#if commentVisible}
-													<CommentBubble
-														action="?/saveVerseComment"
-														reference={formatReference({
-															book: stream.reference.book,
-															chapter: stream.reference.chapter,
-															verse: cell.verse
-														})}
-														resourceId={column.resource.id}
-														html={comment?.html}
-														startEditing={draftCommentKeys.has(commentKey)}
-														onSaved={(html) =>
-															updateVerseComment(stream, column.resource.id, cell.verse, html)}
-														onClose={() => draftCommentKeys.delete(commentKey)}
-													/>
-												{/if}
-											</div>
-										{:else if column.resource.kind === 'commentary'}
-											{@const entries = commentaryAt(
-												stream.referenceResources,
-												column.resource.id,
-												row.verse
-											)}
-											{#if entries.length}
-												{@const rangeEnd = Math.max(
-													...entries.map((entry) => entry.verseEnd ?? entry.verseStart ?? row.verse)
-												)}
-												<article
-													class="flow-reference"
-													data-verse-key={`${stream.reference.book}:${stream.reference.chapter}:${row.verse}`}
-													data-verse-end={rangeEnd}
-												>
-													<span class="verse-number"
-														>{row.verse}{#if rangeEnd > row.verse}-{rangeEnd}{/if}</span
-													>
-													{#each entries as entry (entry.id)}
-														{#if entry.title}<h3 class="commentary-title">{entry.title}</h3>{/if}
-														<!-- Imported commentary is reduced to an allow-list by its parser. -->
-														<div
-															class="commentary-body"
-															use:verseHoverPopover={{ bibleId: primaryBibleId }}
-														>
-															<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-															{@html entry.bodyHtml}
-														</div>
-													{/each}
-												</article>
-											{/if}
-										{:else if column.resource.kind === 'xrefs'}
-											{@const references = crossReferencesAt(
-												stream.referenceResources,
-												column.resource.id,
-												row.verse
-											)}
-											{#if references.length}
-												<div
-													class="flow-reference"
-													data-verse-key={`${stream.reference.book}:${stream.reference.chapter}:${row.verse}`}
-												>
-													<span class="verse-number">{row.verse}</span>
-													{#each references as target (target.id)}
-														<a
-															class="mr-1 text-xs text-accent-700 dark:text-accent-300"
-															href={referencePath({
-																book: target.toBook,
-																chapter: target.toChapter,
-																verse: target.toVerse
-															})}
-														>
-															{formatReference({
-																book: target.toBook,
-																chapter: target.toChapter,
-																verse: target.toVerse
-															})}
-														</a>
-													{/each}
-												</div>
-											{/if}
-										{/if}
-									{/each}
-								</section>
-							{/each}
-							{#if loadingNext}
-								<p class="loading-chapter" aria-live="polite">…</p>
-							{/if}
+							<span aria-hidden="true"><i></i><i></i><i></i></span>
+						</div>
+					{/each}
+					{#each rowBoundaries as boundary, boundaryIndex (boundaryIndex)}
+						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+						<div
+							role="separator"
+							aria-orientation="horizontal"
+							aria-label="Zeilenhöhe ändern"
+							aria-valuenow={Math.round(layoutRows[boundaryIndex]! * 100)}
+							aria-valuemin={Math.round(MIN_READER_TRACK_FRACTION * 100)}
+							aria-valuemax={Math.round(
+								(1 - MIN_READER_TRACK_FRACTION * (layoutRows.length - 1)) * 100
+							)}
+							tabindex="0"
+							class="layout-resize-handle horizontal"
+							class:left-half={layoutDefinition.horizontalDivider === 'left'}
+							class:right-half={layoutDefinition.horizontalDivider === 'right'}
+							style="top: calc({boundary.percent}% {boundary.offsetRem >= 0 ? '+' : '-'} {Math.abs(
+								boundary.offsetRem
+							)}rem)"
+							onpointerdown={(event) => startLayoutResize(event, 'rows', boundaryIndex)}
+							onkeydown={(event) => onResizeHandleKeydown(event, 'rows', boundaryIndex)}
+						>
+							<span aria-hidden="true"><i></i><i></i><i></i></span>
 						</div>
 					{/each}
 				</div>
 
-				<!-- Each flow column scrolls endlessly on its own, so there is no natural "end of chapter"
-				     point inside it to hang a licence notice on; shown once below the box instead. -->
-				<footer
-					class="license-grid grid text-xs text-stone-500 dark:text-stone-400"
-					style="--columns: {visibleColumnCount}"
-					style:--column-track={columnTrack}
-				>
-					{#each data.columns as column (column.resource.id)}
-						<div class:hidden-on-mobile={column.index !== mobileColumn}>
-							{#if column.resource.licenseHtml}
-								<p><strong>{column.resource.tabTitle}:</strong> {column.resource.licenseHtml}</p>
-							{/if}
-						</div>
-					{/each}
-				</footer>
-			{/if}
+				{#each data.workspace.tiles as tile, tileIndex (tile.id)}
+					{@const column = columnForTile(tile.id)}
+					<section
+						class="reader-tile"
+						class:hidden-on-mobile={tileIndex !== mobileTile}
+						style:grid-area={TILE_AREAS[tileIndex]}
+						role={isMobileViewport ? 'tabpanel' : 'region'}
+						id={isMobileViewport ? `mobile-tabpanel-${tileIndex}` : undefined}
+						aria-labelledby={isMobileViewport ? `mobile-tab-${tileIndex}` : undefined}
+						aria-label={isMobileViewport ? undefined : `Reader-Bereich ${tileIndex + 1}`}
+						aria-hidden={isMobileViewport && tileIndex !== mobileTile}
+					>
+						<ReaderResourceTabs
+							{tile}
+							{tileIndex}
+							tiles={data.workspace.tiles}
+							resources={data.readerResources}
+							readerUrl={currentReaderUrl}
+							currentReference={column ? toolbarReference(column) : data.reference}
+							referenceForTab={(tab) => tabActivationReference(tile.id, tab)}
+							onOpenResource={openResourceDialog}
+						/>
+						{#if column}
+							{@const columnIndex = column.index}
+							{@const columnStream = columnStreams[columnIndex]}
+							{@const activeStream = columnStream?.chapters.find(
+								(stream) =>
+									stream.reference.book === column.activeTab.reference.book &&
+									stream.reference.chapter === column.activeTab.reference.chapter
+							)}
+							{@const tabSearch = tabSearchFor(column)}
+							{@const studyContext = lexiconStudyContext(column)}
+							<ReaderTabToolbar
+								tileId={tile.id}
+								{tileIndex}
+								tab={column.activeTab}
+								resource={column.resource}
+								reference={toolbarReference(column)}
+								searchQuery={tabSearch?.query ?? null}
+								studyResourceTitle={studyContext.resource?.abbrev ?? null}
+								onOpenResource={replaceResourceDialog}
+								onSearch={(query) =>
+									column.resource.kind === 'lexicon'
+										? void lookupInLexicon(columnIndex, query)
+										: void runTabSearch(columnIndex, query)}
+								onClearSearch={() => clearTabSearch(column.activeTab.id)}
+							/>
+							<div class="tile-content">
+								{#if column.resource.kind === 'lexicon'}
+									<ReaderLexiconTab
+										lookup={column.activeTab.lookup}
+										entry={column.lexiconEntry}
+										resourceTitle={column.resource.selectionTitle}
+										lexiconId={column.resource.id}
+										sourceResource={studyContext.resource}
+										studyReference={studyContext.reference}
+										studyWord={studyContext.word}
+										onLookup={(lookup) => void lookupInLexicon(columnIndex, lookup)}
+										onOpenReference={(reference) =>
+											void openTabSearchReference(columnIndex, reference)}
+										lookupHref={(lookup) => contextualLexiconLookupUrl(columnIndex, lookup)}
+										referenceHref={(reference) => contextualReferenceUrl(columnIndex, reference)}
+									/>
+								{/if}
+								{#if tabSearch}
+									<ReaderTabSearchResults
+										query={tabSearch.query}
+										result={tabSearch.result}
+										loading={tabSearch.loading}
+										error={tabSearch.error}
+										resourceTitle={column.resource.selectionTitle}
+										language={column.resource.language}
+										direction={column.resource.direction}
+										onClose={() => clearTabSearch(column.activeTab.id)}
+										onSearch={(query, pageNumber, book) =>
+											void runTabSearch(columnIndex, query, pageNumber, book)}
+										onOpenReference={(reference) =>
+											void openTabSearchReference(columnIndex, reference)}
+										onStrongClick={(strong, word, reference) =>
+											openStrong(
+												strong,
+												word,
+												reference.verse ?? 1,
+												reference.book,
+												reference.chapter,
+												columnIndex
+											)}
+									/>
+								{:else}
+									<div class="pointer-events-none absolute inset-0 z-5">
+										<span
+											class="flow-edge-fade top"
+											class:visible={flowHasContentAbove[columnIndex]}
+											aria-hidden="true"
+										></span>
+										<span
+											class="flow-edge-fade bottom"
+											class:visible={flowHasContentBelow[columnIndex]}
+											aria-hidden="true"
+										></span>
+									</div>
+								{/if}
+								<div
+									bind:this={flowColumns[columnIndex]}
+									data-flow-column-index={columnIndex}
+									data-resource-id={column.resource.id}
+									class="flow-column"
+									class:search-hidden={tabSearch !== null || column.resource.kind === 'lexicon'}
+									role="region"
+									aria-label={column.resource.selectionTitle}
+									aria-hidden={tabSearch !== null || column.resource.kind === 'lexicon'}
+									onwheel={(event) => onFlowWheel(event, columnIndex)}
+									ontouchstart={() => makeFlowSource(columnIndex)}
+									onpointerdown={() => makeFlowSource(columnIndex)}
+									onfocusin={() => makeFlowSource(columnIndex)}
+									onscroll={() => onFlowScroll(columnIndex)}
+								>
+									{#if activeStream?.chapter.empty}
+										<p class="empty-resource">{t('reader.chapterEmpty')}</p>
+									{/if}
+									{#if columnStream?.loadingPrevious}
+										<p class="loading-chapter" aria-live="polite">…</p>
+									{/if}
+									{#each columnStream?.chapters ?? [] as stream (`${stream.reference.book}:${stream.reference.chapter}`)}
+										{@const firstVerse = firstCellVerse(stream, column.bibleCellIndex)}
+										<section
+											class="flow-chapter"
+											data-chapter-key={`${stream.reference.book}:${stream.reference.chapter}`}
+										>
+											{#each stream.chapter.rows as row (row.verse)}
+												{@const cell =
+													column.bibleCellIndex === null ? null : row.cells[column.bibleCellIndex]}
+												{#if column.resource.kind === 'bible' && cell?.heading}
+													<h3 class="flow-heading">{cell.heading}</h3>
+												{/if}
+												{#if column.resource.kind === 'bible' && cell}
+													{@const [leadSegments, remainingSegments] = splitVerseLead(cell.segments)}
+													{@const leadWordCount = countVerseWords(leadSegments)}
+													{@const mark = highlightByKey.get(
+														`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}`
+													)}
+													{@const partial =
+														partialHighlightsByKey.get(
+															`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}:${column.resource.id}`
+														) ?? []}
+													{@const comment = verseCommentAt(stream, column.resource.id, cell.verse)}
+													{@const commentKey = verseCommentKey(
+														stream.reference.book,
+														stream.reference.chapter,
+														cell.verse,
+														column.resource.id
+													)}
+													{@const commentVisible =
+														draftCommentKeys.has(commentKey) ||
+														Boolean(comment && expandedCommentKeys.has(commentKey))}
+													<div class="verse-comment-row" class:with-comment={commentVisible}>
+														<p
+															class="flow-verse"
+															data-verse-key={`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}`}
+															data-verse-end={cell.verseEnd ?? cell.verse}
+															id={columnIndex === 0
+																? `${stream.shortBookName}${stream.reference.chapter}_${cell.verse}`
+																: undefined}
+															class:highlighted={stream.reference.book ===
+																column.activeTab.reference.book &&
+																stream.reference.chapter === column.activeTab.reference.chapter &&
+																column.activeTab.reference.verse !== undefined &&
+																cell.verse <= column.activeTab.reference.verse &&
+																(cell.verseEnd ?? cell.verse) >= column.activeTab.reference.verse}
+															class:has-highlight={mark?.color}
+															style:background-color={mark?.color}
+														>
+															<span class="verse-lead">
+																{#if cell.verse === firstVerse}
+																	<a
+																		class="flow-chapter-number"
+																		class:in-list={isInAnyList(
+																			stream.reference.book,
+																			stream.reference.chapter,
+																			cell.verse
+																		)}
+																		title={stream.fullTitle}
+																		href={contextualReferenceUrl(columnIndex, {
+																			book: stream.reference.book,
+																			chapter: stream.reference.chapter,
+																			verse: cell.verse
+																		})}
+																		aria-haspopup="menu"
+																		aria-label={t('verse.menu', {
+																			reference: formatReference(
+																				{
+																					book: stream.reference.book,
+																					chapter: stream.reference.chapter,
+																					verse: cell.verse
+																				},
+																				{ style: 'full' }
+																			)
+																		})}
+																		onclick={(event) =>
+																			onVerseNumberClick(
+																				event,
+																				stream.reference.book,
+																				stream.reference.chapter,
+																				cell.verse,
+																				cell.verseEnd,
+																				cell.segments,
+																				{ id: column.resource.id, name: column.resource.tabTitle }
+																			)}
+																	>
+																		{stream.reference.chapter}
+																	</a>
+																{/if}
+																{#if cell.verse !== 1 || cell.verse !== firstVerse}
+																	<a
+																		class="verse-number"
+																		class:in-list={isInAnyList(
+																			stream.reference.book,
+																			stream.reference.chapter,
+																			cell.verse
+																		)}
+																		href={contextualReferenceUrl(columnIndex, {
+																			book: stream.reference.book,
+																			chapter: stream.reference.chapter,
+																			verse: cell.verse
+																		})}
+																		aria-haspopup="menu"
+																		aria-label={t('verse.menu', {
+																			reference: formatReference(
+																				{
+																					book: stream.reference.book,
+																					chapter: stream.reference.chapter,
+																					verse: cell.verse
+																				},
+																				{ style: 'full' }
+																			)
+																		})}
+																		onclick={(event) =>
+																			onVerseNumberClick(
+																				event,
+																				stream.reference.book,
+																				stream.reference.chapter,
+																				cell.verse,
+																				cell.verseEnd,
+																				cell.segments,
+																				{ id: column.resource.id, name: column.resource.tabTitle }
+																			)}
+																	>
+																		{cell.verse}{#if cell.verseEnd && cell.verseEnd > cell.verse}-{cell.verseEnd}{/if}
+																	</a>
+																{/if}<span
+																	class="verse-text"
+																	lang={column.resource.language}
+																	dir={column.resource.direction}
+																	><VerseText
+																		segments={leadSegments}
+																		onStrongClick={(strong, word) =>
+																			openStrong(
+																				strong,
+																				word,
+																				cell.verse,
+																				stream.reference.book,
+																				stream.reference.chapter,
+																				columnIndex
+																			)}
+																		highlights={partial}
+																		{hoverStrong}
+																		onStrongHover={(strong) => (hoverStrong = strong)}
+																	/></span
+																></span
+															><span
+																class="verse-text"
+																lang={column.resource.language}
+																dir={column.resource.direction}
+															>
+																<VerseText
+																	segments={remainingSegments}
+																	onStrongClick={(strong, word) =>
+																		openStrong(
+																			strong,
+																			word,
+																			cell.verse,
+																			stream.reference.book,
+																			stream.reference.chapter,
+																			columnIndex
+																		)}
+																	highlights={partial}
+																	wordOffset={leadWordCount}
+																	{hoverStrong}
+																	onStrongHover={(strong) => (hoverStrong = strong)}
+																/>
+															</span>
+															{#if data.user && comment}
+																<CommentToggle
+																	hasComment
+																	active={commentVisible}
+																	onclick={() => toggleVerseComment(commentKey)}
+																/>
+															{/if}
+														</p>
+														{#if commentVisible}
+															<CommentBubble
+																action="?/saveVerseComment"
+																reference={formatReference({
+																	book: stream.reference.book,
+																	chapter: stream.reference.chapter,
+																	verse: cell.verse
+																})}
+																resourceId={column.resource.id}
+																html={comment?.html}
+																startEditing={draftCommentKeys.has(commentKey)}
+																onSaved={(html) =>
+																	updateVerseComment(stream, column.resource.id, cell.verse, html)}
+																onClose={() => draftCommentKeys.delete(commentKey)}
+															/>
+														{/if}
+													</div>
+												{:else if column.resource.kind === 'commentary'}
+													{@const entries = commentaryAt(
+														stream.referenceResources,
+														column.resource.id,
+														row.verse
+													)}
+													{#if entries.length}
+														{@const rangeEnd = Math.max(
+															...entries.map(
+																(entry) => entry.verseEnd ?? entry.verseStart ?? row.verse
+															)
+														)}
+														<article
+															class="flow-reference"
+															data-verse-key={`${stream.reference.book}:${stream.reference.chapter}:${row.verse}`}
+															data-verse-end={rangeEnd}
+														>
+															<span class="verse-number"
+																>{row.verse}{#if rangeEnd > row.verse}-{rangeEnd}{/if}</span
+															>
+															{#each entries as entry (entry.id)}
+																{#if entry.title}<h3 class="commentary-title">
+																		{entry.title}
+																	</h3>{/if}
+																<!-- Imported commentary is reduced to an allow-list by its parser. -->
+																<div
+																	class="commentary-body"
+																	use:verseHoverPopover={{ bibleId: primaryBibleId }}
+																	use:readerContentLinks={{
+																		onReference: (reference) =>
+																			void openTabSearchReference(columnIndex, reference),
+																		referenceHref: (reference) =>
+																			contextualReferenceUrl(columnIndex, reference)
+																	}}
+																>
+																	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+																	{@html entry.bodyHtml}
+																</div>
+															{/each}
+														</article>
+													{/if}
+												{:else if column.resource.kind === 'xrefs'}
+													{@const references = crossReferencesAt(
+														stream.referenceResources,
+														column.resource.id,
+														row.verse
+													)}
+													{#if references.length}
+														<div
+															class="flow-reference"
+															data-verse-key={`${stream.reference.book}:${stream.reference.chapter}:${row.verse}`}
+														>
+															<span class="verse-number">{row.verse}</span>
+															{#each references as target (target.id)}
+																<a
+																	class="verse-ref mr-1 text-xs text-accent-700 dark:text-accent-300"
+																	data-book={target.toBook}
+																	data-chapter={target.toChapter}
+																	data-verse={target.toVerse}
+																	href={contextualReferenceUrl(columnIndex, {
+																		book: target.toBook,
+																		chapter: target.toChapter,
+																		verse: target.toVerse
+																	})}
+																	onclick={(event) => {
+																		if (
+																			event.button === 0 &&
+																			!event.metaKey &&
+																			!event.ctrlKey &&
+																			!event.shiftKey &&
+																			!event.altKey
+																		) {
+																			event.preventDefault();
+																			void openTabSearchReference(columnIndex, {
+																				book: target.toBook,
+																				chapter: target.toChapter,
+																				verse: target.toVerse
+																			});
+																		}
+																	}}
+																>
+																	{formatReference({
+																		book: target.toBook,
+																		chapter: target.toChapter,
+																		verse: target.toVerse
+																	})}
+																</a>
+															{/each}
+														</div>
+													{/if}
+												{/if}
+											{/each}
+										</section>
+									{/each}
+									{#if columnStream?.loadingNext}
+										<p class="loading-chapter" aria-live="polite">…</p>
+									{/if}
+								</div>
+							</div>
+						{:else}
+							<button
+								type="button"
+								class="empty-tile"
+								onclick={(event) => openResourceDialog(tile.id, event.currentTarget)}
+							>
+								<Icon name="plus" class="size-6" />
+								<span>Ressource öffnen</span>
+							</button>
+						{/if}
+					</section>
+				{/each}
+			</div>
 		</div>
 	</main>
-
-	{#if activeStrong}
-		<StudySidebar
-			strong={activeStrong.strong}
-			word={activeStrong.word}
-			reference={activeStrong.reference}
-			resourceIds={data.columns.map((column) => column.resource.id)}
-			onClose={closeStrong}
-		/>
-	{/if}
 </div>
 
 <!-- One menu for the whole chapter, opened with whichever verse number was clicked. -->
@@ -1718,23 +2021,43 @@
 <style>
 	/* Straddles the boundary halfway down the reading area. Only the handle itself takes pointer
 	   events, so the transparent overlay around it never blocks text selection or scrolling. */
-	.column-resize-handle {
+	.layout-resize-handle {
 		position: absolute;
-		top: 50%;
 		display: flex;
-		width: 18px;
-		height: 3.25rem;
-		margin-left: -9px;
-		transform: translateY(-50%);
 		align-items: center;
 		justify-content: center;
 		border-radius: 999px;
-		cursor: col-resize;
 		touch-action: none;
 		pointer-events: auto;
 	}
 
-	.column-resize-handle span {
+	.layout-resize-handle.vertical {
+		top: 50%;
+		width: 18px;
+		height: 3.25rem;
+		margin-left: -9px;
+		transform: translateY(-50%);
+		cursor: col-resize;
+	}
+
+	.layout-resize-handle.horizontal {
+		left: 50%;
+		width: 3.25rem;
+		height: 18px;
+		margin-top: -9px;
+		transform: translateX(-50%);
+		cursor: row-resize;
+	}
+
+	.layout-resize-handle.horizontal.left-half {
+		left: 25%;
+	}
+
+	.layout-resize-handle.horizontal.right-half {
+		left: 75%;
+	}
+
+	.layout-resize-handle span {
 		display: flex;
 		width: 0.75rem;
 		height: 1.7rem;
@@ -1749,7 +2072,13 @@
 		color: var(--color-stone-400);
 	}
 
-	.column-resize-handle i {
+	.layout-resize-handle.horizontal span {
+		width: 1.7rem;
+		height: 0.75rem;
+		flex-direction: row;
+	}
+
+	.layout-resize-handle i {
 		display: block;
 		width: 2px;
 		height: 2px;
@@ -1757,23 +2086,23 @@
 		background: currentColor;
 	}
 
-	.column-resize-handle:hover,
-	.column-resize-handle:focus-visible {
+	.layout-resize-handle:hover,
+	.layout-resize-handle:focus-visible {
 		background: color-mix(in oklab, var(--color-accent-500) 12%, transparent);
 	}
 
-	.column-resize-handle:hover span,
-	.column-resize-handle:focus-visible span {
+	.layout-resize-handle:hover span,
+	.layout-resize-handle:focus-visible span {
 		border-color: var(--color-accent-500);
 		color: var(--color-accent-600);
 	}
 
-	.column-resize-handle:focus-visible {
+	.layout-resize-handle:focus-visible {
 		outline: 2px solid var(--color-accent-500);
 		outline-offset: 1px;
 	}
 
-	:global(.dark) .column-resize-handle span {
+	:global(.dark) .layout-resize-handle span {
 		border-color: var(--color-stone-600);
 		background: var(--surface-raised);
 		box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
@@ -1781,13 +2110,18 @@
 	}
 
 	@media (min-width: 640px) and (max-width: 1280px), (update: slow), (monochrome) {
-		.column-resize-handle span {
+		.layout-resize-handle span {
 			width: 1rem;
 			height: 2.25rem;
 			border-width: 2px;
 			border-color: var(--color-stone-500);
 			color: var(--color-stone-700);
 			box-shadow: none;
+		}
+
+		.layout-resize-handle.horizontal span {
+			width: 2.25rem;
+			height: 1rem;
 		}
 	}
 
@@ -1819,19 +2153,32 @@
 		outline-offset: 2px;
 	}
 
-	.license-grid {
-		grid-template-columns: var(--column-track, repeat(var(--columns), minmax(0, 1fr)));
-		margin-top: 1.5rem;
-	}
-
 	.flow-reader {
 		position: relative;
 		display: grid;
-		grid-template-columns: var(--column-track, repeat(var(--columns), minmax(0, 1fr)));
 		gap: 0.75rem;
-		height: max(28rem, calc(100dvh - var(--header-height) - 11.5rem));
+		height: max(28rem, calc(100dvh - var(--header-height) - 1.5rem));
 		overflow: hidden;
 		background: transparent;
+	}
+
+	.reader-tile {
+		display: flex;
+		min-width: 0;
+		min-height: 0;
+		flex-direction: column;
+		border: 1px solid var(--line);
+		border-radius: 0.75rem;
+		background: var(--surface);
+		box-shadow: var(--shadow-soft);
+	}
+
+	.tile-content {
+		position: relative;
+		min-width: 0;
+		min-height: 0;
+		flex: 1;
+		overflow: hidden;
 	}
 
 	:global(.dark) .flow-reader {
@@ -1839,52 +2186,51 @@
 	}
 
 	.flow-column {
+		height: 100%;
 		min-width: 0;
 		overflow-y: auto;
 		overscroll-behavior-y: contain;
 		scrollbar-width: none;
-		border: 1px solid var(--line);
-		border-radius: 0.75rem;
-		background: var(--surface);
-		box-shadow: var(--shadow-soft);
+		background: transparent;
 	}
 
 	.flow-column::-webkit-scrollbar {
 		display: none;
 	}
-
-	.flow-fade-grid {
-		grid-template-columns: var(--column-track, repeat(var(--columns), minmax(0, 1fr)));
-		gap: 0.75rem;
+	.flow-column.search-hidden {
+		visibility: hidden;
+		pointer-events: none;
 	}
 
 	/* These veils live above the scrolling content but below the splitter, so text fades softly while
 	   card borders and the resize control remain crisp. */
 	.flow-edge-fade {
 		position: absolute;
-		right: 1px;
-		left: 1px;
+		right: 0;
+		left: 0;
 		height: var(--flow-edge-fade-height);
 		opacity: 0;
 		transition: opacity 140ms ease;
 	}
 
 	.flow-edge-fade.top {
-		top: 1px;
+		top: 0;
 		background: linear-gradient(
 			to bottom,
 			var(--surface) 0%,
-			color-mix(in oklab, var(--surface) 82%, transparent) 38%,
+			var(--surface) 42%,
+			color-mix(in oklab, var(--surface) 96%, transparent) 68%,
 			transparent 100%
 		);
 	}
 
 	.flow-edge-fade.bottom {
-		bottom: 1px;
+		bottom: 0;
 		background: linear-gradient(
 			to top,
 			var(--surface) 0%,
-			color-mix(in oklab, var(--surface) 82%, transparent) 38%,
+			var(--surface) 42%,
+			color-mix(in oklab, var(--surface) 96%, transparent) 68%,
 			transparent 100%
 		);
 	}
@@ -1903,6 +2249,36 @@
 
 	:global(.dark) .flow-column {
 		border-color: var(--line);
+	}
+
+	.empty-tile {
+		display: flex;
+		min-height: 0;
+		flex: 1;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		color: var(--color-stone-400);
+		font-size: 0.8rem;
+	}
+
+	.empty-tile:hover {
+		color: var(--color-accent-600);
+	}
+
+	.empty-resource {
+		margin: 1rem;
+		padding: 1rem;
+		border-radius: 0.5rem;
+		background: var(--color-stone-50);
+		color: var(--color-stone-500);
+		font-size: 0.8rem;
+	}
+
+	:global(.dark) .empty-resource {
+		background: var(--color-stone-900);
+		color: var(--color-stone-300);
 	}
 
 	.flow-chapter {
@@ -1952,7 +2328,7 @@
 		display: inline;
 		margin: 0;
 		font-family: var(--font-serif);
-		font-size: calc(1.08rem * var(--reader-font-scale, 1));
+		font-size: var(--reader-text-size, 1.08rem);
 		line-height: 1.65;
 		hyphens: auto;
 	}
@@ -2013,7 +2389,7 @@
 		display: flow-root;
 		margin-bottom: 1.15rem;
 		font-family: var(--font-serif);
-		font-size: calc(1.08rem * var(--reader-font-scale, 1));
+		font-size: var(--reader-text-size, 1.08rem);
 		line-height: 1.65;
 	}
 
@@ -2075,13 +2451,15 @@
 
 	/* One column on a phone: the inactive ones are hidden and every cell moves to column 1. */
 	@media (max-width: 639px) {
-		.license-grid {
-			grid-template-columns: minmax(0, 1fr);
+		.flow-reader {
+			grid-template-columns: minmax(0, 1fr) !important;
+			grid-template-rows: minmax(0, 1fr) !important;
+			grid-template-areas: 'a' !important;
+			height: max(25rem, calc(100dvh - var(--header-height) - 4.25rem));
 		}
 
-		.flow-reader {
-			grid-template-columns: minmax(0, 1fr);
-			height: max(25rem, calc(100dvh - var(--header-height) - 10.5rem));
+		.reader-tile {
+			grid-area: a !important;
 		}
 
 		.hidden-on-mobile {
@@ -2141,13 +2519,6 @@
 		&:where([lang='hbo']) {
 			font-family: var(--font-hebrew);
 			font-size: 1.25rem;
-		}
-	}
-
-	/* Room to scroll the last verses clear of the mobile study sheet. */
-	@media (max-width: 639px) {
-		.pb-sheet {
-			padding-bottom: 72dvh;
 		}
 	}
 </style>

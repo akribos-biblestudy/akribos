@@ -85,8 +85,6 @@
 	];
 </script>
 
-<svelte:head><title>{t('account.title')} — Akribos</title></svelte:head>
-
 <main class="mx-auto w-full max-w-5xl space-y-5 px-4 py-8">
 	<header>
 		<h1 class="text-2xl font-semibold tracking-tight">{t('account.title')}</h1>

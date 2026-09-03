@@ -6,8 +6,6 @@
 	let { form } = $props();
 </script>
 
-<svelte:head><title>{t('auth.passwordReset.title')} — Akribos</title></svelte:head>
-
 <AuthForm
 	title={t('auth.passwordReset.title')}
 	error={form?.error === 'throttled' ? t('auth.login.throttled') : null}

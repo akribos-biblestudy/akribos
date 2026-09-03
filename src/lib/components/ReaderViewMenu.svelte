@@ -50,8 +50,8 @@
 		justify-content: center;
 		border-radius: 0.375rem;
 		color: var(--color-stone-500);
-		font-size: 0.72rem;
-		font-weight: 650;
+		font-size: 0.76rem;
+		font-weight: 700;
 		transition:
 			color 120ms ease,
 			background 120ms ease;
