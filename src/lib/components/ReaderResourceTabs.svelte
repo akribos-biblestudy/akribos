@@ -143,7 +143,7 @@
 			{#if resource}
 				<div
 					role="group"
-					aria-label={resource.tabTitle}
+					aria-label={resource.selectionTitle}
 					class="resource-tab"
 					class:active={tab.id === activeTab?.id}
 					class:dragging={tab.id === draggedTabId}
@@ -172,7 +172,7 @@
 							class="tab-title"
 							title={resource.selectionTitle}
 						>
-							<span>{resource.tabTitle}</span>
+							<span>{resource.abbrev}</span>
 							{#if tab.linkSet}
 								<span class="tab-link-set link-{tab.linkSet.toLowerCase()}">{tab.linkSet}</span>
 							{/if}
@@ -185,7 +185,7 @@
 					>
 						<input type="hidden" name="tileId" value={tile.id} />
 						<input type="hidden" name="tabId" value={tab.id} />
-						<button type="submit" class="close-tab" aria-label={`${resource.tabTitle} schließen`}>
+						<button type="submit" class="close-tab" aria-label={`${resource.abbrev} schließen`}>
 							<svg viewBox="0 0 16 16" class="size-3" fill="currentColor" aria-hidden="true">
 								<path
 									d="M4.47 3.53a.75.75 0 0 0-1.06 1.06L6.82 8l-3.41 3.41a.75.75 0 1 0 1.06 1.06L7.88 9.06l3.41 3.41a.75.75 0 0 0 1.06-1.06L8.94 8l3.41-3.41a.75.75 0 0 0-1.06-1.06L7.88 6.94 4.47 3.53Z"

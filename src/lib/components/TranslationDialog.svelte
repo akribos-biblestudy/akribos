@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { t } from '$lib/i18n';
 	import type { ReadableResource } from '$lib/server/repositories/resources';
+	import ResourceKindIcon from './ResourceKindIcon.svelte';
 
 	/**
 	 * Full-screen picker for adding a resource tab to a reader tile instead of a small anchored
@@ -30,10 +31,10 @@
 	};
 
 	const GROUPS = [
-		{ kind: 'bible', labelKey: 'resource.group.bibles', icon: 'book' },
-		{ kind: 'commentary', labelKey: 'resource.group.commentaries', icon: 'chat' },
-		{ kind: 'xrefs', labelKey: 'resource.group.xrefs', icon: 'link' },
-		{ kind: 'lexicon', labelKey: 'resource.kind.lexicon', icon: 'book' }
+		{ kind: 'bible', labelKey: 'resource.group.bibles' },
+		{ kind: 'commentary', labelKey: 'resource.group.commentaries' },
+		{ kind: 'xrefs', labelKey: 'resource.group.xrefs' },
+		{ kind: 'lexicon', labelKey: 'resource.kind.lexicon' }
 	] as const;
 
 	let dialog: HTMLDialogElement | undefined = $state();
@@ -103,29 +104,17 @@
 					<button
 						type="button"
 						class="category"
+						class:kind-bible={group.kind === 'bible'}
+						class:kind-commentary={group.kind === 'commentary'}
+						class:kind-xrefs={group.kind === 'xrefs'}
+						class:kind-lexicon={group.kind === 'lexicon'}
 						class:active={group.kind === activeGroup?.kind}
 						onclick={() => {
 							activeKind = group.kind;
 							query = '';
 						}}
 					>
-						<svg viewBox="0 0 20 20" class="size-4 shrink-0" fill="currentColor" aria-hidden="true">
-							{#if group.icon === 'book'}
-								<path
-									d="M3.5 3.75A1.75 1.75 0 0 1 5.25 2h2.5c.966 0 1.822.46 2.25 1.166A2.75 2.75 0 0 1 12.25 2h2.5a1.75 1.75 0 0 1 1.75 1.75v9.5a1.75 1.75 0 0 1-1.75 1.75h-2.19c-.7 0-1.368.29-1.849.8l-.336.355a.75.75 0 0 1-1.09 0l-.336-.355a2.5 2.5 0 0 0-1.849-.8H5.25a1.75 1.75 0 0 1-1.75-1.75v-9.5ZM9.25 5a1.25 1.25 0 0 0-1.25-1.25h-2.5a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2.19c.63 0 1.234.183 1.75.516L9.25 5Z"
-								/>
-							{:else if group.icon === 'chat'}
-								<path
-									fill-rule="evenodd"
-									d="M2 10c0-3.5 3.36-6 8-6s8 2.5 8 6-3.36 6-8 6a9.7 9.7 0 0 1-2.4-.298L4.5 17l.6-2.87A5.6 5.6 0 0 1 2 10Z"
-									clip-rule="evenodd"
-								/>
-							{:else}
-								<path
-									d="M12.232 4.232a2.5 2.5 0 0 1 3.536 3.536l-1.225 1.224a.75.75 0 0 0 1.061 1.06l1.224-1.224a4 4 0 0 0-5.656-5.656l-3 3a4 4 0 0 0 .225 5.865.75.75 0 0 0 .977-1.138 2.5 2.5 0 0 1-.142-3.667l3-3ZM7.768 15.768a2.5 2.5 0 0 1-3.536-3.536l1.225-1.224a.75.75 0 0 0-1.061-1.06l-1.224 1.224a4 4 0 0 0 5.656 5.656l3-3a4 4 0 0 0-.225-5.865.75.75 0 0 0-.977 1.138 2.5 2.5 0 0 1 .142 3.667l-3 3Z"
-								/>
-							{/if}
-						</svg>
+						<ResourceKindIcon kind={group.kind} class="size-4 shrink-0" />
 						<span class="truncate">{group.label}</span>
 						<span class="category-count">{group.resources.length}</span>
 					</button>
@@ -213,6 +202,7 @@
 										class="cover"
 										class:commentary={resource.kind === 'commentary'}
 										class:xrefs={resource.kind === 'xrefs'}
+										class:lexicon={resource.kind === 'lexicon'}
 										aria-hidden="true"
 									>
 										<span class="cover-mark" aria-hidden="true">✦</span>
@@ -392,6 +382,21 @@
 	}
 	.cover.xrefs {
 		background: linear-gradient(145deg, #526b78, #293c47);
+	}
+	.cover.lexicon {
+		background: linear-gradient(145deg, #3879ad, #1d466b);
+	}
+	.category.kind-bible :global(svg) {
+		color: #39834b;
+	}
+	.category.kind-commentary :global(svg) {
+		color: #806640;
+	}
+	.category.kind-xrefs :global(svg) {
+		color: #526b78;
+	}
+	.category.kind-lexicon :global(svg) {
+		color: #2f70a7;
 	}
 	.cover-mark {
 		margin-bottom: auto;

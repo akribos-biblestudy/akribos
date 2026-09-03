@@ -1,13 +1,6 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
-	import {
-		afterNavigate,
-		beforeNavigate,
-		goto,
-		invalidateAll,
-		pushState,
-		replaceState
-	} from '$app/navigation';
+	import { deserialize, enhance } from '$app/forms';
+	import { beforeNavigate, goto, invalidateAll, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onDestroy, tick, untrack } from 'svelte';
 	import { SvelteMap, SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity';
@@ -23,7 +16,6 @@
 	import ReaderResourceTabs from '$lib/components/ReaderResourceTabs.svelte';
 	import ReaderTabSearchResults from '$lib/components/ReaderTabSearchResults.svelte';
 	import ReaderTabToolbar from '$lib/components/ReaderTabToolbar.svelte';
-	import StudySidebar from '$lib/components/StudySidebar.svelte';
 	import TranslationDialog from '$lib/components/TranslationDialog.svelte';
 	import VerseMenu from '$lib/components/VerseMenu.svelte';
 	import VerseText from '$lib/components/VerseText.svelte';
@@ -372,51 +364,18 @@
 		if (Number.isFinite(index)) mobileTile = index;
 	}
 
-	/** Strong's number shown in the study sidebar, kept in the URL hash so it can be shared. */
-	let activeStrong = $state<{ strong: string; word: string; reference: string } | null>(null);
-
 	/**
-	 * Strong's number currently under the mouse, highlighted the same way as `activeStrong` but
-	 * without opening the sidebar or touching the URL/history. Cleared again on pointer leave; see
+	 * Strong's number currently under the mouse. Cleared again on pointer leave; see
 	 * `VerseText.svelte` for why this uses pointer events rather than `mouseenter`/`mouseleave`.
 	 */
 	let hoverStrong = $state<string | null>(null);
 
-	/**
-	 * Restores the sidebar from the browser's real URL after a navigation.
-	 *
-	 * The reader also changes its address with shallow `replaceState` calls. Those deliberately do not
-	 * make `page.url` reactive, so a later history traversal must read `window.location` rather than a
-	 * potentially stale route URL.
-	 */
-	function restoreStrongFromHash(hashValue: string) {
-		const hash = hashValue.replace(/^#/, '');
-		if (!hash) {
-			activeStrong = null;
-			return;
-		}
-		const [strong, word, verseValue] = hash.split('/');
-		if (strong) {
-			const verse = Number.parseInt(verseValue ?? '', 10);
-			activeStrong = {
-				strong: decodeURIComponent(strong),
-				word: decodeURIComponent(word ?? ''),
-				reference: formatReference({
-					book: data.reference.book,
-					chapter: data.reference.chapter,
-					...(Number.isSafeInteger(verse) && verse > 0
-						? { verse }
-						: data.reference.verse !== undefined
-							? { verse: data.reference.verse }
-							: {})
-				})
-			};
-		}
-	}
-
-	afterNavigate(() => restoreStrongFromHash(window.location.hash));
-
-	async function openLexiconForLookup(columnIndex: number, lookup: string): Promise<void> {
+	async function openLexiconForLookup(
+		columnIndex: number,
+		lookup: string,
+		reference?: VerseRef,
+		word?: string
+	): Promise<void> {
 		const column = data.columns[columnIndex];
 		if (!column || !lookup.trim()) return;
 		const form = new FormData();
@@ -425,14 +384,28 @@
 		form.set('lookup', lookup);
 		form.set(
 			'currentReference',
-			formatReference(visibleReferences[columnIndex] ?? column.activeTab.reference)
+			formatReference(reference ?? visibleReferences[columnIndex] ?? column.activeTab.reference)
 		);
+		if (word) form.set('word', word);
 		const response = await fetch('?/openLexiconTab', {
 			method: 'POST',
 			body: form,
 			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
 		});
-		if (response.ok) await invalidateAll();
+		if (!response.ok) return;
+		const result = deserialize(await response.text());
+		if (result.type !== 'success') return;
+		await invalidateAll();
+		if (
+			window.matchMedia('(max-width: 639px)').matches &&
+			result.data &&
+			typeof result.data === 'object' &&
+			'tileId' in result.data &&
+			typeof result.data.tileId === 'string'
+		) {
+			const targetIndex = data.workspace.tiles.findIndex((tile) => tile.id === result.data?.tileId);
+			if (targetIndex >= 0) mobileTile = targetIndex;
+		}
 	}
 
 	async function lookupInLexicon(columnIndex: number, lookup: string): Promise<void> {
@@ -458,40 +431,7 @@
 		chapter = data.reference.chapter,
 		sourceColumnIndex = activeFlowSource
 	) {
-		activeStrong = {
-			strong,
-			word,
-			reference: formatReference({
-				book,
-				chapter,
-				verse
-			})
-		};
-		const url = `${window.location.pathname}${window.location.search}#${encodeURIComponent(strong)}/${encodeURIComponent(word)}/${verse}`;
-		pushState(url, { ...page.state, studySidebar: true });
-		void openLexiconForLookup(sourceColumnIndex, strong);
-		// The phone sheet covers the lower 62% of the viewport. A new per-tile tab strip adds height above
-		// the text, so explicitly keep the tapped verse in the narrow readable band above the sheet.
-		if (window.matchMedia('(max-width: 639px)').matches) {
-			tick().then(() => {
-				const column = flowColumns[activeFlowSource] ?? flowColumns[0];
-				const anchor = column?.querySelector<HTMLElement>(
-					`[data-verse-key="${book}:${chapter}:${verse}"]`
-				);
-				if (!column || !anchor) return;
-				const columnTop = column.getBoundingClientRect().top;
-				const anchorTop = anchor.getBoundingClientRect().top;
-				column.scrollTop += anchorTop - columnTop - 4;
-			});
-		}
-	}
-
-	function closeStrong() {
-		activeStrong = null;
-		pushState(`${window.location.pathname}${window.location.search}`, {
-			...page.state,
-			studySidebar: false
-		});
+		void openLexiconForLookup(sourceColumnIndex, strong, { book, chapter, verse }, word);
 	}
 
 	type StreamChapter = (typeof data.columns)[number]['initialChapter'];
@@ -528,6 +468,28 @@
 		return visibleReferenceTabKeys[column.index] === columnReferenceKey(column)
 			? (visibleReferences[column.index] ?? column.activeTab.reference)
 			: column.activeTab.reference;
+	}
+
+	function lexiconStudyContext(column: (typeof data.columns)[number]) {
+		const stored = column.activeTab.studyContext;
+		if (stored) {
+			const resource = data.readerResources.find(
+				(candidate) => candidate.id === stored.sourceResourceId && candidate.kind === 'bible'
+			);
+			if (resource) return { resource, reference: stored.reference, word: stored.word };
+		}
+
+		const linkedBible = data.columns.find(
+			(candidate) =>
+				candidate.resource.kind === 'bible' &&
+				column.activeTab.linkSet !== null &&
+				candidate.activeTab.linkSet === column.activeTab.linkSet
+		);
+		const source =
+			linkedBible ?? data.columns.find((candidate) => candidate.resource.kind === 'bible');
+		return source
+			? { resource: source.resource, reference: toolbarReference(source), word: null }
+			: { resource: null, reference: null, word: null };
 	}
 	type TabSearchState = {
 		resourceId: string;
@@ -1289,11 +1251,7 @@
 	}
 </script>
 
-<svelte:window
-	onpointermove={onLayoutResizeMove}
-	onpointerup={onLayoutResizeEnd}
-	onpopstate={() => restoreStrongFromHash(window.location.hash)}
-/>
+<svelte:window onpointermove={onLayoutResizeMove} onpointerup={onLayoutResizeEnd} />
 
 <svelte:head>
 	<title>{data.fullTitle} — Akribos</title>
@@ -1310,10 +1268,7 @@
 	     would then stick to a box that never scrolls vertically. The grid's `minmax(0, 1fr)` tracks
 	     cannot overflow anyway. -->
 	<main>
-		<div
-			class="mx-auto max-w-[var(--content-max-width)] px-2 py-2 sm:px-3 sm:py-3"
-			class:pb-sheet={activeStrong !== null}
-		>
+		<div class="mx-auto max-w-[var(--content-max-width)] px-2 py-2 sm:px-3 sm:py-3">
 			<form bind:this={sizesForm} method="POST" action="?/setLayoutSize" use:enhance class="hidden">
 				<input type="hidden" name="layout" value={data.workspace.layout} />
 				<input bind:this={sizesColumnsInput} type="hidden" name="columns" />
@@ -1353,7 +1308,7 @@
 							class:dark:bg-stone-800={mobileTile !== tileIndex}
 							onclick={() => (mobileTile = tileIndex)}
 						>
-							{mobileColumn?.resource.tabTitle ?? `Bereich ${tileIndex + 1}`}
+							{mobileColumn?.resource.abbrev ?? `Bereich ${tileIndex + 1}`}
 						</button>
 					{/each}
 				</div>
@@ -1439,7 +1394,7 @@
 							tiles={data.workspace.tiles}
 							resources={data.readerResources}
 							readerUrl={currentReaderUrl}
-							currentReference={readerLocation.reference ?? data.reference}
+							currentReference={column ? toolbarReference(column) : data.reference}
 							onOpenResource={openResourceDialog}
 						/>
 						{#if column}
@@ -1451,6 +1406,7 @@
 									stream.reference.chapter === column.activeTab.reference.chapter
 							)}
 							{@const tabSearch = tabSearchFor(column)}
+							{@const studyContext = lexiconStudyContext(column)}
 							<ReaderTabToolbar
 								tileId={tile.id}
 								{tileIndex}
@@ -1458,6 +1414,7 @@
 								resource={column.resource}
 								reference={toolbarReference(column)}
 								searchQuery={tabSearch?.query ?? null}
+								studyResourceTitle={studyContext.resource?.abbrev ?? null}
 								onOpenResource={replaceResourceDialog}
 								onSearch={(query) =>
 									column.resource.kind === 'lexicon'
@@ -1471,7 +1428,13 @@
 										lookup={column.activeTab.lookup}
 										entry={column.lexiconEntry}
 										resourceTitle={column.resource.selectionTitle}
+										lexiconId={column.resource.id}
+										sourceResource={studyContext.resource}
+										studyReference={studyContext.reference}
+										studyWord={studyContext.word}
 										onLookup={(lookup) => void lookupInLexicon(columnIndex, lookup)}
+										onOpenReference={(reference) =>
+											void openTabSearchReference(columnIndex, reference)}
 									/>
 								{/if}
 								{#if tabSearch}
@@ -1674,7 +1637,6 @@
 																				stream.reference.chapter,
 																				columnIndex
 																			)}
-																		activeStrong={activeStrong?.strong ?? null}
 																		highlights={partial}
 																		{hoverStrong}
 																		onStrongHover={(strong) => (hoverStrong = strong)}
@@ -1696,7 +1658,6 @@
 																			stream.reference.chapter,
 																			columnIndex
 																		)}
-																	activeStrong={activeStrong?.strong ?? null}
 																	highlights={partial}
 																	wordOffset={leadWordCount}
 																	{hoverStrong}
@@ -1817,16 +1778,6 @@
 			</div>
 		</div>
 	</main>
-
-	{#if activeStrong}
-		<StudySidebar
-			strong={activeStrong.strong}
-			word={activeStrong.word}
-			reference={activeStrong.reference}
-			resourceIds={data.columns.map((column) => column.resource.id)}
-			onClose={closeStrong}
-		/>
-	{/if}
 </div>
 
 <!-- One menu for the whole chapter, opened with whichever verse number was clicked. -->
@@ -2344,13 +2295,6 @@
 		&:where([lang='hbo']) {
 			font-family: var(--font-hebrew);
 			font-size: 1.25rem;
-		}
-	}
-
-	/* Room to scroll the last verses clear of the mobile study sheet. */
-	@media (max-width: 639px) {
-		.pb-sheet {
-			padding-bottom: 64dvh;
 		}
 	}
 </style>

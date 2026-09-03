@@ -17,8 +17,8 @@
 	 *
 	 * One series, ranked by frequency — a single accent hue, light-to-dark by rank, is what a
 	 * sequential (magnitude) encoding calls for. Rendered with Chart.js rather than hand-drawn SVG, so
-	 * layout, legend wrapping and hover tooltips stay correct at any width — including the narrow study
-	 * sidebar, where a hand-rolled leader-line layout had no room to breathe.
+	 * layout, legend wrapping and hover tooltips stay correct at any width — including narrow reader
+	 * tiles, where a hand-rolled leader-line layout has no room to breathe.
 	 */
 	let {
 		glosses,

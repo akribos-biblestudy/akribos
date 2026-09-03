@@ -32,6 +32,11 @@ type CompactWorkspace = [
 					number,
 					number,
 					number | 0,
+					string | 0,
+					string | 0,
+					number | 0,
+					number | 0,
+					number | 0,
 					string | 0
 				]
 			>
@@ -116,7 +121,12 @@ function encodeWorkspace(workspace: ReaderWorkspace): string {
 				tab.reference.book,
 				tab.reference.chapter,
 				tab.reference.verse ?? 0,
-				tab.lookup ?? 0
+				tab.lookup ?? 0,
+				tab.studyContext?.sourceResourceId ?? 0,
+				tab.studyContext?.reference.book ?? 0,
+				tab.studyContext?.reference.chapter ?? 0,
+				tab.studyContext?.reference.verse ?? 0,
+				tab.studyContext?.word ?? 0
 			])
 		]),
 		Object.entries(workspace.layoutSizes).flatMap(([layout, size]) =>
@@ -154,7 +164,23 @@ function expandWorkspace(value: unknown): unknown {
 														...(typeof tab[5] === 'number' && tab[5] > 0 ? { verse: tab[5] } : {})
 													}
 												: undefined,
-										lookup: typeof tab[6] === 'string' ? tab[6] : null
+										lookup: typeof tab[6] === 'string' ? tab[6] : null,
+										studyContext:
+											typeof tab[7] === 'string' &&
+											typeof tab[8] === 'number' &&
+											typeof tab[9] === 'number'
+												? {
+														sourceResourceId: tab[7],
+														reference: {
+															book: tab[8],
+															chapter: tab[9],
+															...(typeof tab[10] === 'number' && tab[10] > 0
+																? { verse: tab[10] }
+																: {})
+														},
+														word: typeof tab[11] === 'string' ? tab[11] : null
+													}
+												: null
 									};
 								})
 							: []

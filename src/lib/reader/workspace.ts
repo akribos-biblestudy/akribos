@@ -21,6 +21,13 @@ export type ReaderLayout = (typeof READER_LAYOUTS)[number];
 export const READER_LINK_SETS = ['A', 'B', 'C', 'D', 'E'] as const;
 export type ReaderLinkSet = (typeof READER_LINK_SETS)[number] | null;
 
+export type ReaderStudyContext = {
+	/** The exact translation whose tagged word opened the lexicon entry. */
+	sourceResourceId: string;
+	reference: VerseRef;
+	word: string | null;
+};
+
 export type ReaderTab = {
 	id: string;
 	resourceId: string;
@@ -28,6 +35,8 @@ export type ReaderTab = {
 	reference: VerseRef;
 	/** Current dictionary locator for lexicon resources; scripture resources leave this empty. */
 	lookup: string | null;
+	/** Per-entry context for grammar and translation-specific Strong statistics. */
+	studyContext: ReaderStudyContext | null;
 };
 
 export type ReaderTile = {
@@ -206,7 +215,8 @@ export function workspaceFromColumns(
 			// The old reader linked every visible column. A is the lossless equivalent.
 			linkSet: 'A',
 			reference: { ...reference },
-			lookup: null
+			lookup: null,
+			studyContext: null
 		};
 		tiles[tileIndex]!.tabs.push(tab);
 		tiles[tileIndex]!.activeTabId = tab.id;
@@ -255,7 +265,8 @@ export function normalizeReaderWorkspace(
 				resourceId: rawTab.resourceId,
 				linkSet: isReaderLinkSet(rawTab.linkSet) ? rawTab.linkSet : 'A',
 				reference: normalizeTabReference(rawTab.reference, fallbackReference),
-				lookup: normalizeTabLookup(rawTab.lookup)
+				lookup: normalizeTabLookup(rawTab.lookup),
+				studyContext: normalizeStudyContext(rawTab.studyContext, known)
 			});
 			tabCount += 1;
 		}
@@ -285,7 +296,8 @@ export function normalizeReaderWorkspace(
 				resourceId: rawTab.resourceId,
 				linkSet: isReaderLinkSet(rawTab.linkSet) ? rawTab.linkSet : 'A',
 				reference: normalizeTabReference(rawTab.reference, fallbackReference),
-				lookup: normalizeTabLookup(rawTab.lookup)
+				lookup: normalizeTabLookup(rawTab.lookup),
+				studyContext: normalizeStudyContext(rawTab.studyContext, known)
 			});
 			tabCount += 1;
 		}
@@ -301,7 +313,8 @@ export function normalizeReaderWorkspace(
 					resourceId: fallback,
 					linkSet: 'A',
 					reference: { ...fallbackReference },
-					lookup: null
+					lookup: null,
+					studyContext: null
 				}
 			];
 			tiles[0].activeTabId = 'tab-1';
@@ -374,7 +387,8 @@ export function addReaderTab(
 		resourceId,
 		linkSet: current?.linkSet ?? 'A',
 		reference: { ...(current?.reference ?? DEFAULT_READER_REFERENCE) },
-		lookup: null
+		lookup: null,
+		studyContext: null
 	};
 	tile.tabs.push(tab);
 	tile.activeTabId = tab.id;
@@ -456,6 +470,7 @@ export function replaceReaderTabResource(
 	if (tile && tab) {
 		tab.resourceId = resourceId;
 		tab.lookup = null;
+		tab.studyContext = null;
 		tile.activeTabId = tab.id;
 		next.focusedTileId = tile.id;
 	}
@@ -504,9 +519,31 @@ export function setReaderTabLookup(
 	const tile = next.tiles.find((item) => item.id === tileId);
 	const tab = tile?.tabs.find((item) => item.id === tabId);
 	if (!tile || !tab) return next;
-	tab.lookup = normalizeTabLookup(lookup);
+	const normalized = normalizeTabLookup(lookup);
+	if (tab.lookup !== normalized && tab.studyContext) tab.studyContext.word = null;
+	tab.lookup = normalized;
 	tile.activeTabId = tab.id;
 	next.focusedTileId = tile.id;
+	return next;
+}
+
+/** Stores and activates a lexicon entry together with the translation and verse it came from. */
+export function setReaderTabStudy(
+	workspace: ReaderWorkspace,
+	tileId: string,
+	tabId: string,
+	lookup: string,
+	context: ReaderStudyContext
+): ReaderWorkspace {
+	const next = setReaderTabLookup(workspace, tileId, tabId, lookup);
+	const tile = next.tiles.find((item) => item.id === tileId);
+	const tab = tile?.tabs.find((item) => item.id === tabId);
+	if (!tab || !isReferenceInCanon(context.reference)) return next;
+	tab.studyContext = {
+		sourceResourceId: context.sourceResourceId,
+		reference: { ...context.reference },
+		word: normalizeTabLookup(context.word)
+	};
 	return next;
 }
 
@@ -602,7 +639,12 @@ function cloneWorkspace(workspace: ReaderWorkspace): ReaderWorkspace {
 		tiles: workspace.tiles.map((tile) => ({
 			id: tile.id,
 			activeTabId: tile.activeTabId,
-			tabs: tile.tabs.map((tab) => ({ ...tab }))
+			tabs: tile.tabs.map((tab) => ({
+				...tab,
+				studyContext: tab.studyContext
+					? { ...tab.studyContext, reference: { ...tab.studyContext.reference } }
+					: null
+			}))
 		})),
 		layoutSizes: Object.fromEntries(
 			Object.entries(workspace.layoutSizes).map(([layout, size]) => [
@@ -636,4 +678,21 @@ function normalizeTabLookup(value: unknown): string | null {
 	if (typeof value !== 'string') return null;
 	const normalized = value.trim().slice(0, 200);
 	return normalized || null;
+}
+
+function normalizeStudyContext(value: unknown, known: Set<string>): ReaderStudyContext | null {
+	if (
+		!isObject(value) ||
+		typeof value.sourceResourceId !== 'string' ||
+		!known.has(value.sourceResourceId) ||
+		!isObject(value.reference)
+	) {
+		return null;
+	}
+	const reference = normalizeTabReference(value.reference, DEFAULT_READER_REFERENCE);
+	return {
+		sourceResourceId: value.sourceResourceId,
+		reference,
+		word: normalizeTabLookup(value.word)
+	};
 }

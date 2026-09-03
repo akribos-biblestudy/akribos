@@ -28,6 +28,7 @@ import {
 	setReaderTabLinkSet,
 	setReaderTabLookup,
 	setReaderTabReference,
+	setReaderTabStudy,
 	type ReaderWorkspace
 } from '$lib/reader/workspace';
 import {
@@ -298,19 +299,17 @@ export const actions = {
 		return { success: true };
 	},
 
-	activateTab: async ({ request, cookies, locals, params }) => {
+	activateTab: async ({ request, cookies, locals }) => {
 		const form = await request.formData();
 		const tileId = String(form.get('tileId') ?? '');
 		const tabId = String(form.get('tabId') ?? '');
 		const currentReference = parseReference(String(form.get('currentReference') ?? ''));
-		const workspace = await currentWorkspace(
-			cookies,
-			locals.user,
-			undefined,
-			currentReference && isReferenceInCanon(currentReference)
-				? currentReference
-				: actionReference(params)
-		);
+		let workspace = await currentWorkspace(cookies, locals.user);
+		const sourceTile = workspace.tiles.find((tile) => tile.id === tileId);
+		const sourceTab = sourceTile ? activeReaderTab(sourceTile) : null;
+		if (sourceTile && sourceTab && currentReference && isReferenceInCanon(currentReference)) {
+			workspace = setReaderTabReference(workspace, sourceTile.id, sourceTab.id, currentReference);
+		}
 		const next = activateReaderTab(workspace, tileId, tabId);
 		await commitWorkspace(cookies, locals.user, next);
 		const active = activeReaderTab(next.tiles.find((tile) => tile.id === tileId) ?? next.tiles[0]!);
@@ -432,7 +431,7 @@ export const actions = {
 	},
 
 	/** Reuses the lexicon tab belonging to the source tab's A–E group, or opens one. */
-	openLexiconTab: async ({ request, cookies, locals, params }) => {
+	openLexiconTab: async ({ request, cookies, locals }) => {
 		const form = await request.formData();
 		const sourceTileId = String(form.get('tileId') ?? '');
 		const sourceTabId = String(form.get('tabId') ?? '');
@@ -440,19 +439,29 @@ export const actions = {
 			.trim()
 			.slice(0, 200);
 		const currentReference = parseReference(String(form.get('currentReference') ?? ''));
+		const clickedWord = String(form.get('word') ?? '')
+			.trim()
+			.slice(0, 200);
 		if (!lookup) return fail(400, { error: 'lookup' });
 
 		const db = getDb();
 		const available = await listReaderResources(db);
-		const workspace = await currentWorkspace(
-			cookies,
-			locals.user,
-			available,
+		let workspace = await currentWorkspace(cookies, locals.user, available);
+		let sourceTile = workspace.tiles.find((tile) => tile.id === sourceTileId);
+		const initialSourceTab = sourceTile?.tabs.find((tab) => tab.id === sourceTabId);
+		if (!sourceTile || !initialSourceTab) return fail(400, { error: 'tab' });
+		const sourceResourceId = initialSourceTab.resourceId;
+		const sourceResource = available.find((resource) => resource.id === sourceResourceId);
+		if (sourceResource?.kind !== 'bible') return fail(400, { error: 'source' });
+
+		// The route URL can belong to another group. The clicked tab and its exact verse are the only
+		// authority here, otherwise a click in B can accidentally move every tab in A.
+		const studyReference =
 			currentReference && isReferenceInCanon(currentReference)
 				? currentReference
-				: actionReference(params)
-		);
-		const sourceTile = workspace.tiles.find((tile) => tile.id === sourceTileId);
+				: initialSourceTab.reference;
+		workspace = setReaderTabReference(workspace, sourceTileId, sourceTabId, studyReference);
+		sourceTile = workspace.tiles.find((tile) => tile.id === sourceTileId);
 		const sourceTab = sourceTile?.tabs.find((tab) => tab.id === sourceTabId);
 		if (!sourceTile || !sourceTab) return fail(400, { error: 'tab' });
 
@@ -467,22 +476,20 @@ export const actions = {
 			})
 		)[0];
 		if (existing) {
-			await commitWorkspace(
-				cookies,
-				locals.user,
-				setReaderTabLookup(workspace, existing.tile.id, existing.tab.id, lookup)
-			);
+			// The chosen dictionary belongs to the tab. A click may change its entry, but must not
+			// silently swap it for a different lexicon merely because that one also covers the number.
+			let next = workspace;
+			next = setReaderTabReference(next, existing.tile.id, existing.tab.id, studyReference);
+			next = setReaderTabStudy(next, existing.tile.id, existing.tab.id, lookup, {
+				sourceResourceId,
+				reference: studyReference,
+				word: clickedWord || null
+			});
+			await commitWorkspace(cookies, locals.user, next);
 			return { success: true, tileId: existing.tile.id, tabId: existing.tab.id, reused: true };
 		}
 
-		const lexicons = available.filter((resource) => resource.kind === 'lexicon');
-		let lexicon = lexicons[0];
-		for (const candidate of lexicons) {
-			if (await findLexiconEntry(db, candidate.id, lookup)) {
-				lexicon = candidate;
-				break;
-			}
-		}
+		const lexicon = await firstLexiconForLookup(db, available, lookup);
 		if (!lexicon) return fail(404, { error: 'lexicon' });
 
 		// A–E define a real cross-tile group, so a visible peer is the most useful home for the
@@ -506,7 +513,12 @@ export const actions = {
 		);
 		if (!added) return fail(409, { error: 'workspace' });
 		next = setReaderTabLinkSet(next, targetTile.id, added.id, sourceTab.linkSet);
-		next = setReaderTabLookup(next, targetTile.id, added.id, lookup);
+		next = setReaderTabReference(next, targetTile.id, added.id, studyReference);
+		next = setReaderTabStudy(next, targetTile.id, added.id, lookup, {
+			sourceResourceId,
+			reference: studyReference,
+			word: clickedWord || null
+		});
 		await commitWorkspace(cookies, locals.user, next);
 		return { success: true, tileId: targetTile.id, tabId: added.id, reused: false };
 	},
@@ -683,6 +695,19 @@ function endVerseFromForm(form: FormData, verse: number): number | null {
 	const endVerse = Number(raw);
 	if (!Number.isInteger(endVerse) || endVerse <= verse) return null;
 	return endVerse;
+}
+
+async function firstLexiconForLookup(
+	db: ReturnType<typeof getDb>,
+	available: Awaited<ReturnType<typeof listReaderResources>>,
+	lookup: string
+) {
+	for (const candidate of available) {
+		if (candidate.kind === 'lexicon' && (await findLexiconEntry(db, candidate.id, lookup))) {
+			return candidate;
+		}
+	}
+	return undefined;
 }
 
 function sectionReferenceFromForm(

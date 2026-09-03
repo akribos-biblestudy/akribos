@@ -25,7 +25,7 @@
 		wordOffset = 0
 	}: {
 		segments: VerseSegment[];
-		/** Called when a tagged word is activated; the reader opens the study sidebar. */
+		/** Called when a tagged word is activated; the reader opens its linked lexicon tab. */
 		onStrongClick?: (strong: string, word: string) => void;
 		/**
 		 * Called with a Strong's number while the mouse hovers a tagged word, and with `null` once it
@@ -33,7 +33,7 @@
 		 * devices never leaves a highlight stuck on until something else is tapped.
 		 */
 		onStrongHover?: (strong: string | null) => void;
-		/** Highlights every occurrence of the Strong's number currently shown in the sidebar. */
+		/** Highlights a selected Strong's number, e.g. inside a result or occurrence list. */
 		activeStrong?: string | null;
 		/** Highlights every occurrence of the Strong's number currently hovered, same as `activeStrong`. */
 		hoverStrong?: string | null;

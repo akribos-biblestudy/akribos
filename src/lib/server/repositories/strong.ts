@@ -1,8 +1,8 @@
 /**
- * Everything the study sidebar shows for a Strong's number.
+ * Everything a Strong word study shows for a Strong's number.
  *
  * The old implementation loaded every verse containing the number, scanned each one with string
- * searches and counted the renderings in Python — on every sidebar open. Here the dictionary entry is
+ * searches and counted the renderings in Python — on every study open. Here the dictionary entry is
  * one indexed read and the statistics come from the materialised views, so the whole panel is four
  * cheap queries regardless of how common the word is.
  */
@@ -279,7 +279,7 @@ export async function loadStrongOccurrences(
  * The word as it appears in the original-language text of a verse, with its morphology.
  *
  * This is what turns "Gott" in a German column into "θεός, noun nominative singular masculine" in the
- * sidebar: the German word carries the Strong's number, and the Greek resource carries the form.
+ * word study: the German word carries the Strong's number, and the Greek resource carries the form.
  */
 export async function loadOriginalWord(
 	db: Database,
@@ -309,7 +309,14 @@ export async function loadOriginalWord(
 				eq(resources.isPublic, true)
 			)
 		)
-		.orderBy(asc(verseWords.position))
+		// Several original-language resources may cover the verse. Prefer an actual morphology code,
+		// then the administrator's resource order, so every lexicon gets the same deterministic merge.
+		.orderBy(
+			sql`case when nullif(btrim(${verseWords.morph}), '') is null then 1 else 0 end`,
+			desc(resources.hasMorphology),
+			asc(resources.sortOrder),
+			asc(verseWords.position)
+		)
 		.limit(1);
 
 	return row;

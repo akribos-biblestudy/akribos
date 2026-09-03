@@ -84,7 +84,7 @@ export const de = {
 	'comments.placeholder': 'Deine Gedanken zu diesem Vers …',
 	'comments.translation': 'Kommentar zu {translation}',
 
-	// --- study sidebar ------------------------------------------------------
+	// --- Strong word study --------------------------------------------------
 	'strong.title': 'Strong-Nummer {id}',
 	'strong.original': 'Urtext',
 	'strong.transliteration': 'Umschrift',
@@ -109,12 +109,6 @@ export const de = {
 	'strong.showAll': 'Alle Stellen anzeigen',
 	'strong.notFound': 'Diese Strong-Nummer existiert nicht.',
 	'strong.tryOther': 'Vielleicht meintest du {id}?',
-	'sidebar.tab.strong': 'Strong',
-	'sidebar.tab.crossReferences': 'Parallelstellen',
-	'sidebar.tab.commentaries': 'Kommentare',
-	'sidebar.tab.notes': 'Kommentare',
-	'sidebar.empty': 'Klicke auf ein hervorgehobenes Wort, um Informationen zum Urtext zu sehen.',
-
 	// --- search -------------------------------------------------------------
 	'search.results': '{count} Ergebnisse für „{query}“',
 	'search.noResults': 'Keine Ergebnisse für „{query}“',
