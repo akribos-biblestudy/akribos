@@ -141,10 +141,10 @@
 					<li>
 						<span class="step-number">2</span>
 						<div>
-							<strong>Übersetzung wählen</strong>
+							<strong>Ressource als Tab öffnen</strong>
 							<p>
-								Klicke über einer Spalte auf deren Kürzel. Im Auswahlfenster kannst du eine andere
-								Bibel oder ein Nachschlagewerk einsetzen.
+								Klicke in einer Kachel auf <strong>+</strong>. Im Auswahlfenster kannst du eine
+								Bibel, einen Kommentar oder Parallelstellen als weiteren Tab öffnen.
 							</p>
 						</div>
 					</li>
@@ -223,59 +223,60 @@
 					<p class="eyebrow">03 · Lesen & vergleichen</p>
 					<h2>Der Reader im Überblick</h2>
 					<p>
-						Jede Ressource steht in einer eigenen Spalte. So kannst du Bibelübersetzungen und
-						Kommentare versgenau nebeneinander lesen.
+						Bis zu vier Kacheln teilen sich den Leseraum. Jede Kachel enthält beliebig viele
+						Ressourcen als Tabs, sodass Bibeln und Kommentare versgenau zusammenarbeiten.
 					</p>
 				</div>
 
 				<figure class="screenshot">
 					<img
 						src="/help/reader-overview.webp"
-						alt="Akribos-Reader mit zwei Bibelübersetzungen, Suchfeld und Spaltenwerkzeugen"
+						alt="Akribos-Reader mit drei Kacheln, mehreren Ressourcen-Tabs und Link-Sets"
 						width="1440"
 						height="900"
 						loading="lazy"
 					/>
 					<figcaption>
-						<strong>Der Reader:</strong> oben Navigation und Suche, darunter die Spaltenauswahl und der
-						synchronisierte Bibeltext.
+						<strong>Der Reader:</strong> oben Navigation und Layoutwahl, in jeder Kachel eigene Tabs und
+						Link-Sets für die Synchronisierung.
 					</figcaption>
 				</figure>
 
 				<div class="instruction-grid">
 					<article>
-						<span>Übersetzung wechseln</span>
+						<span>Zwischen Tabs wechseln</span>
 						<p>
-							Klicke auf das Kürzel über einer Spalte und wähle die gewünschte Ressource. Bereits
-							verwendete Ressourcen sind gekennzeichnet.
+							Klicke auf einen Tab, um ihn in seiner Kachel sichtbar zu machen. Mit
+							<strong>×</strong> schließt du ihn wieder.
 						</p>
 					</article>
 					<article>
-						<span>Spalte hinzufügen</span>
+						<span>Tab hinzufügen</span>
 						<p>
-							Mit <strong>+</strong> rechts neben der letzten Spalte ergänzt du eine weitere
-							Übersetzung oder einen Kommentar. Mit <strong>×</strong> entfernst du eine Spalte.
+							Mit <strong>+</strong> in einer Kachel ergänzt du eine Übersetzung, einen Kommentar oder
+							Parallelstellen. Dieselbe Ressource darf in mehreren Kacheln offen sein.
 						</p>
 					</article>
 					<article>
-						<span>Spalten anordnen</span>
+						<span>Kacheln anordnen</span>
 						<p>
-							Ziehe den gepunkteten Griff am Spaltenkopf nach links oder rechts. Deine Reihenfolge
-							wird gespeichert.
+							Unter <strong>Anordnung</strong> stehen acht Layouts bereit: ein bis vier Spalten, zwei
+							Zeilen, ein 2×2-Raster und zwei asymmetrische Dreier-Layouts.
 						</p>
 					</article>
 					<article>
-						<span>Breite verändern</span>
+						<span>Größe verändern</span>
 						<p>
-							Ziehe auf einem großen Bildschirm die schmale Trennfläche zwischen zwei Spalten. Mit
-							den Pfeiltasten lässt sie sich auch per Tastatur verschieben.
+							Ziehe die schmale Trennfläche zwischen Kacheln horizontal oder vertikal. Mit den
+							Pfeiltasten lässt sie sich ebenfalls verschieben; die Größen werden je Layout
+							gespeichert.
 						</p>
 					</article>
 					<article>
-						<span>Synchron scrollen</span>
+						<span>Tabs koppeln</span>
 						<p>
-							Verknüpfte Spalten springen beim Scrollen gemeinsam zum gleichen Vers. Über das
-							Kettensymbol kannst du eine Spalte lösen und unabhängig lesen.
+							Wähle für einen Tab den Buchstaben <strong>A, B, C, D oder E</strong>. Alle gerade
+							sichtbaren Tabs mit demselben Buchstaben folgen einander; <strong>–</strong> scrollt unabhängig.
 						</p>
 					</article>
 					<article>
@@ -291,7 +292,7 @@
 					<strong>Zusammengefasste Verse</strong>
 					<p>
 						Manche Übersetzungen oder Kommentare fassen mehrere Verse zusammen. Akribos richtet
-						solche Bereiche trotzdem am passenden Gegenstück in den anderen Spalten aus.
+						solche Bereiche trotzdem am passenden Gegenstück in den gekoppelten Tabs aus.
 					</p>
 				</div>
 
@@ -612,8 +613,8 @@
 					<article>
 						<h3>Darstellung</h3>
 						<p>
-							Verwalte Hell-/Dunkelmodus, Reader-Schriftgröße, deine gespeicherte Spaltenauswahl und
-							Markierungsfarben.
+							Verwalte Hell-/Dunkelmodus, Reader-Schriftgröße, deinen gespeicherten Arbeitsbereich
+							und Markierungsfarben.
 						</p>
 						<a href="/account?tab=appearance">Darstellung öffnen →</a>
 					</article>
@@ -639,11 +640,10 @@
 
 				<h3>Auf Smartphone und Tablet</h3>
 				<p>
-					Auf schmalen Bildschirmen ist jeweils eine Reader-Spalte sichtbar. Die pillenförmigen
-					Reiter oberhalb des Textes wechseln zwischen Übersetzungen und Kommentaren. Tippe auf den
-					bereits aktiven Reiter, um dessen Ressource auszutauschen. Über <strong>+</strong> ergänzt
-					du eine Spalte, über <strong>×</strong> entfernst du sie. Deine Auswahl bleibt beim Wechsel
-					zwischen Mobilgerät und Computer erhalten.
+					Auf schmalen Bildschirmen ist jeweils eine Reader-Kachel sichtbar. Die pillenförmigen
+					Reiter oberhalb des Leseraums wechseln zwischen den Kacheln; innerhalb der Kachel bleibt
+					die vollständige Tab-Leiste bedienbar. Das gespeicherte Desktop-Layout wird dabei nicht
+					verändert.
 				</p>
 
 				<h3>Tastaturkürzel</h3>
@@ -689,10 +689,10 @@
 					</p>
 				</details>
 				<details>
-					<summary>Meine Spalten bewegen sich nicht gemeinsam.</summary>
+					<summary>Meine Tabs bewegen sich nicht gemeinsam.</summary>
 					<p>
-						Prüfe das Kettensymbol im Spaltenkopf. Eine durchgestrichene Kette bedeutet, dass diese
-						Spalte unabhängig scrollt. Aktiviere die Verknüpfung wieder.
+						Prüfe die Buchstaben neben dem Kettensymbol. Nur sichtbare Tabs mit demselben Link-Set
+						A–E folgen einander. <strong>–</strong> bedeutet, dass der Tab unabhängig scrollt.
 					</p>
 				</details>
 				<details>
@@ -713,9 +713,9 @@
 				<details>
 					<summary>Was wird gespeichert?</summary>
 					<p>
-						Ohne Konto speichert Akribos notwendige Einstellungen wie Darstellung, Spaltenauswahl
-						und letzte Lesestelle im Browser. Mit Konto werden persönliche Inhalte deinem
-						Benutzerkonto zugeordnet. Details stehen in der <a href="/datenschutz"
+						Ohne Konto speichert Akribos notwendige Einstellungen wie Darstellung, Kachellayout,
+						Tabs, Link-Sets und letzte Lesestelle im Browser. Mit Konto werden persönliche Inhalte
+						deinem Benutzerkonto zugeordnet. Details stehen in der <a href="/datenschutz"
 							>Datenschutzerklärung</a
 						>.
 					</p>
@@ -724,7 +724,7 @@
 					<summary>Woher stammen Bibeltexte und Wörterbücher?</summary>
 					<p>
 						Jede Ressource trägt ihren eigenen Rechte- und Quellenhinweis am Ende ihrer
-						Reader-Spalte beziehungsweise im Wörterbucheintrag. Akribos vermischt mehrere Lexika zu
+						Reader-Kachel beziehungsweise im Wörterbucheintrag. Akribos vermischt mehrere Lexika zu
 						derselben Strong-Nummer nicht.
 					</p>
 				</details>

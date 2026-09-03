@@ -56,10 +56,35 @@ letzten Lesestelle zurückführt. Die Marketing-Landingpage wird auf `/` nicht m
 unter `/about` unverändert erreichbar. Weil das Root-Verhalten vom Session-Cookie abhängt, darf die
 Antwort nicht öffentlich gecacht werden.
 
-Der Reader zeigt jede Ressource in einer eigenen `.flow-column`. Alle geladenen Kapitel stehen in
-`streamChapters`; DOM-Schlüssel sind `book:chapter` beziehungsweise für Verse `book:chapter:verse`.
-`flowColumns` enthält die Scrollcontainer in Spaltenreihenfolge. Ein Kapitel vor oder hinter dem
-aktuellen wird nahe der Scrollkante nachgeladen.
+Der Logos-artige Arbeitsbereich wird als `ReaderWorkspace` in `src/lib/reader/workspace.ts` modelliert:
+Eine von acht festen Anordnungen enthält höchstens vier sichtbare Kacheln, jede Kachel beliebig viele
+Ressourcen-Tabs und genau einen aktiven Tab. Leere Kacheln sind erlaubt. Beim Wechsel auf weniger
+Kacheln werden alle Tabs der entfallenden Kacheln in die letzte verbleibende übernommen; beim Erweitern
+werden zuerst inaktive Tabs verteilt. Kein Layoutwechsel darf einen Tab schließen. Die Layoutgrößen
+werden je Anordnung separat gespeichert. `MAX_READER_TABS` ist ausschließlich eine Missbrauchsgrenze,
+keine bewusst sichtbare Produktgrenze.
+
+Das vollständige Workspace-JSON liegt für Konten in `users.reader_workspace`, für Gäste kompakt und
+Base64url-kodiert im Cookie `reader-workspace`. Bei Konten ist die Datenbankkopie maßgeblich und folgt
+dem Nutzer geräteübergreifend. `reader_columns` und das alte `columns`-Cookie bleiben eine auf fünf
+eindeutige Ressourcen begrenzte Kompatibilitätsprojektion für Suche und ältere Clients; sie dürfen den
+Workspace nach dessen erster Migration nicht wieder überschreiben. Eine bestehende Auswahl wird
+verlustfrei migriert: höchstens vier Spalten werden Kacheln, eine alte fünfte Spalte wird ein weiterer
+Tab in der vierten Kachel.
+
+Jede aktive Ressource wird weiterhin in einer eigenen `.flow-column` innerhalb ihrer `.reader-tile`
+gerendert. Alle geladenen Kapitel stehen in `streamChapters`; DOM-Schlüssel sind `book:chapter`
+beziehungsweise für Verse `book:chapter:verse`. `flowColumns` enthält nur die Scrollcontainer der
+aktiven (nicht leeren) Kacheln in Serverreihenfolge. Ein Kapitel vor oder hinter dem aktuellen wird nahe
+der Scrollkante nachgeladen. Auf schmalen Bildschirmen bleibt die Desktop-Anordnung gespeichert, aber
+es ist über die mobile Kachelauswahl immer nur eine Kachel sichtbar; deren Ressourcen-Tabs bleiben
+innerhalb der Kachel bedienbar.
+
+Die Kopplung gehört zum einzelnen Tab, nicht zur Kachel. Erlaubt sind `A` bis `E` oder `null` für
+unabhängiges Scrollen. Nur gerade aktive Tabs mit demselben Buchstaben synchronisieren einander. Beim
+Aktivieren oder Verschieben behält ein Tab sein Link-Set; neue Tabs erben das Set des zuvor aktiven Tabs
+(beziehungsweise `A` in einer leeren Kachel), damit die bisher standardmäßig gekoppelte Leseansicht
+erhalten bleibt.
 
 Die Bibelstellenauswahl im Suchfeld ist auf größeren Bildschirmen zweistufig: Eine Buchwahl zeigt
 zunächst nur die kanonischen Kapitel dieses Buchs und darf noch nicht navigieren. Erst die anschließende
@@ -71,7 +96,7 @@ Wichtige Scroll-Invarianten:
   Programmatische Ausrichtung läuft über `suppressProgrammaticFlowScroll(index)`. Die Sperre ist
   zwingend **pro Spalte**: Eine Interaktion darf nur die Sperre ihrer eigenen Spalte aufheben, weil
   verspätete Scroll-Events automatisch ausgerichteter Nebenspalten sonst die Quelle übernehmen.
-- `syncFlowColumns()` richtet andere, verknüpfte Spalten am ersten sichtbaren
+- `syncFlowColumns()` richtet ausschließlich andere aktive Tabs desselben Link-Sets am ersten sichtbaren
   `[data-verse-key]` aus. Die Ankerlinie liegt an der Unterkante des oberen Text-Fades, damit URL und
   Suchfeld bereits beim Eintritt eines Verses in den Fade zum nächsten Vers wechseln. Zusammengefasste
   Versbereiche werden über `data-verse-end` berücksichtigt.
@@ -81,7 +106,7 @@ Wichtige Scroll-Invarianten:
   Berechnung aus dem nachträglichen Wert kompensiert doppelt und erzeugt Sprünge.
 - Die URL wird beim Lesen mit `replaceState` nachgeführt. `reader-location.svelte.ts` koppelt diese
   Position an das Suchfeld, ohne eine Servernavigation auszulösen.
-- Nach dem Wechsel oder Hinzufügen einer Ressource navigiert der Reader explizit zu der in
+- Nach dem Aktivieren, Verschieben oder Hinzufügen eines Ressourcen-Tabs navigiert der Reader explizit zu der in
   `readerLocation` sichtbaren Referenz. Die flache `replaceState`-URL allein ändert SvelteKits intern
   geladene Route nicht; ein bloßes Invalidieren würde deshalb wieder das ursprünglich geladene Kapitel
   anzeigen.
@@ -248,7 +273,7 @@ untereinander zu rendern.
 Die Produkt-Tour (`ProductTour.svelte`, Schritte in `src/lib/tour/steps.ts`, Laufzustand in
 `tour-state.svelte.ts`) ist eine schlanke Eigenimplementierung (Spotlight per CSS-`box-shadow`, kein
 Tour-Framework) und wird von `SiteHeader` ausschließlich gemountet, solange `readerPreferences` gesetzt
-ist — die erklärten Ziele (Chooser, Wortstudie, Spaltenkopf, Verknüpfung, `.flow-chapter-number`) gibt es
+ist — die erklärten Ziele (Chooser, Wortstudie, Ressourcen-Tab, Link-Set, `.flow-chapter-number`) gibt es
 nur im Reader. Der neue Menüpunkt „Produkt-Tour" erscheint deshalb ebenfalls nur dort. Ein Schritt, dessen
 Zielelement fehlt oder unsichtbar ist, wird übersprungen statt auf nichts zu zeigen. Fortschritt wird als
 "erledigt" verstanden, sobald die Tour beendet oder aktiv geschlossen wurde: nicht angemeldet über das

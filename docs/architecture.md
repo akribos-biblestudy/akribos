@@ -89,6 +89,33 @@ Imports run in the background because a full translation takes half a minute. Th
 and serial — imports happen a few times a year, and a queue service would be more moving parts than the
 problem deserves. A job interrupted by a restart is marked failed at boot, not resumed.
 
+## Reader workspace
+
+The reader uses a small, pure workspace domain model in `src/lib/reader/workspace.ts`. It supports the
+same eight tile arrangements as Logos Web: one tile, two/three/four columns, two rows, a 2×2 grid, and
+both three-tile arrangements with one full-height side. At most four tiles are visible, while each tile
+owns an open-ended tab strip and one active resource. Changing arrangements redistributes or merges
+tabs without closing them. Horizontal and vertical track fractions are stored separately for every
+arrangement.
+
+Each resource tab owns an optional link set (`A`–`E`). Only active tabs with the same letter follow a
+genuine user scroll; `null` remains independent. The existing per-column suppression of programmatic
+scroll events still applies after this filter, so a delayed follower event cannot become the source.
+There remains one canonical passage URL for the reader as a whole.
+
+Signed-in workspaces are JSON in `users.reader_workspace`; guests use a compact cookie. The legacy
+`reader_columns` field remains a five-resource projection for search and older clients and seeds the
+workspace exactly once. Duplicate resources are valid across tiles, so Bible cell indices are assigned
+by active occurrence rather than through a resource-id map.
+
+### Why this stays Svelte
+
+The workspace did not justify a React migration. Svelte 5 already provides component composition,
+typed state and keyed rendering; `ReaderLayoutPicker`, `ReaderResourceTabs` and the pure workspace model
+give the complex UI explicit boundaries without replacing SvelteKit routing, SSR, form actions, auth,
+the existing reader interaction suite and every shared component. A React rewrite would duplicate that
+infrastructure while providing no capability the current stack lacks.
+
 ## Caching
 
 Public pages send `s-maxage` so a CDN can hold them; pages for a signed-in reader send `private,

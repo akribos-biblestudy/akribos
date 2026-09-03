@@ -18,6 +18,19 @@ async function useCommentaryColumn(page: Page): Promise<void> {
 	]);
 }
 
+async function addResourceTab(page: Page, tileIndex: number, resourceId: string): Promise<void> {
+	const tile = page.locator('.reader-tile').nth(tileIndex);
+	const tabsBefore = await tile.locator('.resource-tab').count();
+	await tile.getByRole('button', { name: /Ressource in Bereich .* öffnen/ }).click();
+	await page
+		.locator('form[action="?/addTab"]')
+		.filter({ has: page.locator(`input[name="resource"][value="${resourceId}"]`) })
+		.getByRole('button')
+		.click();
+	await expect(tile.locator('.resource-tab')).toHaveCount(tabsBefore + 1);
+	await expect(tile.locator(`.flow-column[data-resource-id="${resourceId}"]`)).toBeVisible();
+}
+
 async function loginAsAdmin(page: Page): Promise<void> {
 	await page.goto('/login');
 	await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
@@ -267,29 +280,9 @@ test('a column boundary can be dragged to resize the columns, and the split pers
 
 	// The splitter sits halfway down the desktop reading area, where the resized columns themselves
 	// make its purpose visible. The phone layout switches columns with tabs and renders no splitter.
-	const bar = page.getByTestId('column-picker-bar').first();
 	const reader = page.getByTestId('flow-reader');
 	const handle = reader.getByRole('separator');
 	await expect(handle).toHaveCount(1);
-
-	// The header's surrounding surface has equal padding on both sides, but its inner grid must still
-	// align exactly with the reading cards below it.
-	const headerBoxes = await bar.locator('[role="group"]').evaluateAll((nodes) =>
-		nodes.map((node) => {
-			const box = node.getBoundingClientRect();
-			return { x: box.x, width: box.width };
-		})
-	);
-	const columnBoxes = await reader.locator('.flow-column').evaluateAll((nodes) =>
-		nodes.map((node) => {
-			const box = node.getBoundingClientRect();
-			return { x: box.x, width: box.width };
-		})
-	);
-	for (const [index, headerBox] of headerBoxes.entries()) {
-		expect(Math.abs(headerBox.x - columnBoxes[index]!.x)).toBeLessThan(1);
-		expect(Math.abs(headerBox.width - columnBoxes[index]!.width)).toBeLessThan(1);
-	}
 
 	const readerBox = (await reader.boundingBox())!;
 	const handleBox = (await handle.boundingBox())!;
@@ -317,21 +310,83 @@ test('a column boundary can be dragged to resize the columns, and the split pers
 	});
 
 	// The boundary moved right, so the first column grew and the second shrank.
-	const columnHeaders = bar.locator('[role="group"]');
-	const [firstWidth, secondWidth] = await columnHeaders.evaluateAll((nodes) =>
+	const tiles = reader.locator('.reader-tile');
+	const [firstWidth, secondWidth] = await tiles.evaluateAll((nodes) =>
 		nodes.map((node) => node.getBoundingClientRect().width)
 	);
 	expect(firstWidth).toBeGreaterThan(secondWidth * 1.3);
 
-	// The resize commits to a cookie once the drag ends.
-	await expect.poll(() => page.evaluate(() => document.cookie)).toContain('column-widths=');
-
-	// The split survives a reload.
+	// The split is part of the persisted workspace and survives a reload.
 	await page.reload();
-	const [firstAfterReload, secondAfterReload] = await columnHeaders.evaluateAll((nodes) =>
+	const [firstAfterReload, secondAfterReload] = await tiles.evaluateAll((nodes) =>
 		nodes.map((node) => node.getBoundingClientRect().width)
 	);
 	expect(firstAfterReload).toBeGreaterThan(secondAfterReload * 1.3);
+});
+
+test('all Logos-style arrangements are available and an asymmetric layout persists', async ({
+	page
+}) => {
+	await page.goto('/Joh3');
+	await page.getByTestId('layout-picker').click();
+	await expect(page.locator('.layout-option')).toHaveCount(8);
+	await page.getByRole('button', { name: /Links groß/ }).click();
+
+	const reader = page.getByTestId('flow-reader');
+	await expect(reader).toHaveAttribute('data-layout', 'left-full');
+	await expect(reader.locator('.reader-tile')).toHaveCount(3);
+	const boxes = await reader.locator('.reader-tile').evaluateAll((nodes) =>
+		nodes.map((node) => {
+			const box = node.getBoundingClientRect();
+			return { x: box.x, y: box.y, width: box.width, height: box.height };
+		})
+	);
+	expect(boxes[0]!.height).toBeGreaterThan(boxes[1]!.height * 1.8);
+	expect(boxes[1]!.x).toBeGreaterThan(boxes[0]!.x);
+	expect(boxes[2]!.y).toBeGreaterThan(boxes[1]!.y);
+
+	await page.reload();
+	await expect(reader).toHaveAttribute('data-layout', 'left-full');
+});
+
+test('a tab keeps its A-E link set when it moves between tiles', async ({ page }) => {
+	await page.goto('/Joh3');
+	await addResourceTab(page, 0, 'SEEDPLAIN');
+	const firstTile = page.locator('.reader-tile').first();
+	await firstTile.locator('.link-form select').selectOption('C');
+	await expect(firstTile.locator('.resource-tab.active .tab-link-set')).toHaveText('C');
+
+	await firstTile.getByLabel('Tab verschieben').click();
+	await firstTile.getByRole('button', { name: 'Bereich 2' }).click();
+	const secondTile = page.locator('.reader-tile').nth(1);
+	await expect(secondTile.locator('.resource-tab')).toHaveCount(2);
+	await expect(secondTile.locator('.resource-tab.active .tab-link-set')).toHaveText('C');
+	await expect(secondTile.locator('.link-form select')).toHaveValue('C');
+
+	await page.reload();
+	await expect(page.locator('.reader-tile').nth(1).locator('.link-form select')).toHaveValue('C');
+});
+
+test('different link letters keep visible tabs independently scrollable', async ({ page }) => {
+	await page.route('**/api/reader/**', (route) => route.abort());
+	await page.setViewportSize({ width: 900, height: 300 });
+	await page.goto('/Joh3');
+	const secondTile = page.locator('.reader-tile').nth(1);
+	await secondTile.locator('.link-form select').selectOption('B');
+	await expect(secondTile.locator('.resource-tab.active .tab-link-set')).toHaveText('B');
+
+	const columns = page.locator('.flow-column');
+	await page.waitForTimeout(200);
+	const secondBefore = await columns.nth(1).evaluate((element) => element.scrollTop);
+	await columns.first().evaluate((element) => {
+		const verse = element.querySelector<HTMLElement>('[data-verse-key="43:3:17"]');
+		element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		element.scrollTop = verse?.offsetTop ?? element.scrollHeight;
+		element.dispatchEvent(new Event('scroll'));
+	});
+	await page.waitForTimeout(250);
+	const secondAfter = await columns.nth(1).evaluate((element) => element.scrollTop);
+	expect(Math.abs(secondAfter - secondBefore)).toBeLessThan(2);
 });
 
 test('flowing text keeps columns scroll-synchronized', async ({ page }) => {
@@ -391,7 +446,7 @@ test('the visible reference advances when a verse enters the top fade', async ({
 	await page.waitForTimeout(120);
 	const position = await column.evaluate((element) => {
 		const verse = element.querySelector<HTMLElement>('[data-verse-key="43:3:16"]')!;
-		const fade = document.querySelector<HTMLElement>('.flow-fade-grid .flow-edge-fade.top')!;
+		const fade = document.querySelector<HTMLElement>('.tile-content .flow-edge-fade.top')!;
 		const columnTop = element.getBoundingClientRect().top;
 		const fadeHeight = fade.getBoundingClientRect().height;
 		const distance = verse.getBoundingClientRect().bottom - (columnTop + fadeHeight - 2);
@@ -840,25 +895,21 @@ test('a reference typed into the search box goes to the chapter', async ({ page 
 	await expect(page.getByText('Es werde Licht', { exact: false }).first()).toBeVisible();
 });
 
-test('the column selection persists across navigations', async ({ page }) => {
+test('the active resource tab persists across navigations', async ({ page }) => {
 	await page.goto('/Joh3');
 
-	// Put the second translation in the first column. The fixture now spans more than one resource
-	// kind (bibles and a commentary), so the dialog groups them under a "Bibeln" category.
-	await page.locator('#column-0').click();
-	await page.getByRole('button', { name: 'Bibeln' }).click();
-	await page
-		.locator('form[action="?/setColumn"]')
-		.filter({ has: page.locator('input[name="resource"][value="SEEDPLAIN"]') })
-		.getByRole('button')
-		.click();
-	await expect(page.locator('#column-0')).toContainText('Schlicht');
+	await addResourceTab(page, 0, 'SEEDPLAIN');
+	await expect(page.locator('.reader-tile').first().locator('.resource-tab.active')).toContainText(
+		'Schlicht'
+	);
 
 	await page.goto('/1Mo1');
-	await expect(page.locator('#column-0')).toContainText('Schlicht');
+	await expect(page.locator('.reader-tile').first().locator('.resource-tab.active')).toContainText(
+		'Schlicht'
+	);
 });
 
-test('switching a translation keeps the currently visible chapter', async ({ page }) => {
+test('opening another resource tab keeps the currently visible chapter', async ({ page }) => {
 	await page.setViewportSize({ width: 900, height: 300 });
 	await page.goto('/1Mo1');
 
@@ -874,47 +925,39 @@ test('switching a translation keeps the currently visible chapter', async ({ pag
 	);
 	await expect(page).toHaveURL(/\/1Mo2,1$/);
 
-	await page.locator('#column-0').click();
-	await page.getByRole('button', { name: 'Bibeln' }).click();
-	await page
-		.locator('form[action="?/setColumn"]')
-		.filter({ has: page.locator('input[name="resource"][value="SEEDPLAIN"]') })
-		.getByRole('button')
-		.click();
+	await addResourceTab(page, 0, 'SEEDPLAIN');
 
-	await expect(page.locator('#column-0')).toContainText('Schlicht');
+	await expect(page.locator('.reader-tile').first().locator('.resource-tab.active')).toContainText(
+		'Schlicht'
+	);
 	await expect(page).toHaveURL(/\/1Mo2,1$/);
 	await expect(column.locator('[data-chapter-key="1:2"]')).toBeAttached();
 });
 
-test('a closed column can be opened again', async ({ page }) => {
+test('a closed resource tab can be opened again', async ({ page }) => {
 	await page.goto('/Joh3');
-	await expect(page.locator('button[id^="column-"]')).toHaveCount(2);
-
-	// Close the second column; the fixture has exactly two translations, so the add button appears.
-	await page
-		.getByRole('button', { name: /Spalte entfernen/ })
-		.last()
+	const tile = page.locator('.reader-tile').first();
+	await addResourceTab(page, 0, 'SEEDPLAIN');
+	await expect(tile.locator('.resource-tab')).toHaveCount(2);
+	await tile
+		.locator('.resource-tab.active')
+		.getByRole('button', { name: /schließen/ })
 		.click();
-	await expect(page.locator('button[id^="column-"]')).toHaveCount(1);
+	await expect(tile.locator('.resource-tab')).toHaveCount(1);
+	await addResourceTab(page, 0, 'SEEDPLAIN');
+	await expect(tile.locator('.resource-tab')).toHaveCount(2);
 
-	await page.getByRole('button', { name: 'Spalte hinzufügen' }).first().click();
-	await page.getByRole('button', { name: 'Bibeln' }).click();
-	await page.locator('form[action="?/addColumn"]').getByRole('button').first().click();
-
-	await expect(page.locator('button[id^="column-"]')).toHaveCount(2);
-
-	// And the choice is remembered, like every other column change.
+	// The complete tab strip, not merely the active resource, is remembered.
 	await page.goto('/1Mo1');
-	await expect(page.locator('button[id^="column-"]')).toHaveCount(2);
+	await expect(page.locator('.reader-tile').first().locator('.resource-tab')).toHaveCount(2);
 });
 
-test('the study panel and the column headers stay in view while scrolling', async ({ page }) => {
+test('the study panel and resource tabs stay in view while scrolling', async ({ page }) => {
 	await page.goto('/Joh3,16');
 	await page.locator('button.strong[data-strong="G25"]').first().click();
 
 	const sidebar = page.getByRole('complementary');
-	const header = page.locator('#column-0');
+	const header = page.locator('.reader-tile').first().getByTestId('resource-tabs');
 	await expect(sidebar).toBeVisible();
 
 	await page.mouse.wheel(0, 4000);
@@ -991,7 +1034,7 @@ test('on a phone the study panel is a sheet that leaves the verse visible', asyn
 	expect(verseBox.y).toBeLessThan(sheetBox.y);
 });
 
-test('the mobile column switcher exposes real tab semantics without hiding desktop columns', async ({
+test('the mobile tile switcher exposes real tab semantics without hiding desktop tiles', async ({
 	page
 }) => {
 	// Default (desktop) viewport first: the regression this specifically guards against is
@@ -1010,16 +1053,16 @@ test('the mobile column switcher exposes real tab semantics without hiding deskt
 	await page.setViewportSize({ width: 390, height: 780 });
 	await page.reload();
 
-	const tabs = page.getByRole('tablist', { name: 'Spaltenauswahl' }).getByRole('tab');
+	const tabs = page.getByRole('tablist', { name: 'Reader-Bereiche' }).getByRole('tab');
 	await expect(tabs).toHaveCount(2);
 	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
 	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'false');
 	await expect(tabs.first()).toHaveAttribute('tabindex', '0');
 	await expect(tabs.nth(1)).toHaveAttribute('tabindex', '-1');
 
-	const mobileColumns = page.locator('.flow-column');
-	await expect(mobileColumns.first()).toHaveAttribute('role', 'tabpanel');
-	await expect(mobileColumns.nth(1)).toHaveAttribute('aria-hidden', 'true');
+	const mobileTiles = page.locator('.reader-tile');
+	await expect(mobileTiles.first()).toHaveAttribute('role', 'tabpanel');
+	await expect(mobileTiles.nth(1)).toHaveAttribute('aria-hidden', 'true');
 
 	// ArrowRight moves focus to the next tab and switches to it in the same step (automatic
 	// activation), matching the existing click-to-switch behaviour. Read the focused id back from
@@ -1036,8 +1079,17 @@ test('the mobile column switcher exposes real tab semantics without hiding deskt
 	});
 	expect(focusedIdAfterArrowRight).toBe('mobile-tab-1');
 	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
-	await expect(mobileColumns.first()).toHaveAttribute('aria-hidden', 'true');
-	await expect(mobileColumns.nth(1)).not.toHaveAttribute('aria-hidden', 'true');
+	await expect(mobileTiles.first()).toHaveAttribute('aria-hidden', 'true');
+	await expect(mobileTiles.nth(1)).not.toHaveAttribute('aria-hidden', 'true');
+
+	// Reducing the layout while its last tile is selected must clamp the mobile selection instead of
+	// leaving the only remaining tile hidden behind an out-of-range index.
+	await page.getByTestId('layout-picker').click();
+	await page.getByRole('button', { name: /^Eine Kachel/ }).click();
+	await expect(tabs).toHaveCount(1);
+	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+	await expect(mobileTiles).toHaveCount(1);
+	await expect(mobileTiles.first()).not.toHaveAttribute('aria-hidden', 'true');
 });
 
 test('legacy URLs from the previous site still resolve', async ({ page }) => {
