@@ -453,7 +453,7 @@ test('an admin can see and edit resources', async ({ page }) => {
 		.click();
 
 	await page.goto('/Joh3');
-	await expect(page.locator('#column-0')).toContainText('Umbenannt');
+	await expect(page.getByRole('tab', { name: /Umbenannt/ })).toBeVisible();
 
 	// Put it back, so the test can run again.
 	await page.goto('/admin/resources');

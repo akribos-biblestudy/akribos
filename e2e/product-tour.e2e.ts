@@ -72,14 +72,14 @@ test('the tour walks through its signed-out steps with Weiter and can be finishe
 
 	await page.getByRole('button', { name: 'Weiter' }).click(); // -> Bibel-/Kommentarauswahl
 	await expect(page.getByRole('dialog', { name: 'Bibel- und Kommentarauswahl' })).toBeVisible();
-	await page.getByRole('button', { name: 'Weiter' }).click(); // -> Spalten verknüpfen
-	await expect(page.getByRole('dialog', { name: 'Spalten verknüpfen' })).toBeVisible();
-	await page.getByRole('button', { name: 'Weiter' }).click(); // -> Spalte hinzufügen, the last step
-	await expect(page.getByRole('dialog', { name: 'Spalte hinzufügen' })).toBeVisible();
+	await page.getByRole('button', { name: 'Weiter' }).click(); // -> Tabs verknüpfen
+	await expect(page.getByRole('dialog', { name: 'Tabs verknüpfen' })).toBeVisible();
+	await page.getByRole('button', { name: 'Weiter' }).click(); // -> Tab hinzufügen, the last step
+	await expect(page.getByRole('dialog', { name: 'Tab hinzufügen' })).toBeVisible();
 
 	// Last step for a guest: its button reads "Fertig" rather than "Weiter".
 	await page.getByRole('button', { name: 'Fertig' }).click();
-	await expect(page.getByRole('dialog', { name: 'Spalte hinzufügen' })).toHaveCount(0);
+	await expect(page.getByRole('dialog', { name: 'Tab hinzufügen' })).toHaveCount(0);
 
 	await page.goto('/Joh3');
 	await expect(page.getByRole('dialog', { name: 'Buch- und Kapitelauswahl' })).toHaveCount(0);
