@@ -160,7 +160,7 @@ export const verses = pgTable(
 /**
  * One row per Strong-tagged word, in reading order.
  *
- * `word` is the surface form as the translation renders it, which is what the sidebar's "translated
+ * `word` is the surface form as the translation renders it, which is what the word study's "translated
  * as" statistics count. For Greek and Hebrew sources it is the original word instead.
  */
 export const verseWords = pgTable(

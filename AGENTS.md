@@ -91,9 +91,10 @@ Jeder Tab besitzt außerdem eine eigene `reference`. Der zuletzt fokussierte Tab
 Reader-URL; Aktivieren stellt die gespeicherte Stelle des Tabs wieder her. Ein Buchstaben-Link-Set gleicht
 die Referenz **aller** Tabs dieser Gruppe an, auch der inaktiven. Dadurch kann ein später aktivierter Tab
 keine veraltete Stelle in die sichtbare Gruppe zurücktragen. Tabs mit anderem Buchstaben oder ohne
-Link-Set behalten ihre eigene Stelle. Vor jeder Workspace-Form-Action wird die gespeicherte Referenz des
-fokussierten Tabs noch mit der aktuellen URL abgeglichen, damit eine fachfremde Aktion keine per
-`replaceState` aktualisierte Lesestelle zurücksetzt.
+Link-Set behalten ihre eigene Stelle. Aktionen, die aus einer konkreten Kachel kommen (insbesondere
+Tab-Aktivierung und Strong-Klick), müssen den Quell-Tab und dessen sichtbare Referenz explizit mitsenden;
+die kanonische URL beziehungsweise `focusedTileId` darf dafür nie ersatzweise verwendet werden, weil sie
+während clientseitiger Interaktionen kurzzeitig zu einer anderen Gruppe gehören kann.
 
 Das kompakte Feld in `ReaderTabToolbar.svelte` ist Stellenwahl und ressourcenbezogene Suche zugleich:
 Eine Bibelstelle navigiert den Tab, Wörter und Strong-Nummern öffnen dagegen keine andere Route, sondern
@@ -105,16 +106,21 @@ für Bibeln entweder Volltexttreffer oder Strong-Vorkommen, für Kommentare Tref
 Strong-Suchen außerdem Statistik und Übersetzungsformen des aktuellen Bibelwerks. `book` filtert nur
 die Trefferliste und nicht das Diagramm. Ressourcen ohne indexierbaren Fließtext zeigen einen erklärten
 Leerzustand. Ein Treffer setzt die Referenz dieses Tabs und kehrt dort zum Lesetext zurück; andere Tabs,
-Layout und URL bleiben während der bloßen Suche unangetastet. Der Pfeil am Feld öffnet den zweistufigen,
-zentrierten Buch-/Kapitel-Dialog: Eine Buchwahl navigiert noch nicht, erst die Kapitelwahl. Eine
-Versauswahl gehört bewusst nicht zu diesem Dialog.
+Layout und URL bleiben während der bloßen Suche unangetastet. Der frühere Buch-/Kapitel-Dialog ist
+entfernt. Nur Eingaben mit einer Ziffer werden als mögliche Bibelstellen interpretiert; ein bloßer
+Buchname wie `Judas` (ebenso eine Anführungszeichen-Suche) bleibt deshalb eine Textsuche im Werk.
 
 Lexika sind normale Reader-Ressourcen und können mehrfach als eigenständige Tabs geöffnet werden. Ihr
 tab-eigener `lookup` wird neben `reference` im Workspace gespeichert und von `findLexiconEntry()` immer
 innerhalb genau der Tab-Ressource aufgelöst: Strong-Nummern exakt, Lemma/Umschrift erst exakt und dann
-als Präfix. Lexikon-Tabs nehmen nicht am Kapitel-Endless-Scroll teil. Ein Klick auf ein Strong-Wort lässt
-die schnelle `StudySidebar` bestehen und öffnet zusätzlich ein Lexikon: Existiert in demselben
-nicht-leeren A–E-Link-Set schon ein Lexikon-Tab, wird der erste davon aktualisiert und aktiviert;
+als Präfix. Lexikon-Tabs nehmen nicht am Kapitel-Endless-Scroll teil. Ein Klick auf ein Strong-Wort öffnet
+die vollständige Wortstudie im Lexikon-Tab; eine separate Seitenleiste existiert nicht mehr. Der Tab
+speichert Quellübersetzung, Klickstelle und Wort als `studyContext`. Grammatik wird unabhängig vom
+gewählten Lexikon aus einem öffentlichen hebräischen beziehungsweise griechischen Ausgangstext ergänzt;
+bei mehreren Quellen gewinnt ein tatsächlich vorhandener Morphologiecode und danach `sortOrder`;
+Vorkommen, Buchverteilung und „Übersetzt als“ stammen dagegen exakt aus der Quellübersetzung, die auch im
+Toolbar-Badge genannt wird. Existiert in demselben nicht-leeren A–E-Link-Set schon ein Lexikon-Tab, wird
+der erste davon aktualisiert und aktiviert;
 andernfalls wird das erste passend sortierte Lexikon bevorzugt in einer anderen sichtbaren Kachel
 desselben Sets ergänzt, ersatzweise in einer leeren beziehungsweise der Quellkachel. Bei `linkSet = null`
 gilt nur die Quellkachel als Gruppe. Mehrere Lexika werden nie zu einem Eintrag verschmolzen.
@@ -153,14 +159,7 @@ Wichtige Scroll-Invarianten:
   Kapitel-Nachladungen verworfen werden; sie dürfen niemals den neuen Kapitelstream oder dessen URL
   verändern. Eine Navigation auf ein Kapitel ohne Vers setzt zusätzlich jede wiederverwendete
   `.flow-column` vor und nach dem Austausch des Kapitelstreams programmatisch auf `scrollTop = 0`;
-  nur das äußere Fenster zurückzusetzen lässt sonst den Scrollstand der alten Stelle bestehen. Die
-  Strong-Seitenleiste wird nach History-Navigationen aus `window.location.hash`
-  restauriert, weil flache `replaceState`-Änderungen nicht zuverlässig in `page.url` reaktiv werden.
-- Jeder Klick auf ein Strong-Wort und jedes explizite Schließen der Strong-Seitenleiste legt mit
-  `pushState` einen eigenen History-Eintrag an. Dadurch kann Zurück/Vorwärts jeden einzelnen
-  Sidebar-Zustand wiederherstellen; Scroll-Aktionen aktualisieren die URL dagegen weiterhin nur mit
-  `replaceState`. Da Zurück/Vorwärts zwischen flachen History-Einträgen keine SvelteKit-Navigation
-  auslöst, synchronisiert zusätzlich ein `popstate`-Handler die Seitenleiste mit dem aktuellen Hash.
+  nur das äußere Fenster zurückzusetzen lässt sonst den Scrollstand der alten Stelle bestehen.
 - Vers 1 hat absichtlich keine sichtbare Versnummer. Die sichtbare `.flow-chapter-number` ist deshalb
   ein Link und öffnet über `onVerseNumberClick()` dasselbe `VerseMenu` für den ersten Vers. Sie darf
   nicht wieder in ein rein dekoratives `span` umgewandelt werden.

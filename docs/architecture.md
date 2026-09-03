@@ -3,8 +3,8 @@
 ## Shape of the thing
 
 A SvelteKit app talking to PostgreSQL, served by Node behind Coolify's proxy. Reading and search pages
-are server-rendered; the study sidebar and the admin import wizard are the only parts that fetch on
-their own.
+are server-rendered; embedded lexicon studies and the admin import wizard fetch their supplementary
+data on their own.
 
 ```
 src/lib/bible/      domain logic, no I/O: books, references, Strong's ids, morphology, parsers
@@ -41,7 +41,7 @@ row per number, sharing a position.
 
 **Derived data is materialised.** `strong_stats`, `strong_glosses` and `search_terms` are materialised
 views refreshed after an import. The previous version recomputed the gloss frequencies in Python on
-every sidebar open, over every verse containing the word.
+every word-study open, over every verse containing the word.
 
 ## Search
 
@@ -112,16 +112,22 @@ or terms from one commentary, and `tabSearches` displays them as a temporary lay
 keeping its chapter stream and scroll position mounted underneath. Word and Strong results include an
 unfiltered book distribution and an optional in-tab book filter; Strong results also retain the active
 Bible's occurrence and rendering statistics. Opening a hit updates only that tab's reference and returns
-to its text. The book/chapter chooser is modal and centered. Tab labels intentionally contain only the
-resource abbreviation; work metadata, rights and usage notes live behind the adjacent info button
+to its text. There is no separate book/chapter chooser: only input containing a number is considered a
+possible reference, so a bare book name remains a text search. Tab labels intentionally contain only
+the resource abbreviation; work metadata, rights and usage notes live behind the adjacent info button
 instead of taking permanent vertical space below the text.
 
 Lexicons are first-class reader tabs and keep a separate `lookup` locator in the workspace. Their field
 resolves an exact Strong id or a lemma/transliteration prefix inside that one resource, so any number of
-lexicons can remain independently open. Clicking a Strong-tagged Bible word keeps the quick study
-sidebar and also reuses the lexicon tab in the source tab's A–E link set, creating one in another linked
-tile (or the source tile as fallback) only when that group has none. Lexicon tabs are deliberately
-excluded from chapter streaming and scroll alignment; different lexicon resources are never merged.
+lexicons can remain independently open. Clicking a Strong-tagged Bible word reuses the lexicon tab in
+the source tab's A–E link set, creating one in another linked tile (or the source tile as fallback) only
+when that group has none. The lexicon tab stores that exact source translation, clicked verse and word:
+grammar is merged in from a public original-language resource, while occurrences, book distribution and
+rendering forms are always calculated for the source translation shown in the toolbar badge. When
+several original-language resources cover a word, a row with morphology wins and `sortOrder` breaks
+remaining ties. Lexicon
+tabs are deliberately excluded from chapter streaming and scroll alignment; different lexicon
+resources are never merged.
 
 Signed-in workspaces are JSON in `users.reader_workspace`; guests use a compact cookie. The legacy
 `reader_columns` field remains a five-resource projection for search and older clients and seeds the

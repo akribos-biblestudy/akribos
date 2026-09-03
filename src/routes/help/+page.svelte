@@ -64,7 +64,7 @@
 
 	const shortcuts = [
 		{ keys: ['Enter'], action: 'Eingabe im aktuellen Tab öffnen oder darin suchen' },
-		{ keys: ['Esc'], action: 'Strong-Seitenleiste, Menü oder Kommentar-Editor schließen' },
+		{ keys: ['Esc'], action: 'Menü oder Kommentar-Editor schließen' },
 		{ keys: ['Strg', 'Enter'], action: 'Kommentar speichern (auf dem Mac: ⌘ + Enter)' }
 	];
 </script>
@@ -191,11 +191,12 @@
 					<div class="example"><code>Römer8,28</code><span>Auch ohne Leerzeichen</span></div>
 				</div>
 
-				<h3>Buchauswahl öffnen</h3>
+				<h3>Buchnamen suchen</h3>
 				<p>
-					Klicke im Tab auf den Pfeil rechts neben der Stelle. Der zentrierte Dialog zeigt alle 66
-					Bücher. Wähle zuerst ein Buch und danach das gewünschte Kapitel. Erst die Kapitelwahl
-					öffnet die Bibelstelle; eine Stelle mit Vers kannst du jederzeit direkt eintippen.
+					Eine Stelle braucht im Tab-Feld immer eine Kapitelzahl, zum Beispiel <code>Jud 1</code>.
+					Ein bloßer Buchname wie <code>Judas</code> wird dagegen im aktuellen Werk gesucht. Mit
+					Anführungszeichen, etwa <code>"Judas"</code>, kannst du ausdrücklich nach genau diesem
+					Wort oder einer Wortfolge suchen.
 				</p>
 
 				<h3>Zwischen Kapiteln wechseln</h3>
@@ -312,23 +313,10 @@
 					<h2>Wörter im Urtext untersuchen</h2>
 					<p>
 						In dafür vorbereiteten Übersetzungen sind Wörter mit Strong-Nummern dezent
-						unterstrichen. Ein Klick öffnet die Studienansicht.
+						unterstrichen. Ein Klick öffnet die Studienansicht in einem Wörterbuch-Tab derselben
+						Koppelgruppe.
 					</p>
 				</div>
-
-				<figure class="screenshot screenshot-narrow">
-					<img
-						src="/help/strong-study.webp"
-						alt="Studienansicht zu einem griechischen Strong-Wort mit Grundform, Definition und Vorkommen"
-						width="1440"
-						height="900"
-						loading="lazy"
-					/>
-					<figcaption>
-						<strong>Studienansicht:</strong> Das angeklickte Wort bleibt im Kontext sichtbar; daneben
-						erscheinen Lexikon und Statistik.
-					</figcaption>
-				</figure>
 
 				<h3>Was die Angaben bedeuten</h3>
 				<dl class="definition-list">
@@ -379,14 +367,13 @@
 
 				<h3>Strong-Nummer direkt öffnen</h3>
 				<p>
-					Gib etwa <code>G25</code> oder <code>H430</code> in das Feld eines Bibel-Tabs ein. Die
-					Vorkommen aus genau dieser Übersetzung erscheinen samt Buchverteilung und
-					Übersetzungsformen im Tab. Ein Klick auf die Fundstelle öffnet sie im selben Tab; ein
-					Klick auf das markierte Wort öffnet zusätzlich die seitliche Studienansicht und einen
-					Wörterbuch-Tab im gleichen Link-Set. Ein vorhandener Wörterbuch-Tab dieser Gruppe wird
-					dafür wiederverwendet. Im Feld eines Wörterbuch-Tabs kannst du nach Strong-Nummer, Lemma
-					oder Umschrift zum nächsten Eintrag springen. Mit <kbd>Esc</kbd> schließt du die Studienansicht
-					wieder.
+					Gib etwa <code>G25</code> oder <code>H430</code> in das Feld eines Bibel-Tabs ein. Die Vorkommen
+					aus genau dieser Übersetzung erscheinen samt Buchverteilung und Übersetzungsformen im Tab. Ein
+					Klick auf ein markiertes Wort im Bibeltext öffnet oder aktualisiert stattdessen den Wörterbuch-Tab
+					im gleichen Link-Set. Dort stehen Definition, Grammatik, Übersetzungsformen und Fundstellen
+					gemeinsam; ein kleines Kürzel neben dem Suchfeld zeigt die zugrunde liegende Übersetzung. Im
+					Feld des Wörterbuch-Tabs kannst du nach Strong-Nummer, Lemma oder Umschrift zum nächsten Eintrag
+					springen.
 				</p>
 			</section>
 

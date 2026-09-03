@@ -28,11 +28,9 @@
 }
 
 :root {
-	/* Height of the sticky site header. The reader's column headers and its study panel stick below
-	   it, so all three have to agree on one number. */
+	/* Height of the sticky site header. The reader's column headers stick below it. */
 	--header-height: 4rem;
-	/* Width of the centered reading content. The site header and the study sidebar's ultra-wide
-	   anchoring both need to agree with the reader on where the content's edge actually is. */
+	/* Width of the centered reading content. The site header and reader share this outer edge. */
 	--content-max-width: 120rem;
 	--paper: #f8f7f2;
 	--paper-deep: #f0eee6;

@@ -16,7 +16,7 @@ import {
  * Full-page list of every verse containing a Strong's number: `/G26` and `/G26/2`.
  *
  * The same URLs the previous site used, including the page suffix, so old links and search results
- * keep working. Unlike the sidebar this is server-rendered, because it is a page people link to and
+ * keep working. Unlike the embedded tab study this is server-rendered, because it is a page people link to and
  * search engines index.
  */
 export async function load({ params, setHeaders, url }) {
