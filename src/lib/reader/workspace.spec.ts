@@ -7,9 +7,12 @@ import {
 	closeReaderTab,
 	moveReaderTab,
 	normalizeReaderWorkspace,
+	replaceReaderTabResource,
 	readerLayoutSize,
 	setReaderLayoutSize,
 	setReaderTabLinkSet,
+	setReaderTabLookup,
+	setReaderTabReference,
 	workspaceFromColumns
 } from './workspace.ts';
 
@@ -31,6 +34,65 @@ describe('reader workspace', () => {
 		expect(workspace.tiles.flatMap((tile) => tile.tabs).every((tab) => tab.linkSet === 'A')).toBe(
 			true
 		);
+		expect(
+			workspace.tiles.flatMap((tile) => tile.tabs).every((tab) => tab.reference.book === 43)
+		).toBe(true);
+	});
+
+	it('keeps link sets independent and updates inactive tabs in the matching set', () => {
+		let workspace = workspaceFromColumns(['a', 'b'], { book: 43, chapter: 3, verse: 16 });
+		workspace = setReaderTabLinkSet(workspace, 'tile-2', 'tab-2', 'B');
+		workspace = setReaderTabReference(workspace, 'tile-1', 'tab-1', {
+			book: 45,
+			chapter: 8,
+			verse: 1
+		});
+		expect(activeReaderTab(workspace.tiles[0]!)?.reference).toEqual({
+			book: 45,
+			chapter: 8,
+			verse: 1
+		});
+		expect(activeReaderTab(workspace.tiles[1]!)?.reference).toEqual({
+			book: 43,
+			chapter: 3,
+			verse: 16
+		});
+
+		workspace = setReaderTabLinkSet(workspace, 'tile-2', 'tab-2', 'A');
+		workspace.tiles[1]!.tabs.push({
+			id: 'inactive-a',
+			resourceId: 'c',
+			linkSet: 'A',
+			reference: { book: 42, chapter: 20 },
+			lookup: null
+		});
+		workspace = setReaderTabReference(workspace, 'tile-1', 'tab-1', {
+			book: 1,
+			chapter: 2
+		});
+		expect(activeReaderTab(workspace.tiles[1]!)?.reference).toEqual({ book: 1, chapter: 2 });
+		expect(workspace.tiles[1]!.tabs.find((tab) => tab.id === 'inactive-a')?.reference).toEqual({
+			book: 1,
+			chapter: 2
+		});
+	});
+
+	it('stores a lexicon lookup on exactly one tab', () => {
+		let workspace = workspaceFromColumns(['bible', 'lexicon']);
+		workspace = setReaderTabLookup(workspace, 'tile-2', 'tab-2', '  G25  ');
+		expect(activeReaderTab(workspace.tiles[1]!)?.lookup).toBe('G25');
+		expect(activeReaderTab(workspace.tiles[0]!)?.lookup).toBeNull();
+		expect(workspace.focusedTileId).toBe('tile-2');
+	});
+
+	it('replaces a tab resource without losing its location or link set', () => {
+		let workspace = workspaceFromColumns(['a'], { book: 19, chapter: 23 });
+		workspace = replaceReaderTabResource(workspace, 'tile-1', 'tab-1', 'b');
+		expect(activeReaderTab(workspace.tiles[0]!)).toMatchObject({
+			resourceId: 'b',
+			linkSet: 'A',
+			reference: { book: 19, chapter: 23 }
+		});
 	});
 
 	it('moves surplus tabs into new tiles and merges removed tiles without closing tabs', () => {

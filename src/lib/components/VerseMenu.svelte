@@ -28,7 +28,7 @@
 	let {
 		lists,
 		signedIn,
-		/** Keys are `${verse}:${listId}` for every verse of this chapter that sits in a list. */
+		/** Keys are `${book}:${chapter}:${verse}:${listId}` for every loaded verse in a list. */
 		marks,
 		/** The reader's own highlight palette, in display order. */
 		highlightStyles
@@ -41,7 +41,6 @@
 
 	let menu: Menu | undefined = $state();
 	let context = $state<VerseContext | null>(null);
-	let verse = $state(0);
 	let copied = $state<'text' | 'link' | null>(null);
 	let activeStyleId = $state<string | null>(null);
 	let onHighlightChange: ((styleId: string | null) => void) | undefined;
@@ -56,7 +55,7 @@
 	 */
 	export function openAt(
 		anchor: HTMLElement,
-		verseNumber: number,
+		_verseNumber: number,
 		next: VerseContext,
 		highlight: string | null,
 		onChange: (styleId: string | null) => void,
@@ -65,7 +64,6 @@
 		focusMenu = true
 	): void {
 		context = next;
-		verse = verseNumber;
 		copied = null;
 		activeStyleId = highlight;
 		onHighlightChange = onChange;
@@ -77,7 +75,9 @@
 	const linkUrl = $derived(context ? new URL(context.path, page.url.origin).toString() : '');
 
 	const inList = $derived(
-		new Set(lists.filter((list) => marks.has(`${verse}:${list.id}`)).map((list) => list.id))
+		new Set(
+			lists.filter((list) => marks.has(`${context?.reference}:${list.id}`)).map((list) => list.id)
+		)
 	);
 
 	async function copy(what: 'text' | 'link', value: string): Promise<void> {
@@ -93,8 +93,9 @@
 
 	/** Optimistic, so the check mark flips at once instead of after a chapter reload. */
 	function mark(listId: string, present: boolean): void {
-		if (present) marks.add(`${verse}:${listId}`);
-		else marks.delete(`${verse}:${listId}`);
+		if (!context) return;
+		if (present) marks.add(`${context.reference}:${listId}`);
+		else marks.delete(`${context.reference}:${listId}`);
 	}
 
 	/** Clicking the active swatch again clears the highlight instead of re-picking the same colour. */

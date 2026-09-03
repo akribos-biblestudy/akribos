@@ -9,7 +9,7 @@
 
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { bookIdsForTestament } from '../../bible/books.ts';
-import { strongLanguage, type StrongId } from '../../bible/strong.ts';
+import { normalizeStrongId, strongLanguage, type StrongId } from '../../bible/strong.ts';
 import type { VerseSegment } from '../../bible/segments.ts';
 import type { Database } from '../db/client.ts';
 import { lexiconEntries, resources, verses, verseWords } from '../db/schema.ts';
@@ -78,6 +78,61 @@ export async function loadStrongEntry(
 		.innerJoin(resources, eq(resources.id, lexiconEntries.resourceId))
 		.where(and(eq(lexiconEntries.strong, strong), eq(resources.isPublic, true)))
 		.orderBy(asc(resources.sortOrder))
+		.limit(1);
+
+	return row;
+}
+
+/**
+ * Resolves a lexicon tab's input inside one concrete dictionary. Strong numbers are exact; ordinary
+ * words match the lemma or transliteration, preferring an exact spelling before the first prefix.
+ * Keeping the resource id mandatory is what makes several dictionaries independently searchable.
+ */
+export async function findLexiconEntry(
+	db: Database,
+	resourceId: string,
+	rawLookup: string
+): Promise<StrongEntry | undefined> {
+	const lookup = rawLookup.trim().slice(0, 200);
+	if (!lookup) return undefined;
+	const strong = normalizeStrongId(lookup);
+	const wordMatch = sql`(
+		starts_with(unaccent(lower(${lexiconEntries.lemma})), unaccent(lower(${lookup})))
+		or starts_with(unaccent(lower(coalesce(${lexiconEntries.transliteration}, ''))), unaccent(lower(${lookup})))
+	)`;
+	const exactWord = sql`(
+		unaccent(lower(${lexiconEntries.lemma})) = unaccent(lower(${lookup}))
+		or unaccent(lower(coalesce(${lexiconEntries.transliteration}, ''))) = unaccent(lower(${lookup}))
+	)`;
+
+	const [row] = await db
+		.select({
+			strong: lexiconEntries.strong,
+			lemma: lexiconEntries.lemma,
+			transliteration: lexiconEntries.transliteration,
+			pronunciation: lexiconEntries.pronunciation,
+			definitionHtml: lexiconEntries.definitionHtml,
+			derivationHtml: lexiconEntries.derivationHtml,
+			kjvDefinitionHtml: lexiconEntries.kjvDefinitionHtml,
+			seeAlso: lexiconEntries.seeAlso,
+			language: lexiconEntries.language,
+			licenseHtml: resources.licenseHtml,
+			usageNotesHtml: resources.usageNotesHtml
+		})
+		.from(lexiconEntries)
+		.innerJoin(resources, eq(resources.id, lexiconEntries.resourceId))
+		.where(
+			and(
+				eq(lexiconEntries.resourceId, resourceId),
+				eq(resources.isPublic, true),
+				eq(resources.status, 'ready'),
+				strong ? eq(lexiconEntries.strong, strong) : wordMatch
+			)
+		)
+		.orderBy(
+			strong ? asc(lexiconEntries.strong) : sql`case when ${exactWord} then 0 else 1 end`,
+			asc(lexiconEntries.strong)
+		)
 		.limit(1);
 
 	return row;

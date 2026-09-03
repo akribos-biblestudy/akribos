@@ -22,9 +22,10 @@
 	} = $props();
 
 	type Context = {
-		action: '?/addTab';
+		action: '?/addTab' | '?/replaceTabResource';
 		readerUrl: string;
 		tileId: string;
+		tabId?: string;
 		chosen: string[];
 	};
 
@@ -205,6 +206,7 @@
 								}}
 							>
 								<input type="hidden" name="tileId" value={context.tileId} />
+								{#if context.tabId}<input type="hidden" name="tabId" value={context.tabId} />{/if}
 								<input type="hidden" name="resource" value={resource.id} />
 								<button type="submit" class="entry" class:selected={isSelected}>
 									<span

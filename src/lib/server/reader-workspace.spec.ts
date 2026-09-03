@@ -45,6 +45,7 @@ describe('reader workspace persistence', () => {
 		const { cookies } = cookieJar();
 		const workspace = workspaceFromColumns(['a', 'b']);
 		workspace.tiles[0]!.tabs[0]!.linkSet = 'D';
+		workspace.tiles[0]!.tabs[0]!.lookup = 'G25';
 		workspace.layoutSizes['columns-2'] = { columns: [0.65, 0.35], rows: [1] };
 		expect(writeReaderWorkspace(cookies, workspace)).toBe(true);
 		expect(readReaderWorkspaceCookie(cookies)).toEqual(workspace);
@@ -64,7 +65,13 @@ describe('reader workspace persistence', () => {
 
 	it('keeps a unique five-resource projection for older reader consumers', () => {
 		const workspace = workspaceFromColumns(['a', 'b', 'c', 'd', 'e']);
-		workspace.tiles[0]!.tabs.push({ id: 'duplicate', resourceId: 'a', linkSet: null });
+		workspace.tiles[0]!.tabs.push({
+			id: 'duplicate',
+			resourceId: 'a',
+			linkSet: null,
+			reference: { book: 43, chapter: 1 },
+			lookup: null
+		});
 		expect(workspaceColumns(workspace)).toEqual(['a', 'b', 'c', 'd', 'e']);
 	});
 });

@@ -41,37 +41,34 @@ test('a new guest sees the product tour automatically and it stays closed once d
 }) => {
 	await page.goto('/Joh3');
 
-	const tour = page.getByRole('dialog', { name: 'Buch- und Kapitelauswahl' });
+	const tour = page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' });
 	await expect(tour).toBeVisible();
-	await expect(page.getByText('Schritt 1 von 6')).toBeVisible();
+	await expect(page.getByText('Schritt 1 von 5')).toBeVisible();
 
 	await page.getByRole('button', { name: 'Tour überspringen' }).click();
 	await expect(tour).toHaveCount(0);
 
 	// A fresh visit — even a different chapter — must not offer it again on its own.
 	await page.goto('/Joh4');
-	await expect(page.getByRole('dialog', { name: 'Buch- und Kapitelauswahl' })).toHaveCount(0);
+	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toHaveCount(0);
 });
 
 test('the tour walks through its signed-out steps with Weiter and can be finished', async ({
 	page
 }) => {
 	await page.goto('/Joh3');
-	await expect(page.getByRole('dialog', { name: 'Buch- und Kapitelauswahl' })).toBeVisible();
-
-	await page.getByRole('button', { name: 'Weiter' }).click();
-	await expect(page.getByRole('dialog', { name: 'Nach Wörtern suchen' })).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Weiter' }).click();
 	await expect(page.getByRole('dialog', { name: 'Wortstudie' })).toBeVisible();
 
 	// Zurück returns to the previous step instead of advancing.
 	await page.getByRole('button', { name: 'Zurück' }).click();
-	await expect(page.getByRole('dialog', { name: 'Nach Wörtern suchen' })).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toBeVisible();
 	await page.getByRole('button', { name: 'Weiter' }).click();
 
-	await page.getByRole('button', { name: 'Weiter' }).click(); // -> Bibel-/Kommentarauswahl
-	await expect(page.getByRole('dialog', { name: 'Bibel- und Kommentarauswahl' })).toBeVisible();
+	await page.getByRole('button', { name: 'Weiter' }).click(); // -> Werkauswahl
+	await expect(page.getByRole('dialog', { name: 'Werkauswahl' })).toBeVisible();
 	await page.getByRole('button', { name: 'Weiter' }).click(); // -> Tabs verknüpfen
 	await expect(page.getByRole('dialog', { name: 'Tabs verknüpfen' })).toBeVisible();
 	await page.getByRole('button', { name: 'Weiter' }).click(); // -> Tab hinzufügen, the last step
@@ -82,7 +79,7 @@ test('the tour walks through its signed-out steps with Weiter and can be finishe
 	await expect(page.getByRole('dialog', { name: 'Tab hinzufügen' })).toHaveCount(0);
 
 	await page.goto('/Joh3');
-	await expect(page.getByRole('dialog', { name: 'Buch- und Kapitelauswahl' })).toHaveCount(0);
+	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toHaveCount(0);
 });
 
 test('the "Produkt-Tour" menu item restarts it from the beginning', async ({ page }) => {
@@ -93,19 +90,19 @@ test('the "Produkt-Tour" menu item restarts it from the beginning', async ({ pag
 	await page.getByRole('button', { name: 'Konto-Menü' }).click();
 	await page.getByRole('menuitem', { name: 'Produkt-Tour' }).click();
 
-	await expect(page.getByRole('dialog', { name: 'Buch- und Kapitelauswahl' })).toBeVisible();
-	await expect(page.getByText('Schritt 1 von 6')).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toBeVisible();
+	await expect(page.getByText('Schritt 1 von 5')).toBeVisible();
 });
 
 test('escape closes the tour and counts as dismissed', async ({ page }) => {
 	await page.goto('/Joh3');
-	await expect(page.getByRole('dialog', { name: 'Buch- und Kapitelauswahl' })).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toBeVisible();
 
 	await page.keyboard.press('Escape');
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 
 	await page.goto('/Joh3');
-	await expect(page.getByRole('dialog', { name: 'Buch- und Kapitelauswahl' })).toHaveCount(0);
+	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toHaveCount(0);
 });
 
 test('someone who already finished the guest tour only sees the signed-in-only steps after registering', async ({
@@ -113,7 +110,7 @@ test('someone who already finished the guest tour only sees the signed-in-only s
 }) => {
 	// Finish the tour as a guest first, in the same browser context registration will reuse.
 	await page.goto('/Joh3');
-	await expect(page.getByRole('dialog', { name: 'Buch- und Kapitelauswahl' })).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toBeVisible();
 	await page.getByRole('button', { name: 'Tour überspringen' }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 
@@ -147,6 +144,6 @@ test('someone who never saw the guest tour gets the full sequence once signed in
 	await register(page, uniqueEmail());
 
 	await page.goto('/Joh3');
-	await expect(page.getByRole('dialog', { name: 'Buch- und Kapitelauswahl' })).toBeVisible();
-	await expect(page.getByText('Schritt 1 von 8')).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toBeVisible();
+	await expect(page.getByText('Schritt 1 von 7')).toBeVisible();
 });

@@ -1,9 +1,16 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { afterNavigate, beforeNavigate, pushState, replaceState } from '$app/navigation';
+	import {
+		afterNavigate,
+		beforeNavigate,
+		goto,
+		invalidateAll,
+		pushState,
+		replaceState
+	} from '$app/navigation';
 	import { page } from '$app/state';
-	import { onDestroy, tick } from 'svelte';
-	import { SvelteSet } from 'svelte/reactivity';
+	import { onDestroy, tick, untrack } from 'svelte';
+	import { SvelteMap, SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity';
 	import { formatReference, referencePath, type VerseRef } from '$lib/bible/reference';
 	import { countVerseWords, segmentsToText, splitVerseLead } from '$lib/bible/segments';
 	import { spanRangeForVerse } from '$lib/bible/highlight-span';
@@ -12,8 +19,10 @@
 	import { t } from '$lib/i18n';
 	import CommentBubble from '$lib/components/CommentBubble.svelte';
 	import CommentToggle from '$lib/components/CommentToggle.svelte';
-	import ReaderLayoutPicker from '$lib/components/ReaderLayoutPicker.svelte';
+	import ReaderLexiconTab from '$lib/components/ReaderLexiconTab.svelte';
 	import ReaderResourceTabs from '$lib/components/ReaderResourceTabs.svelte';
+	import ReaderTabSearchResults from '$lib/components/ReaderTabSearchResults.svelte';
+	import ReaderTabToolbar from '$lib/components/ReaderTabToolbar.svelte';
 	import StudySidebar from '$lib/components/StudySidebar.svelte';
 	import TranslationDialog from '$lib/components/TranslationDialog.svelte';
 	import VerseMenu from '$lib/components/VerseMenu.svelte';
@@ -24,6 +33,7 @@
 		readerLayoutDefinition,
 		readerLayoutSize
 	} from '$lib/reader/workspace';
+	import type { ReaderTabSearchResponse } from '$lib/reader/tab-search';
 
 	let { data } = $props();
 
@@ -40,18 +50,6 @@
 	 * A reactive set the verse menu writes to, so ticking a list flips the mark immediately; it is
 	 * derived from page data, so it is rebuilt from the server's answer on every navigation.
 	 */
-	const marks = $derived(
-		new SvelteSet(data.markedVerses.map((mark) => `${mark.verse}:${mark.listId}`))
-	);
-
-	/**
-	 * Verses that sit in at least one list, which colours their number.
-	 *
-	 * Read back out of `marks` rather than from page data, so ticking a list in the menu recolours the
-	 * number at once — the add does not re-run `load`, since the chapter itself has not changed.
-	 */
-	const inAnyList = $derived(new Set([...marks].map((key) => Number(key.split(':')[0]))));
-
 	let verseMenu = $state<VerseMenu | undefined>();
 	let translationDialog = $state<TranslationDialog | undefined>();
 
@@ -62,8 +60,8 @@
 		data.columns.find((column) => column.resource.kind === 'bible')?.resource.id ?? null
 	);
 
-	function currentReaderUrl(): string {
-		const path = referencePath(readerLocation.reference ?? data.reference);
+	function currentReaderUrl(reference?: VerseRef): string {
+		const path = referencePath(reference ?? readerLocation.reference ?? data.reference);
 		return `${path}${window.location.search}${window.location.hash}`;
 	}
 
@@ -77,6 +75,21 @@
 		});
 	}
 
+	function replaceResourceDialog(tileId: string, tabId: string) {
+		const tile = data.workspace.tiles.find((candidate) => candidate.id === tileId);
+		const tab = tile?.tabs.find((candidate) => candidate.id === tabId);
+		if (!tile || !tab) return;
+		translationDialog?.openAt({
+			action: '?/replaceTabResource',
+			readerUrl: currentReaderUrl(tab.reference),
+			tileId,
+			tabId,
+			chosen: tile.tabs
+				.filter((candidate) => candidate.id !== tabId)
+				.map((candidate) => candidate.resourceId)
+		});
+	}
+
 	function columnForTile(tileId: string) {
 		return data.columns.find((column) => column.tileId === tileId);
 	}
@@ -84,7 +97,7 @@
 	const TILE_AREAS = ['a', 'b', 'c', 'd'] as const;
 
 	function commentaryAt(
-		referenceResources: typeof data.referenceResources,
+		referenceResources: (typeof data.columns)[number]['initialChapter']['referenceResources'],
 		resourceId: string,
 		verse: number
 	) {
@@ -94,7 +107,7 @@
 	}
 
 	function crossReferencesAt(
-		referenceResources: typeof data.referenceResources,
+		referenceResources: (typeof data.columns)[number]['initialChapter']['referenceResources'],
 		resourceId: string,
 		verse: number
 	) {
@@ -107,8 +120,8 @@
 	const FLOW_EDGE_FADE_PX = 24;
 
 	const layoutDefinition = $derived(readerLayoutDefinition(data.workspace.layout));
-	let layoutColumns = $state(readerLayoutSize(data.workspace).columns);
-	let layoutRows = $state(readerLayoutSize(data.workspace).rows);
+	let layoutColumns = $state(untrack(() => readerLayoutSize(data.workspace).columns));
+	let layoutRows = $state(untrack(() => readerLayoutSize(data.workspace).rows));
 	let layoutSizeKey = $state('');
 	const columnTrack = $derived(
 		layoutColumns.map((fraction) => `minmax(0, ${fraction}fr)`).join(' ')
@@ -403,12 +416,47 @@
 
 	afterNavigate(() => restoreStrongFromHash(window.location.hash));
 
+	async function openLexiconForLookup(columnIndex: number, lookup: string): Promise<void> {
+		const column = data.columns[columnIndex];
+		if (!column || !lookup.trim()) return;
+		const form = new FormData();
+		form.set('tileId', column.tileId);
+		form.set('tabId', column.activeTab.id);
+		form.set('lookup', lookup);
+		form.set(
+			'currentReference',
+			formatReference(visibleReferences[columnIndex] ?? column.activeTab.reference)
+		);
+		const response = await fetch('?/openLexiconTab', {
+			method: 'POST',
+			body: form,
+			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
+		});
+		if (response.ok) await invalidateAll();
+	}
+
+	async function lookupInLexicon(columnIndex: number, lookup: string): Promise<void> {
+		const column = data.columns[columnIndex];
+		if (!column || column.resource.kind !== 'lexicon' || !lookup.trim()) return;
+		const form = new FormData();
+		form.set('tileId', column.tileId);
+		form.set('tabId', column.activeTab.id);
+		form.set('lookup', lookup);
+		const response = await fetch('?/setTabLookup', {
+			method: 'POST',
+			body: form,
+			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
+		});
+		if (response.ok) await invalidateAll();
+	}
+
 	function openStrong(
 		strong: string,
 		word: string,
 		verse: number,
 		book = data.reference.book,
-		chapter = data.reference.chapter
+		chapter = data.reference.chapter,
+		sourceColumnIndex = activeFlowSource
 	) {
 		activeStrong = {
 			strong,
@@ -421,6 +469,7 @@
 		};
 		const url = `${window.location.pathname}${window.location.search}#${encodeURIComponent(strong)}/${encodeURIComponent(word)}/${verse}`;
 		pushState(url, { ...page.state, studySidebar: true });
+		void openLexiconForLookup(sourceColumnIndex, strong);
 		// The phone sheet covers the lower 62% of the viewport. A new per-tile tab strip adds height above
 		// the text, so explicitly keep the tapped verse in the narrow readable band above the sheet.
 		if (window.matchMedia('(max-width: 639px)').matches) {
@@ -445,39 +494,180 @@
 		});
 	}
 
-	const previousPath = $derived(
-		data.navigation.previous ? referencePath(data.navigation.previous) : null
-	);
-	const nextPath = $derived(data.navigation.next ? referencePath(data.navigation.next) : null);
-
-	type StreamChapter = {
-		reference: { book: number; chapter: number };
-		fullTitle: string;
-		shortBookName: string;
-		chapter: typeof data.chapter;
-		verseComments: typeof data.verseComments;
-		referenceResources: typeof data.referenceResources;
-		highlights: typeof data.highlights;
-		navigation: {
-			previous: { book: number; chapter: number } | null;
-			next: { book: number; chapter: number } | null;
-		};
+	type StreamChapter = (typeof data.columns)[number]['initialChapter'];
+	type ColumnStream = {
+		chapters: StreamChapter[];
+		loadingPrevious: boolean;
+		loadingNext: boolean;
+		generation: number;
 	};
 
-	function initialStreamChapter(): StreamChapter {
-		return {
-			reference: { book: data.reference.book, chapter: data.reference.chapter },
-			fullTitle: data.fullTitle,
-			shortBookName: data.shortBookName,
-			chapter: data.chapter,
-			verseComments: data.verseComments,
-			referenceResources: data.referenceResources,
-			highlights: data.highlights,
-			navigation: data.navigation
-		};
+	function initialColumnStreams(): ColumnStream[] {
+		return data.columns.map((column) => ({
+			chapters: [column.initialChapter],
+			loadingPrevious: false,
+			loadingNext: false,
+			generation: 0
+		}));
 	}
 
-	let streamChapters = $state<StreamChapter[]>([initialStreamChapter()]);
+	let columnStreams = $state<ColumnStream[]>(initialColumnStreams());
+	let visibleReferences = $state<VerseRef[]>(
+		untrack(() => data.columns.map((column) => ({ ...column.activeTab.reference })))
+	);
+	let visibleReferenceTabKeys = $state<string[]>(
+		untrack(() => data.columns.map((column) => columnReferenceKey(column)))
+	);
+
+	function columnReferenceKey(column: (typeof data.columns)[number]): string {
+		const reference = column.activeTab.reference;
+		return `${column.activeTab.id}:${column.resource.id}:${reference.book}:${reference.chapter}:${reference.verse ?? ''}`;
+	}
+
+	function toolbarReference(column: (typeof data.columns)[number]): VerseRef {
+		return visibleReferenceTabKeys[column.index] === columnReferenceKey(column)
+			? (visibleReferences[column.index] ?? column.activeTab.reference)
+			: column.activeTab.reference;
+	}
+	type TabSearchState = {
+		resourceId: string;
+		query: string;
+		book: number | null;
+		loading: boolean;
+		result: ReaderTabSearchResponse | null;
+		error: string | null;
+	};
+	let tabSearches = $state<Record<string, TabSearchState>>({});
+	const tabSearchRequests = new SvelteMap<string, AbortController>();
+
+	function tabSearchFor(column: (typeof data.columns)[number]): TabSearchState | null {
+		const state = tabSearches[column.activeTab.id];
+		return state?.resourceId === column.resource.id ? state : null;
+	}
+
+	function clearTabSearch(tabId: string): void {
+		tabSearchRequests.get(tabId)?.abort();
+		tabSearchRequests.delete(tabId);
+		if (!(tabId in tabSearches)) return;
+		const next = { ...tabSearches };
+		delete next[tabId];
+		tabSearches = next;
+	}
+
+	async function runTabSearch(
+		columnIndex: number,
+		rawQuery: string,
+		pageNumber = 1,
+		requestedBook?: number | null
+	): Promise<void> {
+		const column = data.columns[columnIndex];
+		const query = rawQuery.trim();
+		if (!column || !query) return;
+		const tabId = column.activeTab.id;
+		const resourceId = column.resource.id;
+		const previous = tabSearches[tabId];
+		const sameSearch = previous?.resourceId === resourceId && previous.query === query;
+		const book =
+			requestedBook === undefined && sameSearch ? previous.book : (requestedBook ?? null);
+
+		tabSearchRequests.get(tabId)?.abort();
+		const controller = new AbortController();
+		tabSearchRequests.set(tabId, controller);
+		tabSearches = {
+			...tabSearches,
+			[tabId]: {
+				resourceId,
+				query,
+				book,
+				loading: true,
+				result: sameSearch && previous.book === book ? previous.result : null,
+				error: null
+			}
+		};
+
+		try {
+			const params = new SvelteURLSearchParams({
+				resource: resourceId,
+				q: query,
+				page: String(Math.max(1, pageNumber))
+			});
+			if (book !== null) params.set('book', String(book));
+			const response = await fetch(`/api/reader/search?${params}`, { signal: controller.signal });
+			if (!response.ok) throw new Error('Die Suche konnte nicht geladen werden.');
+			const result = (await response.json()) as ReaderTabSearchResponse;
+			if (tabSearchRequests.get(tabId) !== controller) return;
+			tabSearches = {
+				...tabSearches,
+				[tabId]: { resourceId, query, book, loading: false, result, error: null }
+			};
+		} catch (searchError) {
+			if (controller.signal.aborted || tabSearchRequests.get(tabId) !== controller) return;
+			tabSearches = {
+				...tabSearches,
+				[tabId]: {
+					resourceId,
+					query,
+					book,
+					loading: false,
+					result: sameSearch && previous.book === book ? (previous.result ?? null) : null,
+					error:
+						searchError instanceof Error
+							? searchError.message
+							: 'Die Suche konnte nicht geladen werden.'
+				}
+			};
+		} finally {
+			if (tabSearchRequests.get(tabId) === controller) tabSearchRequests.delete(tabId);
+		}
+	}
+
+	async function openTabSearchReference(columnIndex: number, reference: VerseRef): Promise<void> {
+		const column = data.columns[columnIndex];
+		if (!column) return;
+		const form = new FormData();
+		form.set('tileId', column.tileId);
+		form.set('tabId', column.activeTab.id);
+		form.set('reference', formatReference(reference));
+		const response = await fetch('?/setTabReference', {
+			method: 'POST',
+			body: form,
+			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
+		});
+		if (!response.ok) return;
+		clearTabSearch(column.activeTab.id);
+		await goto(referencePath(reference), { invalidateAll: true, noScroll: true });
+	}
+
+	$effect(() => {
+		const resourcesByTab = new Map(
+			data.workspace.tiles.flatMap((tile) =>
+				tile.tabs.map((tab) => [tab.id, tab.resourceId] as const)
+			)
+		);
+		for (const [tabId, state] of Object.entries(tabSearches)) {
+			if (resourcesByTab.get(tabId) !== state.resourceId) clearTabSearch(tabId);
+		}
+	});
+	const allStreamChapters = $derived(columnStreams.flatMap((stream) => stream.chapters));
+	const marks = $derived(
+		new SvelteSet(
+			allStreamChapters.flatMap((stream) =>
+				stream.markedVerses.map(
+					(mark) =>
+						`${formatReference({
+							book: stream.reference.book,
+							chapter: stream.reference.chapter,
+							verse: mark.verse
+						})}:${mark.listId}`
+				)
+			)
+		)
+	);
+
+	function isInAnyList(book: number, chapter: number, verse: number): boolean {
+		const prefix = `${formatReference({ book, chapter, verse })}:`;
+		return [...marks].some((key) => key.startsWith(prefix));
+	}
 	/** Empty editors opened through the verse menu but not saved yet. */
 	const draftCommentKeys = new SvelteSet<string>();
 	/** Existing comments explicitly expanded through the icon at the end of their verse. */
@@ -533,7 +723,7 @@
 	 *  translation-specific highlights are looked up separately through `partialHighlightsByKey`. */
 	const highlightByKey = $derived(
 		new Map(
-			streamChapters.flatMap((stream) =>
+			allStreamChapters.flatMap((stream) =>
 				stream.highlights
 					.filter((highlight) => highlight.resourceId === null)
 					.map(
@@ -570,22 +760,17 @@
 				endWord: number;
 			}[]
 		> = {};
-		for (const stream of streamChapters) {
+		for (const stream of allStreamChapters) {
 			for (const highlight of stream.highlights) {
 				if (highlight.resourceId === null) continue;
-				const column = data.columns.find(
-					(candidate) => candidate.resource.id === highlight.resourceId
-				);
-				if (!column || column.bibleCellIndex === null) continue;
+				if (stream.resourceId !== highlight.resourceId) continue;
 
 				const span = {
 					from: { verse: highlight.verse, word: highlight.startWord! },
 					to: { verse: highlight.endVerse, word: highlight.endWord! }
 				};
 				for (let verse = highlight.verse; verse <= highlight.endVerse; verse += 1) {
-					const cell = stream.chapter.rows.find((row) => row.verse === verse)?.cells[
-						column.bibleCellIndex
-					];
+					const cell = stream.chapter.rows.find((row) => row.verse === verse)?.cells[0];
 					if (!cell) continue;
 					const range = spanRangeForVerse(span, verse, countVerseWords(cell.segments));
 					if (!range) continue;
@@ -614,42 +799,35 @@
 		verse: number,
 		styleId: string | null
 	): void {
-		const stream = streamChapters.find(
+		const streams = allStreamChapters.filter(
 			(candidate) => candidate.reference.book === book && candidate.reference.chapter === chapter
 		);
-		if (!stream) return;
+		if (streams.length === 0) return;
 
-		stream.highlights = stream.highlights.filter(
-			(highlight) => !(highlight.verse === verse && highlight.resourceId === null)
-		);
 		const style = styleId
 			? data.highlightStyles.find((candidate) => candidate.id === styleId)
 			: undefined;
-		if (style)
-			stream.highlights.push({
-				verse,
-				endVerse: verse,
-				styleId: style.id,
-				color: style.color,
-				name: style.name,
-				resourceId: null,
-				startWord: null,
-				endWord: null
-			});
+		for (const stream of streams) {
+			stream.highlights = stream.highlights.filter(
+				(highlight) => !(highlight.verse === verse && highlight.resourceId === null)
+			);
+			if (style)
+				stream.highlights.push({
+					verse,
+					endVerse: verse,
+					styleId: style.id,
+					color: style.color,
+					name: style.name,
+					resourceId: null,
+					startWord: null,
+					endWord: null
+				});
+		}
 	}
 
 	let flowColumns = $state<HTMLElement[]>([]);
-	let loadingPrevious = $state(false);
-	let loadingNext = $state(false);
 	let activeFlowSource = 0;
-	let visibleChapterKey = $state('');
 	let streamSignature = '';
-	let streamColumnsKey = data.columns
-		.map((column) => `${column.tileId}:${column.activeTab.id}:${column.resource.id}`)
-		.join(',');
-	let jumpedSignature = '';
-	/** Invalidates chapter requests that were started for an earlier reader navigation. */
-	let streamGeneration = 0;
 	/**
 	 * Columns whose next scroll events were caused by our own alignment/prepend compensation.
 	 *
@@ -672,61 +850,43 @@
 	 * crossing into the next range's block triggers the single jump that brings it to the anchor line.
 	 */
 	let lastAlignedElement: (Element | null)[] = [];
-	const visibleStreamChapter = $derived(
-		streamChapters.find(
-			(stream) => `${stream.reference.book}:${stream.reference.chapter}` === visibleChapterKey
-		) ?? streamChapters[0]
-	);
 
 	$effect(() => {
 		const columnsKey = data.columns
-			.map((column) => `${column.tileId}:${column.activeTab.id}:${column.resource.id}`)
+			.map(
+				(column) =>
+					`${column.tileId}:${column.activeTab.id}:${column.resource.id}:${column.activeTab.reference.book}:${column.activeTab.reference.chapter}:${column.activeTab.reference.verse ?? ''}`
+			)
 			.join(',');
-		const signature = `${data.reference.book}:${data.reference.chapter}:${columnsKey}`;
-		if (signature !== streamSignature) {
-			streamGeneration += 1;
-			const generation = streamGeneration;
-			loadingPrevious = false;
-			loadingNext = false;
-			cancelScheduledReaderWork();
-			const columnsChanged = columnsKey !== streamColumnsKey;
-			const startsAtChapterTop = data.reference.verse === undefined;
-			if (startsAtChapterTop) resetFlowColumnsToTop();
-			streamSignature = signature;
-			streamColumnsKey = columnsKey;
-			streamChapters = [initialStreamChapter()];
-			if (columnsChanged) {
-				// A column that merely swaps translation keeps its position but changes its
-				// `column.resource.id` key, so the keyed `#each` below tears down and remounts only *that*
-				// column — every other column's element is reused as-is and never re-runs `bind:this`. If
-				// `flowColumns` were simply reset to `[]` here, those untouched columns would stay
-				// permanently missing from it (that used to be the bug: cross-column scroll sync broke
-				// after switching a translation, until a reload remounted everything). Requerying by the
-				// stable position attribute instead of trusting which elements happened to remount fixes
-				// every column at once, whatever combination of add/remove/reorder/swap caused the change.
-				tick().then(() => {
-					flowColumns = data.columns
-						.map((_, index) =>
-							document.querySelector<HTMLElement>(`.flow-column[data-flow-column-index="${index}"]`)
-						)
-						.filter((element): element is HTMLElement => element !== null);
-				});
+		if (columnsKey === streamSignature) return;
+		cancelScheduledReaderWork();
+		streamSignature = columnsKey;
+		columnStreams = initialColumnStreams();
+		visibleReferences = data.columns.map((column) => ({ ...column.activeTab.reference }));
+		visibleReferenceTabKeys = data.columns.map((column) => columnReferenceKey(column));
+		activeFlowSource = Math.max(
+			0,
+			data.columns.findIndex((column) => column.tileId === data.workspace.focusedTileId)
+		);
+		readerLocation.reference = visibleReferences[activeFlowSource] ?? data.reference;
+		resetFlowColumnsToTop();
+		tick().then(() => {
+			flowColumns = data.columns
+				.map((_, index) =>
+					document.querySelector<HTMLElement>(`.flow-column[data-flow-column-index="${index}"]`)
+				)
+				.filter((element): element is HTMLElement => element !== null);
+			resetFlowColumnsToTop();
+			for (const [index, column] of data.columns.entries()) {
+				if (column.resource.kind === 'lexicon') continue;
+				const reference = column.activeTab.reference;
+				if (reference.verse) {
+					scrollColumnToVerse(index, reference.book, reference.chapter, reference.verse, true);
+				}
+				void loadStreamNext(index);
 			}
-			visibleChapterKey = `${data.reference.book}:${data.reference.chapter}`;
-			readerLocation.reference = data.reference;
-			activeFlowSource = 0;
-			jumpedSignature = '';
-			if (startsAtChapterTop) {
-				// SvelteKit reuses the inner scrolling columns across reader navigations. Reset them once
-				// before replacing their contents and again after the DOM update: the first reset prevents
-				// scroll anchoring from retaining the old position, while the second covers remounted columns.
-				tick().then(() => {
-					if (generation !== streamGeneration) return;
-					resetFlowColumnsToTop();
-					window.scrollTo({ top: 0, behavior: 'instant' });
-				});
-			}
-		}
+			window.scrollTo({ top: 0, behavior: 'instant' });
+		});
 	});
 
 	function suppressProgrammaticFlowScroll(columnIndex: number) {
@@ -749,66 +909,75 @@
 		}
 	}
 
-	async function fetchStreamChapter(reference: { book: number; chapter: number }) {
-		const response = await fetch(`/api/reader/${reference.book}/${reference.chapter}`);
+	async function fetchStreamChapter(
+		columnIndex: number,
+		reference: { book: number; chapter: number }
+	) {
+		const resourceId = data.columns[columnIndex]?.resource.id;
+		const response = await fetch(
+			`/api/reader/${reference.book}/${reference.chapter}?resource=${encodeURIComponent(resourceId ?? '')}`
+		);
 		if (!response.ok) throw new Error(`Kapitel konnte nicht geladen werden (${response.status})`);
 		return (await response.json()) as StreamChapter;
 	}
 
-	async function loadStreamPrevious() {
-		const reference = streamChapters[0]?.navigation.previous;
-		if (!reference || flowColumns.length === 0 || loadingPrevious) return;
-		const generation = streamGeneration;
-		loadingPrevious = true;
+	async function loadStreamPrevious(columnIndex: number) {
+		if (data.columns[columnIndex]?.resource.kind === 'lexicon') return;
+		const stream = columnStreams[columnIndex];
+		const column = flowColumns[columnIndex];
+		const reference = stream?.chapters[0]?.navigation.previous;
+		if (!stream || !column || !reference || stream.loadingPrevious) return;
+		const generation = stream.generation;
+		stream.loadingPrevious = true;
 		try {
-			const chapter = await fetchStreamChapter(reference);
-			if (generation !== streamGeneration) return;
+			const chapter = await fetchStreamChapter(columnIndex, reference);
+			if (generation !== stream.generation) return;
 			// Capture immediately before the mutation, not before the request: touch momentum may continue
 			// while the chapter is in flight and that genuine user movement must not be rolled back.
-			const oldHeights = flowColumns.map((column) => column?.scrollHeight ?? 0);
+			const oldHeight = column.scrollHeight;
 			// Keep the pre-mutation positions as well as the heights. Browsers may apply CSS scroll
 			// anchoring as soon as the prepended chapter reaches the DOM and increase `scrollTop` on their
 			// own. Reading `column.scrollTop` after `tick()` and adding the height delta to that value would
 			// then compensate twice — the race behind the occasional multi-verse/chapter jump on the first
 			// quick wheel or touch scroll after a reload.
-			const oldScrollTops = flowColumns.map((column) => column?.scrollTop ?? 0);
-			streamChapters.unshift(chapter);
+			const oldScrollTop = column.scrollTop;
+			stream.chapters.unshift(chapter);
 			await tick();
-			for (const [index, column] of flowColumns.entries()) {
-				if (column) {
-					const next = (oldScrollTops[index] ?? 0) + column.scrollHeight - (oldHeights[index] ?? 0);
-					suppressProgrammaticFlowScroll(index);
-					column.scrollTop = next;
-				}
-			}
+			if (generation !== stream.generation) return;
+			suppressProgrammaticFlowScroll(columnIndex);
+			column.scrollTop = oldScrollTop + column.scrollHeight - oldHeight;
 		} finally {
-			if (generation === streamGeneration) loadingPrevious = false;
+			if (generation === stream.generation) stream.loadingPrevious = false;
 		}
 	}
 
-	async function loadStreamNext() {
-		const reference = streamChapters.at(-1)?.navigation.next;
-		if (!reference || loadingNext) return;
-		const generation = streamGeneration;
-		loadingNext = true;
+	async function loadStreamNext(columnIndex: number) {
+		if (data.columns[columnIndex]?.resource.kind === 'lexicon') return;
+		const stream = columnStreams[columnIndex];
+		const reference = stream?.chapters.at(-1)?.navigation.next;
+		if (!stream || !reference || stream.loadingNext) return;
+		const generation = stream.generation;
+		stream.loadingNext = true;
 		try {
-			const chapter = await fetchStreamChapter(reference);
-			if (generation !== streamGeneration) return;
-			streamChapters.push(chapter);
+			const chapter = await fetchStreamChapter(columnIndex, reference);
+			if (generation !== stream.generation) return;
+			stream.chapters.push(chapter);
 			await tick();
-			if (generation !== streamGeneration) return;
+			if (generation !== stream.generation) return;
 			syncFlowColumns(activeFlowSource);
 		} finally {
-			if (generation === streamGeneration) loadingNext = false;
+			if (generation === stream.generation) stream.loadingNext = false;
 		}
 	}
 
-	function updateVisibleChapter(source: HTMLElement, inset: number) {
+	function updateVisibleChapter(columnIndex: number, source: HTMLElement, inset: number) {
 		const top = source.getBoundingClientRect().top + inset;
 		const chapters = [...source.querySelectorAll<HTMLElement>('[data-chapter-key]')];
 		const chapter =
 			chapters.findLast((section) => section.getBoundingClientRect().top <= top) ?? chapters[0];
-		if (chapter?.dataset.chapterKey) visibleChapterKey = chapter.dataset.chapterKey;
+		if (!chapter?.dataset.chapterKey) return;
+		const [book, chapterNumber] = chapter.dataset.chapterKey.split(':').map(Number);
+		if (book && chapterNumber) visibleReferences[columnIndex] = { book, chapter: chapterNumber };
 	}
 
 	let addressBarTimer: ReturnType<typeof setTimeout> | undefined;
@@ -821,7 +990,7 @@
 	 * The search field follows the visible anchor immediately. Only the actual address-bar rewrite is
 	 * debounced, avoiding needless churn and `history` rate limits while scrolling continues.
 	 */
-	function scheduleAddressBarUpdate(verseKey: string | undefined) {
+	function scheduleAddressBarUpdate(columnIndex: number, verseKey: string | undefined) {
 		if (!verseKey) return;
 		const [book, chapter, verse] = verseKey.split(':').map(Number);
 		if (!book || !chapter || !verse) return;
@@ -830,14 +999,28 @@
 		// `SiteHeader.svelte`), so there is no risk of clobbering something the reader is typing. Only
 		// the actual address bar write stays debounced, since rewriting `history` on every settle would
 		// be needless churn.
-		readerLocation.reference = { book, chapter, verse };
+		const reference = { book, chapter, verse };
+		visibleReferences[columnIndex] = reference;
+		readerLocation.reference = reference;
 
 		if (addressBarTimer) clearTimeout(addressBarTimer);
 		addressBarTimer = setTimeout(() => {
 			addressBarTimer = undefined;
-			const path = referencePath({ book, chapter, verse });
-			if (path === window.location.pathname) return;
-			replaceState(`${path}${window.location.search}${window.location.hash}`, page.state);
+			const column = data.columns[columnIndex];
+			if (!column) return;
+			const form = new FormData();
+			form.set('tileId', column.tileId);
+			form.set('tabId', column.activeTab.id);
+			form.set('reference', formatReference(reference));
+			void fetch('?/setTabReference', {
+				method: 'POST',
+				body: form,
+				headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
+			});
+			const path = referencePath(reference);
+			if (path !== window.location.pathname) {
+				replaceState(`${path}${window.location.search}${window.location.hash}`, page.state);
+			}
 		}, 200);
 	}
 
@@ -855,11 +1038,15 @@
 	}
 
 	beforeNavigate(() => {
-		streamGeneration += 1;
+		for (const stream of columnStreams) stream.generation += 1;
 		cancelScheduledReaderWork();
 	});
 
 	onDestroy(cancelScheduledReaderWork);
+	onDestroy(() => {
+		for (const request of tabSearchRequests.values()) request.abort();
+		tabSearchRequests.clear();
+	});
 
 	/**
 	 * Finds the element for a verse within a flow column, matching a ranged block (a commentary entry or
@@ -888,8 +1075,9 @@
 
 	function firstVisibleVerse(source: HTMLElement): HTMLElement | undefined {
 		const sourceTop = source.getBoundingClientRect().top + FLOW_EDGE_FADE_PX;
-		return [...source.querySelectorAll<HTMLElement>('[data-verse-key]')].find(
-			(verse) => verse.getBoundingClientRect().bottom > sourceTop
+		const verses = [...source.querySelectorAll<HTMLElement>('[data-verse-key]')];
+		return (
+			verses.find((verse) => verse.getBoundingClientRect().bottom > sourceTop) ?? verses.at(-1)
 		);
 	}
 
@@ -902,36 +1090,36 @@
 	 * Returns whether the reference was actually found, so a caller like the header can fall back to a
 	 * real navigation for anything not already loaded.
 	 */
-	function scrollToVerse(
+	function scrollColumnToVerse(
+		columnIndex: number,
 		book: number,
 		chapter: number,
 		verse: number,
 		allowHighlightedFallback = false
 	): boolean {
 		const key = `${book}:${chapter}:${verse}`;
-		let found = false;
-		for (const [index, column] of flowColumns.entries()) {
-			const target =
-				(column && findVerseElement(column, key, verse)) ??
-				(allowHighlightedFallback
-					? column?.querySelector<HTMLElement>('.flow-verse.highlighted')
-					: null);
-			if (column && target) {
-				found = true;
-				lastAlignedElement[index] = target;
-				const next =
-					column.scrollTop +
-					target.getBoundingClientRect().top -
-					column.getBoundingClientRect().top -
-					FLOW_EDGE_FADE_PX;
-				suppressProgrammaticFlowScroll(index);
-				column.scrollTop = next;
-			}
-		}
-		if (found) {
-			visibleChapterKey = `${book}:${chapter}`;
-			scheduleAddressBarUpdate(key);
-		}
+		const column = flowColumns[columnIndex];
+		const target =
+			(column && findVerseElement(column, key, verse)) ??
+			(allowHighlightedFallback
+				? column?.querySelector<HTMLElement>('.flow-verse.highlighted')
+				: null);
+		if (!column || !target) return false;
+		lastAlignedElement[columnIndex] = target;
+		const next =
+			column.scrollTop +
+			target.getBoundingClientRect().top -
+			column.getBoundingClientRect().top -
+			FLOW_EDGE_FADE_PX;
+		suppressProgrammaticFlowScroll(columnIndex);
+		column.scrollTop = next;
+		visibleReferences[columnIndex] = { book, chapter, verse };
+		return true;
+	}
+
+	function scrollToVerse(book: number, chapter: number, verse: number): boolean {
+		const found = scrollColumnToVerse(activeFlowSource, book, chapter, verse);
+		if (found) scheduleAddressBarUpdate(activeFlowSource, `${book}:${chapter}:${verse}`);
 		return found;
 	}
 
@@ -950,25 +1138,35 @@
 	 * scrolled past the anchor line by the time this first runs), even though nothing was scrolled.
 	 */
 	function syncFlowColumns(sourceIndex = 0, trackAddress = false) {
+		if (data.columns[sourceIndex]?.resource.kind === 'lexicon') return;
 		const source = flowColumns[sourceIndex];
 		if (!source) return;
 		const sourceLinkSet = data.columns[sourceIndex]?.activeTab.linkSet ?? null;
 		const anchorInset = FLOW_EDGE_FADE_PX;
-		updateVisibleChapter(source, anchorInset);
 		const anchor = firstVisibleVerse(source);
 		if (!anchor?.dataset.verseKey) return;
-		if (trackAddress) scheduleAddressBarUpdate(anchor.dataset.verseKey);
+		const anchorVerse = Number(anchor.dataset.verseKey.split(':')[2]);
+		if (trackAddress) scheduleAddressBarUpdate(sourceIndex, anchor.dataset.verseKey);
 		// A tab without a letter remains independent. A–E are separate groups: only currently active
 		// tabs carrying the exact same letter follow the source.
 		if (!sourceLinkSet) return;
-		const anchorVerse = Number(anchor.dataset.verseKey.split(':').at(-1));
-
 		for (let index = 0; index < flowColumns.length; index += 1) {
-			if (index === sourceIndex || data.columns[index]?.activeTab.linkSet !== sourceLinkSet)
+			if (
+				index === sourceIndex ||
+				data.columns[index]?.resource.kind === 'lexicon' ||
+				data.columns[index]?.activeTab.linkSet !== sourceLinkSet
+			)
 				continue;
 			const column = flowColumns[index];
 			const target = column && findVerseElement(column, anchor.dataset.verseKey, anchorVerse);
-			if (!column || !target) continue;
+			if (!column) continue;
+			if (!target) {
+				const [book, chapter] = anchor.dataset.verseKey.split(':').map(Number);
+				if (book && chapter) {
+					void resetColumnStream(index, { book, chapter, verse: anchorVerse });
+				}
+				continue;
+			}
 
 			// Only a genuine change of the block covering the anchor verse moves this column — as long as
 			// scrolling the source stays within the same ranged block (e.g. a comment on verses 3-5), the
@@ -982,7 +1180,33 @@
 			const next = column.scrollTop + target.getBoundingClientRect().top - columnTop;
 			suppressProgrammaticFlowScroll(index);
 			column.scrollTop = next;
+			const [book, chapter] = anchor.dataset.verseKey.split(':').map(Number);
+			if (trackAddress && book && chapter) {
+				visibleReferences[index] = { book, chapter, verse: anchorVerse };
+			}
 		}
+	}
+
+	async function resetColumnStream(columnIndex: number, reference: VerseRef): Promise<void> {
+		const stream = columnStreams[columnIndex];
+		if (!stream) return;
+		stream.generation += 1;
+		const generation = stream.generation;
+		stream.loadingPrevious = false;
+		stream.loadingNext = false;
+		const chapter = await fetchStreamChapter(columnIndex, reference);
+		if (generation !== stream.generation) return;
+		stream.chapters = [chapter];
+		visibleReferences[columnIndex] = { ...reference };
+		await tick();
+		if (generation !== stream.generation) return;
+		const column = flowColumns[columnIndex];
+		if (column) {
+			suppressProgrammaticFlowScroll(columnIndex);
+			column.scrollTop = 0;
+		}
+		scrollColumnToVerse(columnIndex, reference.book, reference.chapter, reference.verse ?? 1);
+		void loadStreamNext(columnIndex);
 	}
 
 	function makeFlowSource(columnIndex: number) {
@@ -1035,16 +1259,18 @@
 	 * scrollbar dragging, or keyboard paging), and this handler is the one signal that always fires.
 	 */
 	function onFlowScroll(columnIndex: number) {
+		if (data.columns[columnIndex]?.resource.kind === 'lexicon') return;
 		const source = flowColumns[columnIndex];
 		if (!source) return;
 		updateFlowEdgeState(columnIndex, source);
 		if (suppressedFlowColumns.has(columnIndex)) return;
 		activeFlowSource = columnIndex;
-		scheduleAddressBarUpdate(firstVisibleVerse(source)?.dataset.verseKey);
+		updateVisibleChapter(columnIndex, source, FLOW_EDGE_FADE_PX);
+		scheduleAddressBarUpdate(columnIndex, firstVisibleVerse(source)?.dataset.verseKey);
 		scheduleFlowSync(columnIndex);
-		updateVisibleChapter(source, FLOW_EDGE_FADE_PX);
-		if (source.scrollTop < 500) void loadStreamPrevious();
-		if (source.scrollHeight - source.scrollTop - source.clientHeight < 900) void loadStreamNext();
+		if (source.scrollTop < 500) void loadStreamPrevious(columnIndex);
+		if (source.scrollHeight - source.scrollTop - source.clientHeight < 900)
+			void loadStreamNext(columnIndex);
 	}
 
 	function updateFlowEdgeState(columnIndex: number, source: HTMLElement) {
@@ -1052,31 +1278,6 @@
 		flowHasContentBelow[columnIndex] =
 			source.scrollHeight - source.scrollTop - source.clientHeight > 4;
 	}
-
-	$effect(() => {
-		tick().then(() => {
-			syncFlowColumns(activeFlowSource);
-			flowColumns.forEach((column, index) => updateFlowEdgeState(index, column));
-			void loadStreamNext().then(() => {
-				flowColumns.forEach((column, index) => updateFlowEdgeState(index, column));
-			});
-		});
-	});
-
-	$effect(() => {
-		const verse = data.reference.verse;
-		if (verse === undefined) return;
-		const signature = `${data.reference.book}:${data.reference.chapter}:${verse}`;
-		if (signature === jumpedSignature) return;
-		jumpedSignature = signature;
-
-		// The highlighted-verse fallback covers a merged range (e.g. "16-17"): only the range's first
-		// verse carries that exact `data-verse-key`, so a deep link straight to "17" would otherwise
-		// find nothing.
-		tick().then(() => {
-			scrollToVerse(data.reference.book, data.reference.chapter, verse, true);
-		});
-	});
 
 	function firstCellVerse(stream: StreamChapter, bibleCellIndex: number | null): number | null {
 		if (bibleCellIndex === null) return null;
@@ -1102,8 +1303,6 @@
 			.map((column) => column.resource.tabTitle)
 			.join(', ')} — mit Strong-Nummern, Grammatik und Wörterbuch."
 	/>
-	{#if previousPath}<link rel="prev" href={previousPath} />{/if}
-	{#if nextPath}<link rel="next" href={nextPath} />{/if}
 </svelte:head>
 
 <div class="min-h-0 flex-1">
@@ -1112,22 +1311,9 @@
 	     cannot overflow anyway. -->
 	<main>
 		<div
-			class="mx-auto max-w-[var(--content-max-width)] px-3 py-5 sm:px-6 sm:py-6"
+			class="mx-auto max-w-[var(--content-max-width)] px-2 py-2 sm:px-3 sm:py-3"
 			class:pb-sheet={activeStrong !== null}
 		>
-			<div
-				class="mb-5 flex items-center gap-3 pt-2 pb-1 sm:mb-6 sm:pt-3 sm:pb-2"
-				data-testid="reader-location"
-			>
-				<h1
-					class="mr-auto truncate text-3xl font-semibold tracking-[-0.035em] text-stone-900 sm:text-4xl
-					       dark:text-stone-100"
-				>
-					{visibleStreamChapter?.fullTitle ?? data.fullTitle}
-				</h1>
-				<ReaderLayoutPicker layout={data.workspace.layout} readerUrl={currentReaderUrl} />
-			</div>
-
 			<form bind:this={sizesForm} method="POST" action="?/setLayoutSize" use:enhance class="hidden">
 				<input type="hidden" name="layout" value={data.workspace.layout} />
 				<input bind:this={sizesColumnsInput} type="hidden" name="columns" />
@@ -1136,8 +1322,8 @@
 
 			<!-- On a phone the desktop arrangement stays intact, while this switcher selects one tile. -->
 			<div
-				class="sticky top-[var(--header-height)] z-10 -mx-3 flex gap-1 overflow-x-auto border-b
-				       border-stone-200 bg-white/95 px-3 py-2 backdrop-blur sm:hidden
+				class="sticky top-[var(--header-height)] z-10 -mx-2 flex gap-1 overflow-x-auto border-b
+				       border-stone-200 bg-white/95 px-2 py-1.5 backdrop-blur sm:hidden
 				       dark:border-stone-800 dark:bg-stone-950/95"
 				data-testid="column-picker-bar"
 			>
@@ -1253,43 +1439,101 @@
 							tiles={data.workspace.tiles}
 							resources={data.readerResources}
 							readerUrl={currentReaderUrl}
+							currentReference={readerLocation.reference ?? data.reference}
 							onOpenResource={openResourceDialog}
 						/>
 						{#if column}
 							{@const columnIndex = column.index}
+							{@const columnStream = columnStreams[columnIndex]}
+							{@const activeStream = columnStream?.chapters.find(
+								(stream) =>
+									stream.reference.book === column.activeTab.reference.book &&
+									stream.reference.chapter === column.activeTab.reference.chapter
+							)}
+							{@const tabSearch = tabSearchFor(column)}
+							<ReaderTabToolbar
+								tileId={tile.id}
+								{tileIndex}
+								tab={column.activeTab}
+								resource={column.resource}
+								reference={toolbarReference(column)}
+								searchQuery={tabSearch?.query ?? null}
+								onOpenResource={replaceResourceDialog}
+								onSearch={(query) =>
+									column.resource.kind === 'lexicon'
+										? void lookupInLexicon(columnIndex, query)
+										: void runTabSearch(columnIndex, query)}
+								onClearSearch={() => clearTabSearch(column.activeTab.id)}
+							/>
 							<div class="tile-content">
-								<div class="pointer-events-none absolute inset-0 z-5">
-									<span
-										class="flow-edge-fade top"
-										class:visible={flowHasContentAbove[columnIndex]}
-										aria-hidden="true"
-									></span>
-									<span
-										class="flow-edge-fade bottom"
-										class:visible={flowHasContentBelow[columnIndex]}
-										aria-hidden="true"
-									></span>
-								</div>
+								{#if column.resource.kind === 'lexicon'}
+									<ReaderLexiconTab
+										lookup={column.activeTab.lookup}
+										entry={column.lexiconEntry}
+										resourceTitle={column.resource.selectionTitle}
+										onLookup={(lookup) => void lookupInLexicon(columnIndex, lookup)}
+									/>
+								{/if}
+								{#if tabSearch}
+									<ReaderTabSearchResults
+										query={tabSearch.query}
+										result={tabSearch.result}
+										loading={tabSearch.loading}
+										error={tabSearch.error}
+										resourceTitle={column.resource.selectionTitle}
+										language={column.resource.language}
+										direction={column.resource.direction}
+										onClose={() => clearTabSearch(column.activeTab.id)}
+										onSearch={(query, pageNumber, book) =>
+											void runTabSearch(columnIndex, query, pageNumber, book)}
+										onOpenReference={(reference) =>
+											void openTabSearchReference(columnIndex, reference)}
+										onStrongClick={(strong, word, reference) =>
+											openStrong(
+												strong,
+												word,
+												reference.verse ?? 1,
+												reference.book,
+												reference.chapter,
+												columnIndex
+											)}
+									/>
+								{:else}
+									<div class="pointer-events-none absolute inset-0 z-5">
+										<span
+											class="flow-edge-fade top"
+											class:visible={flowHasContentAbove[columnIndex]}
+											aria-hidden="true"
+										></span>
+										<span
+											class="flow-edge-fade bottom"
+											class:visible={flowHasContentBelow[columnIndex]}
+											aria-hidden="true"
+										></span>
+									</div>
+								{/if}
 								<div
 									bind:this={flowColumns[columnIndex]}
 									data-flow-column-index={columnIndex}
 									data-resource-id={column.resource.id}
 									class="flow-column"
+									class:search-hidden={tabSearch !== null || column.resource.kind === 'lexicon'}
 									role="region"
 									aria-label={column.resource.selectionTitle}
+									aria-hidden={tabSearch !== null || column.resource.kind === 'lexicon'}
 									onwheel={(event) => onFlowWheel(event, columnIndex)}
 									ontouchstart={() => makeFlowSource(columnIndex)}
 									onpointerdown={() => makeFlowSource(columnIndex)}
 									onfocusin={() => makeFlowSource(columnIndex)}
 									onscroll={() => onFlowScroll(columnIndex)}
 								>
-									{#if data.chapter.empty}
+									{#if activeStream?.chapter.empty}
 										<p class="empty-resource">{t('reader.chapterEmpty')}</p>
 									{/if}
-									{#if loadingPrevious}
+									{#if columnStream?.loadingPrevious}
 										<p class="loading-chapter" aria-live="polite">…</p>
 									{/if}
-									{#each streamChapters as stream (`${stream.reference.book}:${stream.reference.chapter}`)}
+									{#each columnStream?.chapters ?? [] as stream (`${stream.reference.book}:${stream.reference.chapter}`)}
 										{@const firstVerse = firstCellVerse(stream, column.bibleCellIndex)}
 										<section
 											class="flow-chapter"
@@ -1329,11 +1573,12 @@
 															id={columnIndex === 0
 																? `${stream.shortBookName}${stream.reference.chapter}_${cell.verse}`
 																: undefined}
-															class:highlighted={stream.reference.book === data.reference.book &&
-																stream.reference.chapter === data.reference.chapter &&
-																data.reference.verse !== undefined &&
-																cell.verse <= data.reference.verse &&
-																(cell.verseEnd ?? cell.verse) >= data.reference.verse}
+															class:highlighted={stream.reference.book ===
+																column.activeTab.reference.book &&
+																stream.reference.chapter === column.activeTab.reference.chapter &&
+																column.activeTab.reference.verse !== undefined &&
+																cell.verse <= column.activeTab.reference.verse &&
+																(cell.verseEnd ?? cell.verse) >= column.activeTab.reference.verse}
 															class:has-highlight={mark?.color}
 															style:background-color={mark?.color}
 														>
@@ -1341,9 +1586,11 @@
 																{#if cell.verse === firstVerse}
 																	<a
 																		class="flow-chapter-number"
-																		class:in-list={stream.reference.book === data.reference.book &&
-																			stream.reference.chapter === data.reference.chapter &&
-																			inAnyList.has(cell.verse)}
+																		class:in-list={isInAnyList(
+																			stream.reference.book,
+																			stream.reference.chapter,
+																			cell.verse
+																		)}
 																		title={stream.fullTitle}
 																		href={referencePath({
 																			book: stream.reference.book,
@@ -1378,9 +1625,11 @@
 																{#if cell.verse !== 1 || cell.verse !== firstVerse}
 																	<a
 																		class="verse-number"
-																		class:in-list={stream.reference.book === data.reference.book &&
-																			stream.reference.chapter === data.reference.chapter &&
-																			inAnyList.has(cell.verse)}
+																		class:in-list={isInAnyList(
+																			stream.reference.book,
+																			stream.reference.chapter,
+																			cell.verse
+																		)}
 																		href={referencePath({
 																			book: stream.reference.book,
 																			chapter: stream.reference.chapter,
@@ -1422,7 +1671,8 @@
 																				word,
 																				cell.verse,
 																				stream.reference.book,
-																				stream.reference.chapter
+																				stream.reference.chapter,
+																				columnIndex
 																			)}
 																		activeStrong={activeStrong?.strong ?? null}
 																		highlights={partial}
@@ -1443,7 +1693,8 @@
 																			word,
 																			cell.verse,
 																			stream.reference.book,
-																			stream.reference.chapter
+																			stream.reference.chapter,
+																			columnIndex
 																		)}
 																	activeStrong={activeStrong?.strong ?? null}
 																	highlights={partial}
@@ -1546,17 +1797,11 @@
 											{/each}
 										</section>
 									{/each}
-									{#if loadingNext}
+									{#if columnStream?.loadingNext}
 										<p class="loading-chapter" aria-live="polite">…</p>
 									{/if}
 								</div>
 							</div>
-							{#if column.resource.licenseHtml}
-								<p class="tile-license">
-									<strong>{column.resource.tabTitle}:</strong>
-									{column.resource.licenseHtml}
-								</p>
-							{/if}
 						{:else}
 							<button type="button" class="empty-tile" onclick={() => openResourceDialog(tile.id)}>
 								<svg viewBox="0 0 20 20" class="size-6" fill="currentColor" aria-hidden="true">
@@ -1739,7 +1984,7 @@
 		position: relative;
 		display: grid;
 		gap: 0.75rem;
-		height: max(28rem, calc(100dvh - var(--header-height) - 11.5rem));
+		height: max(28rem, calc(100dvh - var(--header-height) - 1.5rem));
 		overflow: hidden;
 		background: transparent;
 	}
@@ -1778,6 +2023,10 @@
 
 	.flow-column::-webkit-scrollbar {
 		display: none;
+	}
+	.flow-column.search-hidden {
+		visibility: hidden;
+		pointer-events: none;
 	}
 
 	/* These veils live above the scrolling content but below the splitter, so text fades softly while
@@ -1825,17 +2074,6 @@
 
 	:global(.dark) .flow-column {
 		border-color: var(--line);
-	}
-
-	.tile-license {
-		max-height: 2.7rem;
-		flex: none;
-		overflow: auto;
-		padding: 0.35rem 0.75rem;
-		border-top: 1px solid var(--line);
-		font-size: 0.65rem;
-		line-height: 1.25;
-		color: var(--color-stone-500);
 	}
 
 	.empty-tile {
@@ -2042,7 +2280,7 @@
 			grid-template-columns: minmax(0, 1fr) !important;
 			grid-template-rows: minmax(0, 1fr) !important;
 			grid-template-areas: 'a' !important;
-			height: max(25rem, calc(100dvh - var(--header-height) - 10.5rem));
+			height: max(25rem, calc(100dvh - var(--header-height) - 4.25rem));
 		}
 
 		.reader-tile {

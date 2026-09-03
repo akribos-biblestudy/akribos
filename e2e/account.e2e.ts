@@ -57,7 +57,9 @@ test('registration, sign out and sign in again', async ({ page }) => {
 
 	await page.getByRole('button', { name: 'Abmelden' }).click();
 	await expect(page).toHaveURL(/\/Joh1$/);
-	await expect(page.getByRole('heading', { level: 1 })).toContainText('Johannes 1');
+	await expect(
+		page.getByRole('searchbox', { name: /Bibelstelle oder Suche in/ }).first()
+	).toHaveValue('Joh 1');
 
 	// Landing back at the reader's John 1 fallback proves the session is gone; protected pages must
 	// still redirect.
@@ -443,7 +445,7 @@ test('an admin can see and edit resources', async ({ page }) => {
 	await resourceSearch.clear();
 	await expect(page.getByRole('button', { name: 'SEEDDE bearbeiten' })).toBeVisible();
 
-	// Editing the tab title takes effect in the reader without changing the selection labels.
+	// The descriptive tab title stays separate from the compact abbreviation shown in the reader.
 	const tabTitle = page.locator('#tab-SEEDDE');
 	await tabTitle.fill('Umbenannt');
 	await page
@@ -453,7 +455,8 @@ test('an admin can see and edit resources', async ({ page }) => {
 		.click();
 
 	await page.goto('/Joh3');
-	await expect(page.getByRole('tab', { name: /Umbenannt/ })).toBeVisible();
+	await expect(page.getByRole('tab', { name: /^Testübersetzung/ })).toBeVisible();
+	await expect(page.getByRole('tab', { name: /Umbenannt/ })).toHaveCount(0);
 
 	// Put it back, so the test can run again.
 	await page.goto('/admin/resources');

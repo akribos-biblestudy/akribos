@@ -72,13 +72,14 @@ Workspace nach dessen erster Migration nicht wieder überschreiben. Eine bestehe
 verlustfrei migriert: höchstens vier Spalten werden Kacheln, eine alte fünfte Spalte wird ein weiterer
 Tab in der vierten Kachel.
 
-Jede aktive Ressource wird weiterhin in einer eigenen `.flow-column` innerhalb ihrer `.reader-tile`
-gerendert. Alle geladenen Kapitel stehen in `streamChapters`; DOM-Schlüssel sind `book:chapter`
-beziehungsweise für Verse `book:chapter:verse`. `flowColumns` enthält nur die Scrollcontainer der
-aktiven (nicht leeren) Kacheln in Serverreihenfolge. Ein Kapitel vor oder hinter dem aktuellen wird nahe
-der Scrollkante nachgeladen. Auf schmalen Bildschirmen bleibt die Desktop-Anordnung gespeichert, aber
-es ist über die mobile Kachelauswahl immer nur eine Kachel sichtbar; deren Ressourcen-Tabs bleiben
-innerhalb der Kachel bedienbar.
+Jede aktive Ressource wird in einer eigenen `.flow-column` innerhalb ihrer `.reader-tile` gerendert.
+Jeder aktive Tab besitzt in `columnStreams` seinen eigenen Kapitelstream; die REST-Nachladung verlangt
+deshalb immer `?resource=<id>` und liefert nie wieder einen globalen Mehrspaltenstrom. DOM-Schlüssel sind
+`book:chapter` beziehungsweise für Verse `book:chapter:verse`. `flowColumns` enthält nur die
+Scrollcontainer der aktiven (nicht leeren) Kacheln in Serverreihenfolge. Ein Kapitel vor oder hinter dem
+jeweiligen Tab wird nahe der Scrollkante nachgeladen. Auf schmalen Bildschirmen bleibt die
+Desktop-Anordnung gespeichert, aber es ist über die mobile Kachelauswahl immer nur eine Kachel sichtbar;
+deren Ressourcen-Tabs bleiben innerhalb der Kachel bedienbar.
 
 Die Kopplung gehört zum einzelnen Tab, nicht zur Kachel. Erlaubt sind `A` bis `E` oder `null` für
 unabhängiges Scrollen. Nur gerade aktive Tabs mit demselben Buchstaben synchronisieren einander. Beim
@@ -86,9 +87,37 @@ Aktivieren oder Verschieben behält ein Tab sein Link-Set; neue Tabs erben das S
 (beziehungsweise `A` in einer leeren Kachel), damit die bisher standardmäßig gekoppelte Leseansicht
 erhalten bleibt.
 
-Die Bibelstellenauswahl im Suchfeld ist auf größeren Bildschirmen zweistufig: Eine Buchwahl zeigt
-zunächst nur die kanonischen Kapitel dieses Buchs und darf noch nicht navigieren. Erst die anschließende
-Kapitelwahl lädt die Stelle; eine Versauswahl gehört bewusst nicht zu diesem Dialog.
+Jeder Tab besitzt außerdem eine eigene `reference`. Der zuletzt fokussierte Tab bestimmt die kanonische
+Reader-URL; Aktivieren stellt die gespeicherte Stelle des Tabs wieder her. Ein Buchstaben-Link-Set gleicht
+die Referenz **aller** Tabs dieser Gruppe an, auch der inaktiven. Dadurch kann ein später aktivierter Tab
+keine veraltete Stelle in die sichtbare Gruppe zurücktragen. Tabs mit anderem Buchstaben oder ohne
+Link-Set behalten ihre eigene Stelle. Vor jeder Workspace-Form-Action wird die gespeicherte Referenz des
+fokussierten Tabs noch mit der aktuellen URL abgeglichen, damit eine fachfremde Aktion keine per
+`replaceState` aktualisierte Lesestelle zurücksetzt.
+
+Das kompakte Feld in `ReaderTabToolbar.svelte` ist Stellenwahl und ressourcenbezogene Suche zugleich:
+Eine Bibelstelle navigiert den Tab, Wörter und Strong-Nummern öffnen dagegen keine andere Route, sondern
+eine Ergebnisansicht innerhalb genau dieses Tabs. `tabSearches` in der Reader-Seite hält diesen
+vorübergehenden Zustand nach Tab-ID; der zugrunde liegende Kapitelstream und sein Scrollstand bleiben
+dabei im DOM erhalten. `/api/reader/search` verlangt immer eine öffentliche Reader-Ressource und liefert
+für Bibeln entweder Volltexttreffer oder Strong-Vorkommen, für Kommentare Treffer aus
+`commentary_entries`. Wort- und Strong-Suchen liefern zusätzlich die ungefilterte Buchverteilung;
+Strong-Suchen außerdem Statistik und Übersetzungsformen des aktuellen Bibelwerks. `book` filtert nur
+die Trefferliste und nicht das Diagramm. Ressourcen ohne indexierbaren Fließtext zeigen einen erklärten
+Leerzustand. Ein Treffer setzt die Referenz dieses Tabs und kehrt dort zum Lesetext zurück; andere Tabs,
+Layout und URL bleiben während der bloßen Suche unangetastet. Der Pfeil am Feld öffnet den zweistufigen,
+zentrierten Buch-/Kapitel-Dialog: Eine Buchwahl navigiert noch nicht, erst die Kapitelwahl. Eine
+Versauswahl gehört bewusst nicht zu diesem Dialog.
+
+Lexika sind normale Reader-Ressourcen und können mehrfach als eigenständige Tabs geöffnet werden. Ihr
+tab-eigener `lookup` wird neben `reference` im Workspace gespeichert und von `findLexiconEntry()` immer
+innerhalb genau der Tab-Ressource aufgelöst: Strong-Nummern exakt, Lemma/Umschrift erst exakt und dann
+als Präfix. Lexikon-Tabs nehmen nicht am Kapitel-Endless-Scroll teil. Ein Klick auf ein Strong-Wort lässt
+die schnelle `StudySidebar` bestehen und öffnet zusätzlich ein Lexikon: Existiert in demselben
+nicht-leeren A–E-Link-Set schon ein Lexikon-Tab, wird der erste davon aktualisiert und aktiviert;
+andernfalls wird das erste passend sortierte Lexikon bevorzugt in einer anderen sichtbaren Kachel
+desselben Sets ergänzt, ersatzweise in einer leeren beziehungsweise der Quellkachel. Bei `linkSet = null`
+gilt nur die Quellkachel als Gruppe. Mehrere Lexika werden nie zu einem Eintrag verschmolzen.
 
 Wichtige Scroll-Invarianten:
 
@@ -98,18 +127,28 @@ Wichtige Scroll-Invarianten:
   verspätete Scroll-Events automatisch ausgerichteter Nebenspalten sonst die Quelle übernehmen.
 - `syncFlowColumns()` richtet ausschließlich andere aktive Tabs desselben Link-Sets am ersten sichtbaren
   `[data-verse-key]` aus. Die Ankerlinie liegt an der Unterkante des oberen Text-Fades, damit URL und
-  Suchfeld bereits beim Eintritt eines Verses in den Fade zum nächsten Vers wechseln. Zusammengefasste
-  Versbereiche werden über `data-verse-end` berücksichtigt.
+  Suchfeld nach einem echten Nutzerscroll bereits beim Eintritt eines Verses in den Fade zum nächsten
+  Vers wechseln; rein programmatische Ausrichtungen dürfen eine explizite Kapitelreferenz dagegen nicht
+  nachträglich um Vers 1 ergänzen. Zusammengefasste
+  Versbereiche werden über `data-verse-end` berücksichtigt. Die anschließend persistierte Referenz wird
+  im Workspace zusätzlich auf die inaktiven Tabs dieses Link-Sets übertragen. Auch ein nur zur
+  Ausrichtung aufgerufener Sync muss `visibleReferences[sourceIndex]` wieder auf den gefundenen
+  Versanker setzen; `updateVisibleChapter()` allein würde die Versangabe entfernen und im Tab-Feld
+  fälschlich nur das Kapitel anzeigen.
 - Beim Voranstellen eines Kapitels müssen sowohl `scrollHeight` als auch `scrollTop` unmittelbar
   **vor** der DOM-Mutation (nach dem Fetch) gespeichert werden. So bleibt Touch-Momentum während des
   Fetches erhalten. Browser-Scroll-Anchoring kann `scrollTop` während `tick()` selbst verändern; eine
   Berechnung aus dem nachträglichen Wert kompensiert doppelt und erzeugt Sprünge.
-- Die URL wird beim Lesen mit `replaceState` nachgeführt. `reader-location.svelte.ts` koppelt diese
-  Position an das Suchfeld, ohne eine Servernavigation auszulösen.
-- Nach dem Aktivieren, Verschieben oder Hinzufügen eines Ressourcen-Tabs navigiert der Reader explizit zu der in
-  `readerLocation` sichtbaren Referenz. Die flache `replaceState`-URL allein ändert SvelteKits intern
+- Die URL wird beim Lesen mit `replaceState` nachgeführt. `visibleReferences` koppelt diese Position an
+  das Feld des jeweiligen Tabs, ohne eine Servernavigation auszulösen; nur die fokussierte Kachel darf
+  dabei die kanonische URL bestimmen.
+- Nach dem Aktivieren, Verschieben oder Hinzufügen eines Ressourcen-Tabs navigiert der Reader explizit
+  zur gespeicherten Referenz des Ziel-Tabs. Die flache `replaceState`-URL allein ändert SvelteKits intern
   geladene Route nicht; ein bloßes Invalidieren würde deshalb wieder das ursprünglich geladene Kapitel
-  anzeigen.
+  anzeigen. `activateTab` liefert seine Ziel-URL serverseitig zurück, damit kein veralteter Client-Prop
+  eine zwischenzeitlich gespeicherte Tab-Referenz überschreiben kann. Das Aktivierungsformular sendet
+  außerdem `currentReference` aus `readerLocation`: So wird auch ein noch innerhalb des 200-ms-Debounce
+  liegender Scrollstand zuerst auf alle Tabs seines Link-Sets übertragen, bevor das Ziel aktiviert wird.
 - Nach einer echten Reader-Navigation müssen verzögerte Scroll-/Adressleisten-Timer und noch laufende
   Kapitel-Nachladungen verworfen werden; sie dürfen niemals den neuen Kapitelstream oder dessen URL
   verändern. Eine Navigation auf ein Kapitel ohne Vers setzt zusätzlich jede wiederverwendete
@@ -126,14 +165,16 @@ Wichtige Scroll-Invarianten:
   ein Link und öffnet über `onVerseNumberClick()` dasselbe `VerseMenu` für den ersten Vers. Sie darf
   nicht wieder in ein rein dekoratives `span` umgewandelt werden.
 
-Die Kapitelpfeile und der Theme-Schalter im Header bleiben auf normalen Bildschirmen rahmenlos. Eine
-mittlere Viewport-Breite darf allein keine kontrastreiche E-Ink-Darstellung aktivieren; Rahmen und
-deckender Hintergrund sind ausschließlich für `(update: slow)` beziehungsweise `(monochrome)` gedacht.
+Die globalen Sucheingabe, Kapitelüberschrift und Kapitelpfeile sind im Reader bewusst entfernt; der
+globale Header enthält dort nur die dezente Layoutwahl und Ansichts-/Kontofunktionen. Der Theme-Schalter
+bleibt auf normalen Bildschirmen rahmenlos. Eine mittlere Viewport-Breite darf allein keine kontrastreiche
+E-Ink-Darstellung aktivieren; Rahmen und deckender Hintergrund sind ausschließlich für `(update: slow)`
+beziehungsweise `(monochrome)` gedacht.
 
 Es existiert nur eine `VerseMenu`-Instanz für den ganzen Reader. Ein Klick übergibt Anker, Referenz,
 Text und Highlight-Zustand an `openAt()`; so werden nicht hunderte Menüs und Formulare im Fließtext
-gerendert. Highlights werden optimistisch in `streamChapters` aktualisiert, Listenmarkierungen im
-reaktiven `marks`-Set.
+gerendert. Highlights werden optimistisch in allen passenden Einträgen von `columnStreams`
+aktualisiert, Listenmarkierungen im reaktiven `marks`-Set.
 
 `Menu.svelte` nutzt die Popover-API nur dort, wo der Browser sie hat, und fällt sonst auf ein
 einfaches `position: fixed`-Element mit eigener Dismiss-Behandlung zurück: Die eingebauten Browser
@@ -262,7 +303,10 @@ Ressourcen besitzen getrennte optionale Darstellungstitel: `coverTitle`, `tabTit
 `selectionTitle` und `selectionSubtitle`. Bei älteren/importierten Datensätzen fallen diese in
 `listResources()` auf `abbrev` beziehungsweise `name` zurück. `sortOrder` bestimmt die Reihenfolge
 innerhalb der Kategorien und damit auch in der Werkauswahl; die Administration normalisiert sie beim
-Verschieben in Zehnerschritten.
+Verschieben in Zehnerschritten. Im Reader-Tab selbst steht bewusst ausschließlich `abbrev`; die
+ausführliche Werkbezeichnung gehört in Auswahl und Info-Menü. `licenseHtml`/`usageNotesHtml` belegen
+keinen dauerhaften Footer mehr, sondern sind über das Info-Symbol der jeweiligen Tab-Werkzeugleiste
+erreichbar.
 
 Die Ressourcenadministration ist bewusst eine Master-Detail-Ansicht: Die linke, höhenbegrenzte Liste
 filtert clientseitig nach Kategorie und Suchtext, rechts wird immer nur eine Ressource bearbeitet. Die

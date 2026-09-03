@@ -44,7 +44,7 @@ export const de = {
 	'nav.tour': 'Produkt-Tour',
 
 	// --- reader -------------------------------------------------------------
-	'reader.chooseTranslation': 'Übersetzung wählen',
+	'reader.chooseTranslation': 'Werk wählen',
 	'reader.addColumn': 'Spalte hinzufügen',
 	'reader.removeColumn': 'Spalte entfernen',
 	'reader.copyright': 'Rechte',
@@ -65,7 +65,7 @@ export const de = {
 	'resource.group.xrefs': 'Parallelstellen',
 	'resource.inUse': 'Bereits sichtbar',
 	'dialog.categories': 'Kategorien',
-	'dialog.searchTranslation': 'Suche Übersetzung…',
+	'dialog.searchTranslation': 'Werk suchen…',
 
 	// --- verse menu ---------------------------------------------------------
 	'verse.menu': 'Vers {reference}',
@@ -437,24 +437,21 @@ export const de = {
 	'tour.back': 'Zurück',
 	'tour.next': 'Weiter',
 	'tour.finish': 'Fertig',
-	'tour.searchChooser.title': 'Buch- und Kapitelauswahl',
+	'tour.searchChooser.title': 'Stelle und Werk durchsuchen',
 	'tour.searchChooser.body':
-		'Klicke ins Suchfeld: Zuerst wählst du ein Buch, dann ein Kapitel. Du kannst eine Stelle auch direkt eintippen, z.B. „Joh3,16“.',
-	'tour.searchSyntax.title': 'Nach Wörtern suchen',
-	'tour.searchSyntax.body':
-		'Suche nach einer genauen Wortfolge in Anführungszeichen, etwa „Gott liebt“, und schließe Wörter mit einem vorangestellten „-“ aus, z.B. „liebe -Welt“.',
+		'Jeder Tab hat sein eigenes Feld: Bibelstellen öffnen sich direkt, Treffer für Wörter und Strong-Nummern erscheinen im aktuellen Tab und nur für dieses Werk. Der Pfeil öffnet die Buch- und Kapitelauswahl.',
 	'tour.wordStudy.title': 'Wortstudie',
 	'tour.wordStudy.body':
 		'Unterstrichene Wörter tragen eine Strong-Nummer. Klicke darauf, um die Grundbedeutung, verwandte Stellen und die Grammatik dieses Urtextworts zu sehen.',
-	'tour.resourcePicker.title': 'Bibel- und Kommentarauswahl',
+	'tour.resourcePicker.title': 'Werkauswahl',
 	'tour.resourcePicker.body':
-		'Jede Kachel hat eigene Tabs. Klicke auf einen Tab, um zwischen Bibeln, Kommentaren und Parallelstellen zu wechseln.',
+		'Jede Kachel hat eigene Tabs. Klicke auf einen Tab, um zwischen Bibeln, Kommentaren, Parallelstellen und Wörterbüchern zu wechseln.',
 	'tour.columnLink.title': 'Tabs verknüpfen',
 	'tour.columnLink.body':
 		'Wähle A, B, C, D oder E: Sichtbare Tabs mit demselben Buchstaben folgen einander beim Scrollen. „–“ lässt einen Tab unabhängig.',
 	'tour.columnAdd.title': 'Tab hinzufügen',
 	'tour.columnAdd.body':
-		'Mit diesem Symbol öffnest du eine weitere Übersetzung, einen Kommentar oder Parallelstellen als Tab in derselben Kachel.',
+		'Mit diesem Symbol öffnest du eine weitere Übersetzung, einen Kommentar, Parallelstellen oder ein Wörterbuch als Tab in derselben Kachel.',
 	'tour.verseMenu.title': 'Versmenü',
 	'tour.verseMenu.body':
 		'Klicke auf eine Versnummer, um sie hervorzuheben, einen Kommentar zu schreiben oder sie einer Versliste zuzuordnen.',

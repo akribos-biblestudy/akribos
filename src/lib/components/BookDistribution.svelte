@@ -6,12 +6,14 @@
 		counts,
 		label = t('statistics.byBook'),
 		hrefForBook,
+		onBook,
 		activeBook = null,
 		compact = false
 	}: {
 		counts: { book: number; count: number }[];
 		label?: string;
 		hrefForBook?: (book: number) => string;
+		onBook?: (book: number) => void;
 		activeBook?: number | null;
 		compact?: boolean;
 	} = $props();
@@ -44,14 +46,18 @@
 				<div class:compact class="books" style="--book-count: {entries.length}">
 					{#each entries as entry (entry.book)}
 						<svelte:element
-							this={hrefForBook ? 'a' : 'div'}
+							this={onBook ? 'button' : hrefForBook ? 'a' : 'div'}
 							href={hrefForBook?.(entry.book)}
+							type={onBook ? 'button' : undefined}
+							role={onBook ? 'button' : undefined}
+							onclick={onBook ? () => onBook(entry.book) : undefined}
 							class="book"
 							class:active={activeBook === entry.book}
-							title={hrefForBook
+							title={hrefForBook || onBook
 								? t('statistics.filterBook', { book: bookShortName(entry.book) })
 								: undefined}
-							aria-current={activeBook === entry.book ? 'true' : undefined}
+							aria-current={!onBook && activeBook === entry.book ? 'true' : undefined}
+							aria-pressed={onBook ? activeBook === entry.book : undefined}
 						>
 							<span class="count">{formatNumber(entry.count)}</span>
 							<span
@@ -104,12 +110,15 @@
 		outline-offset: 1px;
 	}
 
-	a.book {
+	a.book,
+	button.book {
 		cursor: pointer;
 	}
 
 	a.book:hover .bar,
 	a.book:focus-visible .bar,
+	button.book:hover .bar,
+	button.book:focus-visible .bar,
 	.book.active .bar {
 		opacity: 1;
 		box-shadow: 0 0 0 2px var(--color-accent-600);

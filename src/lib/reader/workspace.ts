@@ -3,6 +3,8 @@
  * validation and mutations can be used by form actions, SSR and focused unit tests.
  */
 
+import { isReferenceInCanon, type VerseRef } from '$lib/bible/reference';
+
 export const READER_LAYOUTS = [
 	'single',
 	'columns-2',
@@ -23,6 +25,9 @@ export type ReaderTab = {
 	id: string;
 	resourceId: string;
 	linkSet: ReaderLinkSet;
+	reference: VerseRef;
+	/** Current dictionary locator for lexicon resources; scripture resources leave this empty. */
+	lookup: string | null;
 };
 
 export type ReaderTile = {
@@ -40,6 +45,8 @@ export type ReaderWorkspace = {
 	version: 1;
 	layout: ReaderLayout;
 	tiles: ReaderTile[];
+	/** The tile whose active tab owns the canonical reader URL. */
+	focusedTileId: string;
 	layoutSizes: Partial<Record<ReaderLayout, ReaderLayoutSize>>;
 };
 
@@ -140,6 +147,7 @@ export const READER_LAYOUT_DEFINITIONS: readonly ReaderLayoutDefinition[] = [
 /** A misuse guard, not a UI limit. A workspace can still hold far more resources than are visible. */
 export const MAX_READER_TABS = 64;
 export const MIN_READER_TRACK_FRACTION = 0.12;
+export const DEFAULT_READER_REFERENCE: VerseRef = { book: 43, chapter: 1 };
 
 const LAYOUT_BY_ID = new Map(
 	READER_LAYOUT_DEFINITIONS.map((definition) => [definition.id, definition])
@@ -176,7 +184,10 @@ export function allResourceIds(workspace: ReaderWorkspace): string[] {
  * Converts the old side-by-side column preference without losing the fifth entry: the first four
  * become visible tiles and every surplus entry becomes another tab in the last tile.
  */
-export function workspaceFromColumns(resourceIds: readonly string[]): ReaderWorkspace {
+export function workspaceFromColumns(
+	resourceIds: readonly string[],
+	reference: VerseRef = DEFAULT_READER_REFERENCE
+): ReaderWorkspace {
 	const ids = resourceIds.slice(0, MAX_READER_TABS);
 	const visibleCount = Math.max(1, Math.min(4, ids.length));
 	const layout: ReaderLayout =
@@ -193,13 +204,15 @@ export function workspaceFromColumns(resourceIds: readonly string[]): ReaderWork
 			id: `tab-${index + 1}`,
 			resourceId,
 			// The old reader linked every visible column. A is the lossless equivalent.
-			linkSet: 'A'
+			linkSet: 'A',
+			reference: { ...reference },
+			lookup: null
 		};
 		tiles[tileIndex]!.tabs.push(tab);
 		tiles[tileIndex]!.activeTabId = tab.id;
 	});
 
-	return { version: 1, layout, tiles, layoutSizes: {} };
+	return { version: 1, layout, tiles, focusedTileId: tiles[0]!.id, layoutSizes: {} };
 }
 
 /**
@@ -209,11 +222,15 @@ export function workspaceFromColumns(resourceIds: readonly string[]): ReaderWork
 export function normalizeReaderWorkspace(
 	value: unknown,
 	availableResourceIds: readonly string[],
-	fallbackResourceIds: readonly string[] = []
+	fallbackResourceIds: readonly string[] = [],
+	fallbackReference: VerseRef = DEFAULT_READER_REFERENCE
 ): ReaderWorkspace {
 	const known = new Set(availableResourceIds);
 	if (!isObject(value) || value.version !== 1 || !isReaderLayout(value.layout)) {
-		return workspaceFromColumns(fallbackResourceIds.filter((id) => known.has(id)));
+		return workspaceFromColumns(
+			fallbackResourceIds.filter((id) => known.has(id)),
+			fallbackReference
+		);
 	}
 
 	const definition = readerLayoutDefinition(value.layout);
@@ -236,7 +253,9 @@ export function normalizeReaderWorkspace(
 			tabs.push({
 				id,
 				resourceId: rawTab.resourceId,
-				linkSet: isReaderLinkSet(rawTab.linkSet) ? rawTab.linkSet : 'A'
+				linkSet: isReaderLinkSet(rawTab.linkSet) ? rawTab.linkSet : 'A',
+				reference: normalizeTabReference(rawTab.reference, fallbackReference),
+				lookup: normalizeTabLookup(rawTab.lookup)
 			});
 			tabCount += 1;
 		}
@@ -264,7 +283,9 @@ export function normalizeReaderWorkspace(
 			finalTile.tabs.push({
 				id,
 				resourceId: rawTab.resourceId,
-				linkSet: isReaderLinkSet(rawTab.linkSet) ? rawTab.linkSet : 'A'
+				linkSet: isReaderLinkSet(rawTab.linkSet) ? rawTab.linkSet : 'A',
+				reference: normalizeTabReference(rawTab.reference, fallbackReference),
+				lookup: normalizeTabLookup(rawTab.lookup)
 			});
 			tabCount += 1;
 		}
@@ -274,15 +295,29 @@ export function normalizeReaderWorkspace(
 	if (tabCount === 0) {
 		const fallback = fallbackResourceIds.find((id) => known.has(id)) ?? availableResourceIds[0];
 		if (fallback && tiles[0]) {
-			tiles[0].tabs = [{ id: 'tab-1', resourceId: fallback, linkSet: 'A' }];
+			tiles[0].tabs = [
+				{
+					id: 'tab-1',
+					resourceId: fallback,
+					linkSet: 'A',
+					reference: { ...fallbackReference },
+					lookup: null
+				}
+			];
 			tiles[0].activeTabId = 'tab-1';
 		}
 	}
+	const wantedFocusedTileId = typeof value.focusedTileId === 'string' ? value.focusedTileId : null;
+	const focusedTileId =
+		tiles.find((tile) => tile.id === wantedFocusedTileId && activeReaderTab(tile))?.id ??
+		tiles.find((tile) => activeReaderTab(tile))?.id ??
+		tiles[0]!.id;
 
 	return {
 		version: 1,
 		layout: value.layout,
 		tiles,
+		focusedTileId,
 		layoutSizes: normalizeLayoutSizes(value.layoutSizes)
 	};
 }
@@ -317,6 +352,9 @@ export function changeReaderLayout(
 		next.tiles = kept;
 	}
 	next.layout = layout;
+	if (!next.tiles.some((tile) => tile.id === next.focusedTileId && activeReaderTab(tile))) {
+		next.focusedTileId = next.tiles.find((tile) => activeReaderTab(tile))?.id ?? next.tiles[0]!.id;
+	}
 	return next;
 }
 
@@ -330,10 +368,17 @@ export function addReaderTab(
 	if (allResourceIds(next).length >= MAX_READER_TABS) return next;
 	const tile = next.tiles.find((item) => item.id === tileId);
 	if (!tile) return next;
-	const currentLinkSet = activeReaderTab(tile)?.linkSet ?? 'A';
-	const tab: ReaderTab = { id: createId(), resourceId, linkSet: currentLinkSet };
+	const current = activeReaderTab(tile);
+	const tab: ReaderTab = {
+		id: createId(),
+		resourceId,
+		linkSet: current?.linkSet ?? 'A',
+		reference: { ...(current?.reference ?? DEFAULT_READER_REFERENCE) },
+		lookup: null
+	};
 	tile.tabs.push(tab);
 	tile.activeTabId = tab.id;
+	next.focusedTileId = tile.id;
 	return next;
 }
 
@@ -344,7 +389,10 @@ export function activateReaderTab(
 ): ReaderWorkspace {
 	const next = cloneWorkspace(workspace);
 	const tile = next.tiles.find((item) => item.id === tileId);
-	if (tile?.tabs.some((tab) => tab.id === tabId)) tile.activeTabId = tabId;
+	if (tile?.tabs.some((tab) => tab.id === tabId)) {
+		tile.activeTabId = tabId;
+		next.focusedTileId = tile.id;
+	}
 	return next;
 }
 
@@ -361,6 +409,9 @@ export function closeReaderTab(
 	tile.tabs.splice(index, 1);
 	if (tile.activeTabId === tabId) {
 		tile.activeTabId = tile.tabs[index]?.id ?? tile.tabs[index - 1]?.id ?? null;
+	}
+	if (!activeReaderTab(next.tiles.find((item) => item.id === next.focusedTileId) ?? tile)) {
+		next.focusedTileId = next.tiles.find((item) => activeReaderTab(item))?.id ?? next.tiles[0]!.id;
 	}
 	return next;
 }
@@ -388,6 +439,74 @@ export function moveReaderTab(
 		source.activeTabId = source.tabs[fromIndex]?.id ?? source.tabs[fromIndex - 1]?.id ?? null;
 	}
 	destination.activeTabId = tab.id;
+	next.focusedTileId = destination.id;
+	return next;
+}
+
+/** Changes the work shown by one existing tab without changing its link set or location. */
+export function replaceReaderTabResource(
+	workspace: ReaderWorkspace,
+	tileId: string,
+	tabId: string,
+	resourceId: string
+): ReaderWorkspace {
+	const next = cloneWorkspace(workspace);
+	const tile = next.tiles.find((item) => item.id === tileId);
+	const tab = tile?.tabs.find((item) => item.id === tabId);
+	if (tile && tab) {
+		tab.resourceId = resourceId;
+		tab.lookup = null;
+		tile.activeTabId = tab.id;
+		next.focusedTileId = tile.id;
+	}
+	return next;
+}
+
+/**
+ * Stores the location owned by a tab. Every tab in the same non-empty link set follows it, including
+ * inactive tabs; activating one later must never restore a stale location into the visible group.
+ */
+export function setReaderTabReference(
+	workspace: ReaderWorkspace,
+	tileId: string,
+	tabId: string,
+	reference: VerseRef
+): ReaderWorkspace {
+	if (!isReferenceInCanon(reference)) return cloneWorkspace(workspace);
+	const next = cloneWorkspace(workspace);
+	const tile = next.tiles.find((item) => item.id === tileId);
+	const tab = tile?.tabs.find((item) => item.id === tabId);
+	if (!tile || !tab) return next;
+
+	tab.reference = { ...reference };
+	tile.activeTabId = tab.id;
+	next.focusedTileId = tile.id;
+	if (tab.linkSet) {
+		for (const candidateTile of next.tiles) {
+			for (const candidate of candidateTile.tabs) {
+				if (candidate.id !== tab.id && candidate.linkSet === tab.linkSet) {
+					candidate.reference = { ...reference };
+				}
+			}
+		}
+	}
+	return next;
+}
+
+/** Stores and activates the entry shown by one lexicon tab. */
+export function setReaderTabLookup(
+	workspace: ReaderWorkspace,
+	tileId: string,
+	tabId: string,
+	lookup: string | null
+): ReaderWorkspace {
+	const next = cloneWorkspace(workspace);
+	const tile = next.tiles.find((item) => item.id === tileId);
+	const tab = tile?.tabs.find((item) => item.id === tabId);
+	if (!tile || !tab) return next;
+	tab.lookup = normalizeTabLookup(lookup);
+	tile.activeTabId = tab.id;
+	next.focusedTileId = tile.id;
 	return next;
 }
 
@@ -479,6 +598,7 @@ function cloneWorkspace(workspace: ReaderWorkspace): ReaderWorkspace {
 	return {
 		version: 1,
 		layout: workspace.layout,
+		focusedTileId: workspace.focusedTileId,
 		tiles: workspace.tiles.map((tile) => ({
 			id: tile.id,
 			activeTabId: tile.activeTabId,
@@ -491,4 +611,29 @@ function cloneWorkspace(workspace: ReaderWorkspace): ReaderWorkspace {
 			])
 		) as ReaderWorkspace['layoutSizes']
 	};
+}
+
+function normalizeTabReference(value: unknown, fallback: VerseRef): VerseRef {
+	if (!isObject(value)) return { ...fallback };
+	const reference: VerseRef = {
+		book: Number(value.book),
+		chapter: Number(value.chapter),
+		...(value.verse === undefined ? {} : { verse: Number(value.verse) })
+	};
+	if (
+		!Number.isSafeInteger(reference.book) ||
+		!Number.isSafeInteger(reference.chapter) ||
+		(reference.verse !== undefined &&
+			(!Number.isSafeInteger(reference.verse) || reference.verse < 1)) ||
+		!isReferenceInCanon(reference)
+	) {
+		return { ...fallback };
+	}
+	return reference;
+}
+
+function normalizeTabLookup(value: unknown): string | null {
+	if (typeof value !== 'string') return null;
+	const normalized = value.trim().slice(0, 200);
+	return normalized || null;
 }

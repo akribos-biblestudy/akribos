@@ -5,18 +5,19 @@
 	import { parseReference, referencePath } from '$lib/bible/reference';
 	import { jumpToVerse } from '$lib/reader-location.svelte';
 	import { t } from '$lib/i18n';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import Menu from './Menu.svelte';
 	import ProductTour from './ProductTour.svelte';
 	import ReaderViewMenu from './ReaderViewMenu.svelte';
+	import ReaderLayoutPicker from './ReaderLayoutPicker.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
+	import type { ReaderLayout } from '$lib/reader/workspace';
 	import { startTour } from '$lib/tour/tour-state.svelte';
 	import { tourStepsFor, GUEST_TOUR_STEPS, MEMBER_TOUR_STEPS } from '$lib/tour/steps';
 
 	/**
-	 * The single input that accepts everything: a reference, a word, or a Strong's number. Submitting
-	 * navigates to `/<input>`, where the resolver decides what it was — the same idea as the old
-	 * search box, minus the four different code paths behind it.
+	 * Outside the reader, one global input accepts a reference, word or Strong's number. Reader pages
+	 * deliberately replace it with the independent search/location field inside every resource tab.
 	 */
 	let {
 		query = '',
@@ -35,7 +36,7 @@
 			role: string;
 			tourCompletedAt: Date | string | null;
 		} | null;
-		readerPreferences?: { fontScale: number } | null;
+		readerPreferences?: { fontScale: number; layout: ReaderLayout } | null;
 		/** Whether this device already finished (or dismissed) the tour while signed out. */
 		guestTourDone?: boolean;
 	} = $props();
@@ -64,7 +65,7 @@
 	 * `reader-location.svelte.ts`), and a plain `$derived` would silently overwrite whatever the reader
 	 * had just typed the moment that next scroll update landed, before they got to press Enter.
 	 */
-	let value = $state(query);
+	let value = $state(untrack(() => query));
 	let focused = $state(false);
 	$effect(() => {
 		if (!focused) value = query;
@@ -175,6 +176,7 @@
 	 * chapters. Both are skipped while a field or a modifier key is in play.
 	 */
 	function onKeydown(event: KeyboardEvent) {
+		if (readerPreferences) return;
 		const target = event.target as HTMLElement | null;
 		const typing =
 			target instanceof HTMLInputElement ||
@@ -217,246 +219,250 @@
 			<img src="/icon.png" alt="" class="size-9 rounded-sm sm:hidden" />
 		</a>
 
-		<div class="flex min-w-0 flex-1 items-center justify-center gap-0.5">
-			{#if previous}
-				<a
-					href={previous}
-					rel="prev"
-					title={t('nav.previousChapter')}
-					aria-label={t('nav.previousChapter')}
-					class="icon-button shrink-0"
-				>
-					<svg
-						viewBox="0 0 24 24"
-						class="size-5"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.7"
-						aria-hidden="true"
+		<div class="flex min-w-0 flex-1 items-center justify-end gap-0.5">
+			{#if readerPreferences}
+				<ReaderLayoutPicker layout={readerPreferences.layout} />
+			{:else}
+				{#if previous}
+					<a
+						href={previous}
+						rel="prev"
+						title={t('nav.previousChapter')}
+						aria-label={t('nav.previousChapter')}
+						class="icon-button shrink-0"
 					>
-						<path d="m14.5 6.5-5.5 5.5 5.5 5.5" stroke-linecap="round" stroke-linejoin="round" />
-					</svg>
-				</a>
-			{/if}
+						<svg
+							viewBox="0 0 24 24"
+							class="size-5"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.7"
+							aria-hidden="true"
+						>
+							<path d="m14.5 6.5-5.5 5.5 5.5 5.5" stroke-linecap="round" stroke-linejoin="round" />
+						</svg>
+					</a>
+				{/if}
 
-			<form class="relative w-full max-w-md min-w-0" onsubmit={submit} role="search">
-				<label class="sr-only" for="site-search">{t('nav.search.placeholder')}</label>
-				<div class="relative">
-					<svg
-						viewBox="0 0 24 24"
-						class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-stone-400"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.8"
-						aria-hidden="true"
-					>
-						<circle cx="11" cy="11" r="6.5" />
-						<path d="m16 16 4 4" stroke-linecap="round" />
-					</svg>
-					<input
-						bind:this={input}
-						bind:value
-						onfocus={openBookChooser}
-						oninput={() => (selectedBookId = null)}
-						onblur={(event) => keepSearchHelpFor(event.relatedTarget)}
-						id="site-search"
-						type="search"
-						autocomplete="off"
-						spellcheck="false"
-						enterkeyhint="search"
-						placeholder={t('nav.search.placeholder')}
-						class="w-full rounded-xl border border-stone-300/90 bg-white/75 py-2.5 pr-9 pl-10 text-sm
+				<form class="relative w-full max-w-md min-w-0" onsubmit={submit} role="search">
+					<label class="sr-only" for="site-search">{t('nav.search.placeholder')}</label>
+					<div class="relative">
+						<svg
+							viewBox="0 0 24 24"
+							class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-stone-400"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+							aria-hidden="true"
+						>
+							<circle cx="11" cy="11" r="6.5" />
+							<path d="m16 16 4 4" stroke-linecap="round" />
+						</svg>
+						<input
+							bind:this={input}
+							bind:value
+							onfocus={openBookChooser}
+							oninput={() => (selectedBookId = null)}
+							onblur={(event) => keepSearchHelpFor(event.relatedTarget)}
+							id="site-search"
+							type="search"
+							autocomplete="off"
+							spellcheck="false"
+							enterkeyhint="search"
+							placeholder={t('nav.search.placeholder')}
+							class="w-full rounded-xl border border-stone-300/90 bg-white/75 py-2.5 pr-9 pl-10 text-sm
 						       shadow-sm placeholder:text-stone-400 focus:border-accent-500 focus:bg-white
 						       focus:ring-3 focus:ring-accent-500/12 focus:outline-none dark:border-white/12
 						       dark:bg-white/5 dark:placeholder:text-stone-500 dark:focus:bg-white/7"
-					/>
-					{#if value}
-						<button
-							type="button"
-							aria-label={t('action.clear')}
-							class="absolute top-1/2 right-1.5 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-stone-400 transition-colors hover:bg-stone-200/70 hover:text-stone-700 dark:hover:bg-white/8 dark:hover:text-stone-200"
-							onclick={() => {
-								value = '';
-								selectedBookId = null;
-								input?.focus();
-							}}
-						>
-							<svg
-								viewBox="0 0 20 20"
-								class="size-4"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.6"
-								aria-hidden="true"
+						/>
+						{#if value}
+							<button
+								type="button"
+								aria-label={t('action.clear')}
+								class="absolute top-1/2 right-1.5 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-stone-400 transition-colors hover:bg-stone-200/70 hover:text-stone-700 dark:hover:bg-white/8 dark:hover:text-stone-200"
+								onclick={() => {
+									value = '';
+									selectedBookId = null;
+									input?.focus();
+								}}
 							>
-								<path d="m6 6 8 8M14 6l-8 8" stroke-linecap="round" />
-							</svg>
-						</button>
-					{/if}
-				</div>
-				{#if focused}
-					<div
-						bind:this={searchHelper}
-						data-tour-target="search-chooser"
-						class="search-helper absolute top-[calc(100%+0.55rem)] left-1/2 z-50 w-[min(56rem,calc(100vw-1rem))] -translate-x-1/2 overflow-hidden rounded-2xl border border-stone-200/80 bg-[color:var(--surface-raised)] shadow-[0_18px_50px_rgb(28_25_23/0.16)] dark:border-white/10 dark:shadow-black/35"
-						role="dialog"
-						tabindex="-1"
-						aria-label={t('search.help.title')}
-						onfocusout={(event) => keepSearchHelpFor(event.relatedTarget)}
-					>
-						<div class="border-b border-stone-200/80 px-4 py-3.5 sm:px-5 dark:border-white/8">
-							{#if selectedBook}
-								<div class="flex items-center gap-3">
-									<button
-										type="button"
-										class="back-to-books"
-										aria-label={t('search.help.backToBooks')}
-										onclick={showBookChooser}
-									>
-										<svg
-											viewBox="0 0 20 20"
-											class="size-4"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.7"
-											aria-hidden="true"
+								<svg
+									viewBox="0 0 20 20"
+									class="size-4"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.6"
+									aria-hidden="true"
+								>
+									<path d="m6 6 8 8M14 6l-8 8" stroke-linecap="round" />
+								</svg>
+							</button>
+						{/if}
+					</div>
+					{#if focused}
+						<div
+							bind:this={searchHelper}
+							data-tour-target="search-chooser"
+							class="search-helper absolute top-[calc(100%+0.55rem)] left-1/2 z-50 w-[min(56rem,calc(100vw-1rem))] -translate-x-1/2 overflow-hidden rounded-2xl border border-stone-200/80 bg-[color:var(--surface-raised)] shadow-[0_18px_50px_rgb(28_25_23/0.16)] dark:border-white/10 dark:shadow-black/35"
+							role="dialog"
+							tabindex="-1"
+							aria-label={t('search.help.title')}
+							onfocusout={(event) => keepSearchHelpFor(event.relatedTarget)}
+						>
+							<div class="border-b border-stone-200/80 px-4 py-3.5 sm:px-5 dark:border-white/8">
+								{#if selectedBook}
+									<div class="flex items-center gap-3">
+										<button
+											type="button"
+											class="back-to-books"
+											aria-label={t('search.help.backToBooks')}
+											onclick={showBookChooser}
 										>
-											<path d="m12.5 5-5 5 5 5" stroke-linecap="round" stroke-linejoin="round" />
-										</svg>
-									</button>
-									<div>
-										<h2 class="text-sm font-semibold text-stone-900 dark:text-stone-100">
-											{selectedBook.names.name}
-										</h2>
-										<p class="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-											{t('search.help.chooseChapter')}
+											<svg
+												viewBox="0 0 20 20"
+												class="size-4"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.7"
+												aria-hidden="true"
+											>
+												<path d="m12.5 5-5 5 5 5" stroke-linecap="round" stroke-linejoin="round" />
+											</svg>
+										</button>
+										<div>
+											<h2 class="text-sm font-semibold text-stone-900 dark:text-stone-100">
+												{selectedBook.names.name}
+											</h2>
+											<p class="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
+												{t('search.help.chooseChapter')}
+											</p>
+										</div>
+									</div>
+								{:else}
+									<h2 class="text-sm font-semibold text-stone-900 dark:text-stone-100">
+										{t('search.help.title')}
+									</h2>
+									<p class="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
+										{t('search.help.subtitle')}
+									</p>
+								{/if}
+							</div>
+
+							<div
+								class="max-h-[calc(100dvh-var(--header-height)-1.25rem)] overflow-y-auto p-4 sm:p-5"
+							>
+								{#if selectedBook}
+									<div
+										class="chapter-picker grid grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-10"
+										data-category={bookCategory(selectedBook.book)}
+										aria-label={t('search.help.chaptersFor', { book: selectedBook.names.name })}
+									>
+										{#each Array.from({ length: selectedBook.chapters }, (_, index) => index + 1) as chapter (chapter)}
+											<a
+												class="chapter-link"
+												href={referencePath({ book: selectedBook.book, chapter })}
+												aria-label={`${selectedBook.names.name} ${chapter}`}
+												onclick={() => {
+													focused = false;
+													selectedBookId = null;
+												}}
+											>
+												{chapter}
+											</a>
+										{/each}
+									</div>
+								{:else}
+									<div class="grid gap-5 lg:grid-cols-2 lg:gap-8">
+										<section>
+											<h3 class="search-help-heading">{t('search.help.oldTestament')}</h3>
+											<div class="book-legend" aria-label="Buchgruppen">
+												{#each oldTestamentCategories as category (category.tone)}
+													<span data-category={category.tone}>{category.label}</span>
+												{/each}
+											</div>
+											<div class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
+												{#each oldTestament as book (book.book)}
+													<button
+														type="button"
+														class="book-link"
+														data-book={book.book}
+														data-category={bookCategory(book.book)}
+														aria-label={book.names.name}
+														onclick={() => selectBook(book)}
+													>
+														<strong>{book.names.short}</strong>
+														{#if book.names.name !== book.names.short}
+															<small>{book.names.name}</small>
+														{/if}
+													</button>
+												{/each}
+											</div>
+										</section>
+
+										<section>
+											<h3 class="search-help-heading">{t('search.help.newTestament')}</h3>
+											<div class="book-legend" aria-label="Buchgruppen">
+												{#each newTestamentCategories as category (category.tone)}
+													<span data-category={category.tone}>{category.label}</span>
+												{/each}
+											</div>
+											<div class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+												{#each newTestament as book (book.book)}
+													<button
+														type="button"
+														class="book-link"
+														data-book={book.book}
+														data-category={bookCategory(book.book)}
+														aria-label={book.names.name}
+														onclick={() => selectBook(book)}
+													>
+														<strong>{book.names.short}</strong>
+														{#if book.names.name !== book.names.short}
+															<small>{book.names.name}</small>
+														{/if}
+													</button>
+												{/each}
+											</div>
+										</section>
+									</div>
+
+									<div
+										data-tour-target="search-syntax"
+										class="mt-5 grid gap-2 border-t border-stone-200/80 pt-4 text-xs sm:grid-cols-2 dark:border-white/8"
+									>
+										<p class="search-tip">
+											<strong>G26 / H430</strong><span>{t('search.help.strong')}</span>
+										</p>
+										<p class="search-tip">
+											<strong>„Gott liebt“</strong><span>{t('search.help.phrase')}</span>
 										</p>
 									</div>
-								</div>
-							{:else}
-								<h2 class="text-sm font-semibold text-stone-900 dark:text-stone-100">
-									{t('search.help.title')}
-								</h2>
-								<p class="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-									{t('search.help.subtitle')}
-								</p>
-							{/if}
+								{/if}
+							</div>
 						</div>
+					{/if}
+				</form>
 
-						<div
-							class="max-h-[calc(100dvh-var(--header-height)-1.25rem)] overflow-y-auto p-4 sm:p-5"
-						>
-							{#if selectedBook}
-								<div
-									class="chapter-picker grid grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-10"
-									data-category={bookCategory(selectedBook.book)}
-									aria-label={t('search.help.chaptersFor', { book: selectedBook.names.name })}
-								>
-									{#each Array.from({ length: selectedBook.chapters }, (_, index) => index + 1) as chapter (chapter)}
-										<a
-											class="chapter-link"
-											href={referencePath({ book: selectedBook.book, chapter })}
-											aria-label={`${selectedBook.names.name} ${chapter}`}
-											onclick={() => {
-												focused = false;
-												selectedBookId = null;
-											}}
-										>
-											{chapter}
-										</a>
-									{/each}
-								</div>
-							{:else}
-								<div class="grid gap-5 lg:grid-cols-2 lg:gap-8">
-									<section>
-										<h3 class="search-help-heading">{t('search.help.oldTestament')}</h3>
-										<div class="book-legend" aria-label="Buchgruppen">
-											{#each oldTestamentCategories as category (category.tone)}
-												<span data-category={category.tone}>{category.label}</span>
-											{/each}
-										</div>
-										<div class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
-											{#each oldTestament as book (book.book)}
-												<button
-													type="button"
-													class="book-link"
-													data-book={book.book}
-													data-category={bookCategory(book.book)}
-													aria-label={book.names.name}
-													onclick={() => selectBook(book)}
-												>
-													<strong>{book.names.short}</strong>
-													{#if book.names.name !== book.names.short}
-														<small>{book.names.name}</small>
-													{/if}
-												</button>
-											{/each}
-										</div>
-									</section>
-
-									<section>
-										<h3 class="search-help-heading">{t('search.help.newTestament')}</h3>
-										<div class="book-legend" aria-label="Buchgruppen">
-											{#each newTestamentCategories as category (category.tone)}
-												<span data-category={category.tone}>{category.label}</span>
-											{/each}
-										</div>
-										<div class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-											{#each newTestament as book (book.book)}
-												<button
-													type="button"
-													class="book-link"
-													data-book={book.book}
-													data-category={bookCategory(book.book)}
-													aria-label={book.names.name}
-													onclick={() => selectBook(book)}
-												>
-													<strong>{book.names.short}</strong>
-													{#if book.names.name !== book.names.short}
-														<small>{book.names.name}</small>
-													{/if}
-												</button>
-											{/each}
-										</div>
-									</section>
-								</div>
-
-								<div
-									data-tour-target="search-syntax"
-									class="mt-5 grid gap-2 border-t border-stone-200/80 pt-4 text-xs sm:grid-cols-2 dark:border-white/8"
-								>
-									<p class="search-tip">
-										<strong>G26 / H430</strong><span>{t('search.help.strong')}</span>
-									</p>
-									<p class="search-tip">
-										<strong>„Gott liebt“</strong><span>{t('search.help.phrase')}</span>
-									</p>
-								</div>
-							{/if}
-						</div>
-					</div>
-				{/if}
-			</form>
-
-			{#if next}
-				<a
-					href={next}
-					rel="next"
-					title={t('nav.nextChapter')}
-					aria-label={t('nav.nextChapter')}
-					class="icon-button shrink-0"
-				>
-					<svg
-						viewBox="0 0 24 24"
-						class="size-5"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.7"
-						aria-hidden="true"
+				{#if next}
+					<a
+						href={next}
+						rel="next"
+						title={t('nav.nextChapter')}
+						aria-label={t('nav.nextChapter')}
+						class="icon-button shrink-0"
 					>
-						<path d="m9.5 6.5 5.5 5.5-5.5 5.5" stroke-linecap="round" stroke-linejoin="round" />
-					</svg>
-				</a>
+						<svg
+							viewBox="0 0 24 24"
+							class="size-5"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.7"
+							aria-hidden="true"
+						>
+							<path d="m9.5 6.5 5.5 5.5-5.5 5.5" stroke-linecap="round" stroke-linejoin="round" />
+						</svg>
+					</a>
+				{/if}
 			{/if}
 		</div>
 

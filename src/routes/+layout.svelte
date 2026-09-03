@@ -4,13 +4,11 @@
 	import { formatReference, referencePath } from '$lib/bible/reference';
 	import { readerLocation } from '$lib/reader-location.svelte';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
+	import type { ReaderWorkspace } from '$lib/reader/workspace';
 
 	let { children, data } = $props();
 
-	/**
-	 * The header needs the current reference for its previous/next links and its search field, and the
-	 * reader is the only route that has one. Reading it from page data keeps the header dumb.
-	 */
+	/** Reader route signal and its persisted workspace. */
 	const reader = $derived(
 		page.data.navigation as
 			| {
@@ -19,6 +17,7 @@
 			  }
 			| undefined
 	);
+	const readerWorkspace = $derived(page.data.workspace as ReaderWorkspace | undefined);
 
 	/**
 	 * The reader keeps `readerLocation` in step with whatever chapter and verse are actually on screen
@@ -41,13 +40,20 @@
 {#if standalonePage}
 	{@render children()}
 {:else}
-	<div class="flex min-h-full flex-col" style="--reader-font-scale: {data.readerFontScale / 100}">
+	<div
+		class="flex min-h-full flex-col"
+		style="--reader-font-scale: {data.readerFontScale / 100}; --header-height: {reader
+			? '3.25rem'
+			: '4rem'}"
+	>
 		<SiteHeader
 			{query}
 			previous={reader?.previous ? referencePath(reader.previous) : null}
 			next={reader?.next ? referencePath(reader.next) : null}
 			user={data?.user ?? null}
-			readerPreferences={reader ? { fontScale: data.readerFontScale } : null}
+			readerPreferences={reader && readerWorkspace
+				? { fontScale: data.readerFontScale, layout: readerWorkspace.layout }
+				: null}
 			guestTourDone={data.tourGuestDone}
 		/>
 

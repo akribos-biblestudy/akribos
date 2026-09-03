@@ -10,7 +10,7 @@
 			href: '#bibelstellen',
 			number: '02',
 			title: 'Bibelstellen finden',
-			description: 'Suchfeld, Buchauswahl und Navigation'
+			description: 'Tab-Feld, Buchauswahl und Navigation'
 		},
 		{
 			href: '#reader',
@@ -63,10 +63,7 @@
 	];
 
 	const shortcuts = [
-		{ keys: ['←'], action: 'Vorheriges Kapitel öffnen' },
-		{ keys: ['→'], action: 'Nächstes Kapitel öffnen' },
-		{ keys: ['/'], action: 'Suchfeld leeren und fokussieren' },
-		{ keys: ['Buchstabe'], action: 'Außerhalb eines Eingabefelds sofort eine Suche beginnen' },
+		{ keys: ['Enter'], action: 'Eingabe im aktuellen Tab öffnen oder darin suchen' },
 		{ keys: ['Esc'], action: 'Strong-Seitenleiste, Menü oder Kommentar-Editor schließen' },
 		{ keys: ['Strg', 'Enter'], action: 'Kommentar speichern (auf dem Mac: ⌘ + Enter)' }
 	];
@@ -135,7 +132,9 @@
 						<span class="step-number">1</span>
 						<div>
 							<strong>Stelle eingeben</strong>
-							<p>Tippe zum Beispiel <code>Joh 3,16</code> in das Suchfeld oben und drücke Enter.</p>
+							<p>
+								Tippe zum Beispiel <code>Joh 3,16</code> in das Feld des gewünschten Tabs und drücke Enter.
+							</p>
 						</div>
 					</li>
 					<li>
@@ -144,7 +143,7 @@
 							<strong>Ressource als Tab öffnen</strong>
 							<p>
 								Klicke in einer Kachel auf <strong>+</strong>. Im Auswahlfenster kannst du eine
-								Bibel, einen Kommentar oder Parallelstellen als weiteren Tab öffnen.
+								Bibel, einen Kommentar, Parallelstellen oder ein Wörterbuch als weiteren Tab öffnen.
 							</p>
 						</div>
 					</li>
@@ -176,8 +175,10 @@
 					<p class="eyebrow">02 · Bibelstellen finden</p>
 					<h2>Eine Stelle direkt aufrufen</h2>
 					<p>
-						Das zentrale Suchfeld versteht Stellenangaben, Suchwörter und Strong-Nummern. Akribos
-						erkennt automatisch, was du meinst.
+						Das Feld eines Bibel- oder Kommentar-Tabs versteht Stellenangaben, Suchwörter und
+						Strong-Nummern. Akribos erkennt automatisch, was du meinst, und zeigt Treffer nur aus
+						diesem Werk direkt im Tab an, ohne den Reader zu verlassen. Das Feld eines
+						Wörterbuch-Tabs springt stattdessen direkt zu dessen Strong-Nummer oder Stichwort.
 					</p>
 				</div>
 
@@ -192,24 +193,16 @@
 
 				<h3>Buchauswahl öffnen</h3>
 				<p>
-					Setze den Fokus in das Suchfeld. Auf größeren Bildschirmen erscheint eine Übersicht aller
-					66 Bücher, nach Altem und Neuem Testament sowie nach Buchgruppen geordnet. Wähle zuerst
-					ein Buch und danach das gewünschte Kapitel. Erst die Kapitelwahl öffnet die Bibelstelle.
-					Auf kleinen Bildschirmen gibst du das Kürzel direkt ein.
+					Klicke im Tab auf den Pfeil rechts neben der Stelle. Der zentrierte Dialog zeigt alle 66
+					Bücher. Wähle zuerst ein Buch und danach das gewünschte Kapitel. Erst die Kapitelwahl
+					öffnet die Bibelstelle; eine Stelle mit Vers kannst du jederzeit direkt eintippen.
 				</p>
 
 				<h3>Zwischen Kapiteln wechseln</h3>
 				<ul class="feature-list">
 					<li>
-						Die Pfeile links und rechts vom Suchfeld öffnen das vorherige oder nächste Kapitel.
-					</li>
-					<li>
-						Auf der Tastatur haben die Tasten <kbd>←</kbd> und <kbd>→</kbd> dieselbe Funktion, solange
-						du nicht in einem Eingabefeld schreibst.
-					</li>
-					<li>
 						Beim Scrollen werden angrenzende Kapitel automatisch nachgeladen. Die Adresse und das
-						Suchfeld folgen der aktuell gelesenen Stelle.
+						Feld des fokussierten Tabs folgen der aktuell gelesenen Stelle.
 					</li>
 					<li>
 						Nach der Anmeldung merkt sich Akribos deine letzte Lesestelle und setzt dort beim
@@ -246,22 +239,22 @@
 					<article>
 						<span>Zwischen Tabs wechseln</span>
 						<p>
-							Klicke auf einen Tab, um ihn in seiner Kachel sichtbar zu machen. Mit
-							<strong>×</strong> schließt du ihn wieder.
+							Klicke auf einen Tab, um ihn samt seiner eigenen Lesestelle sichtbar zu machen. Mit
+							<strong>×</strong> schließt du ihn wieder; das Buchsymbol wechselt sein aktuelles Werk.
 						</p>
 					</article>
 					<article>
 						<span>Tab hinzufügen</span>
 						<p>
-							Mit <strong>+</strong> in einer Kachel ergänzt du eine Übersetzung, einen Kommentar oder
-							Parallelstellen. Dieselbe Ressource darf in mehreren Kacheln offen sein.
+							Mit <strong>+</strong> in einer Kachel ergänzt du eine Übersetzung, einen Kommentar, Parallelstellen
+							oder ein Wörterbuch. Dieselbe Ressource darf in mehreren Kacheln offen sein.
 						</p>
 					</article>
 					<article>
 						<span>Kacheln anordnen</span>
 						<p>
-							Unter <strong>Anordnung</strong> stehen acht Layouts bereit: ein bis vier Spalten, zwei
-							Zeilen, ein 2×2-Raster und zwei asymmetrische Dreier-Layouts.
+							Über das dezente Layoutsymbol im Kopf stehen acht Anordnungen bereit: ein bis vier
+							Spalten, zwei Zeilen, ein 2×2-Raster und zwei asymmetrische Dreier-Layouts.
 						</p>
 					</article>
 					<article>
@@ -276,7 +269,8 @@
 						<span>Tabs koppeln</span>
 						<p>
 							Wähle für einen Tab den Buchstaben <strong>A, B, C, D oder E</strong>. Alle gerade
-							sichtbaren Tabs mit demselben Buchstaben folgen einander; <strong>–</strong> scrollt unabhängig.
+							sichtbaren Tabs mit demselben Buchstaben folgen einander; inaktive Tabs derselben
+							Gruppe merken sich die neue Stelle für ihr nächstes Öffnen. <strong>–</strong> scrollt unabhängig.
 						</p>
 					</article>
 					<article>
@@ -284,6 +278,13 @@
 						<p>
 							Wenn du dich einem Kapitelende näherst, lädt Akribos automatisch weiter. Dasselbe gilt
 							nach oben für das vorherige Kapitel.
+						</p>
+					</article>
+					<article>
+						<span>Werk-Informationen</span>
+						<p>
+							Das <strong>i</strong>-Symbol zeigt Titel, Copyright und Nutzungshinweise des
+							aktuellen Werks, ohne dafür dauerhaft Platz unter dem Text zu belegen.
 						</p>
 					</article>
 				</div>
@@ -378,18 +379,26 @@
 
 				<h3>Strong-Nummer direkt öffnen</h3>
 				<p>
-					Gib etwa <code>G25</code> oder <code>H430</code> in das Suchfeld ein. Die vollständige
-					Strong-Seite bietet zusätzlich Filter nach biblischem Buch und deutscher Wiedergabe.
-					Verwandte Strong-Nummern in Wörterbucheinträgen sind anklickbar. Mit <kbd>Esc</kbd> schließt
-					du die seitliche Studienansicht.
+					Gib etwa <code>G25</code> oder <code>H430</code> in das Feld eines Bibel-Tabs ein. Die
+					Vorkommen aus genau dieser Übersetzung erscheinen samt Buchverteilung und
+					Übersetzungsformen im Tab. Ein Klick auf die Fundstelle öffnet sie im selben Tab; ein
+					Klick auf das markierte Wort öffnet zusätzlich die seitliche Studienansicht und einen
+					Wörterbuch-Tab im gleichen Link-Set. Ein vorhandener Wörterbuch-Tab dieser Gruppe wird
+					dafür wiederverwendet. Im Feld eines Wörterbuch-Tabs kannst du nach Strong-Nummer, Lemma
+					oder Umschrift zum nächsten Eintrag springen. Mit <kbd>Esc</kbd> schließt du die Studienansicht
+					wieder.
 				</p>
 			</section>
 
 			<section id="suchen" class="knowledge-section">
 				<div class="section-heading">
 					<p class="eyebrow">05 · Im Bibeltext suchen</p>
-					<h2>Von der einfachen Suche zur genauen Abfrage</h2>
-					<p>Alles, was keine Bibelstelle oder Strong-Nummer ist, wird als Textsuche behandelt.</p>
+					<h2>Im aktuellen Werk suchen</h2>
+					<p>
+						Alles, was keine Bibelstelle oder Strong-Nummer ist, wird im aktuellen Werk als
+						Textsuche behandelt. Die Ergebnisliste ersetzt vorübergehend nur den Inhalt dieses Tabs;
+						über × oder durch Öffnen eines Treffers kehrst du zum Lesetext zurück.
+					</p>
 				</div>
 
 				<div class="search-syntax">
@@ -415,10 +424,11 @@
 				</div>
 
 				<p>
-					Die Ergebnisse zeigen den Vers in deinen aktuell ausgewählten Bibelübersetzungen. Treffer
-					werden hervorgehoben. Das Balkendiagramm oberhalb der Liste zeigt die Verteilung nach
-					Büchern; ein Klick auf ein Buch filtert die Treffer. Über die Seitennavigation gelangst du
-					zu weiteren Ergebnissen.
+					Bei einer Bibel zeigen die Ergebnisse ausschließlich Verse dieser Übersetzung; bei einem
+					Kommentar werden dessen eigene Einträge durchsucht. Treffer im Bibeltext werden
+					hervorgehoben. Das Buchdiagramm über den Treffern schränkt die Liste auf ein Bibelbuch
+					ein; ein zweiter Klick oder „Buchfilter aufheben“ entfernt die Einschränkung. Längere
+					Trefferlisten lassen sich am unteren Rand des Tabs seitenweise durchblättern.
 				</p>
 				<div class="callout tip">
 					<strong>Keine Treffer?</strong>
@@ -691,8 +701,9 @@
 				<details>
 					<summary>Meine Tabs bewegen sich nicht gemeinsam.</summary>
 					<p>
-						Prüfe die Buchstaben neben dem Kettensymbol. Nur sichtbare Tabs mit demselben Link-Set
-						A–E folgen einander. <strong>–</strong> bedeutet, dass der Tab unabhängig scrollt.
+						Prüfe die Buchstaben neben dem Kettensymbol. Sichtbare Tabs mit demselben Link-Set A–E
+						folgen einander; inaktive Tabs übernehmen die Stelle im Hintergrund. <strong>–</strong>
+						bedeutet, dass der Tab unabhängig scrollt.
 					</p>
 				</details>
 				<details>
@@ -723,9 +734,8 @@
 				<details>
 					<summary>Woher stammen Bibeltexte und Wörterbücher?</summary>
 					<p>
-						Jede Ressource trägt ihren eigenen Rechte- und Quellenhinweis am Ende ihrer
-						Reader-Kachel beziehungsweise im Wörterbucheintrag. Akribos vermischt mehrere Lexika zu
-						derselben Strong-Nummer nicht.
+						Jede Ressource trägt ihren eigenen Rechte- und Quellenhinweis hinter dem Info-Symbol
+						ihrer Tab-Leiste. Akribos vermischt mehrere Lexika zu derselben Strong-Nummer nicht.
 					</p>
 				</details>
 

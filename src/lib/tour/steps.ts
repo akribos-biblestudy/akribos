@@ -14,18 +14,13 @@ export type TourStep = {
 	titleKey: MessageKey;
 	bodyKey: MessageKey;
 	placement: TourPlacement;
-	/**
-	 * Focuses the site search field before this step is measured, which is what opens the book/chapter
-	 * chooser underneath it (see the `onfocus` handler in `SiteHeader.svelte`). Consecutive steps that
-	 * both set this keep the chooser open between them; the next step that omits it blurs the field
-	 * again first, so the chooser does not linger over whatever it should show instead.
-	 */
+	/** Focuses the legacy global site search on non-reader pages before this step is measured. */
 	focusSearch?: boolean;
 };
 
 /**
- * Explained to every reader, signed in or not: the search field's two-step chooser and its quote/`-`
- * syntax, word study, resource tabs, A–E link sets and opening another tab.
+ * Explained to every reader, signed in or not: each tab's combined location/resource search, word
+ * study, work replacement, A–E link sets and opening another tab.
  */
 export const GUEST_TOUR_STEPS: TourStep[] = [
 	{
@@ -33,16 +28,7 @@ export const GUEST_TOUR_STEPS: TourStep[] = [
 		selector: '[data-tour-target="search-chooser"]',
 		titleKey: 'tour.searchChooser.title',
 		bodyKey: 'tour.searchChooser.body',
-		placement: 'bottom',
-		focusSearch: true
-	},
-	{
-		id: 'search-syntax',
-		selector: '[data-tour-target="search-syntax"]',
-		titleKey: 'tour.searchSyntax.title',
-		bodyKey: 'tour.searchSyntax.body',
-		placement: 'top',
-		focusSearch: true
+		placement: 'bottom'
 	},
 	{
 		id: 'word-study',

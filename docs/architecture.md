@@ -98,10 +98,30 @@ owns an open-ended tab strip and one active resource. Changing arrangements redi
 tabs without closing them. Horizontal and vertical track fractions are stored separately for every
 arrangement.
 
-Each resource tab owns an optional link set (`A`–`E`). Only active tabs with the same letter follow a
-genuine user scroll; `null` remains independent. The existing per-column suppression of programmatic
-scroll events still applies after this filter, so a delayed follower event cannot become the source.
-There remains one canonical passage URL for the reader as a whole.
+Each resource tab owns both an optional link set (`A`–`E`) and its own passage reference. Visible tabs
+with the same letter follow a genuine user scroll, and the resulting reference is persisted to every
+tab in that set, including inactive ones; `null` and other letters remain independent. The existing
+per-column suppression of programmatic scroll events still applies after this filter, so a delayed
+follower event cannot become the source. The most recently focused tile owns the one canonical reader
+URL, while activating another tab restores its already synchronized reference.
+
+Every active tab has a separate chapter stream and uses the endless-scroll API with an explicit
+resource id. Its compact toolbar combines direct reference entry with resource-scoped search. Search
+never leaves the reader: `/api/reader/search` returns Bible word hits, Strong occurrences for one Bible,
+or terms from one commentary, and `tabSearches` displays them as a temporary layer in that tab while
+keeping its chapter stream and scroll position mounted underneath. Word and Strong results include an
+unfiltered book distribution and an optional in-tab book filter; Strong results also retain the active
+Bible's occurrence and rendering statistics. Opening a hit updates only that tab's reference and returns
+to its text. The book/chapter chooser is modal and centered. Tab labels intentionally contain only the
+resource abbreviation; work metadata, rights and usage notes live behind the adjacent info button
+instead of taking permanent vertical space below the text.
+
+Lexicons are first-class reader tabs and keep a separate `lookup` locator in the workspace. Their field
+resolves an exact Strong id or a lemma/transliteration prefix inside that one resource, so any number of
+lexicons can remain independently open. Clicking a Strong-tagged Bible word keeps the quick study
+sidebar and also reuses the lexicon tab in the source tab's A–E link set, creating one in another linked
+tile (or the source tile as fallback) only when that group has none. Lexicon tabs are deliberately
+excluded from chapter streaming and scroll alignment; different lexicon resources are never merged.
 
 Signed-in workspaces are JSON in `users.reader_workspace`; guests use a compact cookie. The legacy
 `reader_columns` field remains a five-resource projection for search and older clients and seeds the
@@ -125,6 +145,6 @@ for 30 seconds and invalidated on admin writes.
 ## What is deliberately absent
 
 - **No queue service, no Redis.** Sessions, throttling and jobs are PostgreSQL rows.
-- **No client-side router state for the reader.** Chapter navigation is ordinary links; the browser and
-  the server agree on the URL.
+- **No second client-side router for the reader.** SvelteKit still owns real navigation; shallow URL
+  updates only mirror the focused tab's scrolling position between navigations.
 - **No verse-level HTML in the database.** Structure in, structure out.

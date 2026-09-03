@@ -7,6 +7,7 @@ import {
 	normalizeReaderWorkspace,
 	type ReaderWorkspace
 } from '$lib/reader/workspace';
+import type { VerseRef } from '$lib/bible/reference';
 import { resolveColumns, writeColumns } from './columns.ts';
 import type { ReadableResource } from './repositories/resources.ts';
 
@@ -27,12 +28,17 @@ type CompactWorkspace = [
 				[
 					string,
 					string,
-					Exclude<ReaderWorkspace['tiles'][number]['tabs'][number]['linkSet'], null> | 0
+					Exclude<ReaderWorkspace['tiles'][number]['tabs'][number]['linkSet'], null> | 0,
+					number,
+					number,
+					number | 0,
+					string | 0
 				]
 			>
 		]
 	>,
-	Array<[ReaderWorkspace['layout'], number[], number[]]>
+	Array<[ReaderWorkspace['layout'], number[], number[]]>,
+	string
 ];
 
 /**
@@ -43,14 +49,16 @@ export function resolveReaderWorkspace(
 	cookies: Cookies,
 	available: ReadableResource[],
 	accountWorkspace: ReaderWorkspace | null | undefined,
-	accountColumns: readonly string[] = []
+	accountColumns: readonly string[] = [],
+	fallbackReference?: VerseRef
 ): ReaderWorkspace {
 	const fallback = resolveColumns(cookies, available, accountColumns);
 	const stored = accountWorkspace ?? readReaderWorkspaceCookie(cookies);
 	return normalizeReaderWorkspace(
 		stored,
 		available.map((resource) => resource.id),
-		fallback
+		fallback,
+		fallbackReference
 	);
 }
 
@@ -101,18 +109,27 @@ function encodeWorkspace(workspace: ReaderWorkspace): string {
 		workspace.tiles.map((tile) => [
 			tile.id,
 			tile.activeTabId,
-			tile.tabs.map((tab) => [tab.id, tab.resourceId, tab.linkSet ?? 0])
+			tile.tabs.map((tab) => [
+				tab.id,
+				tab.resourceId,
+				tab.linkSet ?? 0,
+				tab.reference.book,
+				tab.reference.chapter,
+				tab.reference.verse ?? 0,
+				tab.lookup ?? 0
+			])
 		]),
 		Object.entries(workspace.layoutSizes).flatMap(([layout, size]) =>
 			size ? [[layout as ReaderWorkspace['layout'], size.columns, size.rows]] : []
-		)
+		),
+		workspace.focusedTileId
 	];
 	return Buffer.from(JSON.stringify(compact), 'utf8').toString('base64url');
 }
 
 function expandWorkspace(value: unknown): unknown {
 	if (!Array.isArray(value) || value[0] !== 1) return null;
-	const [, layout, rawTiles, rawSizes] = value;
+	const [, layout, rawTiles, rawSizes, focusedTileId] = value;
 	return {
 		version: 1,
 		layout,
@@ -128,13 +145,23 @@ function expandWorkspace(value: unknown): unknown {
 									return {
 										id: tab[0],
 										resourceId: tab[1],
-										linkSet: tab[2] === 0 ? null : tab[2]
+										linkSet: tab[2] === 0 ? null : tab[2],
+										reference:
+											typeof tab[3] === 'number' && typeof tab[4] === 'number'
+												? {
+														book: tab[3],
+														chapter: tab[4],
+														...(typeof tab[5] === 'number' && tab[5] > 0 ? { verse: tab[5] } : {})
+													}
+												: undefined,
+										lookup: typeof tab[6] === 'string' ? tab[6] : null
 									};
 								})
 							: []
 					};
 				})
 			: [],
+		focusedTileId,
 		layoutSizes: Object.fromEntries(
 			Array.isArray(rawSizes)
 				? rawSizes.flatMap((rawSize) =>

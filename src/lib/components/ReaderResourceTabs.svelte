@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { READER_LINK_SETS, type ReaderTile } from '$lib/reader/workspace';
+	import { formatReference, type VerseRef } from '$lib/bible/reference';
+	import type { ReaderTile } from '$lib/reader/workspace';
 	import type { ReadableResource } from '$lib/server/repositories/resources';
+	import Menu from './Menu.svelte';
 
 	let {
 		tile,
@@ -11,13 +13,15 @@
 		tiles,
 		resources,
 		readerUrl,
+		currentReference,
 		onOpenResource
 	}: {
 		tile: ReaderTile;
 		tileIndex: number;
 		tiles: ReaderTile[];
 		resources: ReadableResource[];
-		readerUrl: () => string;
+		readerUrl: (reference?: VerseRef) => string;
+		currentReference: VerseRef;
 		onOpenResource: (tileId: string) => void;
 	} = $props();
 
@@ -27,24 +31,44 @@
 	let moveToTile = $state<HTMLInputElement>();
 	let moveToIndex = $state<HTMLInputElement>();
 	let draggedTabId = $state<string | null>(null);
+	let moveMenu = $state<Menu>();
 
 	const byId = $derived(new Map(resources.map((resource) => [resource.id, resource])));
 	const activeTab = $derived(tile.tabs.find((tab) => tab.id === tile.activeTabId) ?? tile.tabs[0]);
 
-	const submitEnhancement: SubmitFunction = () => {
-		const url = readerUrl();
-		return async ({ result, update }) => {
-			await update({ reset: false, invalidateAll: result.type !== 'success' });
-			if (result.type === 'success') {
-				await goto(url, {
-					replaceState: true,
-					invalidateAll: true,
-					noScroll: true,
-					keepFocus: true
-				});
-			}
+	function submitEnhancement(reference?: VerseRef): SubmitFunction {
+		const url = readerUrl(reference);
+		return () => {
+			return async ({ result, update }) => {
+				moveMenu?.close();
+				await update({ reset: false, invalidateAll: result.type !== 'success' });
+				if (result.type === 'success') {
+					const path =
+						result.data &&
+						typeof result.data === 'object' &&
+						'path' in result.data &&
+						typeof result.data.path === 'string'
+							? `${result.data.path}${window.location.search}${window.location.hash}`
+							: url;
+					await goto(path, {
+						replaceState: true,
+						invalidateAll: true,
+						noScroll: true,
+						keepFocus: true
+					});
+					// A scroll may already have shallowly replaced the address bar with `path` while this
+					// action was in flight. In that case `goto()` is intentionally a no-op; force the
+					// server data refresh so the newly active tab cannot keep its pre-scroll props.
+					await invalidateAll();
+				}
+			};
 		};
-	};
+	}
+
+	function referenceAfterClose(tabId: string): VerseRef | undefined {
+		const index = tile.tabs.findIndex((tab) => tab.id === tabId);
+		return tile.tabs[index + 1]?.reference ?? tile.tabs[index - 1]?.reference;
+	}
 
 	function onTabKeydown(event: KeyboardEvent): void {
 		if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -103,7 +127,7 @@
 	class="resource-tabs"
 	data-testid="resource-tabs"
 	role="group"
-	aria-label="Tabs und Kopplung für Bereich {tileIndex + 1}"
+	aria-label="Tabs für Bereich {tileIndex + 1}"
 	ondragover={(event) => event.preventDefault()}
 	ondrop={(event) => dropTab(event, tile.tabs.length)}
 >
@@ -132,9 +156,14 @@
 						dropTab(event, tabIndex);
 					}}
 				>
-					<form method="POST" action="?/activateTab" use:enhance={submitEnhancement}>
+					<form method="POST" action="?/activateTab" use:enhance={submitEnhancement(tab.reference)}>
 						<input type="hidden" name="tileId" value={tile.id} />
 						<input type="hidden" name="tabId" value={tab.id} />
+						<input
+							type="hidden"
+							name="currentReference"
+							value={formatReference(currentReference)}
+						/>
 						<button
 							type="submit"
 							role="tab"
@@ -142,17 +171,18 @@
 							tabindex={tab.id === activeTab?.id ? 0 : -1}
 							class="tab-title"
 							title={resource.selectionTitle}
-							data-tour-target={tileIndex === 0 && tab.id === activeTab?.id
-								? 'resource-picker'
-								: undefined}
 						>
+							<span>{resource.tabTitle}</span>
 							{#if tab.linkSet}
 								<span class="tab-link-set link-{tab.linkSet.toLowerCase()}">{tab.linkSet}</span>
 							{/if}
-							<span>{resource.tabTitle}</span>
 						</button>
 					</form>
-					<form method="POST" action="?/closeTab" use:enhance={submitEnhancement}>
+					<form
+						method="POST"
+						action="?/closeTab"
+						use:enhance={submitEnhancement(referenceAfterClose(tab.id))}
+					>
 						<input type="hidden" name="tileId" value={tile.id} />
 						<input type="hidden" name="tabId" value={tab.id} />
 						<button type="submit" class="close-tab" aria-label={`${resource.tabTitle} schließen`}>
@@ -183,56 +213,33 @@
 		</svg>
 	</button>
 
-	{#if activeTab}
-		<form
-			method="POST"
-			action="?/setTabLinkSet"
-			use:enhance={submitEnhancement}
-			class="link-form"
-			data-tour-target={tileIndex === 0 ? 'column-link' : undefined}
+	{#if activeTab && tiles.length > 1}
+		<button
+			type="button"
+			class="move-tab"
+			aria-label="Tab verschieben"
+			title="Tab verschieben"
+			onclick={(event) => moveMenu?.openAt(event.currentTarget)}>•••</button
 		>
-			<input type="hidden" name="tileId" value={tile.id} />
-			<input type="hidden" name="tabId" value={activeTab.id} />
-			<label>
-				<span class="sr-only">Link-Set für aktiven Tab</span>
-				<svg viewBox="0 0 20 20" class="size-3.5" fill="currentColor" aria-hidden="true">
-					<path
-						d="M12.232 4.232a2.5 2.5 0 0 1 3.536 3.536l-1.225 1.224a.75.75 0 0 0 1.061 1.06l1.224-1.224a4 4 0 0 0-5.656-5.656l-3 3a4 4 0 0 0 .225 5.865.75.75 0 0 0 .977-1.138 2.5 2.5 0 0 1-.142-3.667l3-3ZM7.768 15.768a2.5 2.5 0 0 1-3.536-3.536l1.225-1.224a.75.75 0 0 0-1.061-1.06l-1.224 1.224a4 4 0 0 0 5.656 5.656l3-3a4 4 0 0 0-.225-5.865.75.75 0 0 0-.977 1.138 2.5 2.5 0 0 1 .142 3.667l-3 3Z"
-					/>
-				</svg>
-				<select
-					name="linkSet"
-					value={activeTab.linkSet ?? ''}
-					aria-label="Link-Set für {byId.get(activeTab.resourceId)?.tabTitle ?? 'aktiven Tab'}"
-					onchange={(event) => event.currentTarget.form?.requestSubmit()}
-				>
-					<option value="">–</option>
-					{#each READER_LINK_SETS as linkSet (linkSet)}
-						<option value={linkSet}>{linkSet}</option>
-					{/each}
-				</select>
-			</label>
-		</form>
-
-		{#if tiles.length > 1}
-			<details class="tab-menu">
-				<summary aria-label="Tab verschieben" title="Tab verschieben">•••</summary>
-				<div>
-					<p>Verschieben nach</p>
-					{#each tiles as target, targetIndex (target.id)}
-						{#if target.id !== tile.id}
-							<form method="POST" action="?/moveTab" use:enhance={submitEnhancement}>
-								<input type="hidden" name="fromTileId" value={tile.id} />
-								<input type="hidden" name="tabId" value={activeTab.id} />
-								<input type="hidden" name="toTileId" value={target.id} />
-								<input type="hidden" name="toIndex" value={target.tabs.length} />
-								<button type="submit">Bereich {targetIndex + 1}</button>
-							</form>
-						{/if}
-					{/each}
-				</div>
-			</details>
-		{/if}
+		<Menu bind:this={moveMenu} label="Tab verschieben">
+			<p class="move-label">Verschieben nach</p>
+			{#each tiles as target, targetIndex (target.id)}
+				{#if target.id !== tile.id}
+					<form
+						method="POST"
+						action="?/moveTab"
+						use:enhance={submitEnhancement(activeTab.reference)}
+						role="none"
+					>
+						<input type="hidden" name="fromTileId" value={tile.id} />
+						<input type="hidden" name="tabId" value={activeTab.id} />
+						<input type="hidden" name="toTileId" value={target.id} />
+						<input type="hidden" name="toIndex" value={target.tabs.length} />
+						<button type="submit" role="menuitem">Bereich {targetIndex + 1}</button>
+					</form>
+				{/if}
+			{/each}
+		</Menu>
 	{/if}
 </header>
 
@@ -240,7 +247,7 @@
 	bind:this={moveForm}
 	method="POST"
 	action="?/moveTab"
-	use:enhance={submitEnhancement}
+	use:enhance={submitEnhancement()}
 	class="hidden"
 >
 	<input bind:this={moveFromTile} type="hidden" name="fromTileId" />
@@ -257,6 +264,7 @@
 		flex: none;
 		align-items: stretch;
 		gap: 0.15rem;
+		overflow: hidden;
 		border-bottom: 1px solid var(--line);
 		background: color-mix(in oklab, var(--surface) 94%, var(--color-stone-100));
 	}
@@ -266,25 +274,27 @@
 		min-width: 0;
 		flex: 1;
 		overflow-x: auto;
-		scrollbar-width: thin;
+		scrollbar-width: none;
+		-ms-overflow-style: none;
+	}
+	.tab-strip::-webkit-scrollbar {
+		display: none;
 	}
 
 	.resource-tab {
 		position: relative;
 		display: flex;
-		min-width: 6rem;
-		max-width: 12rem;
-		flex: 0 1 10rem;
+		min-width: 5.25rem;
+		max-width: 10rem;
+		flex: 0 1 8rem;
 		align-items: center;
 		border-right: 1px solid var(--line);
 		color: var(--color-stone-500);
 	}
-
 	.resource-tab.active {
 		background: var(--surface);
 		color: var(--color-stone-900);
 	}
-
 	.resource-tab.active::after {
 		position: absolute;
 		right: 0.4rem;
@@ -295,11 +305,9 @@
 		background: var(--color-accent-500);
 		content: '';
 	}
-
 	.resource-tab.dragging {
 		opacity: 0.35;
 	}
-
 	.resource-tab form:first-child {
 		min-width: 0;
 		flex: 1;
@@ -310,13 +318,12 @@
 		width: 100%;
 		min-width: 0;
 		align-items: center;
-		gap: 0.35rem;
-		padding: 0.68rem 0.25rem 0.62rem 0.65rem;
+		gap: 0.38rem;
+		padding: 0.68rem 0.2rem 0.62rem 0.65rem;
 		font-size: 0.75rem;
 		font-weight: 650;
 	}
-
-	.tab-title > span:last-child {
+	.tab-title > span:first-child {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -329,15 +336,31 @@
 		flex: none;
 		align-items: center;
 		justify-content: center;
-		border-radius: 0.25rem;
-		background: var(--color-accent-100);
+		border-radius: 0.22rem;
+		background: var(--link-color);
 		font-size: 0.6rem;
 		font-weight: 800;
-		color: var(--color-accent-800);
+		color: white;
+	}
+	.tab-link-set.link-a {
+		--link-color: #f97316;
+	}
+	.tab-link-set.link-b {
+		--link-color: #2563eb;
+	}
+	.tab-link-set.link-c {
+		--link-color: #16a34a;
+	}
+	.tab-link-set.link-d {
+		--link-color: #9333ea;
+	}
+	.tab-link-set.link-e {
+		--link-color: #e11d48;
 	}
 
 	.close-tab,
-	.add-tab {
+	.add-tab,
+	.move-tab {
 		display: inline-flex;
 		width: 1.75rem;
 		height: 100%;
@@ -346,99 +369,30 @@
 		justify-content: center;
 		color: var(--color-stone-400);
 	}
-
 	.close-tab:hover,
-	.add-tab:hover {
+	.add-tab:hover,
+	.move-tab:hover {
 		background: var(--color-stone-100);
 		color: var(--color-accent-700);
 	}
-
-	.link-form {
-		display: flex;
-		align-items: center;
-		padding: 0.25rem;
-		border-left: 1px solid var(--line);
+	.move-tab {
+		font-size: 0.68rem;
+		letter-spacing: 0.05em;
 	}
-
-	.link-form label {
-		display: flex;
-		align-items: center;
-		gap: 0.15rem;
-		color: var(--color-stone-400);
-	}
-
-	.link-form select {
-		min-width: 2.2rem;
-		border: 0;
-		background: transparent;
-		padding: 0.2rem 0;
-		font-size: 0.72rem;
-		font-weight: 800;
-		color: var(--color-accent-700);
-	}
-
-	.tab-menu {
-		position: relative;
-		display: flex;
-		align-items: center;
-	}
-
-	.tab-menu summary {
-		display: inline-flex;
-		width: 1.8rem;
-		height: 100%;
-		cursor: pointer;
-		list-style: none;
-		align-items: center;
-		justify-content: center;
-		font-size: 0.7rem;
-		color: var(--color-stone-400);
-	}
-
-	.tab-menu summary::-webkit-details-marker {
-		display: none;
-	}
-
-	.tab-menu > div {
-		position: absolute;
-		top: calc(100% + 0.25rem);
-		right: 0;
-		z-index: 30;
-		width: 9rem;
-		padding: 0.45rem;
-		border: 1px solid var(--line);
-		border-radius: 0.5rem;
-		background: var(--surface-raised);
-		box-shadow: var(--shadow-soft);
-	}
-
-	.tab-menu p {
-		padding: 0.2rem 0.35rem;
+	.move-label {
+		padding: 0.3rem 0.6rem;
 		font-size: 0.65rem;
 		font-weight: 700;
 		color: var(--color-stone-400);
 		text-transform: uppercase;
 	}
 
-	.tab-menu button {
-		width: 100%;
-		border-radius: 0.35rem;
-		padding: 0.35rem;
-		text-align: left;
-		font-size: 0.75rem;
-	}
-
-	.tab-menu button:hover {
-		background: var(--color-stone-100);
-	}
-
 	:global(.dark) .resource-tab.active {
 		color: var(--color-stone-50);
 	}
-
 	:global(.dark) .close-tab:hover,
 	:global(.dark) .add-tab:hover,
-	:global(.dark) .tab-menu button:hover {
+	:global(.dark) .move-tab:hover {
 		background: var(--color-stone-800);
 	}
 
@@ -447,10 +401,9 @@
 			height: 3rem;
 			background: var(--surface);
 		}
-
 		.close-tab,
 		.add-tab,
-		.tab-menu summary {
+		.move-tab {
 			min-width: 2.5rem;
 		}
 	}
