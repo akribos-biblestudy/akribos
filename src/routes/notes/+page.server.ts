@@ -18,7 +18,7 @@ import { getDb } from '$lib/server/db';
 import {
 	InvalidTagPathError,
 	listDocumentsByTag,
-	listDocumentTagTree,
+	listDocumentTagTreeWithCounts,
 	normalizeTagPath
 } from '$lib/server/repositories/document-tags';
 import {
@@ -36,7 +36,6 @@ function cleanQuery(value: string | null): string {
 }
 
 function defaultTitle(kind: DocumentKind): string {
-	if (kind === 'article') return 'Neuer Artikel';
 	if (kind === 'sermon') return 'Neue Predigt';
 	return 'Neue Notiz';
 }
@@ -77,7 +76,10 @@ export async function load({ locals, url, setHeaders }) {
 	const filterErrors: Array<'kind' | 'tag' | 'passage' | 'resource'> = [];
 	if (rawKind && !kind) filterErrors.push('kind');
 
-	const [tagTree, bibles] = await Promise.all([listDocumentTagTree(db, user.id), listBibles(db)]);
+	const [tagTree, bibles] = await Promise.all([
+		listDocumentTagTreeWithCounts(db, user.id, deleted ? 'only' : 'exclude'),
+		listBibles(db)
+	]);
 	const validBibleIds = new Set(bibles.map((bible) => bible.id));
 	let resourceId: string | null | undefined;
 	if (rawResourceId === 'canonical') resourceId = null;
@@ -111,6 +113,8 @@ export async function load({ locals, url, setHeaders }) {
 			deleted: deleted ? 'only' : 'exclude'
 		});
 	}
+	// Notes and legacy article working copies form one product area. Sermons have their own board.
+	documents = documents.filter((document) => document.kind !== 'sermon');
 
 	if (passageText) {
 		const passage = parsePassage(passageText);

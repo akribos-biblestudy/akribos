@@ -17,7 +17,7 @@ export async function load({ params, setHeaders }) {
 		getPublishedArticleBySlug(db, params.slug),
 		listBibles(db)
 	]);
-	if (!publication) error(404, 'Dieser Artikel ist nicht veröffentlicht.');
+	if (!publication) error(404, 'Diese Notiz ist nicht veröffentlicht.');
 	if (publication.visibility === 'unlisted') {
 		setHeaders({ 'x-robots-tag': 'noindex, nofollow' });
 	}

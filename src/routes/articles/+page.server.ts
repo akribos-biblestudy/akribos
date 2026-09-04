@@ -3,7 +3,7 @@ import { listPublishedArticleSummaries } from '$lib/server/repositories/document
 
 const PAGE_SIZE = 24;
 
-/** Public article library. Mutable document working copies are never queried from this route. */
+/** Public note library. Mutable document working copies are never queried from this route. */
 export async function load({ setHeaders, url }) {
 	// The root layout carries cookie-based guest reader preferences, so even anonymous HTML must not
 	// enter a shared cache. Cookie-free feed and sitemap endpoints remain publicly cacheable.
@@ -18,7 +18,7 @@ export async function load({ setHeaders, url }) {
 	const hasNext = publications.length > PAGE_SIZE;
 
 	return {
-		title: 'Artikel',
+		title: 'Veröffentlichte Notizen',
 		page,
 		hasNext,
 		articles: publications.slice(0, PAGE_SIZE).map((publication) => ({

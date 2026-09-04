@@ -1,6 +1,6 @@
 /** Per-owner hierarchical tags for the unified document library. */
 
-import { and, desc, eq, ilike, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import {
 	MAX_DOCUMENT_TAGS,
 	isValidTagPath,
@@ -197,6 +197,49 @@ export async function listDocumentTagTree(db: Database, userId: string): Promise
 		.from(documentTags)
 		.where(eq(documentTags.userId, userId))
 		.orderBy(documentTags.normalizedPath);
+}
+
+/** The note-library tree plus inclusive descendant counts (one document is counted once per node). */
+export async function listDocumentTagTreeWithCounts(
+	db: Database,
+	userId: string,
+	deleted: 'exclude' | 'only' = 'exclude'
+): Promise<Array<DocumentTag & { documentCount: number }>> {
+	const tree = await listDocumentTagTree(db, userId);
+	const deletion =
+		deleted === 'only' ? isNotNull(documents.deletedAt) : isNull(documents.deletedAt);
+	const assignments = await db
+		.selectDistinct({
+			documentId: documents.id,
+			normalizedPath: documentTags.normalizedPath
+		})
+		.from(documentTagLinks)
+		.innerJoin(
+			documentTags,
+			and(eq(documentTags.id, documentTagLinks.tagId), eq(documentTags.userId, userId))
+		)
+		.innerJoin(
+			documents,
+			and(
+				eq(documents.id, documentTagLinks.documentId),
+				eq(documents.userId, userId),
+				ne(documents.kind, 'sermon'),
+				deletion
+			)
+		);
+
+	return tree.map((tag) => ({
+		...tag,
+		documentCount: new Set(
+			assignments
+				.filter(
+					(item) =>
+						item.normalizedPath === tag.normalizedPath ||
+						item.normalizedPath.startsWith(`${tag.normalizedPath}/`)
+				)
+				.map((item) => item.documentId)
+		).size
+	}));
 }
 
 export type TagDocumentFilters = {

@@ -5,7 +5,7 @@ import { listPublishedArticles } from '$lib/server/repositories/document-publica
 const FEED_LIMIT = 50;
 const EMPTY_FEED_UPDATED = new Date(0).toISOString();
 
-/** Atom feed of public publication snapshots. Unlisted articles never enter discovery surfaces. */
+/** Atom feed of public note snapshots. Unlisted notes never enter discovery surfaces. */
 export async function GET({ setHeaders }) {
 	const origin = config().ORIGIN.replace(/\/$/, '');
 	const feedUrl = `${origin}/articles/feed.xml`;
@@ -43,7 +43,7 @@ export async function GET({ setHeaders }) {
 
 	return new Response(`<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xml:lang="de">
-	<title>Akribos – Artikel</title>
+	<title>Akribos – Veröffentlichte Notizen</title>
 	<id>${escapeXml(articlesUrl)}</id>
 	<link href="${escapeXml(articlesUrl)}" />
 	<link href="${escapeXml(feedUrl)}" rel="self" type="application/atom+xml" />

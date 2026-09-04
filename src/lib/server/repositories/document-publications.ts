@@ -1,4 +1,4 @@
-/** Explicit, admin-only publication snapshots for article documents. */
+/** Explicit, admin-only publication snapshots for note working copies. */
 
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
@@ -110,7 +110,9 @@ export async function publishArticle(
 				.limit(1)
 				.for('update');
 			if (!document) return { ok: false, reason: 'notFound' };
-			if (document.kind !== 'article') return { ok: false, reason: 'notArticle' };
+			// `article` remains a supported legacy/API kind. In the product both it and an ordinary note
+			// are publishable working copies; sermon-specific workflow documents remain private.
+			if (document.kind === 'sermon') return { ok: false, reason: 'notArticle' };
 			if (input.expectedRevision !== undefined && document.revision !== input.expectedRevision) {
 				return { ok: false, reason: 'conflict', currentRevision: document.revision };
 			}

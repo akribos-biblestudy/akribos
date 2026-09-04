@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { allBookNames } from '$lib/bible/book-names';
 	import { bookById } from '$lib/bible/books';
 	import { parseReference, referencePath } from '$lib/bible/reference';
@@ -14,7 +15,7 @@
 	import ThemeToggle from './ThemeToggle.svelte';
 	import type { ReaderLayout } from '$lib/reader/workspace';
 	import { startTour } from '$lib/tour/tour-state.svelte';
-	import { tourStepsFor, GUEST_TOUR_STEPS, MEMBER_TOUR_STEPS } from '$lib/tour/steps';
+	import { tourStepsForRoute, GUEST_TOUR_STEPS, MEMBER_TOUR_STEPS } from '$lib/tour/steps';
 
 	/**
 	 * Outside the reader, one global input accepts a reference, word or Strong's number. Reader pages
@@ -43,21 +44,25 @@
 	} = $props();
 
 	/**
-	 * The tour only has something to point at in the reader, so it mounts and auto-starts only there
-	 * (`readerPreferences` is the same "are we on the reader" signal `ReaderViewMenu` uses). A signed-in
-	 * reader who never finished it sees the full sequence, unless this device already finished the
-	 * signed-out part — then only the signed-in-only steps are new. `tourCompletedAt` is the durable,
-	 * cross-device record; the cookie only ever shortens what a *first* sign-in shows.
+	 * The first-run tour still auto-starts only in the Reader. Signed-in users can additionally restart
+	 * route-specific tours from the document library, editor, import and sermon screens. A reader who
+	 * never finished the first run sees the full sequence unless this device already completed the
+	 * signed-out part; then only the member steps are new. `tourCompletedAt` is the durable cross-device
+	 * record, while the guest cookie only shortens what a first sign-in shows.
 	 */
 	const autoStartTourSteps = $derived.by(() => {
 		if (user)
-			return user.tourCompletedAt ? [] : guestTourDone ? MEMBER_TOUR_STEPS : tourStepsFor(true);
+			return user.tourCompletedAt
+				? []
+				: guestTourDone
+					? MEMBER_TOUR_STEPS
+					: tourStepsForRoute(page.url.pathname, true, true);
 		return guestTourDone ? [] : GUEST_TOUR_STEPS;
 	});
 
 	function restartTour(): void {
 		userMenu?.close();
-		startTour(tourStepsFor(!!user), !!user);
+		startTour(tourStepsForRoute(page.url.pathname, !!user, !!readerPreferences), !!user);
 	}
 
 	/**
@@ -431,10 +436,10 @@
 		<nav class="flex shrink-0 items-center gap-0.5 sm:gap-1">
 			{#if readerPreferences}
 				<ReaderViewMenu fontScale={readerPreferences.fontScale} />
-				<ProductTour signedIn={!!user} autoStart={autoStartTourSteps} />
 			{:else}
 				<ThemeToggle />
 			{/if}
+			<ProductTour signedIn={!!user} autoStart={readerPreferences ? autoStartTourSteps : []} />
 
 			<button
 				type="button"
@@ -467,9 +472,8 @@
 
 			<Menu bind:this={userMenu} label={t('nav.userMenu')}>
 				{#if user}
-					<a href="/notes" role="menuitem" data-sveltekit-preload-data="hover">{t('nav.notes')}</a>
-					<a href="/sermons" role="menuitem" data-sveltekit-preload-data="hover"
-						>{t('nav.sermons')}</a
+					<a href="/notes" role="menuitem" data-sveltekit-preload-data="hover"
+						>{t('nav.documents')}</a
 					>
 					<a href="/account" role="menuitem" data-sveltekit-preload-data="hover"
 						>{t('nav.account')}</a
@@ -480,10 +484,10 @@
 					{/if}
 					<hr />
 				{/if}
-				<a href="/articles" role="menuitem" data-sveltekit-preload-data="hover"
-					>{t('nav.articles')}</a
-				>
-				{#if readerPreferences}
+				{#if !user}<a href="/articles" role="menuitem" data-sveltekit-preload-data="hover"
+						>{t('nav.articles')}</a
+					>{/if}
+				{#if tourStepsForRoute(page.url.pathname, !!user, !!readerPreferences).length > 0}
 					<button type="button" role="menuitem" onclick={restartTour}>{t('nav.tour')}</button>
 				{/if}
 				<a href="/help" role="menuitem">{t('nav.help')}</a>

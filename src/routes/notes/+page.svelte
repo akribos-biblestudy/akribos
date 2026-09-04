@@ -1,10 +1,12 @@
 <script lang="ts">
 	import Icon from '$lib/components/Icon.svelte';
+	import DocumentAreaNav from '$lib/components/documents/DocumentAreaNav.svelte';
 	import { t, type MessageKey } from '$lib/i18n';
 	import type { DocumentKind } from '$lib/notes/documents';
-	import { SvelteURLSearchParams } from 'svelte/reactivity';
+	import { SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity';
 
 	let { data, form } = $props();
+	const collapsedTags = new SvelteSet<string>();
 
 	const dateFormat = new Intl.DateTimeFormat('de-DE', {
 		dateStyle: 'medium',
@@ -12,11 +14,11 @@
 	});
 
 	function kindLabel(kind: DocumentKind): string {
+		if (kind === 'article') return t('documents.kind.note');
 		return t(`documents.kind.${kind}` as MessageKey);
 	}
 
 	function kindIcon(kind: DocumentKind): 'file-text' | 'book-open' | 'message' {
-		if (kind === 'article') return 'book-open';
 		if (kind === 'sermon') return 'message';
 		return 'file-text';
 	}
@@ -49,12 +51,29 @@
 		const query = params.toString();
 		return query ? `/notes?${query}` : '/notes';
 	}
+
+	function hasTagChildren(id: string): boolean {
+		return data.tagTree.some((tag) => tag.parentId === id);
+	}
+
+	function tagIsVisible(path: string): boolean {
+		const segments = path.split('/');
+		for (let length = 1; length < segments.length; length += 1) {
+			if (collapsedTags.has(segments.slice(0, length).join('/'))) return false;
+		}
+		return true;
+	}
+
+	function toggleTag(path: string): void {
+		if (collapsedTags.has(path)) collapsedTags.delete(path);
+		else collapsedTags.add(path);
+	}
 </script>
 
 <svelte:head>
 	<meta
 		name="description"
-		content="Private Notizen, Artikelentwürfe und Predigtvorbereitung mit Bibelstellen."
+		content="Private und veröffentlichbare Notizen mit Bibelstellen und Schlagwörtern."
 	/>
 </svelte:head>
 
@@ -74,21 +93,23 @@
 
 		<div class="flex flex-wrap gap-2">
 			<a
+				href="/articles"
+				class="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-[color:var(--surface-raised)] px-3 py-2 text-sm font-semibold shadow-sm hover:border-accent-400 dark:border-white/12"
+			>
+				<Icon name="globe" class="size-4" />
+				Veröffentlichte Notizen
+			</a>
+			<a
 				href="/notes/import"
 				class="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-[color:var(--surface-raised)] px-3 py-2 text-sm font-semibold shadow-sm hover:border-accent-400 dark:border-white/12"
 			>
 				<Icon name="upload" class="size-4" />
 				{t('action.import')}
 			</a>
-			<a
-				href="/sermons"
-				class="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-[color:var(--surface-raised)] px-3 py-2 text-sm font-semibold shadow-sm hover:border-accent-400 dark:border-white/12"
-			>
-				<Icon name="message" class="size-4" />
-				{t('nav.sermons')}
-			</a>
 		</div>
 	</header>
+
+	<DocumentAreaNav active="notes" />
 
 	{#if form?.error}
 		<p
@@ -105,26 +126,25 @@
 		>
 			<section>
 				<h2 class="text-sm font-semibold">{t('documents.library.new')}</h2>
-				<div class="mt-2 grid gap-2">
-					{#each ['note', 'article', 'sermon'] as kind (kind)}
-						<form method="POST" action="?/create">
-							<input type="hidden" name="kind" value={kind} />
-							<button
-								type="submit"
-								class="dark:hover:bg-accent-950/25 flex w-full items-center gap-2.5 rounded-xl border border-stone-200 bg-stone-50/70 px-3 py-2.5 text-left text-sm font-semibold transition-colors hover:border-accent-300 hover:bg-accent-50/60 dark:border-white/8 dark:bg-white/3"
-							>
-								<Icon name={kindIcon(kind as DocumentKind)} class="size-4.5 text-accent-600" />
-								{t(`documents.create.${kind}` as MessageKey)}
-							</button>
-						</form>
-					{/each}
-				</div>
+				<form method="POST" action="?/create" class="mt-2">
+					<input type="hidden" name="kind" value="note" />
+					<button
+						type="submit"
+						class="dark:hover:bg-accent-950/25 flex w-full items-center gap-2.5 rounded-xl border border-stone-200 bg-stone-50/70 px-3 py-2.5 text-left text-sm font-semibold transition-colors hover:border-accent-300 hover:bg-accent-50/60 dark:border-white/8 dark:bg-white/3"
+					>
+						<Icon name="file-text" class="size-4.5 text-accent-600" />
+						{t('documents.create.note')}
+					</button>
+				</form>
 			</section>
 
-			<section class="border-t border-stone-200 pt-4 dark:border-white/8">
+			<section
+				class="border-t border-stone-200 pt-4 dark:border-white/8"
+				data-tour-target="documents-tags"
+			>
 				<h2 class="text-sm font-semibold">{t('documents.tags.title')}</h2>
 				<nav
-					class="mt-2 max-h-64 space-y-0.5 overflow-y-auto"
+					class="tag-tree mt-2 space-y-0.5 overflow-y-auto"
 					aria-label={t('documents.tags.title')}
 				>
 					<a href={filterUrl({ tag: null })} class:active={!data.filters.tag} class="tag-filter">
@@ -132,15 +152,36 @@
 						{t('documents.library.all')}
 					</a>
 					{#each data.tagTree as tag (tag.id)}
-						<a
-							href={filterUrl({ tag: tag.path })}
-							class:active={data.filters.tag === tag.path}
-							class="tag-filter"
-							style="padding-left: {0.55 + Math.min(5, tag.path.split('/').length - 1) * 0.75}rem"
-						>
-							<span aria-hidden="true" class="text-stone-300 dark:text-stone-600">└</span>
-							<span class="truncate">{tag.name}</span>
-						</a>
+						{#if tagIsVisible(tag.path)}
+							<div
+								class="tag-row"
+								style="padding-left: {Math.min(7, tag.path.split('/').length - 1) * 0.75}rem"
+							>
+								{#if hasTagChildren(tag.id)}
+									<button
+										type="button"
+										class="tag-toggle"
+										aria-label={collapsedTags.has(tag.path)
+											? t('documents.tags.expand')
+											: t('documents.tags.collapse')}
+										aria-expanded={!collapsedTags.has(tag.path)}
+										onclick={() => toggleTag(tag.path)}
+									>
+										<Icon name="chevron-down" class="size-3.5" />
+									</button>
+								{:else}
+									<span class="tag-spacer" aria-hidden="true"></span>
+								{/if}
+								<a
+									href={filterUrl({ tag: tag.path })}
+									class:active={data.filters.tag === tag.path}
+									class="tag-filter min-w-0 flex-1"
+								>
+									<span class="truncate">{tag.name}</span>
+									<span class="tag-count">({tag.documentCount})</span>
+								</a>
+							</div>
+						{/if}
 					{/each}
 				</nav>
 			</section>
@@ -160,11 +201,12 @@
 		<section class="min-w-0">
 			<form
 				method="GET"
+				data-tour-target="documents-search"
 				class="rounded-2xl border border-stone-200/80 bg-[color:var(--surface)] p-4 shadow-[var(--shadow-soft)] dark:border-white/8"
 				aria-label={t('action.search')}
 			>
 				<div
-					class="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(12rem,1.4fr)_10rem_minmax(11rem,1fr)_12rem_auto]"
+					class="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(14rem,1.5fr)_minmax(11rem,1fr)_12rem_auto]"
 				>
 					<label class="relative block sm:col-span-2 xl:col-span-1">
 						<span class="sr-only">{t('documents.library.search')}</span>
@@ -177,18 +219,8 @@
 							name="q"
 							value={data.filters.q}
 							placeholder={t('documents.library.search')}
-							class="filter-control pl-9"
+							class="filter-control search-control"
 						/>
-					</label>
-
-					<label>
-						<span class="sr-only">{t('documents.library.kind')}</span>
-						<select name="kind" class="filter-control" value={data.filters.kind ?? ''}>
-							<option value="">{t('documents.library.all')}</option>
-							<option value="note">{t('documents.kind.note')}</option>
-							<option value="article">{t('documents.kind.article')}</option>
-							<option value="sermon">{t('documents.kind.sermon')}</option>
-						</select>
 					</label>
 
 					<label>
@@ -342,6 +374,30 @@
 		border-color: var(--color-accent-500);
 		box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent-500) 12%, transparent);
 	}
+	.search-control {
+		padding-left: 2.25rem;
+	}
+	.tag-tree {
+		max-height: min(34rem, calc(100dvh - 18rem));
+		min-height: min(18rem, 40dvh);
+	}
+	.tag-row {
+		display: flex;
+		align-items: center;
+	}
+	.tag-toggle,
+	.tag-spacer {
+		display: inline-flex;
+		width: 1.65rem;
+		height: 2rem;
+		flex: 0 0 1.65rem;
+		align-items: center;
+		justify-content: center;
+		color: var(--color-stone-400);
+	}
+	.tag-toggle[aria-expanded='false'] :global(svg) {
+		transform: rotate(-90deg);
+	}
 	.tag-filter {
 		display: flex;
 		min-height: 2rem;
@@ -356,6 +412,11 @@
 	.tag-filter.active {
 		background: var(--color-stone-100);
 		color: var(--color-accent-800);
+	}
+	.tag-count {
+		flex: 0 0 auto;
+		color: var(--color-stone-400);
+		font-variant-numeric: tabular-nums;
 	}
 	:global(.dark) .filter-control {
 		border-color: var(--color-stone-700);
