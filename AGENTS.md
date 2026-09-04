@@ -2,8 +2,8 @@
 
 Diese Datei ist die dauerhafte Orientierung für Änderungen in diesem Repository. Sie muss bei jeder
 Architekturänderung und bei neuen, nicht offensichtlichen Invarianten im selben Change aktualisiert
-werden. Ausführlichere Hintergrundtexte liegen in `docs/architecture.md`, `docs/importing.md` und
-`docs/operations.md`.
+werden. Ausführlichere Hintergrundtexte liegen in `docs/architecture.md`, `docs/importing.md`,
+`docs/operations.md` und `docs/unified-notes.md`.
 
 ## Projekt und Befehle
 
@@ -266,6 +266,103 @@ Der Editor basiert auf Tiptap/ProseMirror; seine erlaubten Formatierungen müsse
 über `linkBibleReferences()` mit internen Bibelstellen-Links angereichert, damit ausschließlich das
 serverseitig bereinigte Original gespeichert wird. Kommentaranzeige und -editor übernehmen dieselbe
 `--reader-font-scale`-Skalierung wie der Bibeltext.
+
+## Einheitliche Dokumente, Artikel und Predigten
+
+Notizen, Artikelentwürfe und Predigten sind drei Arten derselben privaten Arbeitskopie in `documents`.
+Jeder Zugriff auf Arbeitskopie, Tags und Stellenanker wird serverseitig mit `user_id` eingegrenzt; eine
+erratene UUID ist niemals eine Berechtigung, und auch Administratoren dürfen fremde Entwürfe nicht lesen
+oder veröffentlichen. `body_markdown` ist die portable Quelle. `body_html` und `plain_text` werden daraus
+gemeinsam über `prepareDocumentBody()` abgeleitet und dürfen nicht einzeln fortgeschrieben werden. Das
+interne Autosave-`PATCH /api/documents/[id]` verlangt die aktuelle positive `revision`; jede Mutation
+(auch Tags und Stellen) erhöht sie, und veraltete Schreibversuche antworten mit `409 conflict`. Die
+Revision ist nur optimistisches Locking, keine abrufbare Versionshistorie.
+
+`document_passages` speichert inklusive, kanonisch sortierte Bereiche, die Kapitel- und Buchgrenzen
+überschreiten dürfen. `resource_id IS NULL` bedeutet einen translationsunabhängigen kanonischen Anker;
+eine gesetzte ID bindet die Beobachtung an genau diese öffentliche, fertige Bibel. Reader und Bibliothek
+suchen per Intervallüberschneidung (`start <= queryEnd AND end >= queryStart`), nicht nur nach gleichen
+Endpunkten. Beim Löschen einer Bibel verschiebt `deleteResource()` im selben Transaktionsblock sowohl
+`verse_comments` als auch alle translationsspezifischen Dokumentanker auf die Pflicht-Ersatzbibel und
+erhöht die betroffenen Dokumentrevisionen genau einmal. Das Ziel muss selbst eine öffentliche, fertige
+Bibel sein; bereits dort vorhandene identische Anker werden zusammengeführt. Kanonische Anker und
+bereits veröffentlichte Stellen-Momentaufnahmen bleiben unverändert. Kollidieren Quell- und
+Zielkommentar derselben Person und Stelle, werden vor dem Zusammenführen der alten Kompatibilitätszeilen
+beide Originale als getrennte Provenienz-Dokumente materialisiert. So verliert auch eine noch nicht
+gelaufene Legacy-Nachmigration keinen der beiden Texte.
+
+Tags sind pro Nutzer getrennte Hierarchien in `document_tags`; `/` trennt Pfadsegmente. Der
+zusammengesetzte Eltern-Fremdschlüssel erzwingt denselben Eigentümer, `document_tag_links` enthält nur die
+explizit gewählten Blatt-Tags, und ein Filter auf einen Pfad schließt seine Nachfahren ein.
+
+Besucherseiten lesen ausschließlich `document_publications`, nie die veränderliche Arbeitskopie. Ein
+explizites Veröffentlichen sperrt die Arbeitskopie und ersetzt atomar die vollständige aktuelle
+Momentaufnahme (Titel, Exzerpt, bereinigtes HTML/Markdown, Autorname, Tags und Stellen); weitere
+Autosaves werden erst durch erneutes Veröffentlichen sichtbar. Nur ein Admin darf einen **eigenen**
+Artikel mit nicht leerem Anzeigenamen
+veröffentlichen; eine E-Mail-Adresse ist nie Autor-Fallback. `public` erscheint unter `/articles`, im
+Atom-Feed und in der Sitemap. `unlisted` fehlt dort, ist aber unter dem Slug ohne Anmeldung abrufbar und
+deshalb keine Zugriffskontrolle oder geheime Freigabe. Artikel-HTML bleibt trotz öffentlichem Snapshot
+`private, no-store`, weil das globale Layout auch für Gäste Cookie-Präferenzen enthält. Cookie-freie
+Discovery-Endpunkte wie Feed und Sitemap sind öffentlich, verlangen derzeit aber mit
+`max-age=0, must-revalidate` vor jeder Wiederverwendung eine Revalidierung, damit Publish/Unpublish
+sofort sichtbar wird. Sobald eine Session aufgelöst wurde, erzwingt `hooks.server.ts` abschließend für
+jede Antwort `private, no-store`. Dasselbe gilt ausdrücklich für private HTML-, JSON- und
+Download-Antworten.
+
+Migration `drizzle/0025_neat_warpath.sql` legt die fünf Dokumenttabellen an und enthält danach den
+absichtlich handgeschriebenen Daten-Backfill: Jede bestehende Zeile aus `verse_comments` wird zu genau
+einem privaten Dokument mit einem translationsspezifischen Einzelvers-Anker. Das bereits bereinigte
+`comment_html` und die Quellzeile bleiben erhalten; `legacy_verse_comment_id` ist die eindeutige
+Provenienz und macht Migration sowie `pnpm db:backfill-notes` wiederholbar. Letzterer Befehl erfasst
+Legacy-Kommentare, die nach Migration 0025 entstanden oder aus einem Backup wiederhergestellt wurden.
+Der alte Reader darf `verse_comments` weiter bearbeiten, und `GET /api/v1/notes` behält exakt seine
+vorherige `{ notes: [...] }`-Antwort inklusive Verslisten-Threads; diese kollaborativen Threads werden
+nicht in private Dokumente kopiert. Nach dem einmaligen Kopieren sind Legacy-Kommentar und Dokument
+bewusst zwei unabhängige Arbeitskopien; spätere Änderungen werden nicht in beide Richtungen gespiegelt.
+
+`GET /api/v1/documents` und `GET /api/v1/documents/[id]` sind bewusst nur lesend, benötigen eine Session
+oder einen API-Key mit `personal`-Scope und geben ausschließlich eigene Arbeitskopien mit
+`private, no-store` zurück. Schreibzugriffe bleiben vorerst bei der internen, sessiongebundenen
+Autosave-Route und SvelteKit Form Actions.
+
+Bibelstellen im Dokument-Fließtext werden ausschließlich bei der Darstellung automatisch verlinkt:
+`findBibleReferences()`/`linkBibleReferences()` akzeptieren die gemeinsamen Buchnamen und Schreibweisen,
+überspringen vorhandene Links sowie Code und erzeugen interne `.verse-ref`-Links. Im Tiptap-Editor sind
+dieselben Treffer nicht persistierte ProseMirror-Dekorationen; sie dürfen `body_markdown` und damit einen
+Markdown-Roundtrip nicht verändern. Einzelverse und Bereiche innerhalb eines Kapitels zeigen über
+`verseHoverPopover` bei Maus-Hover und Tastaturfokus echten Bibeltext; dafür werden die bestehenden
+öffentlichen Resource-/Kapitel-APIs und ihr kapitelweiser Client-Cache wiederverwendet. Im eigenständigen
+Dokumenteditor und auf öffentlichen Artikelseiten stammt der Text aus der ersten sortierten öffentlichen,
+fertigen Bibel. Der Reader-Sidecar verwendet bewusst die erste gerade sichtbare Bibelressource, damit
+die Vorschau mit dem unmittelbar daneben gelesenen Text übereinstimmt. Escape schließt die zugängliche
+Vorschau. Reine Kapitelangaben sowie kapitel- oder buchübergreifende Bereiche bleiben navigierbare Links,
+öffnen aber bewusst kein potenziell großes Mehrkapitel-Popup.
+
+Der kompakte Reader-Editor ist kein neunter Workspace-Tab: Der Schalter „Notizbereich“ im
+`ReaderLayoutPicker` blendet ihn am Desktop als eigene rechte Sidecar-Spalte neben der unveränderten
+Kachelanordnung ein. Mobil sind „Lesen“ und „Notiz“ zwei tastaturbedienbare Ansichten, damit der
+Bibeltext nicht zusammengedrückt wird. Der Schalter speichert ausschließlich das lokale Sichtbarkeitsbit
+`reader-notes-sidecar-open`; eine private Dokument-ID gelangt weder in Reader-URL/History noch in
+`localStorage`. Beim Öffnen wird der aktuelle Vers der zuletzt aktiven Bibelspalte als Kontext verwendet;
+Versindikatoren können ein passendes Dokument direkt in denselben `compact`-Modus von
+`DocumentEditor.svelte` laden. Laden und Autosave verwenden unverändert das eigentümergeprüfte interne
+`GET`/`PATCH /api/documents/[id]`. Wechsel, Ausblenden und Schließen warten auf `flush()`; ein
+Speicherfehler oder Revisionskonflikt lässt den Editor sichtbar. `ReaderNotesPanel` bleibt der eine
+kontextuelle Dialog aus dem Versmenü und übergibt neu angelegte oder ausgewählte Dokumente an das
+Sidecar, wenn JavaScript aktiv ist; der normale Form-Redirect bleibt der funktionsfähige No-JS-Pfad.
+
+Der Obsidian-Austausch unter `/notes/import` akzeptiert genau eine pfadfreie UTF-8-`.md`-Datei mit
+höchstens 1 MiB Markdown-Inhalt plus 64 KiB YAML-Frontmatter. Vorschau ist schreibfrei; Bestätigen parst
+und validiert den angezeigten Originaltext erneut,
+statt versteckten Preview-Feldern zu vertrauen, und erzeugt immer ein privates Dokument. Rohes HTML,
+unsichere Links/YAML-Felder, Embeds, Bilder und Anhänge werden abgewiesen oder mit sichtbarer Warnung
+entfernt. Pro Dokument gelten höchstens 100 Stellenanker und 50 ausgewählte Tags; Komma und Backslash
+sind in Tagsegmenten nicht zulässig. Exporte enthalten deterministisches YAML plus Markdown, aber keine
+E-Mail, Eigentümer-ID oder Veröffentlichungsberechtigung. Vault-/ZIP-Stapelimport, Anhänge und
+automatisches Zusammenführen sind nicht implementiert. Predigten bleiben normale Dokumente mit den Zuständen `idea`, `research`,
+`outline`, `ready`, `delivered` sowie optionalem Datum und Reihe; `/sermons` ist nur ihre fokussierte
+Workflow-Ansicht.
 
 ### Zusammenarbeit an Verslisten (issue #129)
 

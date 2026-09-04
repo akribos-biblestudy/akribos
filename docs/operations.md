@@ -29,6 +29,80 @@ from its newer revision-2 working copy. It also inserts a legacy `verse_comments
 same unique-provenance backfill as `pnpm db:backfill-notes`; rerunning either command cannot create a
 second migrated document.
 
+No transactional-mail configuration is needed for notes, Markdown interchange, articles or sermons.
+When `BREVO_API_KEY` is absent, the existing authentication mail fallback logs messages as before; the
+two seeded accounts are already verified.
+
+## Unified-document migration and recovery
+
+The feature has one generated schema migration: `drizzle/0025_neat_warpath.sql` (and its matching
+`drizzle/meta/0025_snapshot.json`). It creates `documents`, `document_passages`, `document_tags`,
+`document_tag_links` and `document_publications`. The migration then contains a reviewed hand-written
+data section, following the repository's existing backfill convention. It copies every extant
+`verse_comments` row into one private `note`, preserves the already sanitised `comment_html`, attaches
+one translation-specific single-verse passage, and leaves the source row untouched. A unique
+`legacy_verse_comment_id` provenance key plus conflict-safe inserts make the data step idempotent.
+
+For a normal deploy, the container entrypoint applies this automatically. To exercise the same path
+against an existing checkout/database explicitly:
+
+```sh
+pnpm db:migrate
+pnpm db:backfill-notes
+```
+
+The second command is safe to run repeatedly. It is principally for legacy comments created after
+migration 0025 (the compatibility editor remains available), comments restored from an unusual partial
+backup, and operational verification. It scans bounded batches and creates only rows without an
+existing provenance match. For fidelity it accepts the exact existing Bible row even if that old
+resource is currently hidden or not ready; it fails only when the resource is missing or is not a Bible.
+Restore/import the original Bible or transfer it through the resource administration, then retry.
+Once copied, the legacy comment and unified document are independent: the compatibility editor does not
+dual-write later changes, so run the backfill for missing rows rather than expecting it to overwrite an
+existing document.
+
+Useful post-migration checks are:
+
+```sql
+select count(*) from verse_comments;
+select count(*) from documents where source = 'legacy-verse-comment';
+select legacy_verse_comment_id, count(*)
+from documents
+where legacy_verse_comment_id is not null
+group by legacy_verse_comment_id
+having count(*) > 1;
+```
+
+The first two counts need not be equal: later compatibility comments can exist before the next backfill,
+and a resource-transfer collision deliberately consolidates two compatibility rows only after preserving
+both original texts as two provenance documents. On a database with no such prior collisions they match
+immediately after a clean backfill. The duplicate query must always return no rows. Publication
+snapshots are separate rows: restoring or editing a working copy never changes what visitors see until
+an admin explicitly republishes it.
+
+Take the usual logical backup before deployment. Application rollback does **not** require a schema
+rollback: migration 0025 is additive, the old `verse_comments` table and `GET /api/v1/notes` contract
+remain intact, and an older binary simply cannot see unified-only documents. One operational caveat is
+resource deletion: the new `document_passages` foreign key intentionally prevents an old binary from
+deleting an anchored Bible because it cannot perform the new transfer. Treat that refusal as safe; use
+the new release to transfer/delete the resource, or perform a reviewed manual transfer before retrying
+on the old binary. Do not drop the new tables
+after users have written documents; that would destroy data that has no legacy representation. If a
+database backup predates 0025, restore it through the normal restore flow so pending migrations run,
+then run `pnpm db:backfill-notes` once. A restore already containing 0025 can also use the command to
+reconcile any later legacy rows. Database backups must include both working copies and
+`document_publications`, because a publication is an independent snapshot, not a view that can be
+recreated from the current draft.
+
+To capture the ten review screenshots from a running local server, use:
+
+```sh
+AKRIBOS_PREVIEW_URL=http://localhost:5173 pnpm screenshots:notes
+```
+
+The command signs in only with the documented demo accounts and writes actual browser screenshots to
+`docs/screenshots/unified-notes/`; it does not generate mockups.
+
 ## Deploying
 
 `compose.yaml` is the whole stack: the app and PostgreSQL 17. The application image is built on

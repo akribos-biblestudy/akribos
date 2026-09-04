@@ -1,4 +1,64 @@
-# Importing resources
+# Importing resources and documents
+
+Bible/reference-work imports and personal Markdown imports are deliberately separate trust and storage
+boundaries. The resource pipeline below is administrative and can replace a public work. The document
+pipeline at `/notes/import` is owner-scoped, creates only private working copies, and never calls the
+resource ingesters.
+
+## Obsidian and Markdown documents
+
+The document importer accepts exactly one safe, path-free `.md` filename containing valid UTF-8. The
+Markdown body is limited to 1 MiB and YAML frontmatter to 64 KiB (plus only the delimiters/BOM as total
+request headroom). Uploading performs a side-effect-free preview. The explicit confirmation sends the
+original text back, and the server reparses and revalidates that text; parsed values supplied in hidden
+fields are never trusted. A successful import records `source = obsidian` and the basename, but always
+sets the new working copy to `private` under the signed-in owner. Creation of the document, its tags and
+its passages is one transaction: an invalid or conflicting child rolls the whole import back.
+
+Supported frontmatter fields are:
+
+```yaml
+---
+title: Schöpfung und Ruhe
+type: note # note, article, or sermon; `kind` is also accepted
+tags:
+  - Studium/Schöpfung
+passages:
+  - reference: 1Mo 1,31-2,3
+  - reference: Joh 3,16-18
+    resource: SEEDDE # omit for a canonical anchor
+sermon: # only used when type is sermon
+  status: research # idea, research, outline, ready, delivered
+  date: 2026-09-06
+  series: Genesis
+---
+```
+
+`references` is accepted as an alias for `passages`; flat `status`, `date`, `series` and
+`sermon_*` fields are accepted for sermon metadata. Exported `created` and `updated` timestamps are
+informational and are not restored. A passage resource must name a public, ready Bible visible to the
+application. Unknown metadata and any attempted owner, role, id, visibility or publication authority
+are ignored with a warning rather than trusted.
+
+An imported document may have at most 100 passage anchors and 50 selected tags. A tag path may be at
+most eight levels deep; commas and backslashes are rejected inside segments because the interactive
+editor uses those characters as separators/escapes. These bounds apply again on confirmation, not only
+in the browser preview.
+
+The safe round-trip subset is paragraphs, headings through level three, emphasis, strong and strike
+text, lists, block quotes, inline and fenced code, horizontal rules, explicit line breaks and safe
+HTTP(S), mail or relative links. Raw HTML and unsupported tags/attributes are reduced to inert content;
+scripts and other active elements disappear. Obsidian wikilinks become ordinary links or readable
+labels. Images, embeds and attachment links are removed, and binary/NUL input, invalid/unsafe YAML,
+path traversal and invalid UTF-8 fail the preview. The UI reports every lossy conversion it detects.
+
+`GET /notes/[id]/export.md` is owner-only and returns deterministic UTF-8 Markdown with YAML
+frontmatter for the portable fields above plus informational timestamps. It never exports account
+email, owner/document ids or publication authority. There is no whole-vault/ZIP or batch import,
+attachment copying, transclusion/backlink reconstruction, merge/conflict resolution, or automatic
+round-trip retention for formatting outside the supported subset.
+
+## Public resources
 
 Two ways in, one code path behind them: the admin UI at `/admin/import`, and
 

@@ -12,7 +12,7 @@ src/lib/server/     database, repositories, importers, auth, mail
 src/lib/components/ Svelte components
 src/routes/         pages and endpoints
 scripts/            CLI: migrate, seed, import, prepare the e2e database
-drizzle/            generated migrations plus three hand-written ones
+drizzle/            generated migrations plus narrowly documented hand-written data steps
 data/               source files for the bundled translations and dictionaries
 ```
 
@@ -88,6 +88,77 @@ and verse, their HTML is combined with a source label instead of choosing one.
 Imports run in the background because a full translation takes half a minute. The runner is in-process
 and serial — imports happen a few times a year, and a queue service would be more moving parts than the
 problem deserves. A job interrupted by a restart is marked failed at boot, not resumed.
+
+## Unified writing workspace
+
+Notes, article drafts and sermons share one owner-scoped model. `documents` is the mutable working copy;
+`document_passages` gives it ordered Bible ranges, `document_tags` and `document_tag_links` give each
+owner a hierarchy, and `document_publications` holds the current visitor-facing article snapshot.
+Repositories repeat the owner id in every private lookup and mutation, including both sides of tag
+links. Being an administrator does not grant read access to another account's working copies.
+
+Markdown is the portable body and the write boundary. The application layer normalises it, renders an
+allow-listed `body_html`, and derives markup-free `plain_text` for search; repository updates carry the
+three fields together. The rich editor writes through the internal session-only
+`PATCH /api/documents/[id]`. It must send the current positive `revision`; all body, metadata, tag and
+passage mutations increment that value and concurrent stale saves receive `409`. The value is an
+optimistic lock, not document history.
+
+Document passages use `src/lib/bible/passage.ts`, separately from the reader's same-chapter `VerseRef`.
+They are inclusive and may cross chapter or book boundaries. Each endpoint is stored both as readable
+book/chapter/verse columns and as `book * 1_000_000 + chapter * 1_000 + verse`, so overlap is an indexed
+pair of integer comparisons. A null resource means the anchor is canonical across Bible translations;
+a resource id means the note concerns that exact translation. Deleting a Bible transfers these
+translation-specific anchors and legacy verse comments to the required replacement in one transaction,
+increments each affected document revision once, deduplicates identical target anchors, and leaves
+canonical anchors and publication JSON alone. The replacement must be another public, ready Bible.
+
+Tag paths use `/` as an ancestor separator. Uniqueness and normalisation are per owner; the composite
+parent foreign key prevents a hierarchy from crossing accounts. A document explicitly links only to
+the selected leaf, while filtering an ancestor includes every descendant path.
+
+Publication is a copy, never a visibility shortcut into `documents`. It locks the parent working copy
+before changing visibility or children, so visibility and the replacement snapshot commit atomically.
+The publication repository checks that the caller is an admin, owns an active article and has a real display name; an email address is not
+an author fallback. Publishing copies title, excerpt, safe body, author label, tags, passages,
+visibility and source revision into the single current snapshot. Autosaving the draft therefore cannot
+change an already published page; an explicit republish replaces it, while unpublish or soft deletion
+removes it. Public routes query only snapshot rows. `public` snapshots enter the article index, Atom
+feed and sitemap; `unlisted` snapshots are omitted from discovery but remain anonymously readable by
+slug, so unlisted is not an authorisation mechanism.
+
+The private library and editor live at `/notes`; `/sermons` is a status-oriented view over sermon
+documents, not separate storage. `/articles` and `/articles/[slug]` render snapshots. The reader receives
+only compact owner-scoped anchor summaries, not document bodies, and marks inclusive overlaps in active
+Bible tabs. Its single notes panel opens matching documents or creates a canonical or
+translation-specific note while preserving the reader return URL.
+
+The layout menu can additionally reveal a compact notes sidecar. On desktop this is a dedicated right
+grid column outside the persisted Bible-resource tile layout; on phones it becomes a separate
+Reading/Note view rather than narrowing the text. Only the visibility preference is device-local. The
+active private document id remains component state and is never copied into the Reader URL, browser
+history or local storage. Opening the sidecar derives context from the current verse in the active Bible
+column, while a verse indicator can open an exact matching document. It reuses the same owner-scoped
+internal GET/PATCH endpoint and `DocumentEditor` serial autosave as the full page. Closing, hiding or
+switching back to reading first flushes pending content and refuses the transition on an error or
+revision conflict.
+
+References quoted in prose are a presentation concern, not stored document markup. The shared matcher
+accepts the same German/English aliases and punctuation variants as Reader URLs. Static safe HTML is
+wrapped with internal `.verse-ref` anchors; Tiptap receives equivalent ProseMirror decorations, which do
+not appear in `editor.getHTML()` or exported Markdown. Existing authored links, inline code and code
+blocks are not rewritten. Hover and keyboard focus reuse the public-ready Bible resource/chapter APIs;
+the action caches one fetch per chapter and inserts returned verse text only with `textContent`. The
+standalone editor and public article choose the first sorted public-ready Bible, while the Reader
+sidecar deliberately uses the first currently visible Bible so its preview agrees with the adjacent
+text. Whole-chapter and cross-chapter links navigate but intentionally do not request an oversized
+tooltip.
+
+The public v1 API adds read-only `GET /api/v1/documents` and `GET /api/v1/documents/[id]` for a session
+or `personal` API-key scope. It intentionally has no write endpoint. The older `GET /api/v1/notes`
+continues to read legacy translation comments and verse-list thread comments in exactly its existing
+shape; those collaborative threads are not unified documents. See
+[unified-notes.md](unified-notes.md) for migration and interchange details.
 
 ## Reader workspace
 
@@ -168,9 +239,19 @@ infrastructure while providing no capability the current stack lacks.
 
 ## Caching
 
-Public pages send `s-maxage` so a CDN can hold them; pages for a signed-in reader send `private,
-no-store`, because they contain that person's verse lists. The list of resources is cached in-process
-for 30 seconds and invalidated on admin writes.
+Cookie-free public endpoints such as the article feed and sitemap are public but currently send
+`max-age=0, must-revalidate`; every reuse is revalidated so publish and unpublish cannot leave a stale
+discovery entry. Article index/detail HTML renders only publication snapshots, but still inherits the global
+layout's cookie-based guest reader preferences; those HTML responses therefore deliberately send
+`private, no-store`. Only public rows appear on discovery endpoints. Private document HTML, the
+internal autosave endpoint, exports, and both personal v1 document endpoints also send
+`private, no-store`.
+
+The root layout contains session identity and preferences. After resolving a request,
+`hooks.server.ts` therefore overrides **every** response for a signed-in user to `private, no-store`,
+even when a child public route supplied a shared-cache header. This final safeguard must remain central:
+otherwise a newly cacheable child page could leak personalised root-layout data. The list of resources
+is cached in-process for 30 seconds and invalidated on admin writes.
 
 ## What is deliberately absent
 
