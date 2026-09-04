@@ -35,13 +35,18 @@ two seeded accounts are already verified.
 
 ## Unified-document migration and recovery
 
-The feature has one generated schema migration: `drizzle/0025_neat_warpath.sql` (and its matching
-`drizzle/meta/0025_snapshot.json`). It creates `documents`, `document_passages`, `document_tags`,
-`document_tag_links` and `document_publications`. The migration then contains a reviewed hand-written
-data section, following the repository's existing backfill convention. It copies every extant
-`verse_comments` row into one private `note`, preserves the already sanitised `comment_html`, attaches
-one translation-specific single-verse passage, and leaves the source row untouched. A unique
-`legacy_verse_comment_id` provenance key plus conflict-safe inserts make the data step idempotent.
+The feature has two generated schema migrations and their matching snapshots:
+
+- `drizzle/0025_neat_warpath.sql` creates `documents`, `document_passages`, `document_tags`,
+  `document_tag_links` and `document_publications`. It then contains a reviewed hand-written data
+  section, following the repository's existing backfill convention. This copies every extant
+  `verse_comments` row into one private `note`, preserves the already sanitised `comment_html`,
+  attaches one translation-specific single-verse passage, and leaves the source row untouched. A
+  unique `legacy_verse_comment_id` provenance key plus conflict-safe inserts make the data step
+  idempotent.
+- `drizzle/0026_abnormal_captain_america.sql` creates owner-private `sermon_templates` and
+  `sermon_deliveries`, together with the composite document/owner key used by delivery history. It has
+  no data backfill and does not alter existing sermon working copies.
 
 For a normal deploy, the container entrypoint applies this automatically. To exercise the same path
 against an existing checkout/database explicitly:
@@ -81,7 +86,7 @@ snapshots are separate rows: restoring or editing a working copy never changes w
 an admin explicitly republishes it.
 
 Take the usual logical backup before deployment. Application rollback does **not** require a schema
-rollback: migration 0025 is additive, the old `verse_comments` table and `GET /api/v1/notes` contract
+rollback: migrations 0025 and 0026 are additive, the old `verse_comments` table and `GET /api/v1/notes` contract
 remain intact, and an older binary simply cannot see unified-only documents. One operational caveat is
 resource deletion: the new `document_passages` foreign key intentionally prevents an old binary from
 deleting an anchored Bible because it cannot perform the new transfer. Treat that refusal as safe; use
