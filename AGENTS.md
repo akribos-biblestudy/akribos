@@ -355,7 +355,9 @@ Sidecar, wenn JavaScript aktiv ist; der normale Form-Redirect bleibt der funktio
 Der Obsidian-Austausch unter `/notes/import` akzeptiert genau eine pfadfreie UTF-8-`.md`-Datei mit
 höchstens 1 MiB Markdown-Inhalt plus 64 KiB YAML-Frontmatter. Vorschau ist schreibfrei; Bestätigen parst
 und validiert den angezeigten Originaltext erneut,
-statt versteckten Preview-Feldern zu vertrauen, und erzeugt immer ein privates Dokument. Rohes HTML,
+statt versteckten Preview-Feldern zu vertrauen, und erzeugt immer ein privates Dokument. YAML-Aliase
+sind vollständig deaktiviert, damit auch innerhalb der Größenlimits keine Alias-Expansion stattfinden
+kann. Rohes HTML,
 unsichere Links/YAML-Felder, Embeds, Bilder und Anhänge werden abgewiesen oder mit sichtbarer Warnung
 entfernt. Pro Dokument gelten höchstens 100 Stellenanker und 50 ausgewählte Tags; Komma und Backslash
 sind in Tagsegmenten nicht zulässig. Exporte enthalten deterministisches YAML plus Markdown, aber keine

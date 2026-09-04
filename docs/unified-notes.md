@@ -82,7 +82,8 @@ lists, block quotes, inline/fenced code, horizontal rules and safe links. Underl
 formatting are intentionally lossy when switching to Markdown.
 
 Import accepts one UTF-8 `.md` file with at most 1 MiB of Markdown and 64 KiB of YAML frontmatter and
-always presents a side-effect-free preview before creation. The importer uses YAML's core schema with bounded aliases, accepts only the documented
+always presents a side-effect-free preview before creation. The importer uses YAML's core schema with
+aliases disabled, accepts only the documented
 metadata, and never trusts incoming owner ids, document ids, roles, visibility or publication fields.
 Imported documents are always private. Obsidian wikilinks become ordinary readable links/text. Embeds,
 attachments, images, binary/NUL input, path-traversal filenames and unsafe raw HTML are rejected or
