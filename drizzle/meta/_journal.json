@@ -183,6 +183,13 @@
       "when": 1788526004069,
       "tag": "0025_neat_warpath",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788544247065,
+      "tag": "0026_abnormal_captain_america",
+      "breakpoints": true
     }
   ]
 }

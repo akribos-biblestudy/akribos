@@ -9,6 +9,7 @@ import { isDocumentVisibility } from '$lib/notes/documents';
 import {
 	isUuid,
 	normalizeExcerpt,
+	parseCalendarDate,
 	parseRequiredRevision,
 	requireDocumentUser,
 	safeReturnTo,
@@ -36,6 +37,11 @@ import {
 	type DocumentRevisionResult
 } from '$lib/server/repositories/documents';
 import { listBibles } from '$lib/server/repositories/resources';
+import {
+	addSermonDelivery,
+	listSermonDeliveries,
+	removeSermonDelivery
+} from '$lib/server/repositories/sermon-deliveries';
 
 function requireDocumentId(value: string): string {
 	if (!isUuid(value)) error(404, 'Dokument nicht gefunden');
@@ -84,12 +90,13 @@ export async function load({ params, locals, url, setHeaders }) {
 	setPrivateNoStore(setHeaders);
 	const { user, documentId, document } = await ownedEditor(locals, params.id, url);
 	const db = getDb();
-	const [passageRows, tags, tagTree, bibles, publication] = await Promise.all([
+	const [passageRows, tags, tagTree, bibles, publication, sermonDeliveries] = await Promise.all([
 		listDocumentPassages(db, user.id, documentId),
 		listDocumentTags(db, user.id, documentId),
 		listDocumentTagTree(db, user.id),
 		listBibles(db),
-		getOwnedDocumentPublication(db, user.id, documentId)
+		getOwnedDocumentPublication(db, user.id, documentId),
+		document.kind === 'sermon' ? listSermonDeliveries(db, user.id, documentId) : []
 	]);
 
 	return {
@@ -102,6 +109,7 @@ export async function load({ params, locals, url, setHeaders }) {
 		tagTree,
 		bibles,
 		publication: publication ?? null,
+		sermonDeliveries,
 		isAdmin: user.role === 'admin',
 		returnTo: safeReturnTo(url.searchParams.get('returnTo'))
 	};
@@ -198,6 +206,38 @@ export const actions = {
 		return { saved: true, revision: result.revision, passageId };
 	},
 
+	addDelivery: async ({ request, params, locals, url }) => {
+		const { user, documentId, document } = await ownedEditor(locals, params.id, url);
+		if (document.kind !== 'sermon') return fail(400, { error: 'notSermon' as const });
+		const form = await request.formData();
+		const revision = parseRequiredRevision(form.get('revision'));
+		const date = parseCalendarDate(form.get('date'));
+		const location = String(form.get('location') ?? '').trim();
+		if (revision === null || !date.ok || !date.value || !location) {
+			return fail(400, { error: 'delivery' as const });
+		}
+		const result = await addSermonDelivery(getDb(), user.id, documentId, revision, {
+			date: date.value,
+			location
+		});
+		if (!result.ok) return revisionFailure(result);
+		return { saved: true, revision: result.revision, delivery: result.delivery };
+	},
+
+	removeDelivery: async ({ request, params, locals, url }) => {
+		const { user, documentId, document } = await ownedEditor(locals, params.id, url);
+		if (document.kind !== 'sermon') return fail(400, { error: 'notSermon' as const });
+		const form = await request.formData();
+		const revision = parseRequiredRevision(form.get('revision'));
+		const deliveryId = form.get('deliveryId');
+		if (revision === null || !isUuid(deliveryId)) {
+			return fail(400, { error: 'delivery' as const });
+		}
+		const result = await removeSermonDelivery(getDb(), user.id, documentId, deliveryId, revision);
+		if (!result.ok) return revisionFailure(result);
+		return { saved: true, revision: result.revision, deliveryId };
+	},
+
 	publish: async ({ request, params, locals, url }) => {
 		const {
 			user,
@@ -205,7 +245,7 @@ export const actions = {
 			document: initialDocument
 		} = await ownedEditor(locals, params.id, url);
 		if (user.role !== 'admin') return fail(403, { error: 'forbidden' as const });
-		if (initialDocument.kind !== 'article') {
+		if (initialDocument.kind === 'sermon') {
 			return fail(400, { error: 'notArticle' as const });
 		}
 

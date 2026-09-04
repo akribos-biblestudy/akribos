@@ -7,8 +7,10 @@ import {
 } from '$lib/notes/documents';
 import {
 	documentEditorUrl,
+	isUuid,
 	MAX_DOCUMENT_QUERY_LENGTH,
 	parseCalendarDate,
+	parseRequiredRevision,
 	prepareDocumentBody,
 	requireDocumentUser,
 	setPrivateNoStore
@@ -18,9 +20,11 @@ import { listDocumentTagTree } from '$lib/server/repositories/document-tags';
 import {
 	createDocumentWithPassages,
 	InvalidDocumentInputError,
-	listDocuments
+	listDocuments,
+	updateDocument
 } from '$lib/server/repositories/documents';
 import { listBibles } from '$lib/server/repositories/resources';
+import { getSermonTemplate, listSermonTemplates } from '$lib/server/repositories/sermon-templates';
 
 export async function load({ locals, url, setHeaders }) {
 	setPrivateNoStore(setHeaders);
@@ -29,9 +33,10 @@ export async function load({ locals, url, setHeaders }) {
 	const q = (url.searchParams.get('q') ?? '').trim().slice(0, MAX_DOCUMENT_QUERY_LENGTH);
 	const rawStatus = url.searchParams.get('status');
 	const status = rawStatus && isSermonWorkflowState(rawStatus) ? rawStatus : undefined;
-	const [allSermons, tagTree] = await Promise.all([
+	const [allSermons, tagTree, templates] = await Promise.all([
 		listDocuments(db, user.id, { kind: 'sermon', query: q || undefined }),
-		listDocumentTagTree(db, user.id)
+		listDocumentTagTree(db, user.id),
+		listSermonTemplates(db, user.id)
 	]);
 	const sermons = status
 		? allSermons.filter((sermon) => sermon.sermonStatus === status)
@@ -45,9 +50,11 @@ export async function load({ locals, url, setHeaders }) {
 			plainText: sermon.plainText,
 			sermonStatus: sermon.sermonStatus,
 			sermonDate: sermon.sermonDate,
-			sermonSeries: sermon.sermonSeries
+			sermonSeries: sermon.sermonSeries,
+			revision: sermon.revision
 		})),
 		tagTree,
+		templates,
 		statuses: SERMON_WORKFLOW_STATES,
 		filters: { q, status: status ?? null },
 		filterError: rawStatus && !status ? ('status' as const) : null
@@ -82,6 +89,16 @@ export const actions = {
 			return fail(400, { error: 'invalidResource' as const, resourceId });
 		}
 
+		const templateId = String(form.get('template') ?? 'default');
+		let starter = GERMAN_SERMON_STARTER_TEMPLATE;
+		if (templateId === 'empty') starter = '';
+		else if (templateId !== 'default') {
+			if (!isUuid(templateId)) return fail(400, { error: 'sermonTemplate' as const });
+			const template = await getSermonTemplate(db, user.id, templateId);
+			if (!template) return fail(404, { error: 'sermonTemplate' as const });
+			starter = template.bodyMarkdown;
+		}
+
 		try {
 			const created = await createDocumentWithPassages(
 				db,
@@ -94,7 +111,7 @@ export const actions = {
 					sermonStatus: rawStatus,
 					sermonDate: date.value,
 					sermonSeries: series,
-					...prepareDocumentBody(GERMAN_SERMON_STARTER_TEMPLATE)
+					...prepareDocumentBody(starter)
 				},
 				endpoints ? [{ ...endpoints, resourceId, position: 0 }] : []
 			);
@@ -117,5 +134,24 @@ export const actions = {
 			}
 			throw caught;
 		}
+	},
+
+	move: async ({ request, locals, url }) => {
+		const user = requireDocumentUser(locals.user, url);
+		const form = await request.formData();
+		const id = form.get('id');
+		const revision = parseRequiredRevision(form.get('revision'));
+		const status = form.get('status');
+		if (!isUuid(id) || revision === null || !isSermonWorkflowState(status)) {
+			return fail(400, { error: 'sermonStatus' as const });
+		}
+		const result = await updateDocument(getDb(), user.id, id, revision, { sermonStatus: status });
+		if (!result.ok) {
+			return fail(result.reason === 'conflict' ? 409 : 404, {
+				error: result.reason,
+				...(result.reason === 'conflict' ? { currentRevision: result.currentRevision } : {})
+			});
+		}
+		return { moved: true, id, status, revision: result.document.revision };
 	}
 };

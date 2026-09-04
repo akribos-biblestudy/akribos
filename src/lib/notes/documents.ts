@@ -19,6 +19,10 @@ export const DOCUMENT_SOURCES = ['native', 'obsidian', 'legacy-verse-comment'] a
 export type DocumentSource = (typeof DOCUMENT_SOURCES)[number];
 
 export const MAX_DOCUMENT_TITLE_LENGTH = 200;
+export const MAX_SERMON_TEMPLATE_NAME_LENGTH = 120;
+export const MAX_SERMON_DELIVERY_LOCATION_LENGTH = 200;
+/** Keeps portable sermon metadata and one confirmation transaction predictably bounded. */
+export const MAX_SERMON_DELIVERIES = 100;
 export const MAX_TAG_SEGMENT_LENGTH = 80;
 export const MAX_DOCUMENT_MARKDOWN_BYTES = 1024 * 1024;
 export const MAX_OBSIDIAN_FRONTMATTER_BYTES = 64 * 1024;

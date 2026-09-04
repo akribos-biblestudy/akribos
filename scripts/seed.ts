@@ -31,6 +31,8 @@ import {
 	documentTags,
 	documents,
 	resources,
+	sermonDeliveries,
+	sermonTemplates,
 	users,
 	verseComments
 } from '../src/lib/server/db/schema.ts';
@@ -40,6 +42,8 @@ import {
 	SEED_LEGACY_VERSE_COMMENT_ID,
 	SEED_PASSAGE_IDS,
 	SEED_READER,
+	SEED_SERMON_DELIVERY_IDS,
+	SEED_SERMON_TEMPLATE_ID,
 	SEED_TAG_IDS
 } from './seed-fixtures.ts';
 
@@ -403,6 +407,53 @@ Diese Änderung existiert nur in der Arbeitskopie, bis ein Admin erneut veröffe
 		.values(passages)
 		.onConflictDoNothing({ target: documentPassages.id });
 
+	await db
+		.insert(sermonTemplates)
+		.values({
+			id: SEED_SERMON_TEMPLATE_ID,
+			userId: readerUserId,
+			name: 'Auslegungspredigt kompakt',
+			bodyMarkdown: `## Textbeobachtung
+
+## Eine Hauptaussage
+
+## Gliederung
+
+1. Was steht da?
+2. Was bedeutet das?
+3. Was folgt daraus?
+
+## Anwendung
+`,
+			createdAt: SEED_CREATED_AT,
+			updatedAt: SEED_CREATED_AT
+		})
+		.onConflictDoNothing({ target: sermonTemplates.id });
+
+	await db
+		.insert(sermonDeliveries)
+		.values([
+			{
+				id: SEED_SERMON_DELIVERY_IDS[0],
+				documentId: SEED_DOCUMENT_IDS.sermon,
+				userId: readerUserId,
+				date: new Date('2025-03-16T00:00:00.000Z'),
+				location: 'Evangelische Gemeinde Musterstadt',
+				createdAt: SEED_CREATED_AT,
+				updatedAt: SEED_CREATED_AT
+			},
+			{
+				id: SEED_SERMON_DELIVERY_IDS[1],
+				documentId: SEED_DOCUMENT_IDS.sermon,
+				userId: readerUserId,
+				date: new Date('2025-04-06T00:00:00.000Z'),
+				location: 'Hauskreis Nord',
+				createdAt: SEED_CREATED_AT,
+				updatedAt: SEED_CREATED_AT
+			}
+		])
+		.onConflictDoNothing({ target: sermonDeliveries.id });
+
 	const rootTagId = await ensureSeedTag(db, {
 		id: SEED_TAG_IDS.root,
 		userId: readerUserId,
@@ -532,7 +583,7 @@ try {
 	const backfill = await backfillLegacyVerseComments(db);
 
 	console.log(
-		'seeded: compact resources, reader/admin accounts, notes, nested tags, sermon and article snapshot'
+		'seeded: compact resources, reader/admin accounts, notes, nested tags, sermon template/history and article snapshot'
 	);
 	console.log(
 		`legacy verse-comment documents: ${backfill.created} created, ${backfill.alreadyPresent} already present`

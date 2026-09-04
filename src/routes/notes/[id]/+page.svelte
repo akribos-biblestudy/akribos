@@ -3,6 +3,7 @@
 	import DocumentEditor from '$lib/components/documents/DocumentEditor.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { t, type MessageKey } from '$lib/i18n';
+	import { formatGermanCalendarDate } from '$lib/notes/calendar-date';
 
 	let { data, form } = $props();
 
@@ -12,11 +13,10 @@
 	let editor: EditorHandle | undefined = $state();
 	let workingDocument = $state(untrack(() => data.document));
 	let currentRevision = $state(untrack(() => data.document.revision));
-	let editorSaveState = $state<EditorSaveState>('saved');
 	let sermonSaving = $state(false);
 	let sermonMessage = $state('');
 	let exporting = $state(false);
-	let submittingAfterFlush = false;
+	const germanDatePattern = '[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{4}';
 
 	const dateFormat = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
 	const publicationIsOutdated = $derived(
@@ -38,6 +38,12 @@
 
 	function sermonStatusLabel(status: string): string {
 		return t(`sermons.status.${status}` as MessageKey);
+	}
+
+	function displayedKindLabel(kind: string): string {
+		return kind === 'article'
+			? t('documents.kind.note')
+			: t(`documents.kind.${kind}` as MessageKey);
 	}
 
 	function documentAction(name: string): string {
@@ -67,6 +73,7 @@
 		) {
 			return t('documents.passages.error');
 		}
+		if (['delivery', 'notSermon'].includes(error)) return t('sermons.deliveries.error');
 		if (
 			[
 				'forbidden',
@@ -95,7 +102,6 @@
 	}
 
 	function onEditorState(state: { status: EditorSaveState; revision: number }): void {
-		if (editorSaveState !== state.status) editorSaveState = state.status;
 		if (currentRevision !== state.revision) currentRevision = state.revision;
 		if (workingDocument.revision !== state.revision) {
 			workingDocument = { ...workingDocument, revision: state.revision };
@@ -103,19 +109,13 @@
 	}
 
 	async function flushBeforeSubmit(event: SubmitEvent): Promise<void> {
-		if (submittingAfterFlush) {
-			submittingAfterFlush = false;
-			return;
-		}
-		if (editorSaveState === 'saved') return;
-
 		event.preventDefault();
 		const target = event.currentTarget as HTMLFormElement;
-		const submitter = event.submitter instanceof HTMLButtonElement ? event.submitter : undefined;
 		if (!(await editor?.flush())) return;
 		await tick();
-		submittingAfterFlush = true;
-		target.requestSubmit(submitter);
+		// The browser has already run native constraint validation before the submit event. Calling
+		// submit() here deliberately avoids dispatching this async handler a second time.
+		target.submit();
 	}
 
 	async function saveSermonWorkflow(event: SubmitEvent): Promise<void> {
@@ -182,20 +182,27 @@
 			{backLabel()}
 		</a>
 		<div class="flex items-center gap-2">
-			<a
-				href="/notes/{workingDocument.id}/export.md"
-				download
-				data-sveltekit-reload
-				onclick={downloadExport}
-				class="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-[color:var(--surface-raised)] px-3 py-1.5 text-xs font-semibold shadow-sm hover:border-accent-400 dark:border-white/12"
-			>
-				<Icon name="download" class="size-3.5" />
-				{t('action.export')}
-			</a>
+			<details class="export-menu">
+				<summary
+					class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-stone-300 bg-[color:var(--surface-raised)] px-3 py-1.5 text-xs font-semibold shadow-sm hover:border-accent-400 dark:border-white/12"
+				>
+					<Icon name="download" class="size-3.5" />{t('action.export')}
+				</summary>
+				<div>
+					{#each [['md', 'Markdown'], ['docx', 'Word (.docx)'], ['pdf', 'PDF']] as format (format[0])}
+						<a
+							href="/notes/{workingDocument.id}/export.{format[0]}"
+							download
+							data-sveltekit-reload
+							onclick={downloadExport}>{format[1]}</a
+						>
+					{/each}
+				</div>
+			</details>
 			<span
 				class="rounded-full bg-stone-100 px-2.5 py-1 text-xs text-stone-500 dark:bg-white/6 dark:text-stone-400"
 			>
-				{t(`documents.kind.${workingDocument.kind}` as MessageKey)}
+				{displayedKindLabel(workingDocument.kind)}
 			</span>
 		</div>
 	</div>
@@ -281,12 +288,13 @@
 						<label class="field-label">
 							<span>{t('sermons.date')}</span>
 							<input
-								type="date"
+								type="text"
 								name="sermonDate"
 								class="field-control"
-								value={workingDocument.sermonDate
-									? new Date(workingDocument.sermonDate).toISOString().slice(0, 10)
-									: ''}
+								value={formatGermanCalendarDate(workingDocument.sermonDate)}
+								placeholder="TT.MM.JJJJ"
+								inputmode="numeric"
+								pattern={germanDatePattern}
 							/>
 						</label>
 						<label class="field-label">
@@ -304,6 +312,77 @@
 								{t('sermons.saveWorkflow')}
 							</button>
 						</div>
+					</form>
+				</section>
+
+				<section class="detail-card" data-testid="sermon-deliveries">
+					<h2 class="detail-heading">
+						<Icon name="map-pin" class="size-4" />
+						{t('sermons.deliveries.title')}
+					</h2>
+					<p class="mt-2 text-xs leading-relaxed text-stone-500 dark:text-stone-400">
+						{t('sermons.deliveries.hint')}
+					</p>
+					{#if data.sermonDeliveries.length > 0}
+						<ul class="mt-3 space-y-2">
+							{#each data.sermonDeliveries as delivery (delivery.id)}
+								<li
+									class="flex items-center gap-2 rounded-lg bg-stone-50 px-2.5 py-2 dark:bg-white/4"
+								>
+									<div class="min-w-0 flex-1 text-xs">
+										<p class="font-semibold">{formatGermanCalendarDate(delivery.date)}</p>
+										<p class="truncate text-stone-500 dark:text-stone-400">{delivery.location}</p>
+									</div>
+									<form
+										method="POST"
+										action={documentAction('removeDelivery')}
+										onsubmit={flushBeforeSubmit}
+									>
+										<input type="hidden" name="revision" value={currentRevision} />
+										<input type="hidden" name="deliveryId" value={delivery.id} />
+										<button
+											type="submit"
+											class="icon-button size-7"
+											aria-label={t('sermons.deliveries.remove')}
+										>
+											<Icon name="x" class="size-3.5" />
+										</button>
+									</form>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+					<form
+						method="POST"
+						action={documentAction('addDelivery')}
+						class="mt-3 space-y-2"
+						onsubmit={flushBeforeSubmit}
+					>
+						<input type="hidden" name="revision" value={currentRevision} />
+						<label class="field-label">
+							<span>{t('sermons.deliveries.date')}</span>
+							<input
+								name="date"
+								required
+								class="field-control"
+								placeholder="TT.MM.JJJJ"
+								inputmode="numeric"
+								pattern={germanDatePattern}
+							/>
+						</label>
+						<label class="field-label">
+							<span>{t('sermons.deliveries.location')}</span>
+							<input
+								name="location"
+								required
+								maxlength="200"
+								class="field-control"
+								placeholder={t('sermons.deliveries.locationPlaceholder')}
+							/>
+						</label>
+						<button type="submit" class="secondary-small"
+							><Icon name="plus" class="size-3.5" />{t('sermons.deliveries.add')}</button
+						>
 					</form>
 				</section>
 			{/if}
@@ -419,7 +498,7 @@
 				</form>
 			</section>
 
-			{#if workingDocument.kind === 'article'}
+			{#if workingDocument.kind !== 'sermon'}
 				<section class="detail-card" data-testid="publication-controls">
 					<h2 class="detail-heading">
 						<Icon name="globe" class="size-4" />
@@ -506,7 +585,7 @@
 				</section>
 			{/if}
 
-			<section class="detail-card">
+			<section class="detail-card" data-tour-target="document-export">
 				<h2 class="detail-heading">
 					<Icon name="download" class="size-4" />
 					{t('documents.export.title')}
@@ -514,15 +593,17 @@
 				<p class="mt-2 text-xs leading-relaxed text-stone-500 dark:text-stone-400">
 					{t('documents.export.hint')}
 				</p>
-				<a
-					href="/notes/{workingDocument.id}/export.md"
-					download
-					data-sveltekit-reload
-					onclick={downloadExport}
-					class="secondary-small mt-3"
-				>
-					{t('action.export')}
-				</a>
+				<div class="mt-3 grid grid-cols-3 gap-2">
+					{#each [['md', 'Markdown'], ['docx', 'Word'], ['pdf', 'PDF']] as format (format[0])}
+						<a
+							href="/notes/{workingDocument.id}/export.{format[0]}"
+							download
+							data-sveltekit-reload
+							onclick={downloadExport}
+							class="secondary-small">{format[1]}</a
+						>
+					{/each}
+				</div>
 			</section>
 		</aside>
 	</div>
@@ -568,6 +649,31 @@
 	.field-control:focus {
 		border-color: var(--color-accent-500);
 		box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent-500) 12%, transparent);
+	}
+	.export-menu {
+		position: relative;
+	}
+	.export-menu > div {
+		position: absolute;
+		right: 0;
+		z-index: 20;
+		display: grid;
+		min-width: 10rem;
+		margin-top: 0.35rem;
+		padding: 0.35rem;
+		border: 1px solid var(--line);
+		border-radius: 0.6rem;
+		background: var(--surface-raised);
+		box-shadow: var(--shadow-soft);
+	}
+	.export-menu a {
+		border-radius: 0.4rem;
+		padding: 0.45rem 0.6rem;
+		font-size: 0.75rem;
+		font-weight: 650;
+	}
+	.export-menu a:hover {
+		background: var(--color-stone-100);
 	}
 	.primary-small,
 	.secondary-small,

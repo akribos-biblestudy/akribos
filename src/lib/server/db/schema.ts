@@ -698,6 +698,7 @@ export const documents = pgTable(
 		...timestamps
 	},
 	(table) => [
+		uniqueIndex('documents_id_user_idx').on(table.id, table.userId),
 		index('documents_user_updated_idx').on(table.userId, table.updatedAt),
 		index('documents_user_kind_updated_idx').on(table.userId, table.kind, table.updatedAt),
 		index('documents_user_deleted_updated_idx').on(table.userId, table.deletedAt, table.updatedAt),
@@ -719,6 +720,59 @@ export const documents = pgTable(
 );
 
 export type Document = typeof documents.$inferSelect;
+
+/** Reusable, owner-private Markdown starters selected when a sermon document is created. */
+export const sermonTemplates = pgTable(
+	'sermon_templates',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		bodyMarkdown: text('body_markdown').notNull(),
+		...timestamps
+	},
+	(table) => [
+		uniqueIndex('sermon_templates_user_name_idx').on(table.userId, table.name),
+		index('sermon_templates_user_updated_idx').on(table.userId, table.updatedAt),
+		check(
+			'sermon_templates_content_check',
+			sql`length(btrim(${table.name})) > 0 and length(${table.name}) <= 120
+				and octet_length(${table.bodyMarkdown}) <= 1048576`
+		)
+	]
+);
+
+export type SermonTemplate = typeof sermonTemplates.$inferSelect;
+
+/** One sermon may be delivered repeatedly; dates are calendar values and locations are owner text. */
+export const sermonDeliveries = pgTable(
+	'sermon_deliveries',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		documentId: uuid('document_id').notNull(),
+		userId: uuid('user_id').notNull(),
+		date: date('date', { mode: 'date' }).notNull(),
+		location: text('location').notNull(),
+		...timestamps
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.documentId, table.userId],
+			foreignColumns: [documents.id, documents.userId],
+			name: 'sermon_deliveries_document_owner_fk'
+		}).onDelete('cascade'),
+		index('sermon_deliveries_document_date_idx').on(table.documentId, table.date),
+		index('sermon_deliveries_user_idx').on(table.userId),
+		check(
+			'sermon_deliveries_location_check',
+			sql`length(btrim(${table.location})) > 0 and length(${table.location}) <= 200`
+		)
+	]
+);
+
+export type SermonDelivery = typeof sermonDeliveries.$inferSelect;
 
 /**
  * An inclusive Bible range attached to a document. A null resource is a canonical passage that

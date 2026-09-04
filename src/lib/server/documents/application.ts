@@ -8,6 +8,7 @@
 
 import { redirect } from '@sveltejs/kit';
 import { documentMarkdownToHtml, normalizeDocumentMarkdown } from '$lib/notes/document-markdown';
+import { parseCalendarDateValue } from '$lib/notes/calendar-date';
 import type { PreparedDocumentBody } from '$lib/server/repositories/documents';
 
 export const PRIVATE_NO_STORE = 'private, no-store';
@@ -82,19 +83,7 @@ export function isUuid(value: unknown): value is string {
 export function parseCalendarDate(
 	value: unknown
 ): { ok: true; value: Date | null } | { ok: false } {
-	if (value === null || value === undefined || value === '') return { ok: true, value: null };
-	if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return { ok: false };
-
-	const [year, month, day] = value.split('-').map(Number);
-	const date = new Date(Date.UTC(year!, month! - 1, day!));
-	if (
-		date.getUTCFullYear() !== year ||
-		date.getUTCMonth() !== month! - 1 ||
-		date.getUTCDate() !== day
-	) {
-		return { ok: false };
-	}
-	return { ok: true, value: date };
+	return parseCalendarDateValue(value);
 }
 
 export function formatCalendarDate(value: Date | null): string | undefined {

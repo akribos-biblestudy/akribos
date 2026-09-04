@@ -1,12 +1,19 @@
 <script lang="ts">
+	import { deserialize } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import Icon from '$lib/components/Icon.svelte';
+	import DocumentAreaNav from '$lib/components/documents/DocumentAreaNav.svelte';
 	import { t, type MessageKey } from '$lib/i18n';
+	import { formatGermanCalendarDate } from '$lib/notes/calendar-date';
+	import { isSermonWorkflowState, type SermonWorkflowState } from '$lib/notes/documents';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 
 	let { data, form } = $props();
-
-	// Sermon dates are calendar values stored at UTC midnight, not instants in the viewer's zone.
-	const dateFormat = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeZone: 'UTC' });
+	let movingId = $state<string | null>(null);
+	let dragStatus = $state<string | null>(null);
+	let draggedSermon: { id: string; revision: number } | null = null;
+	let pointerSermon: { id: string; revision: number; status: SermonWorkflowState } | null = null;
+	const germanDatePattern = '[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{4}';
 
 	function statusLabel(status: string): string {
 		return t(`sermons.status.${status}` as MessageKey);
@@ -23,9 +30,97 @@
 		const clean = value.replace(/\s+/gu, ' ').trim();
 		return clean.length > 135 ? `${clean.slice(0, 132)}…` : clean;
 	}
+
+	async function moveSermon(id: string, revision: number, status: string): Promise<void> {
+		if (movingId || !isSermonWorkflowState(status)) return;
+		movingId = id;
+		const body = new FormData();
+		body.set('id', id);
+		body.set('revision', String(revision));
+		body.set('status', status);
+		try {
+			const response = await fetch('?/move', { method: 'POST', body });
+			const result = deserialize(await response.text());
+			if (result.type !== 'success') throw new Error('move failed');
+			await invalidateAll();
+		} finally {
+			movingId = null;
+			dragStatus = null;
+		}
+	}
+
+	function sermonInteractionTarget(target: EventTarget | null): {
+		id: string;
+		revision: number;
+		status: SermonWorkflowState;
+	} | null {
+		if (!(target instanceof Element)) return null;
+		const element = target.closest<HTMLElement>('[data-sermon-id]');
+		if (!element) return null;
+		const id = element.dataset.sermonId;
+		const revision = Number(element.dataset.sermonRevision);
+		const status = element.dataset.sermonStatus;
+		return id && Number.isSafeInteger(revision) && isSermonWorkflowState(status)
+			? { id, revision, status }
+			: null;
+	}
+
+	function onDragStart(event: DragEvent): void {
+		// Capture the card on pointerdown: during a long board drag browsers can retarget a later
+		// dragstart after autoscrolling over another draggable card.
+		const sermon = pointerSermon ?? sermonInteractionTarget(event.target);
+		if (!sermon) return;
+		const serialized = JSON.stringify({ id: sermon.id, revision: sermon.revision });
+		draggedSermon = { id: sermon.id, revision: sermon.revision };
+		if (event.dataTransfer) {
+			event.dataTransfer.setData('application/json', serialized);
+			event.dataTransfer.setData('text/plain', serialized);
+			event.dataTransfer.effectAllowed = 'move';
+		}
+	}
+
+	function onDrop(event: DragEvent, status: string): void {
+		event.preventDefault();
+		try {
+			const serialized =
+				event.dataTransfer?.getData('application/json') ||
+				event.dataTransfer?.getData('text/plain') ||
+				'';
+			const value =
+				draggedSermon ??
+				(JSON.parse(serialized) as {
+					id?: string;
+					revision?: number;
+				});
+			if (value.id && Number.isSafeInteger(value.revision)) {
+				void moveSermon(value.id, value.revision!, status);
+			}
+		} catch {
+			dragStatus = null;
+		} finally {
+			draggedSermon = null;
+			pointerSermon = null;
+		}
+	}
+
+	function onCardKeydown(event: KeyboardEvent): void {
+		if (!event.altKey || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+		const sermon = sermonInteractionTarget(event.target);
+		if (!sermon) return;
+		const current = data.statuses.indexOf(sermon.status);
+		const offset = event.key === 'ArrowLeft' ? -1 : 1;
+		const target = data.statuses[current + offset];
+		if (!target) return;
+		event.preventDefault();
+		void moveSermon(sermon.id, sermon.revision, target);
+	}
 </script>
 
 <main class="mx-auto w-full max-w-[96rem] px-4 py-7 sm:px-6 sm:py-10" data-testid="sermon-manager">
+	<p id="sermon-card-keyboard-help" class="sr-only">
+		Predigt fokussieren und mit Alt plus Pfeil links oder rechts zwischen Arbeitsständen
+		verschieben.
+	</p>
 	<header class="flex flex-wrap items-start justify-between gap-4">
 		<div>
 			<p class="text-xs font-bold tracking-[0.16em] text-accent-700 uppercase dark:text-accent-300">
@@ -38,16 +133,15 @@
 				{t('sermons.subtitle')}
 			</p>
 		</div>
-		<a
-			href="/notes"
-			class="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-[color:var(--surface-raised)] px-3 py-2 text-sm font-semibold shadow-sm hover:border-accent-400 dark:border-white/12"
-		>
+		<a href="/sermons/templates" class="header-link">
 			<Icon name="file-text" class="size-4" />
-			{t('documents.library.title')}
+			{t('sermons.templates.title')}
 		</a>
 	</header>
+	<DocumentAreaNav active="sermons" />
 
 	<section
+		data-tour-target="sermon-create"
 		class="mt-7 rounded-2xl border border-stone-200/80 bg-[color:var(--surface)] p-5 shadow-[var(--shadow-soft)] sm:p-6 dark:border-white/8"
 	>
 		<h2 class="flex items-center gap-2 font-serif text-lg font-semibold">
@@ -57,7 +151,7 @@
 		<form
 			method="POST"
 			action="?/create"
-			class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[1.5fr_1fr_1fr_1fr_auto]"
+			class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_auto]"
 		>
 			<input type="hidden" name="returnTo" value="/sermons" />
 			<label class="field-label">
@@ -78,7 +172,24 @@
 			</label>
 			<label class="field-label">
 				<span>{t('sermons.date')}</span>
-				<input type="date" name="date" class="field-control" />
+				<input
+					type="text"
+					name="date"
+					class="field-control"
+					placeholder="TT.MM.JJJJ"
+					inputmode="numeric"
+					pattern={germanDatePattern}
+				/>
+			</label>
+			<label class="field-label">
+				<span>{t('sermons.templates.template')}</span>
+				<select name="template" class="field-control">
+					<option value="default">{t('sermons.templates.default')}</option>
+					<option value="empty">{t('sermons.templates.emptyDocument')}</option>
+					{#each data.templates as template (template.id)}
+						<option value={template.id}>{template.name}</option>
+					{/each}
+				</select>
 			</label>
 			<input type="hidden" name="status" value="idea" />
 			<button
@@ -147,9 +258,36 @@
 			{/each}
 		</ul>
 	{:else}
-		<div class="sermon-board mt-5" aria-label={t('sermons.status')}>
+		<div
+			class="sermon-board mt-5"
+			aria-label={t('sermons.status')}
+			role="group"
+			onpointerdown={(event) => {
+				pointerSermon = sermonInteractionTarget(event.target);
+			}}
+			ondragstart={onDragStart}
+			ondragend={() => {
+				dragStatus = null;
+				draggedSermon = null;
+				pointerSermon = null;
+			}}
+		>
 			{#each data.statuses as status (status)}
-				<section class="board-column">
+				<section
+					class="board-column"
+					role="group"
+					aria-label={statusLabel(status)}
+					class:drag-target={dragStatus === status}
+					ondragover={(event) => {
+						event.preventDefault();
+						dragStatus = status;
+					}}
+					ondragleave={(event) => {
+						if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+							dragStatus = null;
+					}}
+					ondrop={(event) => onDrop(event, status)}
+				>
 					<header class="flex items-center justify-between gap-2 px-1">
 						<h2
 							class="text-xs font-bold tracking-[0.08em] text-stone-500 uppercase dark:text-stone-400"
@@ -176,10 +314,21 @@
 {#snippet SermonCard({ sermon }: { sermon: (typeof data.sermons)[number] })}
 	<li
 		class="group relative rounded-2xl border border-stone-200/80 bg-[color:var(--surface)] p-4 shadow-[var(--shadow-soft)] transition hover:-translate-y-0.5 hover:border-accent-300 hover:shadow-md dark:border-white/8"
+		class:opacity-60={movingId === sermon.id}
+		draggable="true"
+		data-sermon-id={sermon.id}
+		data-sermon-revision={sermon.revision}
+		data-sermon-status={sermon.sermonStatus ?? 'idea'}
+		data-testid="sermon-card"
 	>
 		<a
 			href="/notes/{sermon.id}?returnTo={encodeURIComponent('/sermons')}"
 			class="after:absolute after:inset-0"
+			aria-describedby="sermon-card-keyboard-help"
+			data-sermon-id={sermon.id}
+			data-sermon-revision={sermon.revision}
+			data-sermon-status={sermon.sermonStatus ?? 'idea'}
+			onkeydown={onCardKeydown}
 		>
 			<h3 class="font-serif leading-snug font-semibold">{sermon.title}</h3>
 		</a>
@@ -195,7 +344,7 @@
 			{#if sermon.sermonDate}
 				<p class="flex items-center gap-1">
 					<Icon name="calendar" class="size-3" />
-					{dateFormat.format(new Date(sermon.sermonDate))}
+					{formatGermanCalendarDate(sermon.sermonDate)}
 				</p>
 			{/if}
 		</div>
@@ -253,6 +402,21 @@
 		background: color-mix(in oklab, var(--color-stone-200) 35%, transparent);
 		padding: 0.7rem;
 		scroll-snap-align: start;
+	}
+	.board-column.drag-target {
+		box-shadow: inset 0 0 0 2px var(--color-accent-500);
+		background: color-mix(in oklab, var(--color-accent-100) 55%, transparent);
+	}
+	.header-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		border: 1px solid var(--color-stone-300);
+		border-radius: 0.5rem;
+		background: var(--surface-raised);
+		padding: 0.5rem 0.75rem;
+		font-size: 0.875rem;
+		font-weight: 650;
 	}
 	:global(.dark) .field-label {
 		color: var(--color-stone-300);
