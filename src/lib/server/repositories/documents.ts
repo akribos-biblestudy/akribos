@@ -545,6 +545,7 @@ export type PassageOverlapQuery = {
 	/** Omitted: any anchor; null: canonical only; id: canonical anchors plus this translation. */
 	resourceId?: string | null;
 	kind?: DocumentKind;
+	deleted?: 'exclude' | 'only' | 'include';
 };
 
 /** Finds owned working copies with at least one inclusive overlapping passage. */
@@ -558,10 +559,11 @@ export async function findDocumentsOverlappingPassage(
 	}
 	const conditions = [
 		eq(documents.userId, userId),
-		isNull(documents.deletedAt),
 		lte(documentPassages.startKey, query.endKey),
 		gte(documentPassages.endKey, query.startKey)
 	];
+	if (query.deleted === 'only') conditions.push(isNotNull(documents.deletedAt));
+	else if (query.deleted !== 'include') conditions.push(isNull(documents.deletedAt));
 	if (query.kind) conditions.push(eq(documents.kind, query.kind));
 	if (query.resourceId === null) conditions.push(isNull(documentPassages.resourceId));
 	else if (query.resourceId !== undefined) {

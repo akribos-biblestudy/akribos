@@ -3,7 +3,7 @@
 	"info": {
 		"title": "Akribos API",
 		"version": "1.0.0",
-		"description": "Read-only access to the content Akribos itself is built on: bible translations, the Strong's lexicon, commentaries and search, plus a signed-in reader's own verse lists and notes. Everything lives under `/api/v1`.\n\n## Authentication\n\nA request from Akribos' own frontend needs nothing extra — it is recognised as same-origin. Everything else must send an API key:\n\n```\nAuthorization: Bearer sk_akribos_...\n```\n\nCreate a key from your [account page](/account) once signed in. Each key has a scope, chosen when it is created:\n\n- `public` — bible text, lexicon, commentaries, search\n- `personal` — the above, plus the key owner's own verse lists and notes\n\n## Rate limits\n\n120 requests per minute per API key (300 requests per minute per IP for same-origin requests without a key). Exceeding it returns `429` with a `Retry-After` header, in seconds.\n\n## Errors\n\nEvery error response has the same shape:\n\n```json\n{ \"error\": { \"code\": \"unknown_bible\", \"message\": \"No bible with id 'kjv'.\" } }\n```\n\n## What's not here yet\n\nThis first version is read-only: creating or editing a list, adding a verse, or writing a note all still happen through the site itself, not through the API.",
+		"description": "Read-only access to the content Akribos itself is built on: bible translations, the Strong's lexicon, commentaries and search, plus a signed-in reader's own verse lists, legacy comments and unified documents. Everything lives under `/api/v1`.\n\n## Authentication\n\nA request from Akribos' own frontend needs nothing extra — it is recognised as same-origin. Everything else must send an API key:\n\n```\nAuthorization: Bearer sk_akribos_...\n```\n\nCreate a key from your [account page](/account) once signed in. Each key has a scope, chosen when it is created:\n\n- `public` — bible text, lexicon, commentaries, search\n- `personal` — the above, plus the key owner's own verse lists, comments and document working copies\n\n## Rate limits\n\n120 requests per minute per API key (300 requests per minute per IP for same-origin requests without a key). Exceeding it returns `429` with a `Retry-After` header, in seconds.\n\n## Errors\n\nEvery error response has the same shape:\n\n```json\n{ \"error\": { \"code\": \"unknown_bible\", \"message\": \"No bible with id 'kjv'.\" } }\n```\n\n## What's not here yet\n\nThis first version is read-only: creating or editing a list, adding a verse, writing a document, or publishing an article all still happen through the site itself, not through the API.",
 		"contact": {
 			"url": "https://akribos.de/api"
 		}
@@ -15,12 +15,22 @@
 	"security": [{}, { "bearerAuth": [] }],
 	"tags": [
 		{ "name": "Books", "description": "The canonical 66-book canon." },
-		{ "name": "Resources", "description": "Available bibles, lexicons, commentaries and cross-reference sets." },
+		{
+			"name": "Resources",
+			"description": "Available bibles, lexicons, commentaries and cross-reference sets."
+		},
 		{ "name": "Bible text", "description": "Chapter text of a translation." },
 		{ "name": "Lexicon", "description": "Strong's number lookups." },
 		{ "name": "Search", "description": "Full-text search across translations." },
 		{ "name": "Lists", "description": "A signed-in reader's own verse lists." },
-		{ "name": "Notes", "description": "A signed-in reader's own chapter and verse notes." },
+		{
+			"name": "Notes",
+			"description": "A signed-in reader's legacy translation comments and verse-list discussion comments."
+		},
+		{
+			"name": "Documents",
+			"description": "A signed-in reader's private unified note, article and sermon working copies."
+		},
 		{ "name": "Highlights", "description": "A signed-in reader's own highlighted verses." }
 	],
 	"paths": {
@@ -48,7 +58,13 @@
 								},
 								"example": {
 									"books": [
-										{ "id": 43, "name": "Johannes", "shortName": "Joh", "testament": "nt", "chapters": 21 }
+										{
+											"id": 43,
+											"name": "Johannes",
+											"shortName": "Joh",
+											"testament": "nt",
+											"chapters": 21
+										}
 									]
 								}
 							}
@@ -154,19 +170,29 @@
 								"schema": { "$ref": "#/components/schemas/Error" },
 								"examples": {
 									"unknown_book": {
-										"value": { "error": { "code": "unknown_book", "message": "No book with id 99." } }
+										"value": {
+											"error": { "code": "unknown_book", "message": "No book with id 99." }
+										}
 									},
 									"unknown_chapter": {
 										"value": {
-											"error": { "code": "unknown_chapter", "message": "\"0\" is not a valid chapter number." }
+											"error": {
+												"code": "unknown_chapter",
+												"message": "\"0\" is not a valid chapter number."
+											}
 										}
 									},
 									"unknown_bible": {
-										"value": { "error": { "code": "unknown_bible", "message": "No bible with id \"NOPE\"." } }
+										"value": {
+											"error": { "code": "unknown_bible", "message": "No bible with id \"NOPE\"." }
+										}
 									},
 									"chapter_not_found": {
 										"value": {
-											"error": { "code": "chapter_not_found", "message": "SEEDDE has no text for this chapter." }
+											"error": {
+												"code": "chapter_not_found",
+												"message": "SEEDDE has no text for this chapter."
+											}
 										}
 									}
 								}
@@ -244,7 +270,10 @@
 							"application/json": {
 								"schema": { "$ref": "#/components/schemas/Error" },
 								"example": {
-									"error": { "code": "invalid_strong_id", "message": "\"Z1\" is not a Strong's id." }
+									"error": {
+										"code": "invalid_strong_id",
+										"message": "\"Z1\" is not a Strong's id."
+									}
 								}
 							}
 						}
@@ -305,7 +334,10 @@
 							"application/json": {
 								"schema": { "$ref": "#/components/schemas/Error" },
 								"example": {
-									"error": { "code": "missing_query", "message": "The \"q\" query parameter is required." }
+									"error": {
+										"code": "missing_query",
+										"message": "The \"q\" query parameter is required."
+									}
 								}
 							}
 						}
@@ -439,7 +471,9 @@
 					"400": { "description": "Neither style nor a known palette color was supplied." },
 					"401": { "$ref": "#/components/responses/Unauthorized" },
 					"403": { "$ref": "#/components/responses/PersonalScopeRequired" },
-					"404": { "description": "The style does not belong to the caller, or the requested Bible is unknown." },
+					"404": {
+						"description": "The style does not belong to the caller, or the requested Bible is unknown."
+					},
 					"429": { "$ref": "#/components/responses/RateLimited" }
 				}
 			}
@@ -447,14 +481,14 @@
 		"/api/v1/notes": {
 			"get": {
 				"operationId": "listMyNotes",
-				"summary": "The caller's own chapter and verse notes",
-				"description": "The caller's own chapter and verse notes. Requires a signed-in session or a `personal`-scope API key.",
+				"summary": "The caller's legacy translation and verse-list comments",
+				"description": "The compatibility view of comments stored on one Bible translation and discussion comments the caller wrote on verse-list items. Its `{ notes: [...] }` envelope is unchanged by the unified document API. Requires a signed-in session or a `personal`-scope API key. The response is always `private, no-store`.",
 				"tags": ["Notes"],
 				"security": [{ "bearerAuth": [] }],
 				"x-rate-limit": "120 requests/min per API key, 300 requests/min per IP for same-origin requests.",
 				"responses": {
 					"200": {
-						"description": "The caller's chapter and verse-list-item notes.",
+						"description": "The caller's translation comments and verse-list-item discussion comments.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -473,6 +507,120 @@
 					},
 					"401": { "$ref": "#/components/responses/Unauthorized" },
 					"403": { "$ref": "#/components/responses/PersonalScopeRequired" },
+					"429": { "$ref": "#/components/responses/RateLimited" }
+				}
+			}
+		},
+		"/api/v1/documents": {
+			"get": {
+				"operationId": "listMyDocuments",
+				"summary": "The caller's document working copies",
+				"description": "Lists only document working copies owned by the caller. Publication snapshots are separate and are never returned here. By default soft-deleted documents are omitted. Requires a signed-in session or a `personal`-scope API key. The response is always `private, no-store`.",
+				"tags": ["Documents"],
+				"security": [{ "bearerAuth": [] }],
+				"x-rate-limit": "120 requests/min per API key, 300 requests/min per IP for same-origin requests.",
+				"parameters": [
+					{
+						"name": "q",
+						"in": "query",
+						"required": false,
+						"description": "Case-insensitive title and plain-text search.",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "kind",
+						"in": "query",
+						"required": false,
+						"description": "Restrict results to one document kind.",
+						"schema": { "type": "string", "enum": ["note", "article", "sermon"] }
+					},
+					{
+						"name": "visibility",
+						"in": "query",
+						"required": false,
+						"description": "Restrict results to one working-copy visibility setting.",
+						"schema": { "type": "string", "enum": ["private", "unlisted", "public"] }
+					},
+					{
+						"name": "deleted",
+						"in": "query",
+						"required": false,
+						"description": "Whether to exclude soft-deleted documents (the default), return only deleted documents, or include both.",
+						"schema": {
+							"type": "string",
+							"enum": ["exclude", "only", "include"],
+							"default": "exclude"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Owned document summaries, most recently updated first.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": ["documents"],
+									"properties": {
+										"documents": {
+											"type": "array",
+											"items": { "$ref": "#/components/schemas/DocumentSummary" }
+										}
+									}
+								},
+								"example": { "documents": [] }
+							}
+						}
+					},
+					"400": { "description": "A document filter has an unsupported value." },
+					"401": { "$ref": "#/components/responses/Unauthorized" },
+					"403": { "$ref": "#/components/responses/PersonalScopeRequired" },
+					"429": { "$ref": "#/components/responses/RateLimited" }
+				}
+			}
+		},
+		"/api/v1/documents/{id}": {
+			"get": {
+				"operationId": "getMyDocument",
+				"summary": "One owned document working copy",
+				"description": "Returns one complete owned working copy, including Markdown, sanitised HTML, nested tag paths and canonical or translation-specific passage anchors. A publication snapshot is never substituted for it. Requires a signed-in session or a `personal`-scope API key. The response is always `private, no-store`.",
+				"tags": ["Documents"],
+				"security": [{ "bearerAuth": [] }],
+				"x-rate-limit": "120 requests/min per API key, 300 requests/min per IP for same-origin requests.",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"description": "The document's UUID.",
+						"schema": { "type": "string", "format": "uuid" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The complete owned document working copy.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/DocumentDetail" }
+							}
+						}
+					},
+					"401": { "$ref": "#/components/responses/Unauthorized" },
+					"403": { "$ref": "#/components/responses/PersonalScopeRequired" },
+					"404": {
+						"description": "The document does not exist, belongs to another account, or is soft-deleted.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" },
+								"example": {
+									"error": {
+										"code": "document_not_found",
+										"message": "No document with this id."
+									}
+								}
+							}
+						}
+					},
 					"429": { "$ref": "#/components/responses/RateLimited" }
 				}
 			}
@@ -504,7 +652,10 @@
 							},
 							"invalid_api_key": {
 								"value": {
-									"error": { "code": "invalid_api_key", "message": "This API key is invalid or has been revoked." }
+									"error": {
+										"code": "invalid_api_key",
+										"message": "This API key is invalid or has been revoked."
+									}
 								}
 							}
 						}
@@ -537,7 +688,10 @@
 					"application/json": {
 						"schema": { "$ref": "#/components/schemas/Error" },
 						"example": {
-							"error": { "code": "rate_limited", "message": "Too many requests. Try again shortly." }
+							"error": {
+								"code": "rate_limited",
+								"message": "Too many requests. Try again shortly."
+							}
 						}
 					}
 				}
@@ -553,7 +707,10 @@
 						"required": ["code", "message"],
 						"properties": {
 							"code": { "type": "string", "description": "A stable, machine-readable error code." },
-							"message": { "type": "string", "description": "A human-readable explanation, in English." }
+							"message": {
+								"type": "string",
+								"description": "A human-readable explanation, in English."
+							}
 						}
 					}
 				}
@@ -562,7 +719,10 @@
 				"type": "object",
 				"required": ["id", "name", "shortName", "testament", "chapters"],
 				"properties": {
-					"id": { "type": "integer", "description": "Canonical book id, used as the `book` parameter elsewhere in this API." },
+					"id": {
+						"type": "integer",
+						"description": "Canonical book id, used as the `book` parameter elsewhere in this API."
+					},
 					"name": { "type": "string" },
 					"shortName": { "type": "string" },
 					"testament": { "type": "string", "enum": ["ot", "nt"] },
@@ -586,18 +746,30 @@
 					"usageNotesHtml"
 				],
 				"properties": {
-					"id": { "type": "string", "description": "Resource id, used as the `bible`/`resources`/`bibles` parameter elsewhere in this API." },
-					"kind": { "type": "string", "enum": ["bible", "lexicon", "commentary", "xrefs", "morphology"] },
+					"id": {
+						"type": "string",
+						"description": "Resource id, used as the `bible`/`resources`/`bibles` parameter elsewhere in this API."
+					},
+					"kind": {
+						"type": "string",
+						"enum": ["bible", "lexicon", "commentary", "xrefs", "morphology"]
+					},
 					"name": { "type": "string" },
 					"abbrev": { "type": "string", "description": "Short label for column headers." },
-					"language": { "type": "string", "description": "ISO-ish language code, e.g. `de`, `grc`, `hbo`." },
+					"language": {
+						"type": "string",
+						"description": "ISO-ish language code, e.g. `de`, `grc`, `hbo`."
+					},
 					"canon": { "type": "string", "enum": ["ot", "nt", "both"] },
 					"direction": { "type": ["string", "null"], "enum": ["ltr", "rtl", null] },
 					"sortOrder": { "type": "integer" },
 					"hasStrongs": { "type": "boolean" },
 					"hasMorphology": { "type": "boolean" },
 					"licenseHtml": { "type": ["string", "null"] },
-					"usageNotesHtml": { "type": ["string", "null"], "description": "A lexicon's own \"how to read this\" preface, e.g. a translated dictionary's usage notes." }
+					"usageNotesHtml": {
+						"type": ["string", "null"],
+						"description": "A lexicon's own \"how to read this\" preface, e.g. a translated dictionary's usage notes."
+					}
 				}
 			},
 			"VerseSegment": {
@@ -610,14 +782,23 @@
 						"required": ["kind", "text", "strong"],
 						"properties": {
 							"kind": { "const": "w" },
-							"text": { "type": "string", "description": "The word as this translation renders it." },
-							"strong": { "type": "string", "description": "Canonical Strong's id of the primary sense, e.g. `G26`." },
+							"text": {
+								"type": "string",
+								"description": "The word as this translation renders it."
+							},
+							"strong": {
+								"type": "string",
+								"description": "Canonical Strong's id of the primary sense, e.g. `G26`."
+							},
 							"strongs": {
 								"type": "array",
 								"items": { "type": "string" },
 								"description": "All ids this word carries, including `strong`. Only present when there is more than one."
 							},
-							"morph": { "type": "string", "description": "Robinson morphology code, when the source provides one." }
+							"morph": {
+								"type": "string",
+								"description": "Robinson morphology code, when the source provides one."
+							}
 						}
 					},
 					{
@@ -626,7 +807,10 @@
 						"required": ["kind", "marker", "text"],
 						"properties": {
 							"kind": { "const": "note" },
-							"marker": { "type": "string", "description": "Marker shown inline, e.g. `1` or `a`. Empty means \"use a generic marker\"." },
+							"marker": {
+								"type": "string",
+								"description": "Marker shown inline, e.g. `1` or `a`. Empty means \"use a generic marker\"."
+							},
 							"text": { "type": "string" }
 						}
 					},
@@ -671,7 +855,10 @@
 						"description": "Last verse of a merged range, when the translation prints several verses as one unit."
 					},
 					"segments": { "type": "array", "items": { "$ref": "#/components/schemas/VerseSegment" } },
-					"heading": { "type": ["string", "null"], "description": "Section heading printed immediately before this verse, if any." }
+					"heading": {
+						"type": ["string", "null"],
+						"description": "Section heading printed immediately before this verse, if any."
+					}
 				}
 			},
 			"ChapterResponse": {
@@ -719,15 +906,24 @@
 					"kjvDefinitionHtml": { "type": ["string", "null"] },
 					"seeAlso": { "type": "array", "items": { "type": "string" } },
 					"language": { "type": "string", "enum": ["grc", "hbo"] },
-					"licenseHtml": { "type": ["string", "null"], "description": "Rights notice of the lexicon this entry came from, e.g. a translated dictionary's copyright." },
-					"usageNotesHtml": { "type": ["string", "null"], "description": "The lexicon's own \"how to read this\" preface, e.g. Kautz' \"Hinweise zur Benützung des Lexikons\"." }
+					"licenseHtml": {
+						"type": ["string", "null"],
+						"description": "Rights notice of the lexicon this entry came from, e.g. a translated dictionary's copyright."
+					},
+					"usageNotesHtml": {
+						"type": ["string", "null"],
+						"description": "The lexicon's own \"how to read this\" preface, e.g. Kautz' \"Hinweise zur Benützung des Lexikons\"."
+					}
 				}
 			},
 			"StrongGloss": {
 				"type": "object",
 				"required": ["display", "occurrences"],
 				"properties": {
-					"display": { "type": "string", "description": "How the statistics resource renders this word, e.g. \"lieben\"." },
+					"display": {
+						"type": "string",
+						"description": "How the statistics resource renders this word, e.g. \"lieben\"."
+					},
 					"occurrences": { "type": "integer" }
 				}
 			},
@@ -763,7 +959,10 @@
 				"type": "object",
 				"required": ["word", "morph", "lemma", "resourceId"],
 				"properties": {
-					"word": { "type": "string", "description": "The original-language word as it appears in the source." },
+					"word": {
+						"type": "string",
+						"description": "The original-language word as it appears in the source."
+					},
 					"morph": { "type": ["string", "null"] },
 					"lemma": { "type": ["string", "null"] },
 					"resourceId": { "type": "string" }
@@ -773,16 +972,28 @@
 				"type": "object",
 				"required": ["code", "partOfSpeech", "features", "unknown"],
 				"properties": {
-					"code": { "type": "string", "description": "The morphology code as it appeared in the source, upper-cased." },
-					"partOfSpeech": { "type": "string", "description": "i18n key for the part of speech, e.g. `morph.pos.verb`." },
+					"code": {
+						"type": "string",
+						"description": "The morphology code as it appeared in the source, upper-cased."
+					},
+					"partOfSpeech": {
+						"type": "string",
+						"description": "i18n key for the part of speech, e.g. `morph.pos.verb`."
+					},
 					"features": {
 						"type": "array",
 						"items": {
 							"type": "object",
 							"required": ["feature", "value"],
 							"properties": {
-								"feature": { "type": "string", "description": "i18n key for the feature name, e.g. `morph.feature.tense`." },
-								"value": { "type": "string", "description": "i18n key for the value, e.g. `morph.tense.aorist`." }
+								"feature": {
+									"type": "string",
+									"description": "i18n key for the feature name, e.g. `morph.feature.tense`."
+								},
+								"value": {
+									"type": "string",
+									"description": "i18n key for the value, e.g. `morph.tense.aorist`."
+								}
 							}
 						}
 					},
@@ -811,27 +1022,42 @@
 				],
 				"properties": {
 					"strong": { "type": "string" },
-					"found": { "type": "boolean", "description": "Whether a lexicon entry exists for this number." },
-					"entry": { "oneOf": [{ "$ref": "#/components/schemas/StrongEntry" }, { "type": "null" }] },
+					"found": {
+						"type": "boolean",
+						"description": "Whether a lexicon entry exists for this number."
+					},
+					"entry": {
+						"oneOf": [{ "$ref": "#/components/schemas/StrongEntry" }, { "type": "null" }]
+					},
 					"alternative": {
 						"type": ["string", "null"],
 						"description": "When `found` is false, the same number in the other original language, if that is a valid id."
 					},
 					"statistics": { "$ref": "#/components/schemas/StrongStatistics" },
-					"bookCounts": { "type": "array", "items": { "$ref": "#/components/schemas/StrongBookCount" } },
+					"bookCounts": {
+						"type": "array",
+						"items": { "$ref": "#/components/schemas/StrongBookCount" }
+					},
 					"glosses": { "type": "array", "items": { "$ref": "#/components/schemas/StrongGloss" } },
 					"occurrences": {
 						"type": "object",
 						"required": ["occurrences", "total", "page", "pageCount"],
 						"properties": {
-							"occurrences": { "type": "array", "items": { "$ref": "#/components/schemas/StrongOccurrence" } },
+							"occurrences": {
+								"type": "array",
+								"items": { "$ref": "#/components/schemas/StrongOccurrence" }
+							},
 							"total": { "type": "integer" },
 							"page": { "type": "integer" },
 							"pageCount": { "type": "integer" }
 						}
 					},
-					"original": { "oneOf": [{ "$ref": "#/components/schemas/OriginalWord" }, { "type": "null" }] },
-					"morphology": { "oneOf": [{ "$ref": "#/components/schemas/Morphology" }, { "type": "null" }] },
+					"original": {
+						"oneOf": [{ "$ref": "#/components/schemas/OriginalWord" }, { "type": "null" }]
+					},
+					"morphology": {
+						"oneOf": [{ "$ref": "#/components/schemas/Morphology" }, { "type": "null" }]
+					},
 					"statisticsResource": {
 						"type": ["string", "null"],
 						"description": "Which resource id the statistics, book counts, glosses and occurrences were computed from."
@@ -876,7 +1102,10 @@
 									"required": ["verse", "segments"],
 									"properties": {
 										"verse": { "type": "integer" },
-										"segments": { "type": "array", "items": { "$ref": "#/components/schemas/VerseSegment" } }
+										"segments": {
+											"type": "array",
+											"items": { "$ref": "#/components/schemas/VerseSegment" }
+										}
 									}
 								},
 								{ "type": "null" }
@@ -887,7 +1116,16 @@
 			},
 			"SearchResult": {
 				"type": "object",
-				"required": ["query", "hits", "total", "page", "pageCount", "counts", "bookCounts", "suggestion"],
+				"required": [
+					"query",
+					"hits",
+					"total",
+					"page",
+					"pageCount",
+					"counts",
+					"bookCounts",
+					"suggestion"
+				],
 				"properties": {
 					"query": {
 						"type": "object",
@@ -924,21 +1162,43 @@
 							}
 						}
 					},
-					"suggestion": { "type": ["string", "null"], "description": "Spelling suggestion when the search found nothing." }
+					"suggestion": {
+						"type": ["string", "null"],
+						"description": "Spelling suggestion when the search found nothing."
+					}
 				}
 			},
 			"VerseListSummary": {
 				"type": "object",
-				"required": ["id", "title", "isPublic", "slug", "itemCount", "updatedAt", "role", "ownerName"],
+				"required": [
+					"id",
+					"title",
+					"isPublic",
+					"slug",
+					"itemCount",
+					"updatedAt",
+					"role",
+					"ownerName"
+				],
 				"properties": {
 					"id": { "type": "string", "format": "uuid" },
 					"title": { "type": "string" },
 					"isPublic": { "type": "boolean" },
-					"slug": { "type": ["string", "null"], "description": "Unguessable slug for the public link at `/l/{slug}`, set only while shared." },
+					"slug": {
+						"type": ["string", "null"],
+						"description": "Unguessable slug for the public link at `/l/{slug}`, set only while shared."
+					},
 					"itemCount": { "type": "integer" },
 					"updatedAt": { "type": "string", "format": "date-time" },
-					"role": { "type": "string", "enum": ["owner", "member"], "description": "Whether the caller owns this list or was invited to collaborate on it." },
-					"ownerName": { "type": ["string", "null"], "description": "The owner's display name (or email), only set when `role` is `member`." }
+					"role": {
+						"type": "string",
+						"enum": ["owner", "member"],
+						"description": "Whether the caller owns this list or was invited to collaborate on it."
+					},
+					"ownerName": {
+						"type": ["string", "null"],
+						"description": "The owner's display name (or email), only set when `role` is `member`."
+					}
 				}
 			},
 			"VerseListItem": {
@@ -950,7 +1210,11 @@
 					"chapter": { "type": "integer" },
 					"verse": { "type": "integer" },
 					"position": { "type": "integer" },
-					"addedByUserId": { "type": "string", "format": "uuid", "description": "Who added this verse; only the list's owner may remove one they did not add themselves." },
+					"addedByUserId": {
+						"type": "string",
+						"format": "uuid",
+						"description": "Who added this verse; only the list's owner may remove one they did not add themselves."
+					},
 					"segments": {
 						"oneOf": [
 							{ "type": "array", "items": { "$ref": "#/components/schemas/VerseSegment" } },
@@ -973,18 +1237,149 @@
 			},
 			"UserNote": {
 				"type": "object",
-				"required": ["id", "kind", "book", "chapter", "verse", "html", "updatedAt", "listId", "listTitle"],
+				"description": "A legacy comment returned by the compatibility endpoint. Translation comments and verse-list discussion comments share this shape.",
+				"required": [
+					"id",
+					"kind",
+					"book",
+					"chapter",
+					"verse",
+					"html",
+					"updatedAt",
+					"listId",
+					"listTitle",
+					"itemId",
+					"resourceId",
+					"resourceName"
+				],
 				"properties": {
 					"id": { "type": "string", "format": "uuid" },
-					"kind": { "type": "string", "enum": ["chapter", "verse"] },
+					"kind": { "type": "string", "enum": ["translation", "list"] },
 					"book": { "type": "integer" },
 					"chapter": { "type": "integer" },
-					"verse": { "type": ["integer", "null"], "description": "Set for a verse-list-item note (`kind: \"verse\"`); `null` for a chapter note." },
+					"verse": { "type": "integer" },
 					"html": { "type": "string" },
 					"updatedAt": { "type": "string", "format": "date-time" },
-					"listId": { "type": ["string", "null"], "format": "uuid", "description": "Set for a verse-list-item note." },
-					"listTitle": { "type": ["string", "null"], "description": "Set for a verse-list-item note." }
+					"listId": {
+						"type": ["string", "null"],
+						"format": "uuid",
+						"description": "Set when kind is `list`."
+					},
+					"listTitle": { "type": ["string", "null"], "description": "Set when kind is `list`." },
+					"itemId": {
+						"type": ["string", "null"],
+						"format": "uuid",
+						"description": "The verse-list item carrying this discussion comment when kind is `list`."
+					},
+					"resourceId": {
+						"type": ["string", "null"],
+						"description": "The exact Bible translation when kind is `translation`."
+					},
+					"resourceName": {
+						"type": ["string", "null"],
+						"description": "The display title of that Bible translation when kind is `translation`."
+					}
 				}
+			},
+			"DocumentSummary": {
+				"type": "object",
+				"description": "An owner-private mutable document working copy. Visibility is its publication setting; it does not make this working-copy response public.",
+				"required": [
+					"id",
+					"kind",
+					"title",
+					"plainText",
+					"visibility",
+					"revision",
+					"source",
+					"sourceFilename",
+					"legacyVerseCommentId",
+					"sermonStatus",
+					"sermonDate",
+					"sermonSeries",
+					"deletedAt",
+					"createdAt",
+					"updatedAt"
+				],
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"kind": { "type": "string", "enum": ["note", "article", "sermon"] },
+					"title": { "type": "string", "maxLength": 200 },
+					"plainText": {
+						"type": "string",
+						"description": "Markup-free body text suitable for previews and client-side filtering."
+					},
+					"visibility": {
+						"type": "string",
+						"enum": ["private", "unlisted", "public"],
+						"description": "The working copy's publication setting. Public pages still use only an explicit publication snapshot."
+					},
+					"revision": { "type": "integer", "minimum": 1 },
+					"source": { "type": "string", "enum": ["native", "obsidian", "legacy-verse-comment"] },
+					"sourceFilename": {
+						"type": ["string", "null"],
+						"description": "The original basename for an imported Markdown file."
+					},
+					"legacyVerseCommentId": {
+						"type": ["string", "null"],
+						"format": "uuid",
+						"description": "The preserved source-comment id for an idempotently migrated legacy translation comment."
+					},
+					"sermonStatus": {
+						"type": ["string", "null"],
+						"enum": ["idea", "research", "outline", "ready", "delivered", null]
+					},
+					"sermonDate": { "type": ["string", "null"], "format": "date" },
+					"sermonSeries": { "type": ["string", "null"] },
+					"deletedAt": { "type": ["string", "null"], "format": "date-time" },
+					"createdAt": { "type": "string", "format": "date-time" },
+					"updatedAt": { "type": "string", "format": "date-time" }
+				}
+			},
+			"PassageEndpoint": {
+				"type": "object",
+				"required": ["book", "chapter", "verse"],
+				"properties": {
+					"book": { "type": "integer", "minimum": 1, "maximum": 66 },
+					"chapter": { "type": "integer", "minimum": 1 },
+					"verse": { "type": "integer", "minimum": 1 }
+				}
+			},
+			"DocumentPassage": {
+				"type": "object",
+				"description": "An inclusive, possibly cross-chapter or cross-book Bible range. A null resourceId is canonical; a value makes the anchor translation-specific.",
+				"required": ["resourceId", "start", "end", "position"],
+				"properties": {
+					"resourceId": { "type": ["string", "null"] },
+					"start": { "$ref": "#/components/schemas/PassageEndpoint" },
+					"end": { "$ref": "#/components/schemas/PassageEndpoint" },
+					"position": { "type": "integer", "minimum": 0 }
+				}
+			},
+			"DocumentDetail": {
+				"allOf": [
+					{ "$ref": "#/components/schemas/DocumentSummary" },
+					{
+						"type": "object",
+						"required": ["bodyMarkdown", "bodyHtml", "passages", "tags"],
+						"properties": {
+							"bodyMarkdown": { "type": "string", "description": "The portable source of truth." },
+							"bodyHtml": {
+								"type": "string",
+								"description": "Sanitised HTML derived from bodyMarkdown."
+							},
+							"passages": {
+								"type": "array",
+								"items": { "$ref": "#/components/schemas/DocumentPassage" }
+							},
+							"tags": {
+								"type": "array",
+								"description": "Explicit leaf tags as slash-separated nested paths.",
+								"items": { "type": "string" }
+							}
+						}
+					}
+				]
 			},
 			"HighlightStyle": {
 				"type": "object",
@@ -1017,7 +1412,10 @@
 				"required": ["style", "verses", "resource"],
 				"properties": {
 					"style": { "$ref": "#/components/schemas/HighlightStyle" },
-					"verses": { "type": "array", "items": { "$ref": "#/components/schemas/HighlightedVerse" } },
+					"verses": {
+						"type": "array",
+						"items": { "$ref": "#/components/schemas/HighlightedVerse" }
+					},
 					"resource": { "type": ["string", "null"] }
 				}
 			}

@@ -8,7 +8,9 @@ import { apiError } from '$lib/server/api/errors';
  * The caller's own comments — both translation and verse-list comments — requires a session or a
  * `personal`-scope API key.
  */
-export async function GET({ locals }) {
+export async function GET({ locals, setHeaders }) {
+	setHeaders({ 'cache-control': 'private, no-store' });
+
 	const identity = resolveApiIdentity(locals);
 	if (identity.scope !== 'personal' || !identity.userId) {
 		return apiError(

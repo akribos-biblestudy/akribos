@@ -1,6 +1,6 @@
 /** Per-owner hierarchical tags for the unified document library. */
 
-import { and, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import {
 	MAX_DOCUMENT_TAGS,
 	isValidTagPath,
@@ -201,6 +201,7 @@ export async function listDocumentTagTree(db: Database, userId: string): Promise
 export type TagDocumentFilters = {
 	kind?: DocumentKind;
 	query?: string;
+	deleted?: 'exclude' | 'only' | 'include';
 };
 
 /**
@@ -217,10 +218,11 @@ export async function listDocumentsByTag(
 	const conditions = [
 		eq(documents.userId, userId),
 		eq(documentTags.userId, userId),
-		isNull(documents.deletedAt),
 		sql`(${documentTags.normalizedPath} = ${normalized}
 			or left(${documentTags.normalizedPath}, ${normalized.length + 1}) = ${`${normalized}/`})`
 	];
+	if (filters.deleted === 'only') conditions.push(isNotNull(documents.deletedAt));
+	else if (filters.deleted !== 'include') conditions.push(isNull(documents.deletedAt));
 	if (filters.kind) conditions.push(eq(documents.kind, filters.kind));
 	const query = filters.query?.trim();
 	if (query) {

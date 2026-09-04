@@ -198,6 +198,32 @@ export async function unpublishArticle(
 	});
 }
 
+/**
+ * Returns the snapshot attached to an owned, active working copy. This is for the private editor;
+ * unlike a public slug lookup, the document id never acts as authority on its own.
+ */
+export async function getOwnedDocumentPublication(
+	db: Database,
+	userId: string,
+	documentId: string
+): Promise<DocumentPublication | undefined> {
+	const [owned] = await db
+		.select({ id: documents.id })
+		.from(documents)
+		.where(
+			and(eq(documents.id, documentId), eq(documents.userId, userId), isNull(documents.deletedAt))
+		)
+		.limit(1);
+	if (!owned) return undefined;
+
+	const [publication] = await db
+		.select()
+		.from(documentPublications)
+		.where(eq(documentPublications.documentId, documentId))
+		.limit(1);
+	return publication;
+}
+
 /** Public article index/feed/sitemap source. Unlisted snapshots are intentionally excluded. */
 export async function listPublishedArticles(
 	db: Database,

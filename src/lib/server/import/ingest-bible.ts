@@ -22,6 +22,8 @@ import { segmentsToText, wordsFromSegments } from '../../bible/segments.ts';
 import type { ParsedVerse, ParseStream, ResourceMetadata } from '../../bible/parse/types.ts';
 import type { Database } from '../db/client.ts';
 import {
+	documentPassages,
+	documents,
 	resourceBooks,
 	resources,
 	verseComments,
@@ -360,22 +362,56 @@ export async function deleteResource(
 				.where(eq(verseComments.resourceId, resourceId));
 			transferredComments = commentCounts[0]?.value ?? 0;
 
+			// Merge destination collisions first. Source rows without a collision are then updated in
+			// place, preserving their ids: migrated document provenance uses that stable id, so a later
+			// resumable backfill will not mistake a moved comment for a new legacy note.
 			await tx.execute(sql`
-				insert into verse_comments (
-					id, user_id, book_id, chapter, verse, resource_id, comment_html, created_at, updated_at
-				)
-				select
-					gen_random_uuid(), user_id, book_id, chapter, verse, ${replacementResourceId}, comment_html,
-					created_at, updated_at
-				from verse_comments
-				where resource_id = ${resourceId}
-				on conflict (user_id, resource_id, book_id, chapter, verse) do update
-				set comment_html = verse_comments.comment_html
+				update verse_comments as destination
+				set comment_html = destination.comment_html
 					|| ${transferLabel}
-					|| excluded.comment_html,
-					updated_at = greatest(verse_comments.updated_at, excluded.updated_at)
+					|| source.comment_html,
+					updated_at = greatest(destination.updated_at, source.updated_at)
+				from verse_comments as source
+				where destination.resource_id = ${replacementResourceId}
+					and source.resource_id = ${resourceId}
+					and destination.user_id = source.user_id
+					and destination.book_id = source.book_id
+					and destination.chapter = source.chapter
+					and destination.verse = source.verse
 			`);
-			await tx.delete(verseComments).where(eq(verseComments.resourceId, resourceId));
+			await tx.execute(sql`
+				delete from verse_comments as source
+				where source.resource_id = ${resourceId}
+					and exists (
+						select 1 from verse_comments as destination
+						where destination.resource_id = ${replacementResourceId}
+							and destination.user_id = source.user_id
+							and destination.book_id = source.book_id
+							and destination.chapter = source.chapter
+							and destination.verse = source.verse
+					)
+			`);
+			await tx
+				.update(verseComments)
+				.set({ resourceId: replacementResourceId })
+				.where(eq(verseComments.resourceId, resourceId));
+
+			// Translation-specific document anchors follow their replacement Bible in the same
+			// transaction as legacy verse comments. Canonical anchors have a null resource and stay put.
+			// Publication snapshots are historical JSON and deliberately remain unchanged until the
+			// article is explicitly republished.
+			const movedPassages = await tx
+				.update(documentPassages)
+				.set({ resourceId: replacementResourceId })
+				.where(eq(documentPassages.resourceId, resourceId))
+				.returning({ documentId: documentPassages.documentId });
+			const affectedDocumentIds = [...new Set(movedPassages.map((passage) => passage.documentId))];
+			if (affectedDocumentIds.length > 0) {
+				await tx
+					.update(documents)
+					.set({ updatedAt: new Date(), revision: sql`${documents.revision} + 1` })
+					.where(inArray(documents.id, affectedDocumentIds));
+			}
 		}
 
 		await tx.delete(resources).where(eq(resources.id, resourceId));

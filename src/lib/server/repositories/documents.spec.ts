@@ -5,6 +5,7 @@ import { passageToDbEndpoints } from '../../bible/passage.ts';
 import { closeDb, getDb } from '../db/index.ts';
 import { resources, users, verseComments } from '../db/schema.ts';
 import {
+	getOwnedDocumentPublication,
 	publishArticle,
 	getPublishedArticleBySlug,
 	listPublishedArticles
@@ -149,6 +150,19 @@ describe.sequential('unified document repositories', () => {
 				{ ...translated, resourceId: privateResourceId }
 			])
 		).toEqual({ ok: false, reason: 'invalidResource', resourceId: privateResourceId });
+
+		await softDeleteDocument(db, ownerId, document.id);
+		expect(
+			(await findDocumentsOverlappingPassage(db, ownerId, overlap)).map((row) => row.id)
+		).not.toContain(document.id);
+		expect(
+			(
+				await findDocumentsOverlappingPassage(db, ownerId, {
+					...overlap,
+					deleted: 'only'
+				})
+			).map((row) => row.id)
+		).toContain(document.id);
 	});
 
 	it('creates nested ancestors and never crosses ownership while filtering', async () => {
@@ -178,6 +192,14 @@ describe.sequential('unified document repositories', () => {
 			ok: false,
 			reason: 'notFound'
 		});
+
+		await softDeleteDocument(db, ownerId, document.id);
+		expect((await listDocumentsByTag(db, ownerId, 'theology')).map((row) => row.id)).not.toContain(
+			document.id
+		);
+		expect(
+			(await listDocumentsByTag(db, ownerId, 'theology', { deleted: 'only' })).map((row) => row.id)
+		).toContain(document.id);
 	});
 
 	it('publishes only an admin-owned article and keeps working changes out of its snapshot', async () => {
@@ -215,6 +237,8 @@ describe.sequential('unified document repositories', () => {
 			expectedRevision: article.revision
 		});
 		expect(first.ok && first.publication.bodyMarkdown).toBe('Version one');
+		expect(await getOwnedDocumentPublication(db, ownerId, article.id)).toBeUndefined();
+		expect((await getOwnedDocumentPublication(db, adminId, article.id))?.slug).toBe(slug);
 
 		const changed = await updateDocument(db, adminId, article.id, article.revision, {
 			body: {

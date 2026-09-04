@@ -4,13 +4,16 @@ import { config } from '$lib/server/config';
 import { getDb } from '$lib/server/db';
 import { chapterCount } from '$lib/server/repositories/resources';
 import { listBibles } from '$lib/server/repositories/resources';
+import { listPublishedArticles } from '$lib/server/repositories/document-publications';
+
+const PUBLICATION_PAGE_SIZE = 100;
 
 /**
- * Sitemap of every chapter that actually has text.
+ * Sitemap of every chapter that actually has text and every discoverable article snapshot.
  *
  * Chapter counts come from the imported data rather than from the canonical table, so the sitemap
- * never advertises a chapter that would render empty. Around 1,200 URLs, well inside the 50,000 a
- * single sitemap may contain.
+ * never advertises a chapter that would render empty. Articles come only from the publication
+ * repository, whose listing excludes unlisted snapshots and mutable working copies.
  */
 export async function GET({ setHeaders }) {
 	const db = getDb();
@@ -27,6 +30,21 @@ export async function GET({ setHeaders }) {
 		for (let chapter = 1; chapter <= chapters; chapter += 1) {
 			urls.push(`${origin}/${bookShortName(book.id)}${chapter}`);
 		}
+	}
+
+	// Public snapshots are discoverable. Unlisted publications are deliberately absent even though
+	// somebody holding their direct link can open them.
+	let publicationOffset = 0;
+	while (true) {
+		const publications = await listPublishedArticles(db, {
+			limit: PUBLICATION_PAGE_SIZE,
+			offset: publicationOffset
+		});
+		for (const publication of publications) {
+			urls.push(`${origin}/articles/${encodeURIComponent(publication.slug)}`);
+		}
+		if (publications.length < PUBLICATION_PAGE_SIZE) break;
+		publicationOffset += publications.length;
 	}
 
 	setHeaders({ 'content-type': 'application/xml', 'cache-control': 'public, max-age=3600' });
