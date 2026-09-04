@@ -1,5 +1,34 @@
 # Operations
 
+## Reproducible local demo
+
+After `pnpm install` and `cp .env.example .env`, run:
+
+```sh
+pnpm dev:demo
+```
+
+This starts the existing PostgreSQL service from `compose.dev.yaml`, applies every migration, runs the
+small development/E2E seed and starts the SvelteKit development server at <http://localhost:5173>
+(`0.0.0.0:5173` for an integrated or LAN preview). It never truncates or drops a developer database.
+The ordinary full-data import remains available separately through `pnpm data:import`.
+
+The fixture accounts are development-only and use reserved addresses:
+
+| Role  | E-mail               | Password               | Display name       |
+| ----- | -------------------- | ---------------------- | ------------------ |
+| User  | `reader@example.com` | `seed-reader-password` | Demo-Leser         |
+| Admin | `admin@example.com`  | `seed-admin-password`  | Seed-Administrator |
+
+`pnpm db:seed` is idempotent: it reimports only the compact `SEED*` resources, creates missing fixture
+rows using stable IDs, and does not overwrite edited fixture documents or publication snapshots. It
+refreshes the credentials, roles and display names of the two reserved accounts so the table above
+remains reliable. The fixture includes canonical, cross-chapter and translation-specific notes, a
+nested tag, a sermon in progress, and a public article whose revision-1 snapshot deliberately differs
+from its newer revision-2 working copy. It also inserts a legacy `verse_comments` row and invokes the
+same unique-provenance backfill as `pnpm db:backfill-notes`; rerunning either command cannot create a
+second migrated document.
+
 ## Deploying
 
 `compose.yaml` is the whole stack: the app and PostgreSQL 17. The application image is built on

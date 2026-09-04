@@ -9,6 +9,7 @@
 	},
 	"scripts": {
 		"dev": "vite dev",
+		"dev:demo": "pnpm db:start && pnpm db:migrate && pnpm db:seed && pnpm dev --host 0.0.0.0",
 		"build": "vite build",
 		"preview": "vite preview",
 		"start": "node --env-file-if-exists=.env scripts/migrate.ts && node --env-file-if-exists=.env build/index.js",
