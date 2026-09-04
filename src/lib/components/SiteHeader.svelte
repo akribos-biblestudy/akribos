@@ -467,6 +467,10 @@
 
 			<Menu bind:this={userMenu} label={t('nav.userMenu')}>
 				{#if user}
+					<a href="/notes" role="menuitem" data-sveltekit-preload-data="hover">{t('nav.notes')}</a>
+					<a href="/sermons" role="menuitem" data-sveltekit-preload-data="hover"
+						>{t('nav.sermons')}</a
+					>
 					<a href="/account" role="menuitem" data-sveltekit-preload-data="hover"
 						>{t('nav.account')}</a
 					>
@@ -476,6 +480,9 @@
 					{/if}
 					<hr />
 				{/if}
+				<a href="/articles" role="menuitem" data-sveltekit-preload-data="hover"
+					>{t('nav.articles')}</a
+				>
 				{#if readerPreferences}
 					<button type="button" role="menuitem" onclick={restartTour}>{t('nav.tour')}</button>
 				{/if}

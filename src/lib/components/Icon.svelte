@@ -9,12 +9,17 @@
 			| 'book'
 			| 'book-open'
 			| 'check'
+			| 'calendar'
 			| 'chevron-down'
 			| 'chevron-left'
 			| 'chevron-right'
 			| 'info'
+			| 'download'
+			| 'file-text'
+			| 'globe'
 			| 'layout'
 			| 'link'
+			| 'lock'
 			| 'message'
 			| 'moon'
 			| 'more-horizontal'
@@ -24,6 +29,9 @@
 			| 'search'
 			| 'star'
 			| 'sun'
+			| 'tag'
+			| 'trash'
+			| 'upload'
 			| 'user'
 			| 'x';
 		class?: string;
@@ -93,6 +101,27 @@
 		<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z" />
 	{:else if name === 'check'}
 		<path d="m5 12.5 4.25 4.25L19.5 6.5" />
+	{:else if name === 'calendar'}
+		<rect x="3" y="5" width="18" height="16" rx="2" />
+		<path d="M8 3v4M16 3v4M3 10h18" />
+	{:else if name === 'download'}
+		<path d="M12 3v12M7.5 10.5 12 15l4.5-4.5M4 20h16" />
+	{:else if name === 'file-text'}
+		<path d="M6 3h8l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+		<path d="M14 3v5h5M8 12h7M8 16h7" />
+	{:else if name === 'globe'}
+		<circle cx="12" cy="12" r="9" />
+		<path d="M3 12h18M12 3c3 3.4 3 14.6 0 18M12 3c-3 3.4-3 14.6 0 18" />
+	{:else if name === 'lock'}
+		<rect x="5" y="10" width="14" height="11" rx="2" />
+		<path d="M8 10V7a4 4 0 0 1 8 0v3" />
+	{:else if name === 'tag'}
+		<path d="M20.5 13.5 13.5 20.5 3.5 10.5V3.5h7Z" />
+		<circle cx="8" cy="8" r="1" />
+	{:else if name === 'trash'}
+		<path d="M4 7h16M9 3h6l1 4M7 7l1 14h8l1-14M10 11v6M14 11v6" />
+	{:else if name === 'upload'}
+		<path d="M12 16V4M7.5 8.5 12 4l4.5 4.5M4 20h16" />
 	{:else if name === 'message'}
 		<path
 			d="M5 4.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7l-5.5 4v-4H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z"
