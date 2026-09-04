@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { beforeNavigate, goto } from '$app/navigation';
+	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
 	import { documentHtmlToMarkdown, documentMarkdownToHtml } from '$lib/notes/document-markdown';
 	import { t } from '$lib/i18n';
 	import { Editor } from '@tiptap/core';
@@ -6,6 +8,7 @@
 	import { StarterKit } from '@tiptap/starter-kit';
 	import { onMount, untrack } from 'svelte';
 	import Icon from '../Icon.svelte';
+	import { BibleReferenceDecorations } from './bible-reference-decorations';
 
 	type EditableDocument = {
 		id: string;
@@ -17,10 +20,15 @@
 
 	let {
 		document,
+		bibleId = null,
+		compact = false,
 		onSaved,
 		onState
 	}: {
 		document: EditableDocument;
+		bibleId?: string | null;
+		/** Fits the same editor and autosave implementation into the Reader's notes column. */
+		compact?: boolean;
 		onSaved?: (document: EditableDocument) => void;
 		onState?: (state: { status: SaveState; revision: number }) => void;
 	} = $props();
@@ -37,10 +45,12 @@
 	let saveState = $state<SaveState>('saved');
 	let saveMessage = $state('');
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
-	let saving = false;
-	let saveAgain = false;
+	let saveQueue: Promise<void> = Promise.resolve();
 	let destroyed = false;
 	let applyingContent = false;
+	let resumingNavigation = false;
+	let pendingNavigation = false;
+	const bibleReferenceTooltipId = untrack(() => `document-bible-reference-preview-${document.id}`);
 	let lastSavedSignature = untrack(() => signature(title, markdown));
 
 	const editor = $derived(editorState.editor);
@@ -50,7 +60,7 @@
 			: saveState === 'dirty'
 				? t('documents.editor.unsaved')
 				: saveState === 'error'
-					? t('documents.editor.saveError')
+					? saveMessage || t('documents.editor.saveError')
 					: saveState === 'conflict'
 						? t('documents.editor.conflict')
 						: t('documents.editor.saved')
@@ -83,69 +93,78 @@
 		debounceTimer = setTimeout(() => void save(), delay);
 	}
 
-	async function save(): Promise<void> {
-		if (destroyed || saveState === 'conflict') return;
+	function save(): Promise<void> {
+		if (destroyed || saveState === 'conflict') return Promise.resolve();
 		if (debounceTimer) clearTimeout(debounceTimer);
 		debounceTimer = undefined;
+		// Every caller joins the same serial queue. In particular, a metadata submit that flushes while
+		// an autosave is in flight waits for that request and then persists any newer editor state.
+		saveQueue = saveQueue.then(persistLatest, persistLatest);
+		return saveQueue;
+	}
 
-		const saveSignature = signature(title, markdown);
-		if (saveSignature === lastSavedSignature) {
-			saveState = 'saved';
-			return;
-		}
-		if (!title.trim()) {
-			saveState = 'error';
-			saveMessage = t('documents.editor.titlePlaceholder');
-			return;
-		}
-		if (saving) {
-			saveAgain = true;
-			return;
-		}
-
-		saving = true;
-		saveState = 'saving';
-		saveMessage = '';
-		const requestedRevision = revision;
-		const requestedTitle = title;
-		const requestedMarkdown = markdown;
-
-		try {
-			const response = await fetch(`/api/documents/${encodeURIComponent(document.id)}`, {
-				method: 'PATCH',
-				headers: { 'content-type': 'application/json', accept: 'application/json' },
-				body: JSON.stringify({
-					revision: requestedRevision,
-					title: requestedTitle,
-					markdown: requestedMarkdown
-				})
-			});
-			const result = (await response.json().catch(() => ({}))) as {
-				document?: EditableDocument;
-				error?: string;
-				currentRevision?: number;
-			};
-
-			if (response.status === 409 || result.error === 'conflict') {
-				saveState = 'conflict';
-				saveMessage = t('documents.editor.conflict');
+	async function persistLatest(): Promise<void> {
+		while (!destroyed && saveState !== 'conflict') {
+			const saveSignature = signature(title, markdown);
+			if (saveSignature === lastSavedSignature) {
+				saveState = 'saved';
 				return;
 			}
-			if (!response.ok || !result.document) throw new Error(result.error ?? response.statusText);
+			if (!title.trim()) {
+				saveState = 'error';
+				saveMessage = t('documents.editor.titlePlaceholder');
+				return;
+			}
 
-			revision = result.document.revision;
-			lastSavedSignature = signature(requestedTitle, requestedMarkdown);
-			onSaved?.(result.document);
-			if (signature(title, markdown) === lastSavedSignature) saveState = 'saved';
-			else saveAgain = true;
-		} catch (error) {
-			saveState = 'error';
-			saveMessage = error instanceof Error ? error.message : String(error);
-		} finally {
-			saving = false;
-			if (saveAgain && saveState !== 'conflict') {
-				saveAgain = false;
-				scheduleSave(50);
+			saveState = 'saving';
+			saveMessage = '';
+			const requestedRevision = revision;
+			const requestedTitle = title;
+			const requestedMarkdown = markdown;
+
+			try {
+				const response = await fetch(`/api/documents/${encodeURIComponent(document.id)}`, {
+					method: 'PATCH',
+					headers: { 'content-type': 'application/json', accept: 'application/json' },
+					body: JSON.stringify({
+						revision: requestedRevision,
+						title: requestedTitle,
+						markdown: requestedMarkdown
+					})
+				});
+				const result = (await response.json().catch(() => ({}))) as {
+					document?: EditableDocument;
+					error?: string;
+					currentRevision?: number;
+				};
+
+				if (response.status === 409 || result.error === 'conflict') {
+					saveState = 'conflict';
+					saveMessage = t('documents.editor.conflict');
+					return;
+				}
+				if (!response.ok || !result.document) {
+					if (response.status === 401) {
+						throw new Error(t('documents.editor.authenticationRequired'));
+					}
+					if (response.status === 404) throw new Error(t('documents.editor.notFound'));
+					if (response.status === 413) throw new Error(t('documents.editor.tooLarge'));
+					throw new Error(t('documents.editor.saveError'));
+				}
+
+				revision = result.document.revision;
+				lastSavedSignature = signature(requestedTitle, requestedMarkdown);
+				onSaved?.(result.document);
+				// If typing continued during the request, loop immediately with the new revision so flush()
+				// cannot return before the newest title/body is durable.
+				if (signature(title, markdown) === lastSavedSignature) {
+					saveState = 'saved';
+					return;
+				}
+			} catch (error) {
+				saveState = 'error';
+				saveMessage = error instanceof Error ? error.message : String(error);
+				return;
 			}
 		}
 	}
@@ -175,6 +194,23 @@
 		mode = nextMode;
 	}
 
+	function onModeTabKeydown(event: KeyboardEvent): void {
+		if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+		event.preventDefault();
+		const nextMode =
+			event.key === 'Home'
+				? ('visual' as const)
+				: event.key === 'End'
+					? ('markdown' as const)
+					: mode === 'visual'
+						? ('markdown' as const)
+						: ('visual' as const);
+		switchMode(nextMode);
+		requestAnimationFrame(() => {
+			window.document.getElementById(`document-${nextMode}-tab`)?.focus();
+		});
+	}
+
 	function onWindowKeydown(event: KeyboardEvent): void {
 		if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 's') {
 			event.preventDefault();
@@ -196,6 +232,25 @@
 		event.returnValue = '';
 	}
 
+	beforeNavigate(({ cancel, to }) => {
+		if (resumingNavigation) {
+			resumingNavigation = false;
+			return;
+		}
+		if (!to?.url || signature(title, markdown) === lastSavedSignature) return;
+
+		cancel();
+		if (pendingNavigation) return;
+		pendingNavigation = true;
+		const destination = to.url;
+		void flush().then((saved) => {
+			pendingNavigation = false;
+			if (!saved) return;
+			resumingNavigation = true;
+			void goto(destination);
+		});
+	});
+
 	function onVisibilityChange(): void {
 		if (window.document.visibilityState === 'hidden' && saveState === 'dirty') void save();
 	}
@@ -205,8 +260,9 @@
 		const instance = new Editor({
 			element: editorHost,
 			extensions: [
-				StarterKit.configure({ heading: { levels: [2, 3] } }),
-				Placeholder.configure({ placeholder: t('documents.editor.bodyPlaceholder') })
+				StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+				Placeholder.configure({ placeholder: t('documents.editor.bodyPlaceholder') }),
+				BibleReferenceDecorations.configure({ tooltipId: bibleReferenceTooltipId })
 			],
 			content: document.bodyHtml,
 			editorProps: {
@@ -214,7 +270,8 @@
 					class: 'document-prose prose-like',
 					role: 'textbox',
 					'aria-label': t('documents.editor.bodyPlaceholder'),
-					'aria-multiline': 'true'
+					'aria-multiline': 'true',
+					...(compact ? { 'data-testid': 'reader-notes-sidecar-body' } : {})
 				}
 			},
 			onCreate: ({ editor }) => (editorState = { editor }),
@@ -240,6 +297,7 @@
 
 <section
 	class="document-editor overflow-hidden rounded-2xl border border-stone-200/80 bg-[color:var(--surface)] shadow-[var(--shadow-soft)] dark:border-white/8"
+	class:compact
 	data-document-editor
 	data-testid="document-editor"
 >
@@ -247,11 +305,12 @@
 		<label class="sr-only" for="document-title">{t('documents.editor.title')}</label>
 		<input
 			id="document-title"
+			data-testid={compact ? 'reader-notes-sidecar-title' : undefined}
 			bind:value={title}
 			oninput={markDirty}
 			maxlength="200"
 			placeholder={t('documents.editor.titlePlaceholder')}
-			class="w-full border-0 bg-transparent font-serif text-2xl leading-tight font-semibold tracking-tight placeholder:text-stone-300 focus:outline-none sm:text-3xl dark:placeholder:text-stone-600"
+			class="w-full rounded-sm border-0 bg-transparent font-serif text-2xl leading-tight font-semibold tracking-tight placeholder:text-stone-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-500 sm:text-3xl dark:placeholder:text-stone-600"
 		/>
 
 		<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -261,22 +320,30 @@
 				aria-label={t('documents.editor.markdown')}
 			>
 				<button
+					id="document-visual-tab"
 					type="button"
 					role="tab"
 					aria-selected={mode === 'visual'}
+					aria-controls="document-visual-panel"
+					tabindex={mode === 'visual' ? 0 : -1}
 					class:active={mode === 'visual'}
 					class="mode-tab"
 					onclick={() => switchMode('visual')}
+					onkeydown={onModeTabKeydown}
 				>
 					{t('documents.editor.visual')}
 				</button>
 				<button
+					id="document-markdown-tab"
 					type="button"
 					role="tab"
 					aria-selected={mode === 'markdown'}
+					aria-controls="document-markdown-panel"
+					tabindex={mode === 'markdown' ? 0 : -1}
 					class:active={mode === 'markdown'}
 					class="mode-tab"
 					onclick={() => switchMode('markdown')}
+					onkeydown={onModeTabKeydown}
 				>
 					{t('documents.editor.markdown')}
 				</button>
@@ -288,6 +355,7 @@
 				role={saveState === 'error' || saveState === 'conflict' ? 'alert' : 'status'}
 				aria-live="polite"
 				title={saveMessage}
+				data-testid={compact ? 'reader-notes-sidecar-save-status' : undefined}
 			>
 				{#if saveState === 'saved'}<Icon name="check" class="size-3.5" />{/if}
 				{statusText}
@@ -295,83 +363,109 @@
 		</div>
 	</header>
 
-	{#if mode === 'visual'}
+	<div
+		id="document-visual-panel"
+		role="tabpanel"
+		aria-labelledby="document-visual-tab"
+		hidden={mode !== 'visual'}
+	>
 		{#if editor}
 			<div class="editor-toolbar" role="toolbar" aria-label={t('documents.editor.formatting')}>
 				<button
 					type="button"
 					class:active={editor.isActive('bold')}
+					aria-pressed={editor.isActive('bold')}
 					onclick={() => editor.chain().focus().toggleBold().run()}
-					aria-label={t('documents.editor.bold')}><strong>B</strong></button
+					aria-label={t('documents.editor.bold')}><Icon name="bold" class="size-4" /></button
 				>
 				<button
 					type="button"
 					class:active={editor.isActive('italic')}
+					aria-pressed={editor.isActive('italic')}
 					onclick={() => editor.chain().focus().toggleItalic().run()}
-					aria-label={t('documents.editor.italic')}><em>I</em></button
+					aria-label={t('documents.editor.italic')}><Icon name="italic" class="size-4" /></button
 				>
 				<button
 					type="button"
 					class:active={editor.isActive('strike')}
+					aria-pressed={editor.isActive('strike')}
 					onclick={() => editor.chain().focus().toggleStrike().run()}
-					aria-label={t('documents.editor.strike')}><s>S</s></button
+					aria-label={t('documents.editor.strike')}
+					><Icon name="strikethrough" class="size-4" /></button
 				>
 				<span class="toolbar-separator"></span>
 				<button
 					type="button"
 					class:active={editor.isActive('heading', { level: 2 })}
+					aria-pressed={editor.isActive('heading', { level: 2 })}
 					onclick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-					aria-label={t('documents.editor.heading')}>H2</button
+					aria-label={t('documents.editor.heading')}><Icon name="heading" class="size-4" /></button
 				>
 				<button
 					type="button"
 					class:active={editor.isActive('bulletList')}
+					aria-pressed={editor.isActive('bulletList')}
 					onclick={() => editor.chain().focus().toggleBulletList().run()}
-					aria-label={t('documents.editor.list')}>•</button
+					aria-label={t('documents.editor.list')}><Icon name="list" class="size-4" /></button
 				>
 				<button
 					type="button"
 					class:active={editor.isActive('orderedList')}
+					aria-pressed={editor.isActive('orderedList')}
 					onclick={() => editor.chain().focus().toggleOrderedList().run()}
-					aria-label={t('documents.editor.orderedList')}>1.</button
+					aria-label={t('documents.editor.orderedList')}
+					><Icon name="list-ordered" class="size-4" /></button
 				>
 				<button
 					type="button"
 					class:active={editor.isActive('blockquote')}
+					aria-pressed={editor.isActive('blockquote')}
 					onclick={() => editor.chain().focus().toggleBlockquote().run()}
-					aria-label={t('documents.editor.quote')}>„“</button
+					aria-label={t('documents.editor.quote')}><Icon name="quote" class="size-4" /></button
 				>
 				<button
 					type="button"
 					class:active={editor.isActive('code')}
+					aria-pressed={editor.isActive('code')}
 					onclick={() => editor.chain().focus().toggleCode().run()}
-					aria-label={t('documents.editor.code')}>&lt;/&gt;</button
+					aria-label={t('documents.editor.code')}><Icon name="code" class="size-4" /></button
 				>
 				<span class="toolbar-separator"></span>
 				<button
 					type="button"
 					disabled={!editor.can().undo()}
 					onclick={() => editor.chain().focus().undo().run()}
-					aria-label={t('documents.editor.undo')}>↶</button
+					aria-label={t('documents.editor.undo')}><Icon name="undo" class="size-4" /></button
 				>
 				<button
 					type="button"
 					disabled={!editor.can().redo()}
 					onclick={() => editor.chain().focus().redo().run()}
-					aria-label={t('documents.editor.redo')}>↷</button
+					aria-label={t('documents.editor.redo')}><Icon name="redo" class="size-4" /></button
 				>
 			</div>
 		{/if}
-		<div class="editor-host" bind:this={editorHost}></div>
-	{:else}
-		<div class="markdown-editor">
+		<div
+			class="editor-host"
+			bind:this={editorHost}
+			use:verseHoverPopover={{ bibleId, tooltipId: bibleReferenceTooltipId }}
+		></div>
+	</div>
+	{#if mode === 'markdown'}
+		<div
+			id="document-markdown-panel"
+			class="markdown-editor"
+			role="tabpanel"
+			aria-labelledby="document-markdown-tab"
+		>
 			<label class="sr-only" for="document-markdown">{t('documents.editor.markdown')}</label>
 			<textarea
 				id="document-markdown"
+				data-testid={compact ? 'reader-notes-sidecar-body-markdown' : undefined}
 				bind:value={markdown}
 				oninput={markDirty}
 				spellcheck="true"
-				class="min-h-[32rem] w-full resize-y bg-transparent font-mono text-[0.9rem] leading-7 focus:outline-none"
+				class="min-h-[32rem] w-full resize-y rounded-sm bg-transparent font-mono text-[0.9rem] leading-7 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-500"
 			></textarea>
 			<p class="mt-3 text-xs text-stone-500 dark:text-stone-400">
 				{t('documents.editor.markdownHint')}
@@ -451,6 +545,11 @@
 		margin: 0 auto;
 		outline: none;
 	}
+	.editor-host :global(.document-prose:focus-visible) {
+		border-radius: 0.2rem;
+		outline: 2px solid var(--color-accent-500);
+		outline-offset: 0.45rem;
+	}
 	.editor-host :global(.document-prose > * + *) {
 		margin-top: 0.85em;
 	}
@@ -458,6 +557,11 @@
 		margin-top: 1.9em;
 		font-size: 1.55rem;
 		font-weight: 700;
+	}
+	.editor-host :global(.document-prose h1) {
+		margin-top: 1.2em;
+		font-size: 1.9rem;
+		font-weight: 750;
 	}
 	.editor-host :global(.document-prose h3) {
 		margin-top: 1.55em;
@@ -487,6 +591,13 @@
 		font-family: ui-monospace, monospace;
 		font-size: 0.88em;
 	}
+	.editor-host :global(.document-prose .bible-reference) {
+		color: var(--color-accent-700);
+		text-decoration: underline;
+		text-decoration-thickness: 0.08em;
+		text-underline-offset: 0.14em;
+		cursor: pointer;
+	}
 	.editor-host :global(.document-prose p.is-editor-empty:first-child::before) {
 		float: left;
 		height: 0;
@@ -509,6 +620,57 @@
 	}
 	:global(.dark) .save-status.error {
 		color: var(--color-red-300);
+	}
+	:global(.dark) .editor-host :global(.document-prose .bible-reference) {
+		color: var(--color-accent-300);
+	}
+
+	.document-editor.compact {
+		display: flex;
+		height: 100%;
+		min-height: 0;
+		flex-direction: column;
+		border: 0;
+		border-radius: 0;
+		box-shadow: none;
+	}
+	.document-editor.compact > header {
+		padding: 0.8rem 0.9rem;
+	}
+	.document-editor.compact > header input {
+		font-size: 1.25rem;
+	}
+	.document-editor.compact > header > div {
+		margin-top: 0.65rem;
+		gap: 0.5rem;
+	}
+	.document-editor.compact .mode-tab {
+		min-width: 4.5rem;
+		padding-inline: 0.5rem;
+	}
+	.document-editor.compact > [role='tabpanel'] {
+		min-height: 0;
+		flex: 1;
+		overflow-y: auto;
+	}
+	.document-editor.compact .editor-toolbar {
+		top: 0;
+		padding: 0.4rem 0.6rem;
+	}
+	.document-editor.compact .editor-host {
+		min-height: 100%;
+		padding: 1rem 1rem 4rem;
+	}
+	.document-editor.compact .editor-host :global(.document-prose) {
+		min-height: 18rem;
+		font-size: 0.98rem;
+	}
+	.document-editor.compact .markdown-editor {
+		padding: 0.8rem 1rem 2rem;
+	}
+	.document-editor.compact .markdown-editor textarea {
+		min-height: 20rem;
+		resize: none;
 	}
 
 	@media (max-width: 639px) {

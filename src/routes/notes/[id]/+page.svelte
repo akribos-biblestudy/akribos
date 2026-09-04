@@ -15,6 +15,7 @@
 	let editorSaveState = $state<EditorSaveState>('saved');
 	let sermonSaving = $state(false);
 	let sermonMessage = $state('');
+	let exporting = $state(false);
 	let submittingAfterFlush = false;
 
 	const dateFormat = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
@@ -25,7 +26,7 @@
 	$effect(() => {
 		if (data.document.revision > currentRevision) {
 			currentRevision = data.document.revision;
-			workingDocument = { ...workingDocument, revision: data.document.revision };
+			workingDocument = { ...workingDocument, ...data.document };
 		}
 	});
 
@@ -37,6 +38,49 @@
 
 	function sermonStatusLabel(status: string): string {
 		return t(`sermons.status.${status}` as MessageKey);
+	}
+
+	function documentAction(name: string): string {
+		const returnTo = data.returnTo ? `&returnTo=${encodeURIComponent(data.returnTo)}` : '';
+		return `?/${name}${returnTo}`;
+	}
+
+	function backLabel(): string {
+		if (data.returnTo === '/sermons') return t('sermons.back');
+		return data.returnTo && data.returnTo !== '/notes'
+			? t('documents.returnToReader')
+			: t('documents.editor.back');
+	}
+
+	function formErrorMessage(value: unknown): string {
+		const error = String(value ?? '');
+		if (error === 'conflict') return t('documents.editor.conflict');
+		if (['tags', 'invalidTag', 'tooManyTags'].includes(error)) return t('documents.tags.error');
+		if (
+			[
+				'passage',
+				'invalidResource',
+				'duplicatePassage',
+				'passageNotFound',
+				'tooManyPassages'
+			].includes(error)
+		) {
+			return t('documents.passages.error');
+		}
+		if (
+			[
+				'forbidden',
+				'notArticle',
+				'visibility',
+				'invalidSlug',
+				'private',
+				'authorNameRequired',
+				'slugConflict'
+			].includes(error)
+		) {
+			return t('documents.publication.error');
+		}
+		return t('documents.editor.actionError');
 	}
 
 	function onEditorSaved(document: {
@@ -51,9 +95,11 @@
 	}
 
 	function onEditorState(state: { status: EditorSaveState; revision: number }): void {
-		editorSaveState = state.status;
-		currentRevision = state.revision;
-		workingDocument = { ...workingDocument, revision: state.revision };
+		if (editorSaveState !== state.status) editorSaveState = state.status;
+		if (currentRevision !== state.revision) currentRevision = state.revision;
+		if (workingDocument.revision !== state.revision) {
+			workingDocument = { ...workingDocument, revision: state.revision };
+		}
 	}
 
 	async function flushBeforeSubmit(event: SubmitEvent): Promise<void> {
@@ -74,9 +120,9 @@
 
 	async function saveSermonWorkflow(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
-		if (!(await editor?.flush())) return;
 		const target = event.currentTarget as HTMLFormElement;
 		const values = new FormData(target);
+		if (!(await editor?.flush())) return;
 		sermonSaving = true;
 		sermonMessage = '';
 
@@ -106,6 +152,24 @@
 			sermonSaving = false;
 		}
 	}
+
+	async function downloadExport(event: MouseEvent & { currentTarget: HTMLAnchorElement }) {
+		event.preventDefault();
+		if (exporting) return;
+		const href = event.currentTarget.href;
+		exporting = true;
+		try {
+			if (!(await editor?.flush())) return;
+			const link = window.document.createElement('a');
+			link.href = href;
+			link.download = '';
+			window.document.body.append(link);
+			link.click();
+			link.remove();
+		} finally {
+			exporting = false;
+		}
+	}
 </script>
 
 <main class="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-7" data-testid="document-workspace">
@@ -115,11 +179,14 @@
 			class="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-500 hover:text-accent-700 dark:text-stone-400 dark:hover:text-accent-300"
 		>
 			<Icon name="chevron-left" class="size-4" />
-			{data.returnTo ? t('documents.returnToReader') : t('documents.editor.back')}
+			{backLabel()}
 		</a>
 		<div class="flex items-center gap-2">
 			<a
 				href="/notes/{workingDocument.id}/export.md"
+				download
+				data-sveltekit-reload
+				onclick={downloadExport}
 				class="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-[color:var(--surface-raised)] px-3 py-1.5 text-xs font-semibold shadow-sm hover:border-accent-400 dark:border-white/12"
 			>
 				<Icon name="download" class="size-3.5" />
@@ -138,9 +205,7 @@
 			class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/60 dark:text-red-200"
 			role="alert"
 		>
-			{form.error === 'conflict'
-				? t('documents.editor.conflict')
-				: t('documents.publication.error')}
+			{formErrorMessage(form.error)}
 		</p>
 	{:else if form?.published}
 		<p
@@ -155,6 +220,7 @@
 		<DocumentEditor
 			bind:this={editor}
 			document={workingDocument}
+			bibleId={data.bibles[0]?.id ?? null}
 			onSaved={onEditorSaved}
 			onState={onEditorState}
 		/>
@@ -247,7 +313,12 @@
 					<Icon name="tag" class="size-4" />
 					{t('documents.tags.title')}
 				</h2>
-				<form method="POST" action="?/syncTags" class="mt-3" onsubmit={flushBeforeSubmit}>
+				<form
+					method="POST"
+					action={documentAction('syncTags')}
+					class="mt-3"
+					onsubmit={flushBeforeSubmit}
+				>
 					<input type="hidden" name="revision" value={currentRevision} />
 					<label class="field-label">
 						<span class="sr-only">{t('documents.tags.title')}</span>
@@ -295,7 +366,11 @@
 											: t('documents.passages.canonical')}
 									</p>
 								</div>
-								<form method="POST" action="?/removePassage" onsubmit={flushBeforeSubmit}>
+								<form
+									method="POST"
+									action={documentAction('removePassage')}
+									onsubmit={flushBeforeSubmit}
+								>
 									<input type="hidden" name="revision" value={currentRevision} />
 									<input type="hidden" name="passageId" value={passage.id} />
 									<button
@@ -314,7 +389,7 @@
 
 				<form
 					method="POST"
-					action="?/addPassage"
+					action={documentAction('addPassage')}
 					class="mt-3 space-y-2"
 					onsubmit={flushBeforeSubmit}
 				>
@@ -384,7 +459,7 @@
 
 						<form
 							method="POST"
-							action="?/publish"
+							action={documentAction('publish')}
 							class="mt-3 space-y-3"
 							onsubmit={flushBeforeSubmit}
 						>
@@ -394,7 +469,7 @@
 								<select
 									name="visibility"
 									class="field-control"
-									value={data.publication?.visibility ?? 'public'}
+									value={workingDocument.visibility === 'unlisted' ? 'unlisted' : 'public'}
 								>
 									<option value="public">{t('documents.visibility.public')}</option>
 									<option value="unlisted">{t('documents.visibility.unlisted')}</option>
@@ -421,7 +496,7 @@
 							</button>
 						</form>
 						{#if data.publication}
-							<form method="POST" action="?/unpublish" class="mt-2">
+							<form method="POST" action={documentAction('unpublish')} class="mt-2">
 								<button type="submit" class="danger-small w-full">
 									{t('documents.publication.unpublish')}
 								</button>
@@ -439,7 +514,13 @@
 				<p class="mt-2 text-xs leading-relaxed text-stone-500 dark:text-stone-400">
 					{t('documents.export.hint')}
 				</p>
-				<a href="/notes/{workingDocument.id}/export.md" class="secondary-small mt-3">
+				<a
+					href="/notes/{workingDocument.id}/export.md"
+					download
+					data-sveltekit-reload
+					onclick={downloadExport}
+					class="secondary-small mt-3"
+				>
 					{t('action.export')}
 				</a>
 			</section>

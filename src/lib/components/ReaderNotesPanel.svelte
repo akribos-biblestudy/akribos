@@ -11,28 +11,121 @@
 </script>
 
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { onDestroy, tick } from 'svelte';
 	import { t } from '$lib/i18n';
+	import type { ReaderCreatedDocument } from '$lib/reader/document-notes';
 	import Icon from './Icon.svelte';
+
+	let {
+		onOpenDocument,
+		onDocumentCreated
+	}: {
+		onOpenDocument?: (id: string) => void | Promise<void>;
+		onDocumentCreated?: (document: ReaderCreatedDocument) => void;
+	} = $props();
 
 	let open = $state(false);
 	let context = $state<ReaderNotesContext | null>(null);
 	let closeButton = $state<HTMLButtonElement>();
 	let panel = $state<HTMLElement>();
+	let overlayRoot = $state<HTMLElement>();
 	let opener: HTMLElement | null = null;
+	let releaseModal: (() => void) | undefined;
+	let createError = $state('');
+
+	const enhanceCreate: SubmitFunction = ({ formData }) => {
+		createError = '';
+		if (onOpenDocument) formData.set('readerSidecar', '1');
+		const passage = context?.passage ?? '';
+		const resourceId = String(formData.get('resourceId') ?? '').trim() || null;
+		return async ({ result, update }) => {
+			if (result.type === 'success') {
+				const resultData = result.data as
+					| {
+							documentId?: unknown;
+							documentTitle?: unknown;
+							documentKind?: unknown;
+							documentSource?: unknown;
+					  }
+					| undefined;
+				if (typeof resultData?.documentId === 'string' && onOpenDocument) {
+					const documentId = resultData.documentId;
+					onDocumentCreated?.({
+						id: documentId,
+						title:
+							typeof resultData.documentTitle === 'string'
+								? resultData.documentTitle
+								: 'Neue Notiz',
+						kind: 'note',
+						source: 'native',
+						passage,
+						resourceId
+					});
+					close();
+					await onOpenDocument(documentId);
+					return;
+				}
+			}
+			if (result.type === 'failure') {
+				createError =
+					'Die Notiz konnte nicht erstellt werden. Prüfe die Bibelstelle und versuche es erneut.';
+			}
+			await update({ reset: false });
+		};
+	};
+
+	function containPageInteraction(): () => void {
+		const root = overlayRoot;
+		if (!root) return () => undefined;
+		const previousOverflow = window.document.body.style.overflow;
+		window.document.body.style.overflow = 'hidden';
+		const disabled: Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }> = [];
+		let branch: HTMLElement = root;
+
+		while (branch.parentElement) {
+			const parent = branch.parentElement;
+			for (const sibling of parent.children) {
+				if (sibling === branch || !(sibling instanceof HTMLElement)) continue;
+				disabled.push({
+					element: sibling,
+					inert: sibling.inert,
+					ariaHidden: sibling.getAttribute('aria-hidden')
+				});
+				sibling.inert = true;
+				sibling.setAttribute('aria-hidden', 'true');
+			}
+			if (parent === window.document.body) break;
+			branch = parent;
+		}
+
+		return () => {
+			window.document.body.style.overflow = previousOverflow;
+			for (const { element, inert, ariaHidden } of disabled) {
+				element.inert = inert;
+				if (ariaHidden === null) element.removeAttribute('aria-hidden');
+				else element.setAttribute('aria-hidden', ariaHidden);
+			}
+		};
+	}
 
 	/** Opens the single reader-wide panel for the verse whose indicator or menu was activated. */
 	export async function openForVerse(anchor: HTMLElement, next: ReaderNotesContext): Promise<void> {
 		opener = anchor;
 		context = next;
+		createError = '';
 		open = true;
 		await tick();
+		releaseModal ??= containPageInteraction();
 		closeButton?.focus();
 	}
 
 	function close(): void {
 		if (!open) return;
 		open = false;
+		releaseModal?.();
+		releaseModal = undefined;
 		const target = opener;
 		opener = null;
 		target?.focus();
@@ -79,92 +172,127 @@
 		if (!context) return `/notes/${encodeURIComponent(id)}`;
 		return `/notes/${encodeURIComponent(id)}?returnTo=${encodeURIComponent(context.returnTo)}`;
 	}
+
+	function openInSidecar(id: string): void {
+		if (!onOpenDocument) return;
+		close();
+		void onOpenDocument(id);
+	}
+
+	onDestroy(() => releaseModal?.());
 </script>
 
 <svelte:window onkeydown={onKeydown} />
 
 {#if open && context}
-	<button
-		type="button"
-		class="reader-notes-backdrop"
-		tabindex="-1"
-		aria-hidden="true"
-		onclick={close}
-	></button>
-	<div
-		bind:this={panel}
-		class="reader-notes-panel"
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="reader-notes-panel-title"
-		data-testid="reader-notes-panel"
-	>
-		<header>
-			<div>
-				<p class="eyebrow">{context.reference}</p>
-				<h2 id="reader-notes-panel-title">{t('documents.reader.title')}</h2>
+	<div bind:this={overlayRoot}>
+		<button
+			type="button"
+			class="reader-notes-backdrop"
+			tabindex="-1"
+			aria-label={t('documents.reader.panelClose')}
+			onclick={close}
+		></button>
+		<div
+			bind:this={panel}
+			class="reader-notes-panel"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="reader-notes-panel-title"
+			data-testid="reader-notes-panel"
+		>
+			<header>
+				<div>
+					<p class="eyebrow">{context.reference}</p>
+					<h2 id="reader-notes-panel-title">{t('documents.reader.title')}</h2>
+				</div>
+				<button
+					bind:this={closeButton}
+					type="button"
+					class="icon-button"
+					aria-label={t('documents.reader.panelClose')}
+					onclick={close}
+				>
+					<Icon name="x" class="size-5" />
+				</button>
+			</header>
+
+			<div class="panel-body">
+				{#if context.documents.length > 0}
+					<p class="count">{t('documents.reader.count', { count: context.documents.length })}</p>
+					<ul class="document-list">
+						{#each context.documents as document (document.id)}
+							<li>
+								{#if onOpenDocument}
+									<button
+										type="button"
+										data-testid="reader-notes-open-document"
+										data-document-id={document.id}
+										onclick={() => openInSidecar(document.id)}
+									>
+										<span class="document-icon"><Icon name="file-text" class="size-5" /></span>
+										<span class="document-copy">
+											<strong>{document.title}</strong>
+											<span class="metadata">
+												{kindLabel(document.kind)}
+												{#if document.translationSpecific}
+													<span>· {t('documents.reader.translationSpecific')}</span>
+												{/if}
+												{#if document.source === 'legacy-verse-comment'}
+													<span>· {t('documents.library.sourceLegacy')}</span>
+												{/if}
+											</span>
+										</span>
+										<Icon name="pencil" class="size-4 shrink-0" />
+									</button>
+								{:else}
+									<a href={documentUrl(document.id)}>
+										<span class="document-icon"><Icon name="file-text" class="size-5" /></span>
+										<span class="document-copy">
+											<strong>{document.title}</strong>
+											<span class="metadata">
+												{kindLabel(document.kind)}
+												{#if document.translationSpecific}
+													<span>· {t('documents.reader.translationSpecific')}</span>
+												{/if}
+												{#if document.source === 'legacy-verse-comment'}
+													<span>· {t('documents.library.sourceLegacy')}</span>
+												{/if}
+											</span>
+										</span>
+										<Icon name="open-external" class="size-4 shrink-0" />
+									</a>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				{:else}
+					<p class="empty">{t('documents.reader.empty')}</p>
+				{/if}
 			</div>
-			<button
-				bind:this={closeButton}
-				type="button"
-				class="icon-button"
-				aria-label={t('documents.reader.panelClose')}
-				onclick={close}
-			>
-				<Icon name="x" class="size-5" />
-			</button>
-		</header>
 
-		<div class="panel-body">
-			{#if context.documents.length > 0}
-				<p class="count">{t('documents.reader.count', { count: context.documents.length })}</p>
-				<ul class="document-list">
-					{#each context.documents as document (document.id)}
-						<li>
-							<a href={documentUrl(document.id)}>
-								<span class="document-icon"><Icon name="file-text" class="size-5" /></span>
-								<span class="document-copy">
-									<strong>{document.title}</strong>
-									<span class="metadata">
-										{kindLabel(document.kind)}
-										{#if document.translationSpecific}
-											<span>· {t('documents.reader.translationSpecific')}</span>
-										{/if}
-										{#if document.source === 'legacy-verse-comment'}
-											<span>· {t('documents.library.sourceLegacy')}</span>
-										{/if}
-									</span>
-								</span>
-								<Icon name="open-external" class="size-4 shrink-0" />
-							</a>
-						</li>
-					{/each}
-				</ul>
-			{:else}
-				<p class="empty">{t('documents.reader.empty')}</p>
-			{/if}
+			<form method="POST" action="/notes?/create" class="create-form" use:enhance={enhanceCreate}>
+				<input type="hidden" name="kind" value="note" />
+				<input type="hidden" name="passage" value={context.passage} />
+				<input type="hidden" name="returnTo" value={context.returnTo} />
+				<label>
+					<span>{t('documents.passages.translation')}</span>
+					<select name="resourceId" aria-label={t('documents.passages.translation')}>
+						<option value={context.resource.id}>
+							{t('documents.passages.translationSpecific', {
+								translation: context.resource.title
+							})}
+						</option>
+						<option value="">{t('documents.passages.canonical')}</option>
+					</select>
+				</label>
+				<button type="submit" class="create-button">
+					<Icon name="plus" class="size-4" />
+					{t('documents.reader.create', { reference: context.reference })}
+				</button>
+				{#if createError}<p class="create-error" role="alert">{createError}</p>{/if}
+			</form>
 		</div>
-
-		<form method="POST" action="/notes?/create" class="create-form">
-			<input type="hidden" name="kind" value="note" />
-			<input type="hidden" name="passage" value={context.passage} />
-			<input type="hidden" name="returnTo" value={context.returnTo} />
-			<label>
-				<span>{t('documents.passages.translation')}</span>
-				<select name="resourceId" aria-label={t('documents.passages.translation')}>
-					<option value={context.resource.id}>
-						{t('documents.passages.translationSpecific', {
-							translation: context.resource.title
-						})}
-					</option>
-					<option value="">{t('documents.passages.canonical')}</option>
-				</select>
-			</label>
-			<button type="submit" class="create-button">
-				<Icon name="plus" class="size-4" />
-				{t('documents.reader.create', { reference: context.reference })}
-			</button>
-		</form>
 	</div>
 {/if}
 
@@ -270,8 +398,9 @@
 		list-style: none;
 	}
 
-	.document-list a {
+	.document-list :is(a, button) {
 		display: flex;
+		width: 100%;
 		align-items: center;
 		gap: 0.75rem;
 		padding: 0.8rem;
@@ -279,11 +408,12 @@
 		border-radius: 0.7rem;
 		background: var(--surface);
 		color: var(--color-stone-900);
+		text-align: left;
 		text-decoration: none;
 	}
 
-	.document-list a:hover,
-	.document-list a:focus-visible {
+	.document-list :is(a, button):hover,
+	.document-list :is(a, button):focus-visible {
 		border-color: var(--color-accent-400);
 		box-shadow: var(--shadow-soft);
 	}
@@ -305,7 +435,7 @@
 		color: var(--color-accent-300);
 	}
 
-	:global(.dark) .document-list a {
+	:global(.dark) .document-list :is(a, button) {
 		color: var(--color-stone-100);
 	}
 
@@ -329,6 +459,16 @@
 		gap: 0.18rem;
 		font-size: 0.7rem;
 		color: var(--color-stone-500);
+	}
+
+	.create-error {
+		margin: 0.5rem 0 0;
+		color: var(--color-red-700);
+		font-size: 0.75rem;
+	}
+
+	:global(.dark) .create-error {
+		color: var(--color-red-300);
 	}
 
 	.empty {

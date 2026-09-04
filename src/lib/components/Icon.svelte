@@ -6,31 +6,41 @@
 	}: {
 		name:
 			| 'arrow-right'
+			| 'bold'
 			| 'book'
 			| 'book-open'
+			| 'code'
 			| 'check'
 			| 'calendar'
 			| 'chevron-down'
 			| 'chevron-left'
 			| 'chevron-right'
 			| 'info'
+			| 'italic'
 			| 'download'
 			| 'file-text'
 			| 'globe'
+			| 'heading'
 			| 'layout'
 			| 'link'
 			| 'lock'
+			| 'list'
+			| 'list-ordered'
 			| 'message'
 			| 'moon'
 			| 'more-horizontal'
 			| 'open-external'
 			| 'pencil'
 			| 'plus'
+			| 'quote'
+			| 'redo'
 			| 'search'
 			| 'star'
+			| 'strikethrough'
 			| 'sun'
 			| 'tag'
 			| 'trash'
+			| 'undo'
 			| 'upload'
 			| 'user'
 			| 'x';
@@ -55,6 +65,18 @@
 >
 	{#if name === 'arrow-right'}
 		<path d="M5 12h14M13 6l6 6-6 6" />
+	{:else if name === 'bold'}
+		<path d="M7 4h6a4 4 0 0 1 0 8H7Zm0 8h7a4 4 0 0 1 0 8H7Z" />
+	{:else if name === 'italic'}
+		<path d="M10 4h7M7 20h7M14 4 10 20" />
+	{:else if name === 'strikethrough'}
+		<path
+			d="M5 12h14M17 7.5C16.3 5.8 14.6 5 12.2 5 9.5 5 8 6.2 8 8c0 1.5 1.2 2.5 3.5 3.2M7 16.2c.8 1.9 2.6 2.8 5.2 2.8 2.8 0 4.4-1.3 4.4-3.2 0-1.2-.7-2.1-2-2.8"
+		/>
+	{:else if name === 'heading'}
+		<path d="M4 5v14M12 5v14M4 12h8M16 9h2.5a1.5 1.5 0 0 1 0 3H17v.01h2a1.5 1.5 0 0 1 0 3H16" />
+	{:else if name === 'code'}
+		<path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14" />
 	{:else if name === 'layout'}
 		<rect x="3" y="3.5" width="7" height="17" rx="1.5" />
 		<rect x="14" y="3.5" width="7" height="7" rx="1.5" />
@@ -84,12 +106,22 @@
 		<circle cx="12" cy="12" r="9" />
 		<path d="M12 11v5" />
 		<path d="M12 8h.01" stroke-width={Math.max(strokeWidth, 2.6)} />
+	{:else if name === 'list'}
+		<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
+	{:else if name === 'list-ordered'}
+		<path d="M10 6h10M10 12h10M10 18h10M4 5h2v3M4 11h2l-2 3h2M4 17h2v3H4" />
 	{:else if name === 'link'}
 		<path d="m10 13.5 4-4" />
 		<path d="m7.5 15.5-1 1a3.54 3.54 0 0 1-5-5l3-3a3.54 3.54 0 0 1 5 0" />
 		<path d="m16.5 8.5 1-1a3.54 3.54 0 0 1 5 5l-3 3a3.54 3.54 0 0 1-5 0" />
 	{:else if name === 'plus'}
 		<path d="M12 5v14M5 12h14" />
+	{:else if name === 'quote'}
+		<path d="M5 10h5v5H5v-4a5 5 0 0 1 5-5M14 10h5v5h-5v-4a5 5 0 0 1 5-5" />
+	{:else if name === 'undo'}
+		<path d="M9 7 4 12l5 5M5 12h8a7 7 0 0 1 7 7" />
+	{:else if name === 'redo'}
+		<path d="m15 7 5 5-5 5M19 12h-8a7 7 0 0 0-7 7" />
 	{:else if name === 'more-horizontal'}
 		<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width={Math.max(strokeWidth, 2.8)} />
 	{:else if name === 'open-external'}

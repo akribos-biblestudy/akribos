@@ -1,4 +1,5 @@
 <script lang="ts">
+	import BibleReferenceProse from '$lib/components/documents/BibleReferenceProse.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { t, type MessageKey } from '$lib/i18n';
 
@@ -120,17 +121,17 @@
 						</section>
 					{/if}
 
-					<div
+					<BibleReferenceProse
+						html={form.preview.html}
+						bibleId={data.bibles[0]?.id ?? null}
+						tooltipId="import-bible-reference-preview"
 						class="imported-prose prose-like mt-7 border-t border-stone-200 pt-6 dark:border-white/8"
-					>
-						<!-- Sanitised by the shared document Markdown pipeline before it reaches this view. -->
-						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-						{@html form.preview.html}
-					</div>
+					/>
 
 					<form
 						method="POST"
 						action="?/confirm"
+						enctype="multipart/form-data"
 						class="mt-8 border-t border-stone-200 pt-5 dark:border-white/8"
 					>
 						<input type="hidden" name="filename" value={form.preview.sourceFilename} />
@@ -171,9 +172,14 @@
 				{/each}
 			</ul>
 			<p
-				class="mt-4 border-t border-stone-200 pt-4 text-[0.68rem] text-stone-400 dark:border-white/8"
+				class="mt-4 border-t border-stone-200 pt-4 text-[0.68rem] leading-relaxed text-stone-400 dark:border-white/8"
 			>
-				{Math.round(data.maxFileBytes / 1024 / 1024)} MiB
+				{t('documents.import.sizeLimit', {
+					bodyMiB: data.maxBodyBytes / 1024 / 1024,
+					frontmatterKiB: data.maxFrontmatterBytes / 1024
+				})}
+				<br />
+				{t('documents.import.passageLimit', { maximum: data.maxPassages })}
 			</p>
 		</aside>
 	</div>
@@ -190,23 +196,23 @@
 		color: var(--color-stone-600);
 		font-size: 0.68rem;
 	}
-	.imported-prose :global(> * + *) {
+	:global(.imported-prose > * + *) {
 		margin-top: 0.8em;
 	}
-	.imported-prose :global(h1),
-	.imported-prose :global(h2),
-	.imported-prose :global(h3) {
+	:global(.imported-prose h1),
+	:global(.imported-prose h2),
+	:global(.imported-prose h3) {
 		margin-top: 1.5em;
 		font-weight: 700;
 	}
-	.imported-prose :global(ul),
-	.imported-prose :global(ol) {
+	:global(.imported-prose ul),
+	:global(.imported-prose ol) {
 		padding-left: 1.5rem;
 	}
-	.imported-prose :global(ul) {
+	:global(.imported-prose ul) {
 		list-style: disc;
 	}
-	.imported-prose :global(ol) {
+	:global(.imported-prose ol) {
 		list-style: decimal;
 	}
 	:global(.dark) .metadata-chip {

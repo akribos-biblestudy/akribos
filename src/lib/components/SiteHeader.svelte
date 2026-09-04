@@ -226,7 +226,7 @@
 
 		<div class="flex min-w-0 flex-1 items-center justify-end gap-0.5">
 			{#if readerPreferences}
-				<ReaderLayoutPicker layout={readerPreferences.layout} />
+				<ReaderLayoutPicker layout={readerPreferences.layout} notesAvailable={user !== null} />
 			{:else}
 				{#if previous}
 					<a

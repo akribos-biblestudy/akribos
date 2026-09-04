@@ -20,6 +20,16 @@ export type ReaderDocumentSummary = {
 	translationSpecific: boolean;
 };
 
+/** Minimal client-only metadata needed to expose a just-created note before the Reader reloads. */
+export type ReaderCreatedDocument = {
+	id: string;
+	title: string;
+	kind: DocumentKind;
+	source: DocumentSource;
+	passage: string;
+	resourceId: string | null;
+};
+
 /**
  * Finds and de-duplicates the documents whose inclusive anchors touch the rendered verse block.
  * Merged Bible cells may cover several verses, so both ends of the cell are considered.
