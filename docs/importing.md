@@ -7,13 +7,15 @@ resource ingesters.
 
 ## Obsidian and Markdown documents
 
-The document importer accepts exactly one safe, path-free `.md` filename containing valid UTF-8. The
-Markdown body is limited to 1 MiB and YAML frontmatter to 64 KiB (plus only the delimiters/BOM as total
-request headroom). Uploading performs a side-effect-free preview. The explicit confirmation sends the
-original text back, and the server reparses and revalidates that text; parsed values supplied in hidden
-fields are never trusted. A successful import records `source = obsidian` and the basename, but always
-sets the new working copy to `private` under the signed-in owner. Creation of the document, its tags and
-its passages is one transaction: an invalid or conflicting child rolls the whole import back.
+The document importer accepts one or more safe `.md` files containing valid UTF-8, or exactly one ZIP
+containing Markdown. Each Markdown body is limited to 1 MiB and YAML frontmatter to 64 KiB. A batch is
+limited to 100 Markdown files and 16 MiB of both uploaded and relevant decompressed data. ZIP metadata is
+preflighted before inflation; encryption, ZIP64 sizes, unsupported compression, symlinks and unsafe paths
+are rejected, and entries are never written to the server filesystem. Loose Markdown and ZIP cannot be
+mixed in one upload. Uploading produces a side-effect-free preview for every document. Confirmation sends
+the originals back as a bounded package and the server reparses all of them; hidden parsed metadata is
+never trusted. Every new working copy is `private` under the signed-in owner. The entire batch, its tags
+and passages use one transaction: an invalid or conflicting child rolls all imported documents back.
 
 Supported frontmatter fields are:
 
@@ -34,11 +36,19 @@ sermon: # only used when type is sermon
 ---
 ```
 
+Use `note` for all non-sermon writing. `article` remains accepted for compatibility with older exports
+and is displayed as a note; publishing is a later administrator-only action, not a separate document
+type in the current interface.
+
 `references` is accepted as an alias for `passages`; flat `status`, `date`, `series` and
 `sermon_*` fields are accepted for sermon metadata. Exported `created` and `updated` timestamps are
 informational and are not restored. A passage resource must name a public, ready Bible visible to the
 application. Unknown metadata and any attempted owner, role, id, visibility or publication authority
-are ignored with a warning rather than trusted.
+are ignored with a warning rather than trusted. Batch errors identify the failing loose filename or ZIP
+entry path so one bad document can be found without guessing.
+
+Tag names are never interpreted as Bible passages. A hierarchy containing a Bible book or chapter name
+remains a tag hierarchy unless frontmatter contains an explicit `passages` entry.
 
 An imported document may have at most 100 passage anchors and 50 selected tags. A tag path may be at
 most eight levels deep; commas and backslashes are rejected inside segments because the interactive
@@ -54,9 +64,11 @@ path traversal and invalid UTF-8 fail the preview. The UI reports every lossy co
 
 `GET /notes/[id]/export.md` is owner-only and returns deterministic UTF-8 Markdown with YAML
 frontmatter for the portable fields above plus informational timestamps. It never exports account
-email, owner/document ids or publication authority. There is no whole-vault/ZIP or batch import,
-attachment copying, transclusion/backlink reconstruction, merge/conflict resolution, or automatic
-round-trip retention for formatting outside the supported subset.
+email, owner/document ids or publication authority. `export.docx` creates an editable Word document and
+`export.pdf` a readable A4 rendering with embedded Noto Sans fonts for Latin, Greek and Hebrew text;
+these presentation formats may simplify Markdown formatting.
+There is no attachment copying, transclusion/backlink reconstruction, merge/conflict resolution, or
+automatic round-trip retention for formatting outside the supported subset.
 
 ## Public resources
 

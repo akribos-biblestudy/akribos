@@ -251,25 +251,19 @@ Mausauswahl darf `selectionchange` das Menü dagegen nie öffnen; erst `mouseup`
 Auswahl abgeschlossen ist. Die Unterscheidung folgt dem tatsächlichen `PointerEvent.pointerType`,
 nicht allein einem Media Query, damit auch Touchscreen-Desktops mit Maus korrekt funktionieren.
 
-Private Kommentare hängen eindeutig an Benutzer, Vers und Bibelressource (`verse_comments`); pro
-Kombination existiert höchstens einer. Sie werden mit den endlos nachgeladenen Kapiteln geladen und
-erscheinen innerhalb ihrer `.verse-comment-row` unterhalb des Verses. `CommentToggle.svelte` steht am
-Versende, wird nur für einen gespeicherten Kommentar gerendert und blendet diesen ein oder aus. Neue
-Reader-Kommentare werden ausschließlich über das `VerseMenu` begonnen. Ein leer gespeicherter
-Kommentar wird gelöscht; gespeicherte Kommentare sind nach dem Laden zunächst zugeklappt. Beide
-Oberflächen verwenden `CommentBubble.svelte`/`NoteEditor.svelte` und wechseln erst nach einem Klick von
-der Lese- in die Editoransicht.
-Der gemeinsame `NoteEditor.svelte` speichert mit Strg/Cmd+Enter und meldet Escape über `onCancel` an
-die Bubble; bei einem noch leeren Reader-Entwurf entfernt diese Rückmeldung auch die temporäre Ansicht.
-Der Editor basiert auf Tiptap/ProseMirror; seine erlaubten Formatierungen müssen mit der Allowlist in
-`src/lib/notes/sanitize.ts` synchron bleiben. Gespeicherte Kommentare werden erst bei der Darstellung
-über `linkBibleReferences()` mit internen Bibelstellen-Links angereichert, damit ausschließlich das
-serverseitig bereinigte Original gespeichert wird. Kommentaranzeige und -editor übernehmen dieselbe
-`--reader-font-scale`-Skalierung wie der Bibeltext.
+`verse_comments` bleibt als Kompatibilitätstabelle und für `GET /api/v1/notes` erhalten, wird im Reader
+aber nicht mehr geladen oder als grüne Inline-Bubble dargestellt. Auch die alte Kommentar-Erstellung im
+`VerseMenu` ist entfernt; neue persönliche Gedanken sind ausschließlich einheitliche Dokumente. Der
+idempotente Legacy-Backfill bleibt zwingend, damit bestehende Kommentare als private Dokumente
+auffindbar sind und ein Rollback/API-Client die Quellzeilen weiterhin lesen kann. Verslisten-Kommentare
+sind davon unberührt und verwenden weiterhin `NoteEditor.svelte`.
 
-## Einheitliche Dokumente, Artikel und Predigten
+## Einheitliche Notizen und Predigten
 
-Notizen, Artikelentwürfe und Predigten sind drei Arten derselben privaten Arbeitskopie in `documents`.
+Die Oberfläche kennt zwei Schreibbereiche: veröffentlichbare Notizen und Predigten. Beide sind private
+Arbeitskopien in `documents`. Der Datenbankwert `article` bleibt ausschließlich für bereits importierte
+oder per API angelegte Altbestände kompatibel und wird wie `note` als Notiz dargestellt; neue
+Oberflächen-Workflows erzeugen keine Artikel-Arbeitskopien mehr.
 Jeder Zugriff auf Arbeitskopie, Tags und Stellenanker wird serverseitig mit `user_id` eingegrenzt; eine
 erratene UUID ist niemals eine Berechtigung, und auch Administratoren dürfen fremde Entwürfe nicht lesen
 oder veröffentlichen. `body_markdown` ist die portable Quelle. `body_html` und `plain_text` werden daraus
@@ -298,11 +292,11 @@ explizit gewählten Blatt-Tags, und ein Filter auf einen Pfad schließt seine Na
 Besucherseiten lesen ausschließlich `document_publications`, nie die veränderliche Arbeitskopie. Ein
 explizites Veröffentlichen sperrt die Arbeitskopie und ersetzt atomar die vollständige aktuelle
 Momentaufnahme (Titel, Exzerpt, bereinigtes HTML/Markdown, Autorname, Tags und Stellen); weitere
-Autosaves werden erst durch erneutes Veröffentlichen sichtbar. Nur ein Admin darf einen **eigenen**
-Artikel mit nicht leerem Anzeigenamen
-veröffentlichen; eine E-Mail-Adresse ist nie Autor-Fallback. `public` erscheint unter `/articles`, im
+Autosaves werden erst durch erneutes Veröffentlichen sichtbar. Nur ein Admin darf eine **eigene** aktive
+Notiz (`note` oder kompatibles `article`) mit nicht leerem Anzeigenamen veröffentlichen; eine
+E-Mail-Adresse ist nie Autor-Fallback. `public` erscheint unter `/articles`, im
 Atom-Feed und in der Sitemap. `unlisted` fehlt dort, ist aber unter dem Slug ohne Anmeldung abrufbar und
-deshalb keine Zugriffskontrolle oder geheime Freigabe. Artikel-HTML bleibt trotz öffentlichem Snapshot
+deshalb keine Zugriffskontrolle oder geheime Freigabe. Veröffentlichungs-HTML bleibt trotz öffentlichem Snapshot
 `private, no-store`, weil das globale Layout auch für Gäste Cookie-Präferenzen enthält. Cookie-freie
 Discovery-Endpunkte wie Feed und Sitemap sind öffentlich, verlangen derzeit aber mit
 `max-age=0, must-revalidate` vor jeder Wiederverwendung eine Revalidierung, damit Publish/Unpublish
@@ -316,7 +310,7 @@ einem privaten Dokument mit einem translationsspezifischen Einzelvers-Anker. Das
 `comment_html` und die Quellzeile bleiben erhalten; `legacy_verse_comment_id` ist die eindeutige
 Provenienz und macht Migration sowie `pnpm db:backfill-notes` wiederholbar. Letzterer Befehl erfasst
 Legacy-Kommentare, die nach Migration 0025 entstanden oder aus einem Backup wiederhergestellt wurden.
-Der alte Reader darf `verse_comments` weiter bearbeiten, und `GET /api/v1/notes` behält exakt seine
+Der Reader lädt oder bearbeitet `verse_comments` nicht mehr; `GET /api/v1/notes` behält exakt seine
 vorherige `{ notes: [...] }`-Antwort inklusive Verslisten-Threads; diese kollaborativen Threads werden
 nicht in private Dokumente kopiert. Nach dem einmaligen Kopieren sind Legacy-Kommentar und Dokument
 bewusst zwei unabhängige Arbeitskopien; spätere Änderungen werden nicht in beide Richtungen gespiegelt.
@@ -330,20 +324,25 @@ Bibelstellen im Dokument-Fließtext werden ausschließlich bei der Darstellung a
 `findBibleReferences()`/`linkBibleReferences()` akzeptieren die gemeinsamen Buchnamen und Schreibweisen,
 überspringen vorhandene Links sowie Code und erzeugen interne `.verse-ref`-Links. Im Tiptap-Editor sind
 dieselben Treffer nicht persistierte ProseMirror-Dekorationen; sie dürfen `body_markdown` und damit einen
-Markdown-Roundtrip nicht verändern. Einzelverse und Bereiche innerhalb eines Kapitels zeigen über
+Markdown-Roundtrip nicht verändern. Explizite Verse und kapitelübergreifende Bereiche zeigen über
 `verseHoverPopover` bei Maus-Hover und Tastaturfokus echten Bibeltext; dafür werden die bestehenden
 öffentlichen Resource-/Kapitel-APIs und ihr kapitelweiser Client-Cache wiederverwendet. Im eigenständigen
-Dokumenteditor und auf öffentlichen Artikelseiten stammt der Text aus der ersten sortierten öffentlichen,
+Dokumenteditor und auf öffentlichen Notizseiten stammt der Text aus der ersten sortierten öffentlichen,
 fertigen Bibel. Der Reader-Sidecar verwendet bewusst die erste gerade sichtbare Bibelressource, damit
 die Vorschau mit dem unmittelbar daneben gelesenen Text übereinstimmt. Escape schließt die zugängliche
-Vorschau. Reine Kapitelangaben sowie kapitel- oder buchübergreifende Bereiche bleiben navigierbare Links,
-öffnen aber bewusst kein potenziell großes Mehrkapitel-Popup.
+Vorschau. Mehrkapitelabrufe sind auf 50 Kapitel begrenzt; reine Kapitelangaben bleiben navigierbare
+Links ohne Popup. Im visuellen Dokumenteditor besitzt das Popup zusätzlich „Bibeltext einfügen“;
+`/bibel <Stelle>` plus Enter ist der Tastaturweg. Beide fügen ein gewöhnliches Blockzitat mit fetter
+Quellenzeile ein, kein proprietäres ProseMirror-Element.
 
 Der kompakte Reader-Editor ist kein neunter Workspace-Tab: Der Schalter „Notizbereich“ im
 `ReaderLayoutPicker` blendet ihn am Desktop als eigene rechte Sidecar-Spalte neben der unveränderten
 Kachelanordnung ein. Mobil sind „Lesen“ und „Notiz“ zwei tastaturbedienbare Ansichten, damit der
-Bibeltext nicht zusammengedrückt wird. Der Schalter speichert ausschließlich das lokale Sichtbarkeitsbit
-`reader-notes-sidecar-open`; eine private Dokument-ID gelangt weder in Reader-URL/History noch in
+Bibeltext nicht zusammengedrückt wird. Ohne geöffnetes Dokument folgt die Sidecar-Erstellung der
+sichtbaren Stelle des fokussierten Bibel-Tabs; daneben stehen owner-geprüfte Suche sowie Typ-, Tag- und
+Stellenfilter zur Verfügung. Am Desktop ist die Sidecar-Breite über einen horizontal bewegten Trenner
+änderbar. Der Schalter speichert ausschließlich Sichtbarkeit und harmlose Breite
+(`reader-notes-sidecar-open`, `reader-notes-sidecar-width`); eine private Dokument-ID gelangt weder in Reader-URL/History noch in
 `localStorage`. Beim Öffnen wird der aktuelle Vers der zuletzt aktiven Bibelspalte als Kontext verwendet;
 Versindikatoren können ein passendes Dokument direkt in denselben `compact`-Modus von
 `DocumentEditor.svelte` laden. Laden und Autosave verwenden unverändert das eigentümergeprüfte interne
@@ -351,20 +350,33 @@ Versindikatoren können ein passendes Dokument direkt in denselben `compact`-Mod
 Speicherfehler oder Revisionskonflikt lässt den Editor sichtbar. `ReaderNotesPanel` bleibt der eine
 kontextuelle Dialog aus dem Versmenü und übergibt neu angelegte oder ausgewählte Dokumente an das
 Sidecar, wenn JavaScript aktiv ist; der normale Form-Redirect bleibt der funktionsfähige No-JS-Pfad.
+Für einen Dokumentbereich wird das Icon nur an Start und/oder Ende gerendert; alle überdeckten
+Verszeilen erhalten die dezente gepunktete Unterstreichung.
 
-Der Obsidian-Austausch unter `/notes/import` akzeptiert genau eine pfadfreie UTF-8-`.md`-Datei mit
-höchstens 1 MiB Markdown-Inhalt plus 64 KiB YAML-Frontmatter. Vorschau ist schreibfrei; Bestätigen parst
-und validiert den angezeigten Originaltext erneut,
+Der Obsidian-Austausch unter `/notes/import` akzeptiert eine oder mehrere UTF-8-`.md`-Dateien oder genau
+ein ZIP mit Markdown. Pro Datei gelten 1 MiB Markdown plus 64 KiB YAML; pro Stapel höchstens 100 Dateien
+und je 16 MiB Upload sowie relevante entpackte Daten. Das ZIP-Zentralverzeichnis wird vor dem Entpacken
+auf Traversal/absolute Pfade, Backslashes, Symlinks, Verschlüsselung, ZIP64-Größen und unbekannte
+Kompression geprüft; nichts wird auf das Server-Dateisystem geschrieben. ZIP und lose Dateien dürfen
+nicht gemischt werden. Vorschau ist schreibfrei; Bestätigen parst und validiert alle Originaltexte erneut,
 statt versteckten Preview-Feldern zu vertrauen, und erzeugt immer ein privates Dokument. YAML-Aliase
 sind vollständig deaktiviert, damit auch innerhalb der Größenlimits keine Alias-Expansion stattfinden
 kann. Rohes HTML,
 unsichere Links/YAML-Felder, Embeds, Bilder und Anhänge werden abgewiesen oder mit sichtbarer Warnung
 entfernt. Pro Dokument gelten höchstens 100 Stellenanker und 50 ausgewählte Tags; Komma und Backslash
-sind in Tagsegmenten nicht zulässig. Exporte enthalten deterministisches YAML plus Markdown, aber keine
-E-Mail, Eigentümer-ID oder Veröffentlichungsberechtigung. Vault-/ZIP-Stapelimport, Anhänge und
-automatisches Zusammenführen sind nicht implementiert. Predigten bleiben normale Dokumente mit den Zuständen `idea`, `research`,
-`outline`, `ready`, `delivered` sowie optionalem Datum und Reihe; `/sermons` ist nur ihre fokussierte
-Workflow-Ansicht.
+sind in Tagsegmenten nicht zulässig. Tags werden nie implizit als Bibelstellen interpretiert. Exporte
+stehen owner-only als Markdown/YAML, Word `.docx` und PDF bereit, enthalten aber keine E-Mail,
+Eigentümer-ID oder Veröffentlichungsberechtigung. Anhänge und automatisches Zusammenführen sind nicht
+implementiert. Die Bereichsnavigation besteht nur aus „Notizen“ und „Predigten“; Import und
+veröffentlichte Notizen sind kontextuelle Aktionen, Vorlagen gehören in den Predigtbereich. Predigten
+bleiben normale Dokumente mit den Zuständen `idea`, `research`, `outline`, `ready`, `delivered`;
+`/sermons` ist nur ihre fokussierte Workflow-Ansicht. Karten wechseln den Status revisioniert per
+Drag-and-drop; `Alt` + Pfeil links/rechts ist die barrierearme Tastaturalternative. Ein redundantes
+Status-Select wird auf der Karte nicht gerendert. `sermon_templates` enthält frei editierbare private
+Markdown-Vorlagen. `sermon_deliveries` speichert mehrere tatsächliche Durchführungen aus Kalenderdatum
+und Ort über einen zusammengesetzten Dokument-/Owner-FK; jede Mutation erhöht die Dokumentrevision.
+Migration `0026_abnormal_captain_america.sql` legt beide Tabellen und den nötigen eindeutigen
+Dokument-/Owner-Index an.
 
 ### Zusammenarbeit an Verslisten (issue #129)
 

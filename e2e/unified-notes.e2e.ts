@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { strToU8, zipSync } from 'fflate';
 import { lastMailLinkTo } from './lib/mail-outbox';
 
 const PASSWORD = 'ein-sicheres-passwort';
@@ -27,6 +28,18 @@ test('a reader verse creates and reopens a translation-specific unified note', a
 	const title = `Kontextnotiz aus dem Reader ${RUN_ID}`;
 	const bodyMarker = `sidecar-autosave-${RUN_ID}`;
 
+	// Opening from the layout menu starts at the currently visible verse, without requiring its
+	// contextual menu, and exposes the filterable personal library.
+	await page.getByTestId('layout-picker').click();
+	await page.getByTestId('reader-notes-sidecar-toggle').click();
+	let sidecar = page.getByTestId('reader-notes-sidecar');
+	await expect(sidecar.getByTestId('reader-notes-current-context')).toContainText('Johannes 3,16');
+	await expect(sidecar.getByTestId('reader-notes-sidecar-create')).toBeVisible();
+	await expect(sidecar.getByText('Keine passenden Dokumente gefunden.')).toBeVisible();
+	await expect(sidecar.getByLabel('Dokumenttyp filtern')).toHaveCount(0);
+	await expect(sidecar.getByLabel('Tag filtern')).toBeVisible();
+	await sidecar.getByRole('button', { name: 'Notizbereich schließen' }).click();
+
 	const firstBible = page.locator('.flow-column[data-resource-id]').first();
 	await firstBible.locator('a.verse-number', { hasText: /^16$/ }).click();
 	await page.getByRole('menuitem', { name: /Notizen zu Johannes 3,16 öffnen/ }).click();
@@ -40,7 +53,7 @@ test('a reader verse creates and reopens a translation-specific unified note', a
 	await panel.getByRole('button', { name: 'Notiz zu Johannes 3,16 erstellen' }).click();
 	await expect(page).toHaveURL(readerUrl);
 
-	let sidecar = page.getByTestId('reader-notes-sidecar');
+	sidecar = page.getByTestId('reader-notes-sidecar');
 	await expect(sidecar).toBeVisible();
 	await expect(sidecar.getByTestId('reader-notes-sidecar-editor')).toBeVisible();
 	await sidecar.getByTestId('reader-notes-sidecar-title').fill(title);
@@ -83,11 +96,21 @@ test('a reader verse creates and reopens a translation-specific unified note', a
 	await expect(indicator).toBeVisible();
 	await indicator.click();
 	await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(title);
+	const resizeHandle = page.getByTestId('reader-notes-sidecar-resize');
+	const widthBeforeKeyboardResize = await sidecar.evaluate(
+		(element) => element.getBoundingClientRect().width
+	);
+	await resizeHandle.focus();
+	await resizeHandle.press('ArrowLeft');
+	await expect
+		.poll(() => sidecar.evaluate((element) => element.getBoundingClientRect().width))
+		.toBeGreaterThan(widthBeforeKeyboardResize);
 
 	// The device-local sidecar preference survives a reload, while its private document id does not.
-	// The freshly loaded passage context finds the one owned note and opens it again.
+	// The freshly loaded passage context offers the owned note, whose persisted content can be opened.
 	await page.reload();
 	sidecar = page.getByTestId('reader-notes-sidecar');
+	await sidecar.getByTestId('reader-notes-open-document').filter({ hasText: title }).click();
 	await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(title);
 	await sidecar.getByRole('tab', { name: 'Markdown' }).click();
 	await expect(sidecar.getByTestId('reader-notes-sidecar-body-markdown')).toHaveValue(
@@ -246,7 +269,7 @@ test('the note library exposes seeded tags, legacy notes and inclusive passage-o
 	await loginAs(page, SEED_READER);
 	await page.goto('/notes');
 
-	await expect(page.getByRole('heading', { name: 'Notizen' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Notizen', exact: true })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Gebet und Antwort' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Schöpfung und Ruhe' })).toBeVisible();
 	await expect(
@@ -254,10 +277,10 @@ test('the note library exposes seeded tags, legacy notes and inclusive passage-o
 	).toBeVisible();
 	await expect(page.getByText('Aus Verskommentar übernommen')).toBeVisible();
 
-	await page.getByRole('link', { name: 'Johannes', exact: true }).click();
+	await page.getByRole('link', { name: 'Johannes (1)', exact: true }).click();
 	await expect(page).toHaveURL(/tag=Bibelstudium%2FJohannes/);
 	await expect(page.getByRole('heading', { name: 'Gebet und Antwort' })).toBeVisible();
-	await expect(page.getByRole('heading', { name: 'Geliebt und gesandt' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Geliebt und gesandt' })).toHaveCount(0);
 	await expect(page.getByRole('heading', { name: 'Schöpfung und Ruhe' })).toHaveCount(0);
 
 	// The seeded range starts in Genesis 1 and ends in Genesis 2. A point strictly inside its
@@ -307,9 +330,10 @@ test('a private note links inline Bible references and previews real text by hov
 	expect(JSON.stringify(payload.verses)).toContain('Worfschaufel');
 
 	const preview = page.getByTestId('bible-reference-preview');
-	await expect(preview).toHaveAttribute('role', 'tooltip');
+	await expect(preview).toHaveAttribute('role', 'dialog');
 	await expect(preview).toContainText('Matthäus 3,12');
 	await expect(preview).toContainText(MATTHEW_PREVIEW_TEXT);
+	await expect(preview.getByRole('button', { name: 'Bibeltext einfügen' })).toBeVisible();
 	const previewId = await preview.getAttribute('id');
 	expect(previewId).toBeTruthy();
 	await expect(reference).toHaveAttribute('aria-describedby', previewId!);
@@ -319,6 +343,10 @@ test('a private note links inline Bible references and previews real text by hov
 	await reference.focus();
 	await expect(reference).toBeFocused();
 	await expect(preview).toContainText(MATTHEW_PREVIEW_TEXT);
+	await page.keyboard.press('Tab');
+	await expect(preview.getByRole('button', { name: 'Bibeltext einfügen' })).toBeFocused();
+	await page.keyboard.press('Shift+Tab');
+	await expect(reference).toBeFocused();
 	await page.keyboard.press('Escape');
 	await expect(preview).toBeHidden();
 	await expect(reference).toBeFocused();
@@ -392,29 +420,54 @@ test('a note autosaves, switches Markdown modes, adds cross-chapter anchors and 
 	await expect(visualEditor.getByRole('heading', { name: 'Beobachtung' })).toBeVisible();
 	await expect(visualEditor.locator('strong')).toHaveText('wichtiger');
 
+	await visualEditor.press('Control+End');
+	await visualEditor.press('Enter');
+	await visualEditor.pressSequentially('/bibel Mt 3,12');
+	const quotationResponse = waitForMatthewChapter(page);
+	await visualEditor.press('Enter');
+	expect((await quotationResponse).ok()).toBe(true);
+	await expect(visualEditor.locator('blockquote')).toContainText(MATTHEW_PREVIEW_TEXT);
+	await expect(visualEditor.locator('blockquote')).toContainText('Matthäus 3,12');
+
 	await visualEditor.press('Control+m');
-	await expect(page.getByRole('textbox', { name: 'Markdown' })).toHaveValue(markdown);
+	await expect(page.getByRole('textbox', { name: 'Markdown' })).toHaveValue(
+		new RegExp(`${bodyMarker}[\\s\\S]*Worfschaufel[\\s\\S]*Matthäus 3,12`)
+	);
 
 	const tags = page.getByPlaceholder('Theologie/Gnade, Predigt/Entwurf');
 	await tags.fill(nestedTagPath);
+	const tagsSaved = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/syncTags')
+	);
 	await page.getByRole('button', { name: 'Schlagwörter speichern' }).click();
+	expect((await tagsSaved).ok()).toBe(true);
+	await page.waitForLoadState('networkidle');
 	await expect(tags).toHaveValue(nestedTagPath);
 
 	await page.getByPlaceholder(/z\. B\. Joh 3,16-18/).fill('1Mo 1,3-2,2');
 	await page.getByLabel('Übersetzungsbezug').selectOption('');
+	const canonicalPassageSaved = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/addPassage')
+	);
 	await page.getByRole('button', { name: 'Bibelstelle hinzufügen' }).click();
+	expect((await canonicalPassageSaved).ok()).toBe(true);
 	const canonicalPassage = page.getByRole('listitem').filter({ hasText: '1Mo 1,3-2,2' });
 	await expect(canonicalPassage.getByRole('link', { name: '1Mo 1,3-2,2' })).toBeVisible();
 	await expect(canonicalPassage.getByText('Für alle Übersetzungen', { exact: true })).toBeVisible();
 
 	await page.getByPlaceholder(/z\. B\. Joh 3,16-18/).fill('Joh 3,16-17');
 	await page.getByLabel('Übersetzungsbezug').selectOption('SEEDDE');
+	const translatedPassageSaved = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/addPassage')
+	);
 	await page.getByRole('button', { name: 'Bibelstelle hinzufügen' }).click();
+	expect((await translatedPassageSaved).ok()).toBe(true);
 	await expect(page.getByRole('link', { name: 'Joh 3,16-17' })).toBeVisible();
 	await expect(page.getByText('Nur Testübersetzung', { exact: true })).toBeVisible();
 
+	await page.locator('.export-menu > summary').click();
 	const downloadPromise = page.waitForEvent('download');
-	await page.getByRole('link', { name: 'Exportieren', exact: true }).first().click();
+	await page.locator('.export-menu').getByRole('link', { name: 'Markdown', exact: true }).click();
 	const download = await downloadPromise;
 	expect(download.suggestedFilename()).toMatch(/\.md$/);
 	const downloadPath = await download.path();
@@ -433,12 +486,14 @@ test('a note autosaves, switches Markdown modes, adds cross-chapter anchors and 
 	await page.reload();
 	await expect(page.getByLabel('Titel')).toHaveValue(title);
 	await page.getByRole('tab', { name: 'Markdown' }).click();
-	await expect(page.getByRole('textbox', { name: 'Markdown' })).toHaveValue(markdown);
+	await expect(page.getByRole('textbox', { name: 'Markdown' })).toHaveValue(
+		new RegExp(`${bodyMarker}[\\s\\S]*Worfschaufel[\\s\\S]*Matthäus 3,12`)
+	);
 
 	await page.goto('/notes');
 	await page
 		.getByRole('navigation', { name: 'Schlagwörter' })
-		.getByRole('link', { name: nestedTagLeaf, exact: true })
+		.getByRole('link', { name: new RegExp(`^${nestedTagLeaf} \\(1\\)$`) })
 		.click();
 	await expect(page).toHaveURL((url) => url.searchParams.get('tag') === nestedTagPath);
 	await expect(page.getByRole('heading', { name: title })).toBeVisible();
@@ -472,7 +527,7 @@ Ein Link zu [[Gebet und Antwort|einer anderen Notiz]].
 `;
 
 	await page.goto('/notes/import');
-	await page.getByLabel('Markdown-Datei').setInputFiles({
+	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles({
 		name: `obsidian-${RUN_ID}.md`,
 		mimeType: 'text/markdown',
 		buffer: Buffer.from(source)
@@ -533,6 +588,73 @@ Ein Link zu [[Gebet und Antwort|einer anderen Notiz]].
 	expect(imported.body.bodyMarkdown).not.toContain('geheimes-bild.png');
 });
 
+test('Obsidian import accepts multiple Markdown files and safe ZIP archives', async ({ page }) => {
+	test.slow();
+	await loginAs(page, SEED_READER);
+	const firstTitle = `Mehrfachimport Eins ${RUN_ID}`;
+	const secondTitle = `Mehrfachimport Zwei ${RUN_ID}`;
+	await page.goto('/notes/import');
+	const brokenFilename = `defekt-${RUN_ID}.md`;
+	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles([
+		{
+			name: `gueltig-${RUN_ID}.md`,
+			mimeType: 'text/markdown',
+			buffer: Buffer.from('# Gültig\n')
+		},
+		{
+			name: brokenFilename,
+			mimeType: 'text/markdown',
+			buffer: Buffer.from('---\ntitle: [ungueltig\n---\nText\n')
+		}
+	]);
+	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+	await expect(page.getByRole('alert')).toContainText(brokenFilename);
+
+	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles([
+		{
+			name: `multi-one-${RUN_ID}.md`,
+			mimeType: 'text/markdown',
+			buffer: Buffer.from(`---\ntitle: ${firstTitle}\n---\nErster Inhalt\n`)
+		},
+		{
+			name: `multi-two-${RUN_ID}.md`,
+			mimeType: 'text/markdown',
+			buffer: Buffer.from(`---\ntitle: ${secondTitle}\n---\nZweiter Inhalt\n`)
+		}
+	]);
+	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+	const multiPreview = page.getByTestId('import-preview');
+	await expect(multiPreview).toContainText('2 Dokumente in der Vorschau');
+	await expect(multiPreview.getByRole('heading', { name: firstTitle })).toBeVisible();
+	await expect(multiPreview.getByRole('heading', { name: secondTitle })).toBeVisible();
+	await multiPreview.getByRole('button', { name: 'Als privates Dokument importieren' }).click();
+	await expect(page).toHaveURL('/notes');
+	await expect(page.getByRole('heading', { name: firstTitle })).toBeVisible();
+	await expect(page.getByRole('heading', { name: secondTitle })).toBeVisible();
+
+	const zipTitle = `ZIP-Import ${RUN_ID}`;
+	const archive = zipSync({
+		[`Notizen/${RUN_ID}.md`]: strToU8(
+			`---\ntitle: ${zipTitle}\ntags: [E2E/ZIP]\n---\nSicher aus ZIP importiert.\n`
+		),
+		'Anlagen/ignoriert.txt': strToU8('Kein Dokument')
+	});
+	await page.goto('/notes/import');
+	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles({
+		name: `obsidian-${RUN_ID}.zip`,
+		mimeType: 'application/zip',
+		buffer: Buffer.from(archive)
+	});
+	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+	const zipPreview = page.getByTestId('import-preview');
+	await expect(zipPreview).toContainText('Ein Dokument in der Vorschau');
+	await expect(zipPreview.getByRole('heading', { name: zipTitle })).toBeVisible();
+	await zipPreview.getByRole('button', { name: 'Als privates Dokument importieren' }).click();
+	await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+$/);
+	await expect(page.getByLabel('Titel')).toHaveValue(zipTitle);
+	await expect(page.getByLabel('Schlagwörter')).toHaveValue('E2E/ZIP');
+});
+
 test('the sermon manager creates from its template and persists workflow metadata', async ({
 	page
 }) => {
@@ -544,7 +666,7 @@ test('the sermon manager creates from its template and persists workflow metadat
 	await page.getByLabel('Titel').fill(title);
 	await page.getByRole('textbox', { name: 'Bibelstelle', exact: true }).fill('Joh 3,16-17');
 	await page.getByLabel('Predigtreihe').fill('E2E-Reihe');
-	await page.getByLabel('Predigttermin').fill('2026-12-24');
+	await page.getByLabel('Predigttermin').fill('24.12.2026');
 	await page.getByRole('button', { name: 'Erstellen' }).click();
 	await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+\?returnTo=%2Fsermons$/);
 	await expect(page.getByRole('link', { name: 'Zur Predigtvorbereitung' })).toHaveAttribute(
@@ -561,7 +683,7 @@ test('the sermon manager creates from its template and persists workflow metadat
 
 	const workflow = page.getByTestId('sermon-workflow');
 	await workflow.getByLabel('Arbeitsstand').selectOption('research');
-	await workflow.getByLabel('Predigttermin').fill('2027-01-03');
+	await workflow.getByLabel('Predigttermin').fill('03.01.2027');
 	await workflow.getByLabel('Predigtreihe').fill('E2E-Reihe aktualisiert');
 	const saved = page.waitForResponse(
 		(response) =>
@@ -574,18 +696,93 @@ test('the sermon manager creates from its template and persists workflow metadat
 
 	await page.reload();
 	await expect(workflow.getByLabel('Arbeitsstand')).toHaveValue('research');
-	await expect(workflow.getByLabel('Predigttermin')).toHaveValue('2027-01-03');
+	await expect(workflow.getByLabel('Predigttermin')).toHaveValue('03.01.2027');
 	await expect(workflow.getByLabel('Predigtreihe')).toHaveValue('E2E-Reihe aktualisiert');
 
 	await page.goto('/sermons?status=research');
 	await expect(page.getByRole('heading', { name: title })).toBeVisible();
 });
 
+test('custom sermon templates, delivery history, rich exports and board movement work together', async ({
+	page
+}) => {
+	test.slow();
+	await loginAs(page, SEED_READER);
+	const templateName = `E2E-Vorlage ${RUN_ID}`;
+	const templateMarker = `eigene-vorlage-${RUN_ID}`;
+	await page.goto('/sermons/templates');
+	const createTemplate = page
+		.getByTestId('sermon-templates')
+		.locator('[data-tour-target="sermon-template-create"]');
+	await createTemplate.getByLabel('Name der Vorlage').fill(templateName);
+	await createTemplate
+		.getByLabel('Vorlagentext (Markdown)')
+		.fill(`## Eigener Aufbau\n\n${templateMarker}\n`);
+	await createTemplate.getByRole('button', { name: 'Vorlage erstellen' }).click();
+	await expect(page.getByText(templateName, { exact: true })).toBeVisible();
+
+	const sermonTitle = `Vorlagenpredigt ${RUN_ID}`;
+	await page.goto('/sermons');
+	const createSermon = page.locator('[data-tour-target="sermon-create"]');
+	await createSermon.getByLabel('Titel').fill(sermonTitle);
+	await createSermon.getByLabel('Predigttermin').fill('06.09.2026');
+	await createSermon.getByLabel('Vorlage').selectOption({ label: templateName });
+	await createSermon.getByRole('button', { name: 'Erstellen' }).click();
+	await page.getByRole('tab', { name: 'Markdown' }).click();
+	await expect(page.getByRole('textbox', { name: 'Markdown' })).toHaveValue(
+		new RegExp(templateMarker)
+	);
+
+	let deliveries = page.getByTestId('sermon-deliveries');
+	await deliveries.getByLabel('Datum').fill('13.09.2026');
+	await deliveries.getByLabel('Ort').fill('Gemeinde Nord');
+	await deliveries.getByRole('button', { name: 'Durchführung hinzufügen' }).click();
+	deliveries = page.getByTestId('sermon-deliveries');
+	await expect(deliveries).toContainText('13.09.2026');
+	await expect(deliveries).toContainText('Gemeinde Nord');
+	await deliveries.getByLabel('Datum').fill('04.10.2026');
+	await deliveries.getByLabel('Ort').fill('Hauskreis Süd');
+	await deliveries.getByRole('button', { name: 'Durchführung hinzufügen' }).click();
+	deliveries = page.getByTestId('sermon-deliveries');
+	await expect(deliveries).toContainText('04.10.2026');
+	await expect(deliveries).toContainText('Hauskreis Süd');
+
+	await page.locator('.export-menu > summary').click();
+	const wordDownload = page.waitForEvent('download');
+	await page.locator('.export-menu').getByRole('link', { name: 'Word (.docx)' }).click();
+	const wordPath = await (await wordDownload).path();
+	expect(wordPath).not.toBeNull();
+	expect((await readFile(wordPath!)).subarray(0, 2).toString('ascii')).toBe('PK');
+
+	const pdfDownload = page.waitForEvent('download');
+	await page.locator('.export-menu').getByRole('link', { name: 'PDF', exact: true }).click();
+	const pdfPath = await (await pdfDownload).path();
+	expect(pdfPath).not.toBeNull();
+	expect((await readFile(pdfPath!)).subarray(0, 4).toString('ascii')).toBe('%PDF');
+
+	await page.goto('/sermons');
+	let card = page.getByTestId('sermon-card').filter({ hasText: sermonTitle });
+	const outlineColumn = page.getByRole('group', { name: 'Gliederung' });
+	await card.dragTo(outlineColumn);
+	card = page.getByTestId('sermon-card').filter({ hasText: sermonTitle });
+	await expect(
+		outlineColumn.getByTestId('sermon-card').filter({ hasText: sermonTitle })
+	).toBeVisible();
+	await card.getByRole('link').focus();
+	await card.getByRole('link').press('Alt+ArrowRight');
+	await expect(
+		page
+			.getByRole('group', { name: 'Bereit' })
+			.getByTestId('sermon-card')
+			.filter({ hasText: sermonTitle })
+	).toBeVisible();
+});
+
 test('a normal account cannot publish an article through either the UI or a forged action', async ({
 	page
 }) => {
 	await loginAs(page, SEED_READER);
-	const id = await createDocumentFromLibrary(page, 'Artikel');
+	const id = await createDocumentFromLibrary(page, 'Notiz');
 	await saveMarkdownDocument(page, {
 		title: NORMAL_PRIVATE_ARTICLE_TITLE,
 		markdown: `## Privat\n\nDieser Entwurf ${RUN_ID} darf nicht veröffentlicht werden.\n`,
@@ -593,7 +790,7 @@ test('a normal account cannot publish an article through either the UI or a forg
 	});
 
 	const controls = page.getByTestId('publication-controls');
-	await expect(controls).toContainText('Nur Administratoren können Artikel veröffentlichen.');
+	await expect(controls).toContainText('Nur Administratoren können Notizen veröffentlichen.');
 	await expect(controls.getByRole('button', { name: /veröffentlichen/i })).toHaveCount(0);
 
 	const forged = await page.evaluate(async (documentId) => {
@@ -632,7 +829,7 @@ test('admin publication snapshots stay immutable until republish and discovery o
 	const seededPublic = await request.get('/articles/demo-gnade-die-traegt');
 	expect(await seededPublic.text()).not.toContain('Noch unveröffentlichte Ergänzung');
 
-	await createDocumentFromLibrary(page, 'Artikel');
+	await createDocumentFromLibrary(page, 'Notiz');
 	const title = `Schnappschuss-Test ${RUN_ID}`;
 	const slug = `snapshot-${RUN_ID}`;
 	const oldMarker = `oeffentlich-alt-${RUN_ID}`;
@@ -678,7 +875,7 @@ test('admin publication snapshots stay immutable until republish and discovery o
 	await expect(publicPage.getByText(oldMarker)).toHaveCount(0);
 	await publicPage.close();
 
-	await createDocumentFromLibrary(page, 'Artikel');
+	await createDocumentFromLibrary(page, 'Notiz');
 	const unlistedTitle = `Nicht gelisteter Test ${RUN_ID}`;
 	const unlistedSlug = `unlisted-${RUN_ID}`;
 	await saveMarkdownDocument(page, {

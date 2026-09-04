@@ -17,6 +17,7 @@ import {
 	listDocumentsByTag,
 	listDocumentTags,
 	listDocumentTagTree,
+	listDocumentTagTreeWithCounts,
 	syncDocumentTags
 } from './document-tags.ts';
 import {
@@ -264,6 +265,41 @@ describe.sequential('unified document repositories', () => {
 		).toContain(document.id);
 	});
 
+	it('counts active note descendants in the tag tree without including sermons', async () => {
+		const root = `Count-${randomUUID()}`;
+		const note = await createDocument(db, ownerId, {
+			kind: 'note',
+			title: 'Counted note',
+			...EMPTY_BODY
+		});
+		const article = await createDocument(db, ownerId, {
+			kind: 'article',
+			title: 'Counted legacy article',
+			...EMPTY_BODY
+		});
+		const sermon = await createDocument(db, ownerId, {
+			kind: 'sermon',
+			title: 'Uncounted sermon',
+			sermonStatus: 'idea',
+			...EMPTY_BODY
+		});
+		await syncDocumentTags(db, ownerId, note.id, [`${root}/Child/A`], note.revision);
+		await syncDocumentTags(db, ownerId, article.id, [`${root}/Child/B`], article.revision);
+		await syncDocumentTags(db, ownerId, sermon.id, [`${root}/Child/C`], sermon.revision);
+
+		let counts = await listDocumentTagTreeWithCounts(db, ownerId);
+		expect(counts.find((tag) => tag.path === root)?.documentCount).toBe(2);
+		expect(counts.find((tag) => tag.path === `${root}/Child`)?.documentCount).toBe(2);
+		expect(counts.find((tag) => tag.path === `${root}/Child/A`)?.documentCount).toBe(1);
+		expect(counts.find((tag) => tag.path === `${root}/Child/C`)?.documentCount).toBe(0);
+
+		await softDeleteDocument(db, ownerId, note.id);
+		counts = await listDocumentTagTreeWithCounts(db, ownerId);
+		expect(counts.find((tag) => tag.path === root)?.documentCount).toBe(1);
+		const deletedCounts = await listDocumentTagTreeWithCounts(db, ownerId, 'only');
+		expect(deletedCounts.find((tag) => tag.path === root)?.documentCount).toBe(1);
+	});
+
 	it('locks the working copy before changing tag links', async () => {
 		const document = await createDocument(db, ownerId, {
 			kind: 'note',
@@ -309,7 +345,7 @@ describe.sequential('unified document repositories', () => {
 		);
 	});
 
-	it('publishes only an admin-owned article and keeps working changes out of its snapshot', async () => {
+	it('publishes only an admin-owned note/article and keeps working changes out of its snapshot', async () => {
 		const ownerArticle = await createDocument(db, ownerId, {
 			kind: 'article',
 			title: 'Owner article',
@@ -332,7 +368,7 @@ describe.sequential('unified document repositories', () => {
 		).toMatchObject({ ok: false, reason: 'notFound' });
 
 		const article = await createDocument(db, adminId, {
-			kind: 'article',
+			kind: 'note',
 			title: 'Snapshot article',
 			visibility: 'private',
 			bodyMarkdown: 'Version one',
