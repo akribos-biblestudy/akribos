@@ -47,6 +47,7 @@
 	let onHighlightChange: ((styleId: string | null) => void) | undefined;
 	let commentResource: { id: string; name: string } | null = $state(null);
 	let onAddComment: (() => void) | undefined;
+	let onOpenNotes = $state<(() => void) | undefined>();
 
 	/**
 	 * `highlight` is the style currently on this verse, if any (null for none); `onChange` fires
@@ -60,16 +61,18 @@
 		next: VerseContext,
 		highlight: string | null,
 		onChange: (styleId: string | null) => void,
-		resource: { id: string; name: string } | null,
+		resource: { id: string; name: string; kind: string } | null,
 		addComment: (() => void) | undefined,
+		openNotes: (() => void) | undefined,
 		focusMenu = true
 	): void {
 		context = next;
 		copied = null;
 		activeStyleId = highlight;
 		onHighlightChange = onChange;
-		commentResource = resource;
+		commentResource = resource?.kind === 'bible' ? resource : null;
 		onAddComment = addComment;
+		onOpenNotes = resource?.kind === 'bible' ? openNotes : undefined;
 		menu?.openAt(anchor, { focus: focusMenu });
 	}
 
@@ -168,6 +171,20 @@
 
 		{#if signedIn && commentResource}
 			<hr />
+			{#if onOpenNotes}
+				<button
+					type="button"
+					role="menuitem"
+					class="notes-item"
+					onclick={() => {
+						onOpenNotes?.();
+						menu?.close();
+					}}
+				>
+					<Icon name="file-text" class="size-4 shrink-0" />
+					<span>{t('documents.reader.open', { reference: context.label })}</span>
+				</button>
+			{/if}
 			<button
 				type="button"
 				role="menuitem"
@@ -243,6 +260,12 @@
 <style>
 	.new-list {
 		color: var(--color-accent-600);
+	}
+
+	.notes-item {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 
 	:global(.dark) .new-list {

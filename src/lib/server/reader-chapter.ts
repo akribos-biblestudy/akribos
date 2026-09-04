@@ -7,6 +7,7 @@ import type { ReadableResource } from './repositories/resources.ts';
 import { loadChapterVerseComments } from './repositories/verse-comments.ts';
 import { loadChapterHighlights } from './repositories/verse-highlights.ts';
 import { markedVersesByList } from './repositories/verse-lists.ts';
+import { loadReaderDocumentAnchors } from './repositories/reader-documents.ts';
 
 /**
  * Loads one chapter for one resource tab. Reader tabs can sit at unrelated references, so their
@@ -20,25 +21,34 @@ export async function loadReaderTabChapter(
 	userId: string | null
 ) {
 	const bibleIds = resource.kind === 'bible' ? [resource.id] : [];
-	const [chapter, referenceResources, verseComments, highlights, markedVerses] = await Promise.all([
-		loadChapter(db, {
-			resourceIds: bibleIds,
-			book: reference.book,
-			chapter: reference.chapter
-		}),
-		loadReferenceResources(db, {
-			resourceIds: [resource.id],
-			book: reference.book,
-			chapter: reference.chapter
-		}),
-		userId
-			? loadChapterVerseComments(db, userId, bibleIds, reference.book, reference.chapter)
-			: Promise.resolve([]),
-		userId
-			? loadChapterHighlights(db, userId, reference.book, reference.chapter)
-			: Promise.resolve([]),
-		userId ? markedVersesByList(db, userId, reference.book, reference.chapter) : Promise.resolve([])
-	]);
+	const [chapter, referenceResources, verseComments, highlights, markedVerses, documentAnchors] =
+		await Promise.all([
+			loadChapter(db, {
+				resourceIds: bibleIds,
+				book: reference.book,
+				chapter: reference.chapter
+			}),
+			loadReferenceResources(db, {
+				resourceIds: [resource.id],
+				book: reference.book,
+				chapter: reference.chapter
+			}),
+			userId
+				? loadChapterVerseComments(db, userId, bibleIds, reference.book, reference.chapter)
+				: Promise.resolve([]),
+			userId
+				? loadChapterHighlights(db, userId, reference.book, reference.chapter)
+				: Promise.resolve([]),
+			userId
+				? markedVersesByList(db, userId, reference.book, reference.chapter)
+				: Promise.resolve([]),
+			loadReaderDocumentAnchors(
+				db,
+				userId,
+				resource.kind === 'bible' ? resource.id : null,
+				reference
+			)
+		]);
 
 	for (const verse of referenceResources.verseNumbers) {
 		if (!chapter.rows.some((row) => row.verse === verse)) {
@@ -57,6 +67,7 @@ export async function loadReaderTabChapter(
 		verseComments,
 		highlights,
 		markedVerses,
+		documentAnchors,
 		referenceResources,
 		navigation: {
 			previous: previousChapter(reference.book, reference.chapter),

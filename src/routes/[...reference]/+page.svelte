@@ -15,6 +15,7 @@
 	import CommentToggle from '$lib/components/CommentToggle.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import ReaderLexiconTab from '$lib/components/ReaderLexiconTab.svelte';
+	import ReaderNotesPanel from '$lib/components/ReaderNotesPanel.svelte';
 	import ReaderResourceTabs from '$lib/components/ReaderResourceTabs.svelte';
 	import ReaderTabSearchResults from '$lib/components/ReaderTabSearchResults.svelte';
 	import ReaderTabToolbar from '$lib/components/ReaderTabToolbar.svelte';
@@ -41,6 +42,7 @@
 		type ReaderSearchQueries
 	} from '$lib/reader/url-state';
 	import type { ReaderTabSearchResponse } from '$lib/reader/tab-search';
+	import { readerDocumentsAt, type ReaderDocumentSummary } from '$lib/reader/document-notes';
 
 	let { data } = $props();
 
@@ -58,6 +60,7 @@
 	 * derived from page data, so it is rebuilt from the server's answer on every navigation.
 	 */
 	let verseMenu = $state<VerseMenu | undefined>();
+	let readerNotesPanel = $state<ReaderNotesPanel | undefined>();
 	let translationDialog = $state<TranslationDialog | undefined>();
 
 	/** The translation the commentary auto-link popover fetches verse text from: whichever Bible
@@ -271,7 +274,10 @@
 		verse: number,
 		verseEnd: number | null,
 		segments: Parameters<typeof segmentsToText>[0],
-		resource: { id: string; name: string },
+		resource: { id: string; name: string; kind: 'bible' },
+		documents: ReaderDocumentSummary[],
+		tileId: string,
+		tabId: string,
 		focusMenu = true
 	) {
 		const reference = {
@@ -294,8 +300,48 @@
 			(styleId) => updateStreamHighlight(book, chapter, verse, styleId),
 			resource,
 			() => openVerseComment(book, chapter, verse, resource.id),
+			() => openReaderNotesPanel(anchor, book, chapter, verse, resource, documents, tileId, tabId),
 			focusMenu
 		);
+	}
+
+	function openReaderNotesPanel(
+		anchor: HTMLElement,
+		book: number,
+		chapter: number,
+		verse: number,
+		resource: { id: string; name: string; kind: 'bible' },
+		documents: ReaderDocumentSummary[],
+		tileId: string,
+		tabId: string
+	): void {
+		const reference = { book, chapter, verse };
+		// Capture every tab's latest visible reference directly. The address-bar update is debounced
+		// while scrolling, so merely copying `page.url` here could lose the final few milliseconds of
+		// reading state when a verse action immediately opens the notes workspace.
+		let returnTo = currentReaderUrl(reference);
+		try {
+			const workspace = setReaderTabReference(
+				workspaceAtVisibleReferences(),
+				tileId,
+				tabId,
+				reference
+			);
+			returnTo = readerUrl(
+				referencePath(reference),
+				encodeReaderUrlState(workspace, currentSearchQueries())
+			);
+		} catch {
+			// `currentReaderUrl` is already a valid canonical fallback when a pathological workspace is
+			// too large to encode. Opening the private notes panel must still remain available.
+		}
+		void readerNotesPanel?.openForVerse(anchor, {
+			reference: formatReference(reference, { style: 'full' }),
+			passage: formatReference(reference),
+			returnTo,
+			resource: { id: resource.id, title: resource.name },
+			documents
+		});
 	}
 
 	/**
@@ -311,7 +357,10 @@
 		verse: number,
 		verseEnd: number | null,
 		segments: Parameters<typeof segmentsToText>[0],
-		resource: { id: string; name: string }
+		resource: { id: string; name: string; kind: 'bible' },
+		documents: ReaderDocumentSummary[],
+		tileId: string,
+		tabId: string
 	) {
 		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
 			return;
@@ -325,7 +374,10 @@
 			verse,
 			verseEnd,
 			segments,
-			resource
+			resource,
+			documents,
+			tileId,
+			tabId
 		);
 	}
 
@@ -1691,6 +1743,12 @@
 															`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}:${column.resource.id}`
 														) ?? []}
 													{@const comment = verseCommentAt(stream, column.resource.id, cell.verse)}
+													{@const attachedDocuments = readerDocumentsAt(stream.documentAnchors, {
+														book: stream.reference.book,
+														chapter: stream.reference.chapter,
+														verse: cell.verse,
+														verseEnd: cell.verseEnd
+													})}
 													{@const commentKey = verseCommentKey(
 														stream.reference.book,
 														stream.reference.chapter,
@@ -1751,7 +1809,14 @@
 																				cell.verse,
 																				cell.verseEnd,
 																				cell.segments,
-																				{ id: column.resource.id, name: column.resource.tabTitle }
+																				{
+																					id: column.resource.id,
+																					name: column.resource.tabTitle,
+																					kind: 'bible'
+																				},
+																				attachedDocuments,
+																				column.tileId,
+																				column.activeTab.id
 																			)}
 																	>
 																		{stream.reference.chapter}
@@ -1789,7 +1854,14 @@
 																				cell.verse,
 																				cell.verseEnd,
 																				cell.segments,
-																				{ id: column.resource.id, name: column.resource.tabTitle }
+																				{
+																					id: column.resource.id,
+																					name: column.resource.tabTitle,
+																					kind: 'bible'
+																				},
+																				attachedDocuments,
+																				column.tileId,
+																				column.activeTab.id
 																			)}
 																	>
 																		{cell.verse}{#if cell.verseEnd && cell.verseEnd > cell.verse}-{cell.verseEnd}{/if}
@@ -1842,6 +1914,44 @@
 																	active={commentVisible}
 																	onclick={() => toggleVerseComment(commentKey)}
 																/>
+															{/if}
+															{#if data.user && attachedDocuments.length > 0}
+																<button
+																	type="button"
+																	class="reader-note-indicator"
+																	title={t('documents.reader.open', {
+																		reference: formatReference({
+																			book: stream.reference.book,
+																			chapter: stream.reference.chapter,
+																			verse: cell.verse
+																		})
+																	})}
+																	aria-label={t('documents.reader.open', {
+																		reference: formatReference({
+																			book: stream.reference.book,
+																			chapter: stream.reference.chapter,
+																			verse: cell.verse
+																		})
+																	})}
+																	onclick={(event) =>
+																		openReaderNotesPanel(
+																			event.currentTarget,
+																			stream.reference.book,
+																			stream.reference.chapter,
+																			cell.verse,
+																			{
+																				id: column.resource.id,
+																				name: column.resource.tabTitle,
+																				kind: 'bible'
+																			},
+																			attachedDocuments,
+																			column.tileId,
+																			column.activeTab.id
+																		)}
+																>
+																	<Icon name="file-text" class="size-3.5" />
+																	<span>{attachedDocuments.length}</span>
+																</button>
 															{/if}
 														</p>
 														{#if commentVisible}
@@ -1985,6 +2095,9 @@
 	{marks}
 	highlightStyles={data.highlightStyles}
 />
+
+<!-- One owner-only panel for all contextual document indicators and verse-menu actions. -->
+<ReaderNotesPanel bind:this={readerNotesPanel} />
 
 <!-- One dialog for the whole page, opened for whichever column was clicked. -->
 <TranslationDialog
@@ -2314,6 +2427,34 @@
 		font-size: 0.72em;
 		font-weight: 750;
 		color: var(--color-accent-700);
+	}
+
+	.reader-note-indicator {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.12rem;
+		margin-inline-start: 0.28em;
+		padding: 0.08em 0.28em;
+		border: 1px solid color-mix(in oklab, var(--color-accent-500) 36%, transparent);
+		border-radius: 999px;
+		background: color-mix(in oklab, var(--color-accent-100) 62%, transparent);
+		color: var(--color-accent-700);
+		font-family: var(--font-sans);
+		font-size: 0.62em;
+		font-weight: 750;
+		line-height: 1.25;
+		vertical-align: 0.12em;
+	}
+
+	.reader-note-indicator:hover,
+	.reader-note-indicator:focus-visible {
+		border-color: var(--color-accent-500);
+		background: var(--color-accent-100);
+	}
+
+	:global(.dark) .reader-note-indicator {
+		background: color-mix(in oklab, var(--color-accent-900) 55%, transparent);
+		color: var(--color-accent-300);
 	}
 
 	:global(.dark) .flow-verse .verse-number {
