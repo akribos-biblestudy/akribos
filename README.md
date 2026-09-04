@@ -33,8 +33,20 @@ pnpm db:migrate           # apply migrations
 pnpm dev
 ```
 
-The site now runs but has no scripture in it. Import the bundled sources — about two minutes in total
-for 109,428 verses and 750,000 tagged words:
+For a reviewable local demo instead, one non-destructive command starts PostgreSQL, applies pending
+migrations, adds the compact development fixture and starts Vite on every network interface:
+
+```sh
+pnpm dev:demo
+```
+
+Open <http://localhost:5173>. Sign in as `reader@example.com` / `seed-reader-password` for the normal
+notes and sermon workflows, or as `admin@example.com` / `seed-admin-password` for article publication.
+Running the command again does not clear an existing developer database or duplicate fixture documents.
+It only restores the documented credentials and roles of these two reserved `example.com` accounts.
+
+Without `pnpm db:seed`, the site runs but has no scripture in it. Import the bundled sources — about
+two minutes in total for 109,428 verses and 750,000 tagged words:
 
 ```sh
 pnpm data:import data/bibles/GER_ELB1905_STRONG.xml
@@ -56,6 +68,7 @@ warnings the bundled files produce.
 | Command            | Purpose                                                            |
 | ------------------ | ------------------------------------------------------------------ |
 | `pnpm dev`         | dev server with HMR                                                |
+| `pnpm dev:demo`    | migrate, add the compact demo fixture and start on `0.0.0.0`       |
 | `pnpm check`       | `svelte-check` and TypeScript diagnostics                          |
 | `pnpm lint`        | Prettier and ESLint                                                |
 | `pnpm test:unit`   | Vitest in watch mode; needs no database                            |

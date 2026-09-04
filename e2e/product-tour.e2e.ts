@@ -6,8 +6,9 @@ import { lastMailLinkTo } from './lib/mail-outbox.ts';
  * the menu, and reduced to the signed-in-only steps for someone who already finished it while signed
  * out. Runs against the fixture from `pnpm db:seed` (SEEDDE + SEEDPLAIN on `/Joh3`, see reader.e2e.ts).
  *
- * The tour only has anything to point at in the reader, so `ProductTour` mounts only there; visiting
- * `/Joh3` is what "a new visitor" means for these tests.
+ * The automatic first-run sequence belongs to the reader; route-specific tours for documents and
+ * sermons can additionally be started from the menu. Visiting `/Joh3` is what "a new visitor" means
+ * for these tests.
  *
  * Every other suite's context starts with the signed-out tour already marked done (see
  * `playwright.config.ts`), so its overlay never gets in the way of an unrelated test's clicks. This
@@ -41,22 +42,24 @@ test('a new guest sees the product tour automatically and it stays closed once d
 }) => {
 	await page.goto('/Joh3');
 
-	const tour = page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' });
+	const tour = page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' });
 	await expect(tour).toBeVisible();
-	await expect(page.getByText('Schritt 1 von 5')).toBeVisible();
+	await expect(page.getByText('Schritt 1 von 6')).toBeVisible();
 
 	await page.getByRole('button', { name: 'Tour überspringen' }).click();
 	await expect(tour).toHaveCount(0);
 
 	// A fresh visit — even a different chapter — must not offer it again on its own.
 	await page.goto('/Joh4');
-	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toHaveCount(0);
+	await expect(page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' })).toHaveCount(0);
 });
 
 test('the tour walks through its signed-out steps with Weiter and can be finished', async ({
 	page
 }) => {
 	await page.goto('/Joh3');
+	await expect(page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' })).toBeVisible();
+	await page.getByRole('button', { name: 'Weiter' }).click();
 	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Weiter' }).click();
@@ -79,7 +82,7 @@ test('the tour walks through its signed-out steps with Weiter and can be finishe
 	await expect(page.getByRole('dialog', { name: 'Tab hinzufügen' })).toHaveCount(0);
 
 	await page.goto('/Joh3');
-	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toHaveCount(0);
+	await expect(page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' })).toHaveCount(0);
 });
 
 test('the "Produkt-Tour" menu item restarts it from the beginning', async ({ page }) => {
@@ -90,19 +93,19 @@ test('the "Produkt-Tour" menu item restarts it from the beginning', async ({ pag
 	await page.getByRole('button', { name: 'Konto-Menü' }).click();
 	await page.getByRole('menuitem', { name: 'Produkt-Tour' }).click();
 
-	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toBeVisible();
-	await expect(page.getByText('Schritt 1 von 5')).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' })).toBeVisible();
+	await expect(page.getByText('Schritt 1 von 6')).toBeVisible();
 });
 
 test('escape closes the tour and counts as dismissed', async ({ page }) => {
 	await page.goto('/Joh3');
-	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' })).toBeVisible();
 
 	await page.keyboard.press('Escape');
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 
 	await page.goto('/Joh3');
-	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toHaveCount(0);
+	await expect(page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' })).toHaveCount(0);
 });
 
 test('someone who already finished the guest tour only sees the signed-in-only steps after registering', async ({
@@ -110,7 +113,7 @@ test('someone who already finished the guest tour only sees the signed-in-only s
 }) => {
 	// Finish the tour as a guest first, in the same browser context registration will reuse.
 	await page.goto('/Joh3');
-	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' })).toBeVisible();
 	await page.getByRole('button', { name: 'Tour überspringen' }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 
@@ -120,7 +123,7 @@ test('someone who already finished the guest tour only sees the signed-in-only s
 	await page.goto('/Joh3');
 	const tour = page.getByRole('dialog', { name: 'Versmenü' });
 	await expect(tour).toBeVisible();
-	await expect(page.getByText('Schritt 1 von 2')).toBeVisible();
+	await expect(page.getByText('Schritt 2 von 3')).toBeVisible();
 
 	await page.getByRole('button', { name: 'Weiter' }).click();
 	await expect(page.getByRole('dialog', { name: 'Dein Konto' })).toBeVisible();
@@ -144,6 +147,6 @@ test('someone who never saw the guest tour gets the full sequence once signed in
 	await register(page, uniqueEmail());
 
 	await page.goto('/Joh3');
-	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toBeVisible();
-	await expect(page.getByText('Schritt 1 von 7')).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' })).toBeVisible();
+	await expect(page.getByText('Schritt 1 von 9')).toBeVisible();
 });

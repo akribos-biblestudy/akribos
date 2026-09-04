@@ -11,9 +11,8 @@
 	 * short and every target already exists as an ordinary DOM element, so a dependency would buy
 	 * little over the couple of hundred lines here.
 	 *
-	 * Mounted by `SiteHeader` only while `readerPreferences` is set — the tour has nothing to point at
-	 * outside the reader — so this component's lifetime already answers "are we on a page that has
-	 * these targets". `tourState` is the shared, reactive run state (see `tour-state.svelte.ts`); the
+	 * Mounted once by `SiteHeader`; route-specific step sets point at the Reader, document workspace,
+	 * import preview or sermon tools. `tourState` is the shared, reactive run state; the
 	 * "Produkt-Tour" menu item in `SiteHeader` starts it, this component only renders and drives it.
 	 */
 	let {

@@ -182,7 +182,9 @@
 
 	function items(): HTMLElement[] {
 		return [
-			...(element?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]') ?? [])
+			...(element?.querySelectorAll<HTMLElement>(
+				'[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]'
+			) ?? [])
 		].filter((item) => item.offsetParent !== null);
 	}
 
@@ -271,7 +273,8 @@
 	/* Items are styled here rather than by every caller, so a menu looks the same wherever it opens.
 	   Wrapping <form>s carry role="none" so the menu/menuitem relationship survives them. */
 	.menu :global([role='menuitem']),
-	.menu :global([role='menuitemradio']) {
+	.menu :global([role='menuitemradio']),
+	.menu :global([role='menuitemcheckbox']) {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
@@ -290,14 +293,18 @@
 	.menu :global([role='menuitem']:hover),
 	.menu :global([role='menuitem']:focus-visible),
 	.menu :global([role='menuitemradio']:hover),
-	.menu :global([role='menuitemradio']:focus-visible) {
+	.menu :global([role='menuitemradio']:focus-visible),
+	.menu :global([role='menuitemcheckbox']:hover),
+	.menu :global([role='menuitemcheckbox']:focus-visible) {
 		background: var(--color-stone-100);
 	}
 
 	:global(.dark) .menu :global([role='menuitem']:hover),
 	:global(.dark) .menu :global([role='menuitem']:focus-visible),
 	:global(.dark) .menu :global([role='menuitemradio']:hover),
-	:global(.dark) .menu :global([role='menuitemradio']:focus-visible) {
+	:global(.dark) .menu :global([role='menuitemradio']:focus-visible),
+	:global(.dark) .menu :global([role='menuitemcheckbox']:hover),
+	:global(.dark) .menu :global([role='menuitemcheckbox']:focus-visible) {
 		background: var(--color-stone-800);
 	}
 

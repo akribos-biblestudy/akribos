@@ -44,6 +44,10 @@ jobs:
       # Most unit tests need no database, but the activation-token repository tests exercise real
       # queries against the schema, so migrations still have to run against the service above.
       - run: pnpm run db:migrate
+      # Svelte component specs run through Vitest's Playwright browser project. Install the exact
+      # Chromium revision selected by the lockfile instead of relying on a runner cache that may
+      # contain the previous Playwright release.
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm run test:unit --run
 
   e2e:

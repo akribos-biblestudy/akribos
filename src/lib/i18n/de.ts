@@ -23,6 +23,12 @@ export const de = {
 	'action.copy': 'Kopieren',
 	'action.copied': 'Kopiert',
 	'action.open': 'Öffnen',
+	'action.create': 'Erstellen',
+	'action.restore': 'Wiederherstellen',
+	'action.import': 'Importieren',
+	'action.export': 'Exportieren',
+	'action.edit': 'Bearbeiten',
+	'action.preview': 'Vorschau',
 
 	// --- navigation ---------------------------------------------------------
 	'nav.home': 'Startseite',
@@ -42,6 +48,10 @@ export const de = {
 	'nav.datenschutz': 'Datenschutz',
 	'nav.userMenu': 'Konto-Menü',
 	'nav.tour': 'Produkt-Tour',
+	'nav.notes': 'Notizen',
+	'nav.sermons': 'Predigten',
+	'nav.publishedNotes': 'Veröffentlichte Notizen',
+	'nav.documents': 'Dokumente',
 
 	// --- reader -------------------------------------------------------------
 	'reader.chooseTranslation': 'Werk wählen',
@@ -83,6 +93,285 @@ export const de = {
 	'comments.hide': 'Kommentar ausblenden',
 	'comments.placeholder': 'Deine Gedanken zu diesem Vers …',
 	'comments.translation': 'Kommentar zu {translation}',
+
+	// --- unified documents --------------------------------------------------
+	'documents.library.title': 'Notizen',
+	'documents.library.subtitle':
+		'Gedanken mit Bibelstellen und verschachtelten Schlagwörtern schreiben, ordnen und veröffentlichen.',
+	'documents.library.search': 'Dokumente durchsuchen …',
+	'documents.library.all': 'Alle',
+	'documents.library.empty': 'Noch keine Dokumente',
+	'documents.library.emptyHint':
+		'Lege eine Notiz an oder beginne direkt an einer Stelle im Bibeltext.',
+	'documents.library.noResults': 'Keine Dokumente passen zu diesen Filtern.',
+	'documents.library.trash': 'Papierkorb',
+	'documents.library.active': 'Aktive Dokumente',
+	'documents.library.updated': 'Geändert {date}',
+	'documents.library.sourceLegacy': 'Aus Verskommentar übernommen',
+	'documents.library.new': 'Neues Dokument',
+	'documents.library.kind': 'Dokumenttyp',
+	'documents.views.label': 'Dokumentansichten',
+	'documents.views.all': 'Übersicht',
+	'documents.kind.note': 'Notiz',
+	'documents.kind.sermon': 'Predigt',
+	'documents.visibility.private': 'Privat',
+	'documents.visibility.unlisted': 'Nicht gelistet',
+	'documents.visibility.public': 'Öffentlich',
+	'documents.create.note': 'Neue Notiz',
+	'documents.create.sermon': 'Neue Predigt',
+	'documents.delete': 'In den Papierkorb',
+	'documents.deleteConfirm': 'Dieses Dokument in den Papierkorb verschieben?',
+	'documents.restore': 'Dokument wiederherstellen',
+	'documents.editor.back': 'Zur Notizbibliothek',
+	'documents.editor.title': 'Titel',
+	'documents.editor.titlePlaceholder': 'Titel des Dokuments',
+	'documents.editor.bodyPlaceholder': 'Schreibe deine Gedanken …',
+	'documents.editor.visual': 'Visuell',
+	'documents.editor.markdown': 'Markdown',
+	'documents.editor.formatting': 'Text formatieren',
+	'documents.editor.bold': 'Fett',
+	'documents.editor.italic': 'Kursiv',
+	'documents.editor.strike': 'Durchgestrichen',
+	'documents.editor.heading': 'Überschrift',
+	'documents.editor.list': 'Aufzählung',
+	'documents.editor.orderedList': 'Nummerierte Liste',
+	'documents.editor.quote': 'Zitat',
+	'documents.editor.code': 'Code',
+	'documents.editor.undo': 'Rückgängig',
+	'documents.editor.redo': 'Wiederholen',
+	'documents.editor.saving': 'Wird gespeichert …',
+	'documents.editor.saved': 'Gespeichert',
+	'documents.editor.unsaved': 'Nicht gespeicherte Änderungen',
+	'documents.editor.saveError': 'Speichern fehlgeschlagen. Die Änderungen bleiben im Editor.',
+	'documents.editor.authenticationRequired':
+		'Deine Sitzung ist abgelaufen. Melde dich erneut an; die Änderungen bleiben im Editor.',
+	'documents.editor.notFound': 'Das Dokument wurde nicht gefunden oder du hast keinen Zugriff.',
+	'documents.editor.tooLarge': 'Das Dokument ist zu groß. Kürze den Text und speichere erneut.',
+	'documents.editor.conflict':
+		'Das Dokument wurde an anderer Stelle geändert. Lade die Seite neu, um nichts zu überschreiben.',
+	'documents.editor.markdownHint':
+		'Markdown ist die portable Quelle. Unsicheres HTML und eingebettete Dateien werden entfernt.',
+	'documents.editor.bibleQuoteHint':
+		'Bibeltext einfügen: /bibel Mt 3,12 eingeben und Enter drücken – oder eine erkannte Stelle berühren.',
+	'documents.editor.bibleQuoteLoading': 'Bibeltext wird eingefügt …',
+	'documents.editor.bibleQuoteError':
+		'Der Bibeltext konnte in der gewählten Übersetzung nicht geladen werden.',
+	'documents.editor.insertBibleQuote': 'Bibeltext einfügen',
+	'documents.details.title': 'Details',
+	'documents.details.type': 'Typ',
+	'documents.details.visibility': 'Sichtbarkeit der Arbeitskopie',
+	'documents.details.visibilityHint':
+		'Nur ein veröffentlichter Schnappschuss ist für Besucher sichtbar.',
+	'documents.details.source': 'Quelle',
+	'documents.details.native': 'In Akribos erstellt',
+	'documents.details.obsidian': 'Aus Obsidian importiert',
+	'documents.details.legacy': 'Aus einem Verskommentar migriert',
+	'documents.tags.title': 'Schlagwörter',
+	'documents.tags.hint': 'Mit Schrägstrichen verschachteln, z. B. Theologie/Gnade.',
+	'documents.tags.placeholder': 'Theologie/Gnade, Predigt/Entwurf',
+	'documents.tags.add': 'Schlagwörter speichern',
+	'documents.tags.expand': 'Untergeordnete Schlagwörter aufklappen',
+	'documents.tags.collapse': 'Untergeordnete Schlagwörter zuklappen',
+	'documents.passages.title': 'Bibelstellen',
+	'documents.passages.reference': 'Bibelstelle',
+	'documents.passages.placeholder': 'z. B. Joh 3,16-18 oder 1Mo 1,31-2,3',
+	'documents.passages.translation': 'Übersetzungsbezug',
+	'documents.passages.canonical': 'Für alle Übersetzungen',
+	'documents.passages.add': 'Bibelstelle hinzufügen',
+	'documents.passages.remove': 'Bibelstelle entfernen',
+	'documents.passages.translationSpecific': 'Nur {translation}',
+	'documents.passageFilter': 'Mit Bibelstelle überschneidend',
+	'documents.export.title': 'Export',
+	'documents.export.hint':
+		'Markdown enthält portables YAML-Frontmatter; Word und PDF sind direkt lesbare Ausgaben.',
+	'documents.import.title': 'Obsidian-Markdown importieren',
+	'documents.import.subtitle':
+		'Die Datei wird zuerst sicher geprüft. Erst deine Bestätigung legt eine private Arbeitskopie an.',
+	'documents.import.file': 'Markdown-Dateien oder ZIP-Archiv',
+	'documents.import.previewSingle': 'Ein Dokument in der Vorschau',
+	'documents.import.previewCount': '{count} Dokumente in der Vorschau',
+	'documents.import.preview': 'Importvorschau erstellen',
+	'documents.import.confirm': 'Als privates Dokument importieren',
+	'documents.import.warnings': 'Hinweise zur Konvertierung',
+	'documents.import.safe': 'Noch wurde nichts gespeichert.',
+	'documents.import.limitations':
+		'Anhänge, Einbettungen, unsicheres HTML und unbekannte Metadaten werden nicht importiert.',
+	'documents.import.error': 'Die Datei konnte nicht sicher verarbeitet werden.',
+	'documents.import.sizeLimit':
+		'Maximal {bodyMiB} MiB Dokumenttext plus {frontmatterKiB} KiB YAML-Frontmatter.',
+	'documents.import.passageLimit':
+		'Pro Dokument werden höchstens {maximum} Bibelstellen verknüpft.',
+	'documents.import.limitation.rawHtml':
+		'Rohes HTML, Medien, Einbettungen und Attribute werden entfernt.',
+	'documents.import.limitation.headingDepth':
+		'Überschriften ab Ebene 4 werden auf Ebene 3 zurückgeführt.',
+	'documents.import.limitation.layout':
+		'Tabellenlayout, Startwerte nummerierter Listen und Linktitel bleiben nicht erhalten.',
+	'documents.import.limitation.taskCheckboxes':
+		'Aufgaben-Kontrollkästchen werden zu gewöhnlichem lesbarem Text.',
+	'documents.import.limitation.whitespace':
+		'Zeilenenden und nachgestellte Leerzeichen werden vereinheitlicht.',
+	'documents.import.warning.attachmentLink':
+		'Ein Anhangslink wurde auf seine lesbare Beschriftung reduziert.',
+	'documents.import.warning.attachmentRemoved': 'Ein Bild oder Anhang wurde beim Import entfernt.',
+	'documents.import.warning.rawHtml': 'Rohes HTML wurde beim Import entfernt.',
+	'documents.import.warning.embed': 'Eine Obsidian-Einbettung wurde beim Import entfernt.',
+	'documents.import.warning.unsafeWikilink':
+		'Ein unsicherer Wiki- oder Anhangslink wurde auf lesbaren Text reduziert.',
+	'documents.import.warning.wikilink':
+		'Obsidian-Wikilinks wurden in gewöhnliche interne Links umgewandelt.',
+	'documents.import.warning.timestamps':
+		'Exportierte Zeitstempel dienen nur zur Information und werden beim Import nicht wiederhergestellt.',
+	'documents.import.warning.unsafeMetadata':
+		'Das Frontmatter-Feld „{field}“ wurde ignoriert; Importe können weder Eigentum noch Veröffentlichungsstatus setzen.',
+	'documents.import.warning.unknownMetadata':
+		'Das unbekannte Frontmatter-Feld „{field}“ wurde ignoriert.',
+	'documents.import.warning.invalidTitle':
+		'Der Titel im Frontmatter war ungültig; stattdessen wurde der Dateiname verwendet.',
+	'documents.import.warning.kindConflict':
+		'„type“ und „kind“ waren beide vorhanden; „type“ hatte Vorrang.',
+	'documents.import.warning.invalidKind':
+		'Der Dokumenttyp war ungültig und wurde auf „Notiz“ gesetzt.',
+	'documents.import.warning.invalidTags':
+		'Schlagwörter müssen als Text oder als Liste von Textwerten angegeben werden.',
+	'documents.import.warning.nonTextTag': 'Ein Schlagwort ohne Textwert wurde ignoriert.',
+	'documents.import.warning.invalidTag': 'Ein ungültiges Schlagwort wurde ignoriert.',
+	'documents.import.warning.tooManyTags':
+		'Nur die ersten {maximum} Schlagwörter wurden eingelesen.',
+	'documents.import.warning.passageResourceConflict':
+		'Eine Bibelstelle enthielt „resource“ und „resourceId“; „resource“ hatte Vorrang.',
+	'documents.import.warning.invalidPassageEntry':
+		'Ein ungültiger Bibelstellen-Eintrag wurde ignoriert.',
+	'documents.import.warning.missingPassageReference':
+		'Eine Bibelstelle ohne gültige Referenz wurde ignoriert.',
+	'documents.import.warning.invalidPassageResource':
+		'Ein ungültiger Übersetzungsbezug wurde ignoriert; die Bibelstelle blieb erhalten.',
+	'documents.import.warning.tooManyPassages':
+		'Nur die ersten {maximum} Bibelstellen wurden eingelesen.',
+	'documents.import.warning.invalidSermon':
+		'Predigtmetadaten müssen als Zuordnung angegeben werden.',
+	'documents.import.warning.sermonOnOtherKind':
+		'Predigtmetadaten wurden bei einem anderen Dokumenttyp ignoriert.',
+	'documents.import.warning.invalidSermonStatus':
+		'Der Predigtstatus war ungültig und wurde auf „Idee“ gesetzt.',
+	'documents.import.warning.invalidSermonDate': 'Ein ungültiges Predigtdatum wurde ignoriert.',
+	'documents.import.warning.invalidSermonSeries': 'Eine ungültige Predigtreihe wurde ignoriert.',
+	'documents.import.warning.unparsedPassage':
+		'Mindestens eine Bibelstelle konnte nicht erkannt werden und muss korrigiert werden.',
+	'documents.import.warning.unavailableBible':
+		'Mindestens eine Bibelstelle nennt eine nicht verfügbare Übersetzung.',
+	'documents.import.warning.invalidTagPath':
+		'Mindestens ein Schlagwortpfad ist ungültig oder zu tief verschachtelt.',
+	'documents.import.warning.documentTagLimit':
+		'Ein Dokument darf höchstens {maximum} Schlagwörter haben.',
+	'documents.import.warning.documentPassageLimit':
+		'Ein Dokument darf höchstens {maximum} Bibelstellen verknüpfen.',
+	'documents.import.warning.unspecified':
+		'Beim Import wurde eine nicht näher beschriebene Anpassung vorgenommen.',
+	'documents.import.error.requestTooLarge':
+		'Die Importanfrage ist größer als der zulässige, begrenzte Dateiumschlag.',
+	'documents.import.error.invalidForm': 'Die Importanfrage enthält keine gültigen Formulardaten.',
+	'documents.import.error.fileCount':
+		'Wähle eine oder mehrere Markdown-Dateien oder genau ein ZIP-Archiv aus.',
+	'documents.import.error.mixedArchive':
+		'ZIP-Archive können nicht mit einzelnen Dateien gemischt werden.',
+	'documents.import.error.unsafe_archive':
+		'Das ZIP-Archiv enthält unsichere oder nicht unterstützte Einträge.',
+	'documents.import.error.archive_too_large':
+		'Das Archiv oder sein entpackter Markdown-Inhalt überschreitet 16 MiB.',
+	'documents.import.error.too_many_files':
+		'Es können höchstens 100 Markdown-Dateien auf einmal importiert werden.',
+	'documents.import.error.no_markdown': 'Das ZIP-Archiv enthält keine Markdown-Datei.',
+	'documents.import.error.emptyFile': 'Die Markdown-Datei ist leer.',
+	'documents.import.error.invalidFilename':
+		'Es kann nur eine pfadfreie Datei mit der Endung „.md“ importiert werden.',
+	'documents.import.error.invalidEncoding': 'Die Markdown-Datei ist kein gültiges UTF-8.',
+	'documents.import.error.binaryFile': 'Binärdaten können nicht als Markdown importiert werden.',
+	'documents.import.error.fileTooLarge':
+		'Der Dokumenttext ist auf 1 MiB zuzüglich begrenztem YAML-Frontmatter beschränkt.',
+	'documents.import.error.invalidFrontmatter':
+		'Das YAML-Frontmatter ist ungültig oder überschreitet seine sichere Größen- und Komplexitätsgrenze.',
+	'documents.publication.title': 'Veröffentlichung',
+	'documents.publication.adminOnly': 'Nur Administratoren können Notizen veröffentlichen.',
+	'documents.publication.private':
+		'Stelle die Arbeitskopie auf „Nicht gelistet“ oder „Öffentlich“, bevor du sie veröffentlichst.',
+	'documents.publication.slug': 'Webadresse',
+	'documents.publication.excerpt': 'Kurzbeschreibung',
+	'documents.publication.publish': 'Schnappschuss veröffentlichen',
+	'documents.publication.update': 'Veröffentlichung aktualisieren',
+	'documents.publication.unpublish': 'Veröffentlichung zurückziehen',
+	'documents.publication.current': 'Veröffentlicht am {date}',
+	'documents.publication.outdated':
+		'Die Arbeitskopie enthält neuere Änderungen. Der öffentliche Schnappschuss bleibt unverändert.',
+	'documents.publication.currentCopy': 'Die Veröffentlichung entspricht der Arbeitskopie.',
+	'documents.publication.open': 'Öffentliche Seite öffnen',
+	'documents.publication.error': 'Die Notiz konnte nicht veröffentlicht werden.',
+	'documents.editor.actionError': 'Die Änderung konnte nicht gespeichert werden.',
+	'documents.tags.error': 'Die Schlagwörter konnten nicht gespeichert werden.',
+	'documents.passages.error': 'Die Bibelstellen-Verknüpfung konnte nicht gespeichert werden.',
+	'documents.reader.title': 'Notizen zu dieser Stelle',
+	'documents.reader.open': 'Notizen zu {reference} öffnen',
+	'documents.reader.create': 'Notiz zu {reference} erstellen',
+	'documents.reader.empty': 'Zu dieser Stelle gibt es noch keine Notiz.',
+	'documents.reader.panelClose': 'Notizenleiste schließen',
+	'documents.reader.count': '{count} Notizen',
+	'documents.reader.translationSpecific': 'Nur für dieses Werk',
+	'documents.returnToReader': 'Zurück zum Bibeltext',
+
+	// --- sermon workflow ----------------------------------------------------
+	'sermons.title': 'Predigtvorbereitung',
+	'sermons.board': 'Predigt-Board',
+	'sermons.subtitle': 'Entwürfe vom ersten Gedanken bis zur gehaltenen Predigt begleiten.',
+	'sermons.back': 'Zur Predigtvorbereitung',
+	'sermons.new': 'Predigt aus Vorlage erstellen',
+	'sermons.empty': 'Noch keine Predigten in Vorbereitung.',
+	'sermons.status': 'Arbeitsstand',
+	'sermons.status.idea': 'Idee',
+	'sermons.status.research': 'Recherche',
+	'sermons.status.outline': 'Gliederung',
+	'sermons.status.ready': 'Bereit',
+	'sermons.status.delivered': 'Gehalten',
+	'sermons.date': 'Predigttermin',
+	'sermons.series': 'Predigtreihe',
+	'sermons.seriesPlaceholder': 'Optionaler Name der Reihe',
+	'sermons.saveWorkflow': 'Predigtstatus speichern',
+	'sermons.templates.title': 'Predigtvorlagen',
+	'sermons.templates.subtitle':
+		'Erstelle beliebige wiederverwendbare Markdown-Gliederungen für neue Predigten.',
+	'sermons.templates.new': 'Neue Vorlage',
+	'sermons.templates.own': 'Eigene Vorlagen',
+	'sermons.templates.name': 'Name der Vorlage',
+	'sermons.templates.body': 'Vorlagentext (Markdown)',
+	'sermons.templates.create': 'Vorlage erstellen',
+	'sermons.templates.template': 'Vorlage',
+	'sermons.templates.default': 'Akribos-Standardvorlage',
+	'sermons.templates.emptyDocument': 'Leeres Dokument',
+	'sermons.templates.empty': 'Du hast noch keine eigene Predigtvorlage.',
+	'sermons.templates.saved': 'Die Predigtvorlage wurde gespeichert.',
+	'sermons.templates.error': 'Die Predigtvorlage konnte nicht gespeichert werden.',
+	'sermons.templates.deleteConfirm': 'Diese Predigtvorlage wirklich löschen?',
+	'sermons.deliveries.title': 'Bereits gehalten',
+	'sermons.deliveries.hint':
+		'Halte für jede Durchführung gesondert fest, wann und wo du diese Predigt gehalten hast.',
+	'sermons.deliveries.date': 'Datum',
+	'sermons.deliveries.location': 'Ort',
+	'sermons.deliveries.locationPlaceholder': 'z. B. Hoffnungskirche Berlin',
+	'sermons.deliveries.add': 'Durchführung hinzufügen',
+	'sermons.deliveries.remove': 'Durchführung entfernen',
+	'sermons.deliveries.error': 'Die Durchführung konnte nicht gespeichert werden.',
+
+	// --- public note snapshots ---------------------------------------------
+	'publishedNotes.title': 'Veröffentlichte Notizen',
+	'publishedNotes.subtitle': 'Bibelstudien und Impulse aus Akribos.',
+	'publishedNotes.empty': 'Zurzeit sind keine Notizen veröffentlicht.',
+	'publishedNotes.by': 'Von {author}',
+	'publishedNotes.published': 'Veröffentlicht am {date}',
+	'publishedNotes.read': 'Notiz lesen',
+	'publishedNotes.unlisted': 'Nicht gelistete Notiz',
+	'publishedNotes.pagination': 'Notizseiten',
+	'publishedNotes.previous': 'Neuere Notizen',
+	'publishedNotes.next': 'Ältere Notizen',
+	'publishedNotes.page': 'Seite {page}',
 
 	// --- Strong word study --------------------------------------------------
 	'strong.title': 'Strong-Nummer {id}',
@@ -432,9 +721,12 @@ export const de = {
 	'tour.back': 'Zurück',
 	'tour.next': 'Weiter',
 	'tour.finish': 'Fertig',
+	'tour.readerLayout.title': 'Reader-Layout und Notizspalte',
+	'tour.readerLayout.body':
+		'Hier wechselst du die Kachelanordnung und blendest die Notizspalte rechts ein. Ihre Breite lässt sich am horizontalen Trenner anpassen.',
 	'tour.searchChooser.title': 'Stelle und Werk durchsuchen',
 	'tour.searchChooser.body':
-		'Jeder Tab hat sein eigenes Feld: Bibelstellen öffnen sich direkt, Treffer für Wörter und Strong-Nummern erscheinen im aktuellen Tab und nur für dieses Werk. Der Pfeil öffnet die Buch- und Kapitelauswahl.',
+		'Jeder Tab hat sein eigenes Feld: Eingaben mit einer Ziffer öffnen passende Bibelstellen direkt; Wörter und Strong-Nummern liefern Treffer im aktuellen Tab und nur für dieses Werk.',
 	'tour.wordStudy.title': 'Wortstudie',
 	'tour.wordStudy.body':
 		'Unterstrichene Wörter tragen eine Strong-Nummer. Klicke darauf, um die Grundbedeutung, verwandte Stellen und die Grammatik dieses Urtextworts zu sehen.',
@@ -449,8 +741,53 @@ export const de = {
 		'Mit diesem Symbol öffnest du eine weitere Übersetzung, einen Kommentar, Parallelstellen oder ein Wörterbuch als Tab in derselben Kachel.',
 	'tour.verseMenu.title': 'Versmenü',
 	'tour.verseMenu.body':
-		'Klicke auf eine Versnummer, um sie hervorzuheben, einen Kommentar zu schreiben oder sie einer Versliste zuzuordnen.',
+		'Klicke auf eine Versnummer, um sie hervorzuheben, eine verknüpfte Notiz zu beginnen oder sie einer Versliste zuzuordnen.',
+	'tour.readerNotes.title': 'Notizen im Bibeltext',
+	'tour.readerNotes.body':
+		'Ein Symbol steht nur am Anfang oder Ende eines verknüpften Abschnitts; die dezente Punktlinie markiert den gesamten Bereich. Ein Klick öffnet die Notizspalte.',
 	'tour.userMenu.title': 'Dein Konto',
 	'tour.userMenu.body':
-		'Unter „Mein Konto“ findest du deine Verslisten und Kommentare sowie die Einstellungen für Textgröße und Design.'
+		'Unter „Dokumente“ findest du die zwei Schreibbereiche Notizen und Predigten. „Mein Konto“ enthält Verslisten und Darstellungseinstellungen.',
+	'tour.documentsUnified.title': 'Zwei klare Schreibbereiche',
+	'tour.documentsUnified.body':
+		'Wechsle direkt zwischen Notizen und Predigten. Import und veröffentlichte Notizen bleiben bei den Notizen, Vorlagen beim Predigt-Board.',
+	'tour.documentsTags.title': 'Verschachtelte Schlagwörter',
+	'tour.documentsTags.body':
+		'Große Schlagwortbäume kannst du auf- und zuklappen. Die Zahl in Klammern umfasst auch Dokumente untergeordneter Schlagwörter.',
+	'tour.documentsSearch.title': 'Dokumente gezielt finden',
+	'tour.documentsSearch.body':
+		'Suche im Titel und Text oder filtere nach überschneidender Bibelstelle, Übersetzung und Schlagwort.',
+	'tour.documentEditor.title': 'Visuell oder Markdown schreiben',
+	'tour.documentEditor.body':
+		'Der Editor speichert automatisch. Wechsle jederzeit zu Markdown; /bibel Mt 3,12 fügt den Bibeltext ein, und erkannte Stellen bieten dieselbe Aktion im Popup.',
+	'tour.documentDetails.title': 'Metadaten und Verknüpfungen',
+	'tour.documentDetails.body':
+		'Hier verwaltest du Schlagwörter, kanonische oder übersetzungsspezifische Bibelstellen sowie den Predigt- und Publikationsworkflow.',
+	'tour.documentExport.title': 'Drei Exportformate',
+	'tour.documentExport.body':
+		'Markdown exportiert portables YAML-Frontmatter; Word und PDF erzeugen direkt weitergebbare Dokumente.',
+	'tour.publication.title': 'Sicher veröffentlichen',
+	'tour.publication.body':
+		'Nur Administratoren veröffentlichen. Der öffentliche Schnappschuss bleibt von späteren Änderungen an der privaten Arbeitskopie getrennt.',
+	'tour.sermonDeliveries.title': 'Mehrfach gehalten',
+	'tour.sermonDeliveries.body':
+		'Eine Predigt kann beliebig viele Durchführungen mit deutschem Datum und Ort dokumentieren.',
+	'tour.importUpload.title': 'Einzel-, Mehrfach- oder ZIP-Import',
+	'tour.importUpload.body':
+		'Wähle mehrere Markdown-Dateien oder genau ein ZIP-Archiv. Pfade, Größen und Inhalte werden vor dem Entpacken und Anzeigen begrenzt geprüft.',
+	'tour.importPreview.title': 'Erst prüfen, dann importieren',
+	'tour.importPreview.body':
+		'Die Vorschau schreibt noch nichts. Erst die Bestätigung legt alle geprüften Dokumente atomar und immer privat an.',
+	'tour.sermonCreate.title': 'Predigt aus Vorlage',
+	'tour.sermonCreate.body':
+		'Beginne mit der Standardgliederung, einem leeren Dokument oder einer deiner frei bearbeitbaren Vorlagen.',
+	'tour.sermonBoard.title': 'Predigten durchs Board bewegen',
+	'tour.sermonBoard.body':
+		'Ziehe Karten zwischen Arbeitsständen. Mit Alt und Pfeil links oder rechts verschiebst du die fokussierte Karte per Tastatur.',
+	'tour.sermonTemplates.title': 'Eigene Vorlage erstellen',
+	'tour.sermonTemplates.body':
+		'Name und beliebiger Markdown-Text bilden eine private Vorlage für neue Predigten.',
+	'tour.sermonTemplateList.title': 'Vorlagen verwalten',
+	'tour.sermonTemplateList.body':
+		'Bestehende Vorlagen lassen sich unabhängig von bereits daraus erstellten Predigten bearbeiten oder löschen.'
 } as const;

@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { SubmitFunction } from '@sveltejs/kit';
+	import { onMount } from 'svelte';
 	import {
 		readerActionUrl,
 		readerStateFromActionData,
@@ -10,11 +11,34 @@
 		readerUrl
 	} from '$lib/reader/url-state';
 	import { READER_LAYOUT_DEFINITIONS, type ReaderLayout } from '$lib/reader/workspace';
+	import {
+		readReaderNotesSidecarOpen,
+		READER_NOTES_SIDECAR_EVENT,
+		setReaderNotesSidecarOpen,
+		type ReaderNotesSidecarEvent
+	} from '$lib/reader/notes-sidecar';
 	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
 
-	let { layout }: { layout: ReaderLayout } = $props();
+	let { layout, notesAvailable = false }: { layout: ReaderLayout; notesAvailable?: boolean } =
+		$props();
 	let menu = $state<Menu>();
+	let notesSidecarOpen = $state(false);
+
+	onMount(() => {
+		if (!notesAvailable) return;
+		notesSidecarOpen = readReaderNotesSidecarOpen();
+		const synchronize = (event: Event) => {
+			notesSidecarOpen = (event as ReaderNotesSidecarEvent).detail.open;
+		};
+		window.addEventListener(READER_NOTES_SIDECAR_EVENT, synchronize);
+		return () => window.removeEventListener(READER_NOTES_SIDECAR_EVENT, synchronize);
+	});
+
+	function toggleNotesSidecar(): void {
+		setReaderNotesSidecarOpen(!notesSidecarOpen);
+		menu?.close();
+	}
 
 	const submitEnhancement: SubmitFunction = () => {
 		return async ({ result, update }) => {
@@ -82,6 +106,24 @@
 			</form>
 		{/each}
 	</div>
+	{#if notesAvailable}
+		<hr />
+		<button
+			type="button"
+			role="menuitemcheckbox"
+			class="notes-sidecar-option"
+			aria-checked={notesSidecarOpen}
+			data-testid="reader-notes-sidecar-toggle"
+			onclick={toggleNotesSidecar}
+		>
+			<Icon name="file-text" class="size-4" />
+			<span>
+				<strong>Notizbereich</strong>
+				<small>{notesSidecarOpen ? 'Im Reader eingeblendet' : 'Neben dem Bibeltext öffnen'}</small>
+			</span>
+			<span class="toggle-indicator" aria-hidden="true"><i></i></span>
+		</button>
+	{/if}
 </Menu>
 
 <style>
@@ -140,5 +182,51 @@
 		border-radius: 1px;
 		background: currentColor;
 		opacity: 0.48;
+	}
+
+	.notes-sidecar-option > span:nth-child(2) {
+		display: grid;
+		min-width: 0;
+		flex: 1;
+	}
+
+	.notes-sidecar-option strong {
+		font-size: 0.8rem;
+	}
+
+	.notes-sidecar-option small {
+		margin-top: 0.1rem;
+		color: var(--color-stone-500);
+		font-size: 0.65rem;
+	}
+
+	.toggle-indicator {
+		display: flex;
+		width: 1.9rem;
+		height: 1.05rem;
+		flex: 0 0 auto;
+		align-items: center;
+		padding: 0.12rem;
+		border-radius: 999px;
+		background: var(--color-stone-300);
+		transition: background 120ms ease;
+	}
+
+	.toggle-indicator i {
+		display: block;
+		width: 0.8rem;
+		height: 0.8rem;
+		border-radius: 999px;
+		background: white;
+		box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+		transition: transform 120ms ease;
+	}
+
+	.notes-sidecar-option[aria-checked='true'] .toggle-indicator {
+		background: var(--color-accent-600);
+	}
+
+	.notes-sidecar-option[aria-checked='true'] .toggle-indicator i {
+		transform: translateX(0.85rem);
 	}
 </style>

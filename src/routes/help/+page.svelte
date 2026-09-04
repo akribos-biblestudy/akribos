@@ -36,7 +36,7 @@
 			href: '#verse',
 			number: '06',
 			title: 'Mit Versen arbeiten',
-			description: 'Kopieren, markieren und kommentieren'
+			description: 'Kopieren, markieren und Notizen verknüpfen'
 		},
 		{
 			href: '#listen',
@@ -57,8 +57,26 @@
 			description: 'Unterwegs und ohne Maus bedienen'
 		},
 		{
-			href: '#probleme',
+			href: '#dokumente',
 			number: '10',
+			title: 'Dokumente & Editor',
+			description: 'Notizen veröffentlichen und Bibeltexte zitieren'
+		},
+		{
+			href: '#predigten',
+			number: '11',
+			title: 'Predigtvorbereitung',
+			description: 'Vorlagen, Board und Historie'
+		},
+		{
+			href: '#import-export',
+			number: '12',
+			title: 'Import & Export',
+			description: 'Markdown, ZIP, Word und PDF'
+		},
+		{
+			href: '#probleme',
+			number: '13',
 			title: 'Häufige Fragen',
 			description: 'Schnelle Hilfe bei Problemen'
 		}
@@ -66,15 +84,16 @@
 
 	const shortcuts = [
 		{ keys: ['Enter'], action: 'Eingabe im aktuellen Tab öffnen oder darin suchen' },
-		{ keys: ['Esc'], action: 'Menü oder Kommentar-Editor schließen' },
-		{ keys: ['Strg', 'Enter'], action: 'Kommentar speichern (auf dem Mac: ⌘ + Enter)' }
+		{ keys: ['Esc'], action: 'Menü oder Notizansicht schließen' },
+		{ keys: ['Strg', 'S'], action: 'Dokument sofort speichern (auf dem Mac: ⌘ + S)' },
+		{ keys: ['Strg', 'M'], action: 'Zwischen visuellem Editor und Markdown wechseln' }
 	];
 </script>
 
 <svelte:head>
 	<meta
 		name="description"
-		content="Die vollständige Akribos-Anleitung: Bibel lesen, Übersetzungen vergleichen, suchen, Strong-Nummern untersuchen, Verse markieren, kommentieren und teilen."
+		content="Die vollständige Akribos-Anleitung: Bibel lesen, Notizen schreiben und veröffentlichen, Predigten vorbereiten sowie Markdown, Word und PDF austauschen."
 	/>
 </svelte:head>
 
@@ -449,7 +468,7 @@
 				<figure class="screenshot screenshot-narrow">
 					<img
 						src="/help/verse-menu.webp"
-						alt="Geöffnetes Versmenü mit Kopieren, Markierungsfarben, Kommentar und Verslisten"
+						alt="Geöffnetes Versmenü mit Kopieren, Markierungsfarben, Notiz und Verslisten"
 						width="1440"
 						height="900"
 						loading="lazy"
@@ -483,8 +502,10 @@
 						</p>
 					</article>
 					<article>
-						<span>Kommentar hinzufügen</span>
-						<p>Erstellt eine private Notiz zu diesem Vers und genau dieser Übersetzung.</p>
+						<span>Notiz hinzufügen</span>
+						<p>
+							Öffnet die rechte Notizspalte und verknüpft eine private Arbeitskopie mit dem Vers.
+						</p>
 					</article>
 					<article>
 						<span>In Liste speichern</span>
@@ -502,25 +523,26 @@
 					eigenes System zu entwickeln, etwa „Verheißung“, „Frage“ oder „Gebet“.
 				</p>
 
-				<h3>Private Kommentare schreiben</h3>
+				<h3>Private Notizen neben dem Bibeltext</h3>
 				<ol class="plain-steps">
-					<li>Öffne das Versmenü und wähle <strong>Kommentar hinzufügen</strong>.</li>
+					<li>Blende im Layout-Menü die <strong>Notizspalte</strong> ein.</li>
 					<li>
-						Schreibe deine Notiz im eingeblendeten Editor. Listen und einfache Textauszeichnungen
-						sind möglich.
+						Ohne geöffnetes Dokument folgt die Spalte automatisch dem aktuell sichtbaren Vers. Du
+						kannst dort sofort eine neue Notiz anlegen oder deine Bibliothek durchsuchen und
+						filtern.
 					</li>
 					<li>
-						Speichere über die Schaltfläche oder mit <kbd>Strg</kbd> + <kbd>Enter</kbd>
-						beziehungsweise <kbd>⌘</kbd> + <kbd>Enter</kbd>.
+						Der Editor nutzt die ganze verfügbare Höhe und speichert automatisch. Den Trenner zur
+						Reader-Fläche kannst du horizontal ziehen oder mit den Pfeiltasten bedienen.
 					</li>
 					<li>
-						Das Sprechblasensymbol am Vers blendet einen gespeicherten Kommentar später ein und aus.
-						Ein leer gespeicherter Kommentar wird gelöscht.
+						Bei Bereichen erscheint das Dokumentsymbol nur an Anfang und Ende; eine dezente
+						gepunktete Unterstreichung zeigt alle dazwischenliegenden Verse an.
 					</li>
 				</ol>
 				<p class="privacy-note">
-					Kommentare im Reader sind privat. Kommentare innerhalb einer öffentlich freigegebenen
-					Versliste gehören dagegen zur Liste und sind über deren Freigabelink sichtbar.
+					Dokumente und die Notizspalte sind privat. Kommentare innerhalb einer öffentlich
+					freigegebenen Versliste gehören dagegen zur Liste und können dort sichtbar sein.
 				</p>
 			</section>
 
@@ -673,9 +695,112 @@
 				</p>
 			</section>
 
+			<section id="dokumente" class="knowledge-section">
+				<div class="section-heading">
+					<p class="eyebrow">10 · Dokumente & Editor</p>
+					<h2>Zwei klare Bereiche für Notizen und Predigten</h2>
+					<p>
+						Der Menüpunkt <a href="/notes">Dokumente</a> öffnet den Schreibbereich. Die kompakte
+						Navigation unterscheidet nur <strong>Notizen</strong> und <strong>Predigten</strong>.
+						Import und veröffentlichte Notizen stehen bei den Notizen, Vorlagen beim Predigt-Board.
+					</p>
+				</div>
+				<h3>Suchen und ordnen</h3>
+				<ul class="feature-list">
+					<li>
+						Die Volltextsuche findet Titel und Inhalt; weitere Filter grenzen Bibelstelle und
+						Übersetzung ein.
+					</li>
+					<li>
+						Schlagwörter bilden Bäume wie <code>Theologie/Gnade</code>. Elternfilter und die Zahl in
+						Klammern schließen Nachfahren ein; Zweige lassen sich ein- und ausklappen.
+					</li>
+					<li>
+						Eine Bereichssuche findet auch Dokumente, deren verknüpfte Bibelstelle die gesuchte
+						Stelle nur überschneidet.
+					</li>
+				</ul>
+				<h3>Visuell und in Markdown schreiben</h3>
+				<p>
+					Beide Modi bearbeiten dieselbe portable Markdown-Arbeitskopie. Autosave läuft seriell und
+					warnt vor Konflikten. Gib im visuellen Editor beispielsweise <code>/bibel Mt 3,12</code>
+					ein und drücke Enter: Akribos lädt den Text aus der gewählten Bibel und fügt ein Zitat mit Quellenzeile
+					ein. Erkannte Stellen wie <code>Heb 12,15</code> sind automatisch verlinkt; ihr Hover- oder
+					Fokus-Popup zeigt den Vers und bietet ebenfalls „Bibeltext einfügen“.
+				</p>
+				<h3>Notizen veröffentlichen</h3>
+				<p>
+					Nur Administratoren können eine eigene Notiz veröffentlichen. Dabei entsteht ein eigener
+					Schnappschuss. Weitere Änderungen bleiben zunächst privat, bis „Veröffentlichung
+					aktualisieren“ gewählt wird. Nicht gelistete Notizen fehlen bewusst in Index, Feed und
+					Sitemap.
+				</p>
+			</section>
+
+			<section id="predigten" class="knowledge-section">
+				<div class="section-heading">
+					<p class="eyebrow">11 · Predigtvorbereitung</p>
+					<h2>Von der Vorlage bis zur Durchführung</h2>
+					<p>
+						Das Predigt-Board begleitet jede Arbeitskopie durch Idee, Recherche, Gliederung, Bereit
+						und Gehalten.
+					</p>
+				</div>
+				<ol class="plain-steps">
+					<li>
+						Erstelle unter <a href="/sermons/templates">Predigtvorlagen</a> beliebige private Markdown-Gliederungen
+						oder nutze die Standardvorlage.
+					</li>
+					<li>Wähle beim Erstellen Titel, Bibelstelle, Reihe, lokalisiertes Datum und Vorlage.</li>
+					<li>
+						Ziehe die Karte auf dem Board in eine andere Spalte. Per Tastatur verschiebst du die
+						fokussierte Karte mit <kbd>Alt</kbd> + Pfeil links oder rechts.
+					</li>
+					<li>
+						Trage im Dokument unter „Bereits gehalten“ beliebig viele Kombinationen aus Datum und
+						Ort ein. Der geplante Predigttermin bleibt davon unabhängig.
+					</li>
+				</ol>
+				<p class="privacy-note">
+					Vorlagen, Board-Daten und Durchführungshistorie gehören ausschließlich dem angemeldeten
+					Konto.
+				</p>
+			</section>
+
+			<section id="import-export" class="knowledge-section">
+				<div class="section-heading">
+					<p class="eyebrow">12 · Import & Export</p>
+					<h2>Dokumente sicher austauschen</h2>
+				</div>
+				<h3>Obsidian und Markdown importieren</h3>
+				<p>
+					Wähle eine oder mehrere <code>.md</code>-Dateien oder genau ein ZIP-Archiv mit
+					Markdown-Dateien. Eine gemeinsame Vorschau zeigt bereinigten Text, Typ, Schlagwörter und
+					Bibelstellen. Erst die Bestätigung legt alle Dokumente atomar und immer privat an.
+					ZIP-Pfade werden nicht ins Dateisystem entpackt; Traversal, symbolische Links,
+					Verschlüsselung, unbekannte Kompression, mehr als 100 Markdown-Dateien sowie mehr als 16
+					MiB gepackte oder relevante entpackte Daten werden abgewiesen.
+				</p>
+				<h3>Exportformate</h3>
+				<ul class="feature-list">
+					<li>
+						<strong>Markdown:</strong> UTF-8-Text mit YAML-Frontmatter für Typ, Tags, Stellen und Predigtmetadaten.
+					</li>
+					<li>
+						<strong>Word (.docx):</strong> bearbeitbares Dokument mit Überschrift, Metadaten und gegliedertem
+						Inhalt.
+					</li>
+					<li>
+						<strong>PDF:</strong> direkt lesbare A4-Ausgabe. Komplexe Markdown-Layoutdetails können vereinfacht
+						erscheinen.
+					</li>
+				</ul>
+				<p>Alle Exporte sind owner-only, werden nicht gecacht und verwenden sichere Dateinamen.</p>
+			</section>
+
 			<section id="probleme" class="knowledge-section faq-section">
 				<div class="section-heading">
-					<p class="eyebrow">10 · Häufige Fragen</p>
+					<p class="eyebrow">13 · Häufige Fragen</p>
 					<h2>Probleme schnell lösen</h2>
 				</div>
 
@@ -706,15 +831,14 @@
 				<details>
 					<summary>Eine Markierung oder Notiz ist nach der Anmeldung nicht zu sehen.</summary>
 					<p>
-						Prüfe, ob du dasselbe Konto und dieselbe Übersetzung verwendest. Reader-Kommentare
-						gehören immer zu einer bestimmten Übersetzung; Markierungen erscheinen nur in
-						Bibelspalten.
+						Prüfe, ob du dasselbe Konto verwendest. Übersetzungsspezifische Dokumentverknüpfungen
+						erscheinen nur im passenden Werk; kanonische Verknüpfungen in allen Bibelübersetzungen.
 					</p>
 				</details>
 				<details>
 					<summary>Warum kann ich persönliche Funktionen nicht benutzen?</summary>
 					<p>
-						Markierungen, Kommentare und Listen benötigen ein angemeldetes, per E-Mail bestätigtes
+						Markierungen, Dokumente und Listen benötigen ein angemeldetes, per E-Mail bestätigtes
 						Konto. Melde dich an und lade die Seite bei Bedarf neu.
 					</p>
 				</details>

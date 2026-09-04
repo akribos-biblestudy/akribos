@@ -22,6 +22,7 @@ import {
 	bigserial,
 	boolean,
 	check,
+	date,
 	foreignKey,
 	index,
 	integer,
@@ -34,6 +35,12 @@ import {
 	uuid
 } from 'drizzle-orm/pg-core';
 import type { VerseSegment } from '../../bible/segments.ts';
+import {
+	DOCUMENT_KINDS,
+	DOCUMENT_SOURCES,
+	DOCUMENT_VISIBILITIES,
+	SERMON_WORKFLOW_STATES
+} from '../../notes/documents.ts';
 import { COMMENT_REACTION_EMOJIS } from '../../notes/reactions.ts';
 import type { ReaderWorkspace } from '../../reader/workspace.ts';
 import { tsvector } from './types.ts';
@@ -647,6 +654,292 @@ export const verseComments = pgTable(
 		check('verse_comments_verse_check', sql`${table.verse} between 1 and 250`)
 	]
 );
+
+// --- unified notes and sermons --------------------------------------------
+
+export { DOCUMENT_KINDS, DOCUMENT_SOURCES, DOCUMENT_VISIBILITIES, SERMON_WORKFLOW_STATES };
+
+/**
+ * A user's mutable working copy. Even a note marked public here is never rendered publicly from
+ * this table: publishing copies an immutable-at-read-time snapshot into `document_publications`.
+ * That boundary lets an author keep editing without changing what visitors see.
+ *
+ * Markdown is the portable source of truth. `body_html` and `plain_text` are prepared derivatives for
+ * safe rendering and indexed/filterable previews; repositories require callers to supply all three
+ * together and deliberately do not parse or sanitise content themselves.
+ */
+export const documents = pgTable(
+	'documents',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		kind: text('kind', { enum: DOCUMENT_KINDS }).notNull(),
+		title: text('title').notNull(),
+		bodyMarkdown: text('body_markdown').notNull(),
+		/** Sanitised HTML derived from `body_markdown`. */
+		bodyHtml: text('body_html').notNull(),
+		/** Markup-free derivative used by library search and excerpts. */
+		plainText: text('plain_text').notNull(),
+		visibility: text('visibility', { enum: DOCUMENT_VISIBILITIES }).notNull().default('private'),
+		/** Incremented by every working-copy mutation and used for optimistic writes. */
+		revision: integer('revision').notNull().default(1),
+		source: text('source', { enum: DOCUMENT_SOURCES }).notNull().default('native'),
+		/** Original basename for imported Markdown; never interpreted as a server path. */
+		sourceFilename: text('source_filename'),
+		/** Stable, unique provenance key that makes the legacy verse-comment backfill idempotent. */
+		legacyVerseCommentId: uuid('legacy_verse_comment_id'),
+		sermonStatus: text('sermon_status', { enum: SERMON_WORKFLOW_STATES }),
+		sermonDate: date('sermon_date', { mode: 'date' }),
+		sermonSeries: text('sermon_series'),
+		/** Soft deletion keeps a document recoverable. Public snapshots are removed by the repository. */
+		deletedAt: timestamp('deleted_at', { withTimezone: true }),
+		...timestamps
+	},
+	(table) => [
+		uniqueIndex('documents_id_user_idx').on(table.id, table.userId),
+		index('documents_user_updated_idx').on(table.userId, table.updatedAt),
+		index('documents_user_kind_updated_idx').on(table.userId, table.kind, table.updatedAt),
+		index('documents_user_deleted_updated_idx').on(table.userId, table.deletedAt, table.updatedAt),
+		uniqueIndex('documents_legacy_verse_comment_idx').on(table.legacyVerseCommentId),
+		check('documents_kind_check', sql`${table.kind} in ('note', 'sermon')`),
+		check('documents_title_check', sql`length(btrim(${table.title})) > 0`),
+		check('documents_revision_check', sql`${table.revision} > 0`),
+		check(
+			'documents_sermon_fields_check',
+			sql`(${table.kind} = 'sermon' and ${table.sermonStatus} is not null)
+				or (${table.kind} <> 'sermon' and ${table.sermonStatus} is null
+					and ${table.sermonDate} is null and ${table.sermonSeries} is null)`
+		),
+		check(
+			'documents_legacy_source_check',
+			sql`(${table.source} = 'legacy-verse-comment' and ${table.legacyVerseCommentId} is not null)
+				or (${table.source} <> 'legacy-verse-comment' and ${table.legacyVerseCommentId} is null)`
+		)
+	]
+);
+
+export type Document = typeof documents.$inferSelect;
+
+/** Reusable, owner-private Markdown starters selected when a sermon document is created. */
+export const sermonTemplates = pgTable(
+	'sermon_templates',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		bodyMarkdown: text('body_markdown').notNull(),
+		...timestamps
+	},
+	(table) => [
+		uniqueIndex('sermon_templates_user_name_idx').on(table.userId, table.name),
+		index('sermon_templates_user_updated_idx').on(table.userId, table.updatedAt),
+		check(
+			'sermon_templates_content_check',
+			sql`length(btrim(${table.name})) > 0 and length(${table.name}) <= 120
+				and octet_length(${table.bodyMarkdown}) <= 1048576`
+		)
+	]
+);
+
+export type SermonTemplate = typeof sermonTemplates.$inferSelect;
+
+/** One sermon may be delivered repeatedly; dates are calendar values and locations are owner text. */
+export const sermonDeliveries = pgTable(
+	'sermon_deliveries',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		documentId: uuid('document_id').notNull(),
+		userId: uuid('user_id').notNull(),
+		date: date('date', { mode: 'date' }).notNull(),
+		location: text('location').notNull(),
+		...timestamps
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.documentId, table.userId],
+			foreignColumns: [documents.id, documents.userId],
+			name: 'sermon_deliveries_document_owner_fk'
+		}).onDelete('cascade'),
+		index('sermon_deliveries_document_date_idx').on(table.documentId, table.date),
+		index('sermon_deliveries_user_idx').on(table.userId),
+		check(
+			'sermon_deliveries_location_check',
+			sql`length(btrim(${table.location})) > 0 and length(${table.location}) <= 200`
+		)
+	]
+);
+
+export type SermonDelivery = typeof sermonDeliveries.$inferSelect;
+
+/**
+ * An inclusive Bible range attached to a document. A null resource is a canonical passage that
+ * applies across translations; a resource id intentionally anchors the thought to that exact public
+ * Bible. The numeric keys preserve canonical book/chapter/verse order and make overlap queries a pair
+ * of indexed integer comparisons.
+ */
+export const documentPassages = pgTable(
+	'document_passages',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		documentId: uuid('document_id')
+			.notNull()
+			.references(() => documents.id, { onDelete: 'cascade' }),
+		resourceId: text('resource_id').references(() => resources.id, { onDelete: 'restrict' }),
+		startBookId: integer('start_book_id').notNull(),
+		startChapter: integer('start_chapter').notNull(),
+		startVerse: integer('start_verse').notNull(),
+		endBookId: integer('end_book_id').notNull(),
+		endChapter: integer('end_chapter').notNull(),
+		endVerse: integer('end_verse').notNull(),
+		/** `book * 1_000_000 + chapter * 1_000 + verse`. */
+		startKey: integer('start_key').notNull(),
+		/** `book * 1_000_000 + chapter * 1_000 + verse`. */
+		endKey: integer('end_key').notNull(),
+		position: integer('position').notNull().default(0),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => [
+		index('document_passages_document_position_idx').on(table.documentId, table.position),
+		index('document_passages_overlap_idx').on(table.startKey, table.endKey),
+		index('document_passages_resource_overlap_idx').on(
+			table.resourceId,
+			table.startKey,
+			table.endKey
+		),
+		check(
+			'document_passages_bounds_check',
+			sql`${table.startBookId} between 1 and 66
+				and ${table.endBookId} between 1 and 66
+				and ${table.startChapter} between 1 and 200
+				and ${table.endChapter} between 1 and 200
+				and ${table.startVerse} between 1 and 999
+				and ${table.endVerse} between 1 and 999
+				and ${table.position} >= 0`
+		),
+		check(
+			'document_passages_keys_check',
+			sql`${table.startKey} = ${table.startBookId} * 1000000
+					+ ${table.startChapter} * 1000 + ${table.startVerse}
+				and ${table.endKey} = ${table.endBookId} * 1000000
+					+ ${table.endChapter} * 1000 + ${table.endVerse}
+				and ${table.startKey} <= ${table.endKey}`
+		)
+	]
+);
+
+export type DocumentPassage = typeof documentPassages.$inferSelect;
+
+/** Hierarchical, per-owner tags. Paths use `/` as their stable ancestor separator. */
+export const documentTags = pgTable(
+	'document_tags',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		normalizedName: text('normalized_name').notNull(),
+		path: text('path').notNull(),
+		normalizedPath: text('normalized_path').notNull(),
+		parentId: uuid('parent_id'),
+		...timestamps
+	},
+	(table) => [
+		uniqueIndex('document_tags_user_path_idx').on(table.userId, table.normalizedPath),
+		// Supports the composite self-FK below, which enforces that a parent has the same owner.
+		uniqueIndex('document_tags_id_user_idx').on(table.id, table.userId),
+		index('document_tags_parent_idx').on(table.parentId),
+		foreignKey({
+			columns: [table.parentId, table.userId],
+			foreignColumns: [table.id, table.userId],
+			name: 'document_tags_parent_owner_fk'
+		}).onDelete('restrict'),
+		check(
+			'document_tags_names_check',
+			sql`length(btrim(${table.name})) > 0
+				and length(${table.normalizedName}) > 0
+				and length(${table.path}) > 0
+				and length(${table.normalizedPath}) > 0`
+		)
+	]
+);
+
+export type DocumentTag = typeof documentTags.$inferSelect;
+
+/** A document links only to its explicitly selected leaf tags; ancestor filtering follows paths. */
+export const documentTagLinks = pgTable(
+	'document_tag_links',
+	{
+		documentId: uuid('document_id')
+			.notNull()
+			.references(() => documents.id, { onDelete: 'cascade' }),
+		tagId: uuid('tag_id')
+			.notNull()
+			.references(() => documentTags.id, { onDelete: 'cascade' })
+	},
+	(table) => [primaryKey({ columns: [table.documentId, table.tagId] })]
+);
+
+export type PublishedPassageSnapshot = Pick<
+	DocumentPassage,
+	| 'resourceId'
+	| 'startBookId'
+	| 'startChapter'
+	| 'startVerse'
+	| 'endBookId'
+	| 'endChapter'
+	| 'endVerse'
+	| 'startKey'
+	| 'endKey'
+	| 'position'
+>;
+
+/**
+ * The currently published snapshot of a note. Public routes must select only this table, never
+ * `documents`, so edits to the private working copy are invisible until another explicit publish.
+ */
+export const documentPublications = pgTable(
+	'document_publications',
+	{
+		documentId: uuid('document_id')
+			.primaryKey()
+			.references(() => documents.id, { onDelete: 'cascade' }),
+		slug: text('slug').notNull(),
+		title: text('title').notNull(),
+		excerpt: text('excerpt').notNull(),
+		bodyHtml: text('body_html').notNull(),
+		bodyMarkdown: text('body_markdown').notNull(),
+		/** A real display name captured at publish time; repository code never falls back to email. */
+		authorName: text('author_name').notNull(),
+		visibility: text('visibility', { enum: ['public', 'unlisted'] }).notNull(),
+		passages: jsonb('passages').$type<PublishedPassageSnapshot[]>().notNull(),
+		tags: text('tags')
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		publicationRevision: integer('publication_revision').notNull(),
+		firstPublishedAt: timestamp('first_published_at', { withTimezone: true }).notNull(),
+		publishedAt: timestamp('published_at', { withTimezone: true }).notNull()
+	},
+	(table) => [
+		uniqueIndex('document_publications_slug_idx').on(table.slug),
+		index('document_publications_visibility_published_idx').on(table.visibility, table.publishedAt),
+		check('document_publications_title_check', sql`length(btrim(${table.title})) > 0`),
+		check('document_publications_slug_check', sql`length(btrim(${table.slug})) > 0`),
+		check('document_publications_author_check', sql`length(btrim(${table.authorName})) > 0`),
+		check('document_publications_revision_check', sql`${table.publicationRevision} > 0`),
+		check(
+			'document_publications_dates_check',
+			sql`${table.publishedAt} >= ${table.firstPublishedAt}`
+		)
+	]
+);
+
+export type DocumentPublication = typeof documentPublications.$inferSelect;
 
 // --- verse highlights ---------------------------------------------------
 
