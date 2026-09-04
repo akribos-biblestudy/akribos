@@ -240,7 +240,7 @@ test('a verse list keeps its verses and comments', async ({ page }) => {
 	await expect(page.getByText('Der bekannteste Vers')).toHaveCount(0);
 });
 
-test('reader comments belong to one verse and translation and become editable on click', async ({
+test('the reader uses unified notes instead of the legacy inline comment editor', async ({
 	page
 }) => {
 	await register(page, uniqueEmail());
@@ -250,61 +250,10 @@ test('reader comments belong to one verse and translation and become editable on
 		0
 	);
 	await firstTranslation.locator('a.verse-number', { hasText: /^16$/ }).click();
-	await page.getByRole('menuitem', { name: /Kommentar für .* hinzufügen/ }).click();
-
-	let form = firstTranslation.locator('form[action="?/saveVerseComment"]');
-	await form.getByRole('textbox', { name: 'Kommentar' }).press('Escape');
-	await expect(firstTranslation.locator('.verse-comment-row.with-comment')).toHaveCount(0);
-
-	await firstTranslation.locator('a.verse-number', { hasText: /^16$/ }).click();
-	await page.getByRole('menuitem', { name: /Kommentar für .* hinzufügen/ }).click();
-	form = firstTranslation.locator('form[action="?/saveVerseComment"]');
-	const editor = form.getByRole('textbox', { name: 'Kommentar' });
-	await expect(editor).toHaveClass(/ProseMirror/);
-	await editor.fill('Siehe Joh 3,16');
-	await form.getByRole('button', { name: 'Überschrift' }).click();
-	await editor.press('Control+Enter');
-	await expect(firstTranslation.locator('.verse-comment-row.with-comment')).toBeVisible();
-
-	// The second translation does not inherit the first translation's comment.
-	await expect(page.locator('.flow-column').nth(1).locator('.comment-bubble')).toHaveCount(0);
-	await page.reload();
-	const commentRow = page
-		.locator('.flow-column')
-		.first()
-		.locator('.verse-comment-row.with-comment');
-	await expect(commentRow).toHaveCount(0);
-	await page.getByRole('button', { name: 'Kommentar anzeigen' }).first().click();
-	await expect(commentRow).toBeVisible();
-	const saved = commentRow.locator('.comment-html');
-	await expect(saved.locator('h2')).toHaveText('Siehe Joh 3,16');
-	await expect(saved.getByRole('link', { name: 'Joh 3,16' })).toHaveAttribute('href', '/Joh3,16');
-
-	const verseFontSize = await commentRow
-		.locator('.flow-verse')
-		.evaluate((element) => getComputedStyle(element).fontSize);
-	await expect(commentRow.locator('.comment-bubble')).toHaveCSS('font-size', verseFontSize);
-	const previousCommentSize = Number.parseFloat(verseFontSize);
-	await page.getByRole('button', { name: 'Bibeltext vergrößern' }).click();
-	await expect
-		.poll(() =>
-			commentRow
-				.locator('.comment-bubble')
-				.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))
-		)
-		.toBeGreaterThan(previousCommentSize);
-
-	await page.getByRole('button', { name: 'Kommentar bearbeiten' }).click();
-	const reopenedEditor = page.getByRole('textbox', { name: 'Kommentar' });
-	await expect(reopenedEditor).toContainText('Siehe Joh 3,16');
-	await reopenedEditor.press('Escape');
-	await expect(reopenedEditor).toHaveCount(0);
-	await expect(page.getByRole('button', { name: 'Kommentar bearbeiten' })).toBeVisible();
-
-	await page.getByRole('button', { name: 'Kommentar bearbeiten' }).click();
-	await page.getByRole('button', { name: 'Löschen', exact: true }).click();
-	await page.getByRole('button', { name: 'Löschen bestätigen' }).click();
-	await expect(commentRow).toHaveCount(0);
+	await expect(page.getByRole('menuitem', { name: /Kommentar für .* hinzufügen/ })).toHaveCount(0);
+	await page.getByRole('menuitem', { name: /Notizen zu Johannes 3,16 öffnen/ }).click();
+	await expect(page.getByTestId('reader-notes-panel')).toBeVisible();
+	await expect(page.locator('.verse-comment-row')).toHaveCount(0);
 });
 
 test('a shared list is readable without an account', async ({ page, browser }) => {
@@ -335,7 +284,11 @@ test('the verse menu creates a list and adds the verse in one step', async ({ pa
 	// The point of the menu: no list has to exist first.
 	await page.goto('/Joh3');
 	await page.locator('#Joh3_16 a.verse-number').click();
+	const created = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/addToList')
+	);
 	await page.getByRole('menuitem', { name: 'Neue Liste mit diesem Vers' }).click();
+	expect((await created).ok()).toBe(true);
 
 	await gotoLists(page);
 	await expect(page.getByRole('link', { name: /Johannes 3,16/ })).toBeVisible();

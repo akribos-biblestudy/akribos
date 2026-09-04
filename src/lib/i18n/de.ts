@@ -729,7 +729,7 @@ export const de = {
 		'Hier wechselst du die Kachelanordnung und blendest die Notizspalte rechts ein. Ihre Breite lässt sich am horizontalen Trenner anpassen.',
 	'tour.searchChooser.title': 'Stelle und Werk durchsuchen',
 	'tour.searchChooser.body':
-		'Jeder Tab hat sein eigenes Feld: Bibelstellen öffnen sich direkt, Treffer für Wörter und Strong-Nummern erscheinen im aktuellen Tab und nur für dieses Werk. Der Pfeil öffnet die Buch- und Kapitelauswahl.',
+		'Jeder Tab hat sein eigenes Feld: Eingaben mit einer Ziffer öffnen passende Bibelstellen direkt; Wörter und Strong-Nummern liefern Treffer im aktuellen Tab und nur für dieses Werk.',
 	'tour.wordStudy.title': 'Wortstudie',
 	'tour.wordStudy.body':
 		'Unterstrichene Wörter tragen eine Strong-Nummer. Klicke darauf, um die Grundbedeutung, verwandte Stellen und die Grammatik dieses Urtextworts zu sehen.',

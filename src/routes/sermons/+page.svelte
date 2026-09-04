@@ -66,9 +66,10 @@
 	}
 
 	function onDragStart(event: DragEvent): void {
-		// Capture the card on pointerdown: during a long board drag browsers can retarget a later
-		// dragstart after autoscrolling over another draggable card.
-		const sermon = pointerSermon ?? sermonInteractionTarget(event.target);
+		// Capture the source before the drag begins. Browsers and automation can retarget `dragstart`
+		// while bringing a distant board column into view; the card-level fallback still covers
+		// keyboard- or script-triggered drag events without a preceding pointer event.
+		const sermon = pointerSermon ?? sermonInteractionTarget(event.currentTarget);
 		if (!sermon) return;
 		const serialized = JSON.stringify({ id: sermon.id, revision: sermon.revision });
 		draggedSermon = { id: sermon.id, revision: sermon.revision };
@@ -101,6 +102,12 @@
 			draggedSermon = null;
 			pointerSermon = null;
 		}
+	}
+
+	function onDragEnd(): void {
+		dragStatus = null;
+		draggedSermon = null;
+		pointerSermon = null;
 	}
 
 	function onCardKeydown(event: KeyboardEvent): void {
@@ -258,20 +265,7 @@
 			{/each}
 		</ul>
 	{:else}
-		<div
-			class="sermon-board mt-5"
-			aria-label={t('sermons.status')}
-			role="group"
-			onpointerdown={(event) => {
-				pointerSermon = sermonInteractionTarget(event.target);
-			}}
-			ondragstart={onDragStart}
-			ondragend={() => {
-				dragStatus = null;
-				draggedSermon = null;
-				pointerSermon = null;
-			}}
-		>
+		<div class="sermon-board mt-5" aria-label={t('sermons.status')} role="group">
 			{#each data.statuses as status (status)}
 				<section
 					class="board-column"
@@ -320,6 +314,11 @@
 		data-sermon-revision={sermon.revision}
 		data-sermon-status={sermon.sermonStatus ?? 'idea'}
 		data-testid="sermon-card"
+		onpointerdown={(event) => {
+			pointerSermon = sermonInteractionTarget(event.currentTarget);
+		}}
+		ondragstart={onDragStart}
+		ondragend={onDragEnd}
 	>
 		<a
 			href="/notes/{sermon.id}?returnTo={encodeURIComponent('/sermons')}"

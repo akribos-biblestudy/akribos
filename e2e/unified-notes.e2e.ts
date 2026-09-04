@@ -763,13 +763,30 @@ test('custom sermon templates, delivery history, rich exports and board movement
 	await page.goto('/sermons');
 	let card = page.getByTestId('sermon-card').filter({ hasText: sermonTitle });
 	const outlineColumn = page.getByRole('group', { name: 'Gliederung' });
-	await card.dragTo(outlineColumn);
+	await expect(card).toHaveAttribute('draggable', 'true');
+	// Chromium's coordinate-based `dragTo` can miss a horizontally scrolling Kanban target when the
+	// complete suite runs under load. Dispatch the same native drag events with one shared transfer so
+	// this assertion remains about the application's DnD contract, not browser autoscroll timing.
+	const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+	const dragMove = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/move')
+	);
+	await card.dispatchEvent('pointerdown', { pointerType: 'mouse' });
+	await card.dispatchEvent('dragstart', { dataTransfer });
+	await outlineColumn.dispatchEvent('dragover', { dataTransfer });
+	await outlineColumn.dispatchEvent('drop', { dataTransfer });
+	expect((await dragMove).ok()).toBe(true);
+	await dataTransfer.dispose();
 	card = page.getByTestId('sermon-card').filter({ hasText: sermonTitle });
 	await expect(
 		outlineColumn.getByTestId('sermon-card').filter({ hasText: sermonTitle })
 	).toBeVisible();
 	await card.getByRole('link').focus();
+	const keyboardMove = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/move')
+	);
 	await card.getByRole('link').press('Alt+ArrowRight');
+	expect((await keyboardMove).ok()).toBe(true);
 	await expect(
 		page
 			.getByRole('group', { name: 'Bereit' })
