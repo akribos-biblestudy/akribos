@@ -144,7 +144,7 @@ Ein sicher importierter **Obsidian-Entwurf** mit [[Gnade|einem internen Link]].
 	const adminContext = await browser.newContext({ viewport: { width: 1440, height: 960 } });
 	const adminPage = await adminContext.newPage();
 	await signIn(adminPage, SEED_ADMIN);
-	await adminPage.goto(`${baseUrl}/notes/${SEED_DOCUMENT_IDS.article}`);
+	await adminPage.goto(`${baseUrl}/notes/${SEED_DOCUMENT_IDS.publishedNote}`);
 	await adminPage.getByTestId('publication-controls').waitFor();
 	await adminPage.getByRole('textbox', { name: 'Schreibe deine Gedanken …' }).waitFor();
 	await capture(adminPage, 'publication-controls.png');
@@ -152,10 +152,10 @@ Ein sicher importierter **Obsidian-Entwurf** mit [[Gnade|einem internen Link]].
 
 	const publicContext = await browser.newContext({ viewport: { width: 1440, height: 960 } });
 	const publicPage = await publicContext.newPage();
-	await publicPage.goto(`${baseUrl}/articles/demo-gnade-die-traegt`);
-	await publicPage.getByTestId('public-article').waitFor();
+	await publicPage.goto(`${baseUrl}/notes/published/demo-gnade-die-traegt`);
+	await publicPage.getByTestId('published-note').waitFor();
 	await publicPage.getByText('Dieser Absatz ist der veröffentlichte Demo-Stand.').waitFor();
-	await capture(publicPage, 'public-article.png');
+	await capture(publicPage, 'published-note.png');
 	await publicContext.close();
 } finally {
 	await browser.close();

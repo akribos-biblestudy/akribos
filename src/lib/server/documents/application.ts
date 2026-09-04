@@ -91,7 +91,7 @@ export function formatCalendarDate(value: Date | null): string | undefined {
 }
 
 /** German-friendly, deterministic publication slug. */
-export function slugifyArticle(value: string): string {
+export function slugifyPublication(value: string): string {
 	return value
 		.normalize('NFKC')
 		.replaceAll('ß', 'ss')

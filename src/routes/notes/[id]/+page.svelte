@@ -41,9 +41,7 @@
 	}
 
 	function displayedKindLabel(kind: string): string {
-		return kind === 'article'
-			? t('documents.kind.note')
-			: t(`documents.kind.${kind}` as MessageKey);
+		return t(`documents.kind.${kind}` as MessageKey);
 	}
 
 	function documentAction(name: string): string {
@@ -77,7 +75,7 @@
 		if (
 			[
 				'forbidden',
-				'notArticle',
+				'notPublishable',
 				'visibility',
 				'invalidSlug',
 				'private',
@@ -527,7 +525,7 @@
 										: t('documents.publication.currentCopy')}
 								</p>
 								<a
-									href="/articles/{data.publication.slug}"
+									href="/notes/published/{data.publication.slug}"
 									class="mt-2 inline-flex items-center gap-1 font-semibold underline"
 								>
 									{t('documents.publication.open')}

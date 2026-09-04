@@ -73,8 +73,7 @@ export async function GET({ locals, url, setHeaders }) {
 		const overlappingIds = new Set(overlapping.map((document) => document.id));
 		rows = rows.filter((document) => overlappingIds.has(document.id));
 	}
-	// The Reader panel is a notes workspace. Legacy `article` rows remain notes, while sermons live in
-	// their dedicated board and must not reintroduce a third document type here.
+	// The Reader panel is a notes workspace; sermons live in their dedicated board.
 	rows = rows.filter((document) => document.kind !== 'sermon');
 
 	const truncated = rows.length > READER_LIBRARY_LIMIT;

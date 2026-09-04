@@ -33,7 +33,7 @@ import {
 
 describe('document vocabulary', () => {
 	it('keeps the persisted enum values explicit and type-guarded', () => {
-		expect(DOCUMENT_KINDS).toEqual(['note', 'article', 'sermon']);
+		expect(DOCUMENT_KINDS).toEqual(['note', 'sermon']);
 		expect(DOCUMENT_VISIBILITIES).toEqual(['private', 'unlisted', 'public']);
 		expect(SERMON_WORKFLOW_STATES).toEqual(['idea', 'research', 'outline', 'ready', 'delivered']);
 		expect(DOCUMENT_SOURCES).toEqual(['native', 'obsidian', 'legacy-verse-comment']);

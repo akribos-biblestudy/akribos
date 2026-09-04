@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { getDb } from '$lib/server/db';
-import { getPublishedArticleBySlug } from '$lib/server/repositories/document-publications';
+import { getPublishedDocumentBySlug } from '$lib/server/repositories/document-publications';
 import { listBibles } from '$lib/server/repositories/resources';
 
 /**
@@ -14,7 +14,7 @@ export async function load({ params, setHeaders }) {
 
 	const db = getDb();
 	const [publication, bibles] = await Promise.all([
-		getPublishedArticleBySlug(db, params.slug),
+		getPublishedDocumentBySlug(db, params.slug),
 		listBibles(db)
 	]);
 	if (!publication) error(404, 'Diese Notiz ist nicht veröffentlicht.');
@@ -25,7 +25,7 @@ export async function load({ params, setHeaders }) {
 	return {
 		title: publication.title,
 		bibles,
-		article: {
+		publication: {
 			slug: publication.slug,
 			title: publication.title,
 			excerpt: publication.excerpt,

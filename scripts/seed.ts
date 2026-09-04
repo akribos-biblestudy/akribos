@@ -1,6 +1,6 @@
 /**
  * Seeds a small, deterministic fixture: compact Bible resources, two development accounts and enough
- * unified-document data to exercise notes, articles, sermons and the legacy-comment migration.
+ * unified-document data to exercise notes, publication, sermons and the legacy-comment migration.
  *
  * Used by CI and by the end-to-end tests, which need a database with known content but must not spend
  * a minute importing 37 MB of XML. Resource data goes through the real importers, so the fixture
@@ -291,13 +291,13 @@ Der übersetzungsspezifische Anker bleibt von kanonischen Verknüpfungen untersc
 
 Die Gliederung mit einer konkreten Anwendung ergänzen.
 `;
-	const publishedArticleMarkdown = `Gottes Liebe geht dem Menschen entgegen. Dieser Absatz ist der veröffentlichte Demo-Stand. Mt 3,12 erinnert zugleich an Gottes gerechtes Handeln.
+	const publishedNoteMarkdown = `Gottes Liebe geht dem Menschen entgegen. Dieser Absatz ist der veröffentlichte Demo-Stand. Mt 3,12 erinnert zugleich an Gottes gerechtes Handeln.
 
 ## Getragen im Alltag
 
 Gnade bleibt nicht abstrakt, sondern prägt Hoffnung, Gebet und gelebte Nächstenliebe.
 `;
-	const workingArticleMarkdown = `${publishedArticleMarkdown}
+	const workingNoteMarkdown = `${publishedNoteMarkdown}
 ## Noch unveröffentlichte Ergänzung
 
 Diese Änderung existiert nur in der Arbeitskopie, bis ein Admin erneut veröffentlicht.
@@ -356,11 +356,11 @@ Diese Änderung existiert nur in der Arbeitskopie, bis ein Admin erneut veröffe
 			updatedAt: SEED_CREATED_AT
 		},
 		{
-			id: SEED_DOCUMENT_IDS.article,
+			id: SEED_DOCUMENT_IDS.publishedNote,
 			userId: adminUserId,
-			kind: 'article',
+			kind: 'note',
 			title: 'Gnade, die trägt',
-			...seedBody(workingArticleMarkdown),
+			...seedBody(workingNoteMarkdown),
 			visibility: 'public',
 			// Revision 1 is the snapshot below; revision 2 demonstrates unpublished working-copy changes.
 			revision: 2,
@@ -397,7 +397,7 @@ Diese Änderung existiert nur in der Arbeitskopie, bis ein Admin erneut veröffe
 			start: { book: 43, chapter: 3, verse: 16 },
 			end: { book: 43, chapter: 3, verse: 17 }
 		}),
-		seedPassage(SEED_PASSAGE_IDS.article, SEED_DOCUMENT_IDS.article, {
+		seedPassage(SEED_PASSAGE_IDS.publishedNote, SEED_DOCUMENT_IDS.publishedNote, {
 			start: { book: 43, chapter: 3, verse: 16 },
 			end: { book: 43, chapter: 3, verse: 17 }
 		})
@@ -479,36 +479,36 @@ Diese Änderung existiert nur in der Arbeitskopie, bis ein Admin erneut veröffe
 		])
 		.onConflictDoNothing();
 
-	const publishedArticleBody = seedBody(publishedArticleMarkdown);
-	const articlePassage = passages.find(
-		(passage) => passage.documentId === SEED_DOCUMENT_IDS.article
+	const publishedNoteBody = seedBody(publishedNoteMarkdown);
+	const publicationPassage = passages.find(
+		(passage) => passage.documentId === SEED_DOCUMENT_IDS.publishedNote
 	)!;
 	await db
 		.insert(documentPublications)
 		.values({
-			documentId: SEED_DOCUMENT_IDS.article,
+			documentId: SEED_DOCUMENT_IDS.publishedNote,
 			slug: 'demo-gnade-die-traegt',
 			title: 'Gnade, die trägt',
-			excerpt: 'Ein veröffentlichter Demo-Artikel über Gottes zugewandte Liebe.',
-			bodyHtml: publishedArticleBody.bodyHtml,
-			bodyMarkdown: publishedArticleBody.bodyMarkdown,
+			excerpt: 'Eine veröffentlichte Demo-Notiz über Gottes zugewandte Liebe.',
+			bodyHtml: publishedNoteBody.bodyHtml,
+			bodyMarkdown: publishedNoteBody.bodyMarkdown,
 			authorName: 'Akribos Demo-Redaktion',
 			visibility: 'public',
 			passages: [
 				{
-					resourceId: articlePassage.resourceId ?? null,
-					startBookId: articlePassage.startBookId,
-					startChapter: articlePassage.startChapter,
-					startVerse: articlePassage.startVerse,
-					endBookId: articlePassage.endBookId,
-					endChapter: articlePassage.endChapter,
-					endVerse: articlePassage.endVerse,
-					startKey: articlePassage.startKey,
-					endKey: articlePassage.endKey,
-					position: articlePassage.position ?? 0
+					resourceId: publicationPassage.resourceId ?? null,
+					startBookId: publicationPassage.startBookId,
+					startChapter: publicationPassage.startChapter,
+					startVerse: publicationPassage.startVerse,
+					endBookId: publicationPassage.endBookId,
+					endChapter: publicationPassage.endChapter,
+					endVerse: publicationPassage.endVerse,
+					startKey: publicationPassage.startKey,
+					endKey: publicationPassage.endKey,
+					position: publicationPassage.position ?? 0
 				}
 			],
-			tags: ['Demo/Artikel'],
+			tags: ['Demo/Veröffentlicht'],
 			publicationRevision: 1,
 			firstPublishedAt: SEED_PUBLISHED_AT,
 			publishedAt: SEED_PUBLISHED_AT
@@ -583,7 +583,7 @@ try {
 	const backfill = await backfillLegacyVerseComments(db);
 
 	console.log(
-		'seeded: compact resources, reader/admin accounts, notes, nested tags, sermon template/history and article snapshot'
+		'seeded: compact resources, reader/admin accounts, notes, nested tags, sermon template/history and publication snapshot'
 	);
 	console.log(
 		`legacy verse-comment documents: ${backfill.created} created, ${backfill.alreadyPresent} already present`

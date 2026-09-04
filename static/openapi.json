@@ -3,7 +3,7 @@
 	"info": {
 		"title": "Akribos API",
 		"version": "1.0.0",
-		"description": "Read-only access to the content Akribos itself is built on: bible translations, the Strong's lexicon, commentaries and search, plus a signed-in reader's own verse lists, legacy comments and unified documents. Everything lives under `/api/v1`.\n\n## Authentication\n\nA request from Akribos' own frontend needs nothing extra — it is recognised as same-origin. Everything else must send an API key:\n\n```\nAuthorization: Bearer sk_akribos_...\n```\n\nCreate a key from your [account page](/account) once signed in. Each key has a scope, chosen when it is created:\n\n- `public` — bible text, lexicon, commentaries, search\n- `personal` — the above, plus the key owner's own verse lists, comments and document working copies\n\n## Rate limits\n\n120 requests per minute per API key (300 requests per minute per IP for same-origin requests without a key). Exceeding it returns `429` with a `Retry-After` header, in seconds.\n\n## Errors\n\nEvery error response has the same shape:\n\n```json\n{ \"error\": { \"code\": \"unknown_bible\", \"message\": \"No bible with id 'kjv'.\" } }\n```\n\n## What's not here yet\n\nThis first version is read-only: creating or editing a list, adding a verse, writing a document, or publishing an article all still happen through the site itself, not through the API.",
+		"description": "Read-only access to the content Akribos itself is built on: bible translations, the Strong's lexicon, commentaries and search, plus a signed-in reader's own verse lists, legacy comments and unified documents. Everything lives under `/api/v1`.\n\n## Authentication\n\nA request from Akribos' own frontend needs nothing extra — it is recognised as same-origin. Everything else must send an API key:\n\n```\nAuthorization: Bearer sk_akribos_...\n```\n\nCreate a key from your [account page](/account) once signed in. Each key has a scope, chosen when it is created:\n\n- `public` — bible text, lexicon, commentaries, search\n- `personal` — the above, plus the key owner's own verse lists, comments and document working copies\n\n## Rate limits\n\n120 requests per minute per API key (300 requests per minute per IP for same-origin requests without a key). Exceeding it returns `429` with a `Retry-After` header, in seconds.\n\n## Errors\n\nEvery error response has the same shape:\n\n```json\n{ \"error\": { \"code\": \"unknown_bible\", \"message\": \"No bible with id 'kjv'.\" } }\n```\n\n## What's not here yet\n\nThis first version is read-only: creating or editing a list, adding a verse, writing a document, or publishing a note all still happen through the site itself, not through the API.",
 		"contact": {
 			"url": "https://akribos.de/api"
 		}
@@ -29,7 +29,7 @@
 		},
 		{
 			"name": "Documents",
-			"description": "A signed-in reader's private unified note, article and sermon working copies."
+			"description": "A signed-in reader's private unified note and sermon working copies."
 		},
 		{ "name": "Highlights", "description": "A signed-in reader's own highlighted verses." }
 	],
@@ -532,7 +532,7 @@
 						"in": "query",
 						"required": false,
 						"description": "Restrict results to one document kind.",
-						"schema": { "type": "string", "enum": ["note", "article", "sermon"] }
+						"schema": { "type": "string", "enum": ["note", "sermon"] }
 					},
 					{
 						"name": "visibility",
@@ -1303,7 +1303,7 @@
 				],
 				"properties": {
 					"id": { "type": "string", "format": "uuid" },
-					"kind": { "type": "string", "enum": ["note", "article", "sermon"] },
+					"kind": { "type": "string", "enum": ["note", "sermon"] },
 					"title": { "type": "string", "maxLength": 200 },
 					"plainText": {
 						"type": "string",

@@ -7,35 +7,35 @@
 </script>
 
 <svelte:head>
-	<meta name="description" content={t('articles.subtitle')} />
+	<meta name="description" content={t('publishedNotes.subtitle')} />
 	<link
 		rel="alternate"
 		type="application/atom+xml"
-		title={t('articles.title')}
-		href="/articles/feed.xml"
+		title={t('publishedNotes.title')}
+		href="/notes/published/feed.xml"
 	/>
 </svelte:head>
 
-<main class="mx-auto w-full max-w-5xl px-4 py-9 sm:px-6 sm:py-14" data-testid="public-articles">
+<main class="mx-auto w-full max-w-5xl px-4 py-9 sm:px-6 sm:py-14" data-testid="published-notes">
 	<header class="mx-auto max-w-3xl text-center">
 		<p class="text-xs font-bold tracking-[0.17em] text-accent-700 uppercase dark:text-accent-300">
 			{t('app.name')}
 		</p>
 		<h1 class="mt-2 font-serif text-4xl font-semibold tracking-tight sm:text-5xl">
-			{t('articles.title')}
+			{t('publishedNotes.title')}
 		</h1>
-		<p class="mt-3 text-stone-500 dark:text-stone-400">{t('articles.subtitle')}</p>
+		<p class="mt-3 text-stone-500 dark:text-stone-400">{t('publishedNotes.subtitle')}</p>
 	</header>
 
-	{#if data.articles.length === 0}
+	{#if data.publications.length === 0}
 		<p
 			class="mt-14 rounded-2xl border border-dashed border-stone-300 py-16 text-center text-stone-500 dark:border-stone-700 dark:text-stone-400"
 		>
-			{t('articles.empty')}
+			{t('publishedNotes.empty')}
 		</p>
 	{:else}
 		<div class="mt-12 grid gap-5 sm:grid-cols-2">
-			{#each data.articles as article, index (article.slug)}
+			{#each data.publications as publication, index (publication.slug)}
 				<article
 					class="group flex min-h-64 flex-col rounded-2xl border border-stone-200/80 bg-[color:var(--surface)] p-6 shadow-[var(--shadow-soft)] transition hover:-translate-y-0.5 hover:border-accent-300 hover:shadow-md {index ===
 					0
@@ -43,7 +43,7 @@
 						: ''} dark:border-white/8"
 				>
 					<div class="flex flex-wrap gap-1.5">
-						{#each article.tags.slice(0, 4) as tag (tag)}
+						{#each publication.tags.slice(0, 4) as tag (tag)}
 							<span
 								class="rounded-full bg-accent-50 px-2.5 py-1 text-[0.68rem] font-semibold text-accent-700 dark:bg-accent-900/35 dark:text-accent-300"
 							>
@@ -56,23 +56,23 @@
 							? 'sm:text-3xl'
 							: ''}"
 					>
-						<a href="/articles/{article.slug}" class="after:absolute after:inset-0">
-							{article.title}
+						<a href="/notes/published/{publication.slug}" class="after:absolute after:inset-0">
+							{publication.title}
 						</a>
 					</h2>
-					{#if article.excerpt}
+					{#if publication.excerpt}
 						<p
 							class="mt-3 line-clamp-3 max-w-3xl leading-relaxed text-stone-500 dark:text-stone-400"
 						>
-							{article.excerpt}
+							{publication.excerpt}
 						</p>
 					{/if}
 					<footer
 						class="mt-auto flex flex-wrap items-center justify-between gap-3 pt-7 text-xs text-stone-400"
 					>
-						<span>{t('articles.by', { author: article.authorName })}</span>
+						<span>{t('publishedNotes.by', { author: publication.authorName })}</span>
 						<span class="inline-flex items-center gap-1.5">
-							{dateFormat.format(new Date(article.publishedAt))}
+							{dateFormat.format(new Date(publication.publishedAt))}
 							<Icon
 								name="arrow-right"
 								class="size-3.5 transition-transform group-hover:translate-x-0.5"
@@ -85,21 +85,21 @@
 		{#if data.page > 1 || data.hasNext}
 			<nav
 				class="mt-8 flex items-center justify-center gap-3"
-				aria-label={t('articles.pagination')}
+				aria-label={t('publishedNotes.pagination')}
 			>
 				{#if data.page > 1}
 					<a
-						class="article-page-link"
-						href={data.page === 2 ? '/articles' : `/articles?page=${data.page - 1}`}
+						class="publication-page-link"
+						href={data.page === 2 ? '/notes/published' : `/notes/published?page=${data.page - 1}`}
 					>
 						<Icon name="chevron-left" class="size-4" />
-						{t('articles.previous')}
+						{t('publishedNotes.previous')}
 					</a>
 				{/if}
-				<span class="text-xs text-stone-400">{t('articles.page', { page: data.page })}</span>
+				<span class="text-xs text-stone-400">{t('publishedNotes.page', { page: data.page })}</span>
 				{#if data.hasNext}
-					<a class="article-page-link" href={`/articles?page=${data.page + 1}`}>
-						{t('articles.next')}
+					<a class="publication-page-link" href={`/notes/published?page=${data.page + 1}`}>
+						{t('publishedNotes.next')}
 						<Icon name="chevron-right" class="size-4" />
 					</a>
 				{/if}
@@ -112,7 +112,7 @@
 	article {
 		position: relative;
 	}
-	.article-page-link {
+	.publication-page-link {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.3rem;

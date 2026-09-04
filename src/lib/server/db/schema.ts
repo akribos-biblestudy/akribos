@@ -655,12 +655,12 @@ export const verseComments = pgTable(
 	]
 );
 
-// --- unified notes, articles and sermons -----------------------------------
+// --- unified notes and sermons --------------------------------------------
 
 export { DOCUMENT_KINDS, DOCUMENT_SOURCES, DOCUMENT_VISIBILITIES, SERMON_WORKFLOW_STATES };
 
 /**
- * A user's mutable working copy. Even an article marked public here is never rendered publicly from
+ * A user's mutable working copy. Even a note marked public here is never rendered publicly from
  * this table: publishing copies an immutable-at-read-time snapshot into `document_publications`.
  * That boundary lets an author keep editing without changing what visitors see.
  *
@@ -703,6 +703,7 @@ export const documents = pgTable(
 		index('documents_user_kind_updated_idx').on(table.userId, table.kind, table.updatedAt),
 		index('documents_user_deleted_updated_idx').on(table.userId, table.deletedAt, table.updatedAt),
 		uniqueIndex('documents_legacy_verse_comment_idx').on(table.legacyVerseCommentId),
+		check('documents_kind_check', sql`${table.kind} in ('note', 'sermon')`),
 		check('documents_title_check', sql`length(btrim(${table.title})) > 0`),
 		check('documents_revision_check', sql`${table.revision} > 0`),
 		check(
@@ -898,7 +899,7 @@ export type PublishedPassageSnapshot = Pick<
 >;
 
 /**
- * The currently published snapshot of an article. Public routes must select only this table, never
+ * The currently published snapshot of a note. Public routes must select only this table, never
  * `documents`, so edits to the private working copy are invisible until another explicit publish.
  */
 export const documentPublications = pgTable(

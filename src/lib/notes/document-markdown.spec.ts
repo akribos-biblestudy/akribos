@@ -199,7 +199,7 @@ Text\r
 			'fallback.md',
 			`---
 type: sermon
-kind: article
+kind: note
 status: needs-admin
 date: 2026-02-30
 series: 42

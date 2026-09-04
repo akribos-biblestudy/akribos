@@ -8,7 +8,7 @@ import {
 	parseRequiredRevision,
 	prepareDocumentBody,
 	safeReturnTo,
-	slugifyArticle
+	slugifyPublication
 } from './application';
 
 describe('document application helpers', () => {
@@ -38,7 +38,7 @@ describe('document application helpers', () => {
 	});
 
 	it('creates portable German slugs and bounded excerpts', () => {
-		expect(slugifyArticle('Über Gnade & Größe')).toBe('ueber-gnade-groesse');
+		expect(slugifyPublication('Über Gnade & Größe')).toBe('ueber-gnade-groesse');
 		expect(normalizeExcerpt('  Ein\n\n kurzer   Text ')).toBe('Ein kurzer Text');
 	});
 });

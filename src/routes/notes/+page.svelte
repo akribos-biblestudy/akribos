@@ -14,7 +14,6 @@
 	});
 
 	function kindLabel(kind: DocumentKind): string {
-		if (kind === 'article') return t('documents.kind.note');
 		return t(`documents.kind.${kind}` as MessageKey);
 	}
 
@@ -93,7 +92,7 @@
 
 		<div class="flex flex-wrap gap-2">
 			<a
-				href="/articles"
+				href="/notes/published"
 				class="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-[color:var(--surface-raised)] px-3 py-2 text-sm font-semibold shadow-sm hover:border-accent-400 dark:border-white/12"
 			>
 				<Icon name="globe" class="size-4" />

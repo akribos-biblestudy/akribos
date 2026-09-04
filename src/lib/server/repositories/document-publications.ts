@@ -13,21 +13,21 @@ import {
 	type PublishedPassageSnapshot
 } from '../db/schema.ts';
 
-export type PublishArticleInput = {
+export type PublishDocumentInput = {
 	slug: string;
 	excerpt: string;
 	visibility: 'public' | 'unlisted';
 	expectedRevision?: number;
 };
 
-export type PublishArticleResult =
+export type PublishDocumentResult =
 	| { ok: true; publication: DocumentPublication }
 	| {
 			ok: false;
 			reason:
 				| 'forbidden'
 				| 'notFound'
-				| 'notArticle'
+				| 'notPublishable'
 				| 'private'
 				| 'authorNameRequired'
 				| 'invalidSlug'
@@ -35,10 +35,10 @@ export type PublishArticleResult =
 	  }
 	| { ok: false; reason: 'conflict'; currentRevision: number };
 
-export type UnpublishArticleResult =
+export type UnpublishDocumentResult =
 	{ ok: true; unpublished: boolean } | { ok: false; reason: 'forbidden' | 'notFound' };
 
-export type PublishedArticleSummary = Pick<
+export type PublishedDocumentSummary = Pick<
 	DocumentPublication,
 	| 'slug'
 	| 'title'
@@ -71,17 +71,17 @@ function postgresErrorCode(error: unknown): string | undefined {
 }
 
 /**
- * Copies the complete visitor-facing state from an owned article into its current snapshot. The
+ * Copies the complete visitor-facing state from an owned note into its current snapshot. The
  * requested public/unlisted visibility is applied to the working copy in the same locked transaction,
  * so validation failures cannot leave visibility and snapshot out of sync. The actor's role and
  * ownership are read from the database rather than trusted from request data.
  */
-export async function publishArticle(
+export async function publishDocument(
 	db: Database,
 	actorUserId: string,
 	documentId: string,
-	input: PublishArticleInput
-): Promise<PublishArticleResult> {
+	input: PublishDocumentInput
+): Promise<PublishDocumentResult> {
 	const slug = input.slug.trim();
 	if (!isPublicationSlug(slug)) return { ok: false, reason: 'invalidSlug' };
 	if (input.visibility !== 'public' && input.visibility !== 'unlisted') {
@@ -110,9 +110,7 @@ export async function publishArticle(
 				.limit(1)
 				.for('update');
 			if (!document) return { ok: false, reason: 'notFound' };
-			// `article` remains a supported legacy/API kind. In the product both it and an ordinary note
-			// are publishable working copies; sermon-specific workflow documents remain private.
-			if (document.kind === 'sermon') return { ok: false, reason: 'notArticle' };
+			if (document.kind !== 'note') return { ok: false, reason: 'notPublishable' };
 			if (input.expectedRevision !== undefined && document.revision !== input.expectedRevision) {
 				return { ok: false, reason: 'conflict', currentRevision: document.revision };
 			}
@@ -222,11 +220,11 @@ export async function publishArticle(
 }
 
 /** Explicitly removes a snapshot without changing or deleting its private working copy. */
-export async function unpublishArticle(
+export async function unpublishDocument(
 	db: Database,
 	actorUserId: string,
 	documentId: string
-): Promise<UnpublishArticleResult> {
+): Promise<UnpublishDocumentResult> {
 	return db.transaction(async (tx) => {
 		const [actor] = await tx
 			.select({ role: users.role })
@@ -277,8 +275,8 @@ export async function getOwnedDocumentPublication(
 	return publication;
 }
 
-/** Public article index/feed/sitemap source. Unlisted snapshots are intentionally excluded. */
-export async function listPublishedArticles(
+/** Public note index/feed/sitemap source. Unlisted snapshots are intentionally excluded. */
+export async function listPublishedDocuments(
 	db: Database,
 	options: PublicationListOptions = {}
 ): Promise<DocumentPublication[]> {
@@ -293,10 +291,10 @@ export async function listPublishedArticles(
 }
 
 /** Lightweight public-index projection that deliberately omits both body representations. */
-export async function listPublishedArticleSummaries(
+export async function listPublishedDocumentSummaries(
 	db: Database,
 	options: PublicationListOptions = {}
-): Promise<PublishedArticleSummary[]> {
+): Promise<PublishedDocumentSummary[]> {
 	const { limit, offset } = publicationWindow(options);
 	return db
 		.select({
@@ -317,7 +315,7 @@ export async function listPublishedArticleSummaries(
 }
 
 /** Smallest sitemap projection; unlisted snapshots remain intentionally undiscoverable. */
-export async function listPublishedArticleSlugs(
+export async function listPublishedDocumentSlugs(
 	db: Database,
 	options: PublicationListOptions = {}
 ): Promise<string[]> {
@@ -333,7 +331,7 @@ export async function listPublishedArticleSlugs(
 }
 
 /** Direct detail lookup includes both public and unlisted snapshots, but never private working data. */
-export async function getPublishedArticleBySlug(
+export async function getPublishedDocumentBySlug(
 	db: Database,
 	slug: string
 ): Promise<DocumentPublication | undefined> {

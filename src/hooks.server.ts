@@ -77,7 +77,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	// The root layout contains the signed-in user's identity and reader preferences. A child route can
 	// legitimately make its anonymous representation publicly cacheable (reader chapters, published
-	// articles, and so on), but that header must never make the personalised SSR response eligible for
+	// published notes, and so on), but that header must never make the personalised SSR response eligible for
 	// a shared cache. Keeping this final guard in the request pipeline makes the privacy invariant apply
 	// to new routes automatically instead of relying on every page author to remember it.
 	protectAuthenticatedResponse(event.locals.user, response);

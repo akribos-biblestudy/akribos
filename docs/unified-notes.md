@@ -12,9 +12,8 @@ A **document** is an owner-private working copy. The product has two writing are
 - `sermon` for a preparation document with the workflow `idea -> research -> outline -> ready ->
 delivered`.
 
-The persisted `article` kind remains accepted for legacy imports/API compatibility and behaves like a
-note. New UI workflows create `note` or `sermon`; users do not have to decide between a note and an
-article before writing.
+There is no separate publication working-copy type: publishing is a state transition for a `note`, not a
+third writing area. This keeps import, filtering, APIs and the editor on the same two document kinds.
 
 Every document uses the same Markdown/rich-text body, tags and Bible passages. The library at `/notes`
 searches and organises notes; `/sermons` is a focused workflow view over sermon documents in the same
@@ -69,8 +68,8 @@ containing all public fields and a non-email author label. Editing or
 autosaving the working copy cannot change the public page. A later explicit publish replaces the
 snapshot; unpublish removes it.
 
-Snapshots are either `public` or `unlisted`. Public snapshots appear in `/articles`, the Atom feed and
-the sitemap. Unlisted snapshots are omitted from these discovery surfaces but are anonymously reachable
+Snapshots are either `public` or `unlisted`. Public snapshots appear in `/notes/published`, its Atom
+feed and the sitemap. Unlisted snapshots are omitted from these discovery surfaces but are anonymously reachable
 through their direct slug. An unlisted slug is therefore not a password or authorisation boundary and
 may be forwarded by anyone who knows it. Private drafts have no snapshot and no public route. A normal
 user cannot invoke publication even by constructing a request; the repository checks both role and
@@ -78,7 +77,7 @@ ownership in addition to the UI controls, and publication fails without the owne
 name rather than exposing an email address.
 
 Authenticated HTML and every personal JSON/download response use `private, no-store`. Anonymous
-article HTML also remains `private, no-store`, because it inherits cookie-based guest preferences from
+published-note HTML also remains `private, no-store`, because it inherits cookie-based guest preferences from
 the global layout. The cookie-free Atom feed and sitemap are public but require revalidation
 (`max-age=0, must-revalidate`) before reuse so a publication change cannot leave stale discovery data.
 
@@ -139,7 +138,7 @@ Whole-chapter references remain links but do not open a chapter-sized popup.
 
 Existing `verse_comments` remain available through `GET /api/v1/notes`, but their former inline green
 Reader bubble and per-verse creation action are retired in favour of unified documents. The feature
-migration `drizzle/0025_neat_warpath.sql` creates one private `note` document and one
+migration `drizzle/0025_clever_agent_brand.sql` creates one private `note` document and one
 translation-specific single-verse passage for each existing row. The source row and its already
 sanitised HTML are not deleted or rewritten. The legacy comment UUID is a unique provenance key, so
 the data backfill can be run repeatedly without creating duplicate documents. `pnpm db:backfill-notes`
@@ -153,7 +152,7 @@ Verse-list comments are collaborative conversations and are not copied into priv
 
 ## Routes and workflows
 
-- `/notes` searches the current owner's note/legacy-article titles and plain text, then filters by
+- `/notes` searches the current owner's note titles and plain text, then filters by
   nested tag and overlapping passage; its trash view restores soft-deleted working copies.
 - `/notes/[id]` edits one working copy, tags and passage anchors; `export.md`, `export.docx` and
   `export.pdf` provide the three owner-only formats. `/notes/import` previews one/many Markdown files or
@@ -173,9 +172,9 @@ Verse-list comments are collaborative conversations and are not copied into priv
   resizable; only harmless width and open/closed preferences are stored locally. Private document ids
   never enter Reader URLs, history or local storage. Covered verse text is dotted-underlined, while
   indicator icons render only at an anchor's start/end boundary. Closing waits for autosave to finish.
-- `/articles` and `/articles/feed.xml` retain their compatible URLs while exposing published-note
-  snapshots; `/articles/[slug]` renders a public or
-  unlisted snapshot and never hydrates fields from the working copy.
+- `/notes/published` and `/notes/published/feed.xml` expose published-note snapshots;
+  `/notes/published/[slug]` renders a public or unlisted snapshot and never hydrates fields from the
+  working copy. There are intentionally no parallel legacy publication routes.
 
 ## Recovery and rollback
 
@@ -183,9 +182,9 @@ Document deletion is soft deletion and the owner can restore it from the library
 publication is an independently stored snapshot, so draft recovery cannot silently mutate public
 content. Normal database backups include both working copies and snapshots.
 
-Migrations `0025_neat_warpath.sql` and `0026_abnormal_captain_america.sql` are additive. The latter adds
-owner-private sermon templates and delivery history plus the composite document owner key that prevents
-cross-owner delivery rows. Both keep `verse_comments`, which makes application rollback safe:
+Migration `0025_clever_agent_brand.sql` is additive. It creates the complete document/publication
+schema, owner-private sermon templates and delivery history, and the composite document owner key that
+prevents cross-owner delivery rows. It keeps `verse_comments`, which makes application rollback safe:
 an earlier release can continue using the legacy rows. If the release is rolled back after users have
 created unified-only documents, those rows remain intact but are invisible to the old application.
 Operators should take the normal pre-deploy database backup before a schema rollback; dropping the new

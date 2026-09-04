@@ -29,7 +29,7 @@ export async function GET({ locals, setHeaders, url }) {
 
 	const kind = url.searchParams.get('kind')?.trim() || undefined;
 	if (kind && !isDocumentKind(kind)) {
-		return invalidFilter('kind', kind, 'note, article, or sermon');
+		return invalidFilter('kind', kind, 'note or sermon');
 	}
 
 	const visibility = url.searchParams.get('visibility')?.trim() || undefined;

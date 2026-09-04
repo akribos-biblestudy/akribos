@@ -22,7 +22,7 @@ Supported frontmatter fields are:
 ```yaml
 ---
 title: Schöpfung und Ruhe
-type: note # note, article, or sermon; `kind` is also accepted
+type: note # note or sermon; `kind` is also accepted
 tags:
   - Studium/Schöpfung
 passages:
@@ -36,9 +36,8 @@ sermon: # only used when type is sermon
 ---
 ```
 
-Use `note` for all non-sermon writing. `article` remains accepted for compatibility with older exports
-and is displayed as a note; publishing is a later administrator-only action, not a separate document
-type in the current interface.
+Use `note` for all non-sermon writing. Publishing is a later administrator-only action, not a separate
+document type.
 
 `references` is accepted as an alias for `passages`; flat `status`, `date`, `series` and
 `sermon_*` fields are accepted for sermon metadata. Exported `created` and `updated` timestamps are

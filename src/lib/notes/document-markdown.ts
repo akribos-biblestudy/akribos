@@ -16,7 +16,7 @@ export {
 	MAX_OBSIDIAN_IMPORT_BYTES
 } from './documents.ts';
 
-export const DOCUMENT_MARKDOWN_KINDS = ['note', 'article', 'sermon'] as const;
+export const DOCUMENT_MARKDOWN_KINDS = ['note', 'sermon'] as const;
 export type DocumentMarkdownKind = (typeof DOCUMENT_MARKDOWN_KINDS)[number];
 
 export const SERMON_MARKDOWN_STATUSES = [

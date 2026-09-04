@@ -14,7 +14,7 @@ import {
 	requireDocumentUser,
 	safeReturnTo,
 	setPrivateNoStore,
-	slugifyArticle
+	slugifyPublication
 } from '$lib/server/documents/application';
 import { getDb } from '$lib/server/db';
 import {
@@ -25,8 +25,8 @@ import {
 } from '$lib/server/repositories/document-tags';
 import {
 	getOwnedDocumentPublication,
-	publishArticle,
-	unpublishArticle
+	publishDocument,
+	unpublishDocument
 } from '$lib/server/repositories/document-publications';
 import {
 	getDocument,
@@ -246,7 +246,7 @@ export const actions = {
 		} = await ownedEditor(locals, params.id, url);
 		if (user.role !== 'admin') return fail(403, { error: 'forbidden' as const });
 		if (initialDocument.kind === 'sermon') {
-			return fail(400, { error: 'notArticle' as const });
+			return fail(400, { error: 'notPublishable' as const });
 		}
 
 		const form = await request.formData();
@@ -258,8 +258,8 @@ export const actions = {
 		}
 
 		const rawSlug = String(form.get('slug') ?? '').trim() || initialDocument.title;
-		const slug = slugifyArticle(rawSlug);
-		const result = await publishArticle(getDb(), user.id, documentId, {
+		const slug = slugifyPublication(rawSlug);
+		const result = await publishDocument(getDb(), user.id, documentId, {
 			slug,
 			excerpt: normalizeExcerpt(form.get('excerpt')),
 			visibility,
@@ -285,7 +285,7 @@ export const actions = {
 	unpublish: async ({ params, locals, url }) => {
 		const { user, documentId } = await ownedEditor(locals, params.id, url);
 		if (user.role !== 'admin') return fail(403, { error: 'forbidden' as const });
-		const result = await unpublishArticle(getDb(), user.id, documentId);
+		const result = await unpublishDocument(getDb(), user.id, documentId);
 		if (!result.ok) {
 			return fail(result.reason === 'forbidden' ? 403 : 404, { error: result.reason });
 		}

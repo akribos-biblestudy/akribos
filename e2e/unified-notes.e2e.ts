@@ -173,9 +173,9 @@ const SEED_ADMIN = {
 };
 const SEED_PRIVATE_NOTE_ID = '5eed0000-0000-4000-8000-000000000001';
 const SEED_TRANSLATION_NOTE_ID = '5eed0000-0000-4000-8000-000000000003';
-const SEED_ADMIN_ARTICLE_ID = '5eed0000-0000-4000-8000-000000000005';
+const SEED_ADMIN_PUBLISHED_NOTE_ID = '5eed0000-0000-4000-8000-000000000005';
 const RUN_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-const NORMAL_PRIVATE_ARTICLE_TITLE = `Privater Leserartikel ${RUN_ID}`;
+const NORMAL_PRIVATE_NOTE_TITLE = `Private Lesernotiz ${RUN_ID}`;
 const MATTHEW_PREVIEW_TEXT =
 	'Er hat die Worfschaufel in seiner Hand und wird seine Tenne gründlich reinigen.';
 
@@ -196,13 +196,9 @@ async function loginAs(
 	await expect(page).toHaveURL(/\/account$/);
 }
 
-async function createDocumentFromLibrary(
-	page: import('@playwright/test').Page,
-	kind: 'Notiz' | 'Artikel'
-): Promise<string> {
+async function createNoteFromLibrary(page: import('@playwright/test').Page): Promise<string> {
 	await page.goto('/notes');
-	const label = kind === 'Artikel' ? 'Neuer Artikel' : 'Neue Notiz';
-	await page.getByRole('button', { name: label, exact: true }).click();
+	await page.getByRole('button', { name: 'Neue Notiz', exact: true }).click();
 	await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+(?:\?|$)/);
 	return new URL(page.url()).pathname.split('/').at(-1)!;
 }
@@ -244,7 +240,7 @@ test('private workspaces enforce authentication and owner-scoped not-found respo
 	expect(malformed?.status()).toBe(404);
 	await expect(page.getByRole('heading', { name: 'Seite nicht gefunden' })).toBeVisible();
 
-	const foreign = await page.goto(`/notes/${SEED_ADMIN_ARTICLE_ID}`);
+	const foreign = await page.goto(`/notes/${SEED_ADMIN_PUBLISHED_NOTE_ID}`);
 	expect(foreign?.status()).toBe(404);
 	await expect(page.getByText('Dokument nicht gefunden')).toBeVisible();
 
@@ -255,7 +251,7 @@ test('private workspaces enforce authentication and owner-scoped not-found respo
 			cache: response.headers.get('cache-control'),
 			body: await response.json()
 		};
-	}, SEED_ADMIN_ARTICLE_ID);
+	}, SEED_ADMIN_PUBLISHED_NOTE_ID);
 	expect(internalForeign).toMatchObject({
 		status: 404,
 		cache: 'private, no-store',
@@ -363,18 +359,18 @@ test('a private note links inline Bible references and previews real text by hov
 	await expect(page.locator('[data-verse-key="40:3:12"]').first()).toContainText('Worfschaufel');
 });
 
-test('a public article exposes inline references to keyboard users with public previews', async ({
+test('a published note exposes inline references to keyboard users with public previews', async ({
 	page
 }) => {
-	await page.goto('/articles/demo-gnade-die-traegt');
+	await page.goto('/notes/published/demo-gnade-die-traegt');
 
-	const article = page.getByTestId('public-article');
-	const reference = article.locator('a.bible-reference.verse-ref[data-reference="Mt3,12"]');
+	const publishedNote = page.getByTestId('published-note');
+	const reference = publishedNote.locator('a.bible-reference.verse-ref[data-reference="Mt3,12"]');
 	await expect(reference).toHaveText('Mt 3,12');
 	await expect(reference).toHaveAttribute('href', '/Mt3,12');
 
 	const responsePromise = waitForMatthewChapter(page);
-	await article.locator('a.article-chip').first().focus();
+	await publishedNote.locator('a.publication-chip').first().focus();
 	await page.keyboard.press('Tab');
 	await expect(reference).toBeFocused();
 	const response = await responsePromise;
@@ -392,7 +388,7 @@ test('a public article exposes inline references to keyboard users with public p
 	await expect(preview).toBeHidden();
 	await expect(reference).toBeFocused();
 
-	await article.locator('a.article-chip').first().focus();
+	await publishedNote.locator('a.publication-chip').first().focus();
 	await reference.hover();
 	await expect(preview).toContainText(MATTHEW_PREVIEW_TEXT);
 	await page.mouse.move(0, 0);
@@ -404,7 +400,7 @@ test('a note autosaves, switches Markdown modes, adds cross-chapter anchors and 
 }) => {
 	test.slow();
 	await loginAs(page, SEED_READER);
-	const id = await createDocumentFromLibrary(page, 'Notiz');
+	const id = await createNoteFromLibrary(page);
 	const title = `Rundreise-Notiz ${RUN_ID}`;
 	const bodyMarker = `roundtrip-${RUN_ID}`;
 	const markdown = `## Beobachtung\n\nEin **wichtiger** Gedanke mit Marker \`${bodyMarker}\`.\n`;
@@ -795,13 +791,13 @@ test('custom sermon templates, delivery history, rich exports and board movement
 	).toBeVisible();
 });
 
-test('a normal account cannot publish an article through either the UI or a forged action', async ({
+test('a normal account cannot publish a note through either the UI or a forged action', async ({
 	page
 }) => {
 	await loginAs(page, SEED_READER);
-	const id = await createDocumentFromLibrary(page, 'Notiz');
+	const id = await createNoteFromLibrary(page);
 	await saveMarkdownDocument(page, {
-		title: NORMAL_PRIVATE_ARTICLE_TITLE,
+		title: NORMAL_PRIVATE_NOTE_TITLE,
 		markdown: `## Privat\n\nDieser Entwurf ${RUN_ID} darf nicht veröffentlicht werden.\n`,
 		requestMarker: RUN_ID
 	});
@@ -839,14 +835,14 @@ test('admin publication snapshots stay immutable until republish and discovery o
 
 	// The deterministic fixture itself demonstrates that a newer working copy does not leak into its
 	// existing public snapshot.
-	await page.goto(`/notes/${SEED_ADMIN_ARTICLE_ID}`);
+	await page.goto(`/notes/${SEED_ADMIN_PUBLISHED_NOTE_ID}`);
 	await expect(page.getByTestId('publication-controls')).toContainText(
 		'Die Arbeitskopie enthält neuere Änderungen.'
 	);
-	const seededPublic = await request.get('/articles/demo-gnade-die-traegt');
+	const seededPublic = await request.get('/notes/published/demo-gnade-die-traegt');
 	expect(await seededPublic.text()).not.toContain('Noch unveröffentlichte Ergänzung');
 
-	await createDocumentFromLibrary(page, 'Notiz');
+	await createNoteFromLibrary(page);
 	const title = `Schnappschuss-Test ${RUN_ID}`;
 	const slug = `snapshot-${RUN_ID}`;
 	const oldMarker = `oeffentlich-alt-${RUN_ID}`;
@@ -865,7 +861,7 @@ test('admin publication snapshots stay immutable until republish and discovery o
 	await expect(controls.getByRole('link', { name: 'Öffentliche Seite öffnen' })).toBeVisible();
 
 	const publicPage = await page.context().newPage();
-	const publicResponse = await publicPage.goto(`/articles/${slug}`);
+	const publicResponse = await publicPage.goto(`/notes/published/${slug}`);
 	expect(publicResponse?.status()).toBe(200);
 	await expect(publicPage.getByText(oldMarker)).toBeVisible();
 
@@ -892,7 +888,7 @@ test('admin publication snapshots stay immutable until republish and discovery o
 	await expect(publicPage.getByText(oldMarker)).toHaveCount(0);
 	await publicPage.close();
 
-	await createDocumentFromLibrary(page, 'Notiz');
+	await createNoteFromLibrary(page);
 	const unlistedTitle = `Nicht gelisteter Test ${RUN_ID}`;
 	const unlistedSlug = `unlisted-${RUN_ID}`;
 	await saveMarkdownDocument(page, {
@@ -906,7 +902,7 @@ test('admin publication snapshots stay immutable until republish and discovery o
 	await controls.getByRole('button', { name: 'Schnappschuss veröffentlichen' }).click();
 	await expect(controls.getByRole('link', { name: 'Öffentliche Seite öffnen' })).toBeVisible();
 
-	const directUnlisted = await request.get(`/articles/${unlistedSlug}`);
+	const directUnlisted = await request.get(`/notes/published/${unlistedSlug}`);
 	expect(directUnlisted.status()).toBe(200);
 	expect(directUnlisted.headers()['cache-control']).toBe('private, no-store');
 	expect(directUnlisted.headers()['x-robots-tag']).toBe('noindex, nofollow');
@@ -914,25 +910,25 @@ test('admin publication snapshots stay immutable until republish and discovery o
 	expect(directUnlistedHtml).toContain(unlistedTitle);
 	expect(directUnlistedHtml).toContain('<meta name="robots" content="noindex, nofollow"');
 
-	for (const path of ['/articles', '/articles/feed.xml', '/sitemap.xml']) {
+	for (const path of ['/notes/published', '/notes/published/feed.xml', '/sitemap.xml']) {
 		const response = await request.get(path);
 		expect(response.status()).toBe(200);
 		expect(response.headers()['cache-control']).toContain(
-			path === '/articles' ? 'private' : 'public'
+			path === '/notes/published' ? 'private' : 'public'
 		);
 		const body = await response.text();
 		expect(body).toContain(slug);
 		expect(body).not.toContain(unlistedSlug);
-		expect(body).not.toContain(NORMAL_PRIVATE_ARTICLE_TITLE);
+		expect(body).not.toContain(NORMAL_PRIVATE_NOTE_TITLE);
 	}
-
-	const signedInIndex = await page.goto('/articles');
+	const signedInIndex = await page.goto('/notes/published');
 	expect(signedInIndex?.headers()['cache-control']).toBe('private, no-store');
 
 	const robots = await request.get('/robots.txt');
 	expect(robots.headers()['cache-control']).toContain('public');
 	const robotsBody = await robots.text();
 	expect(robotsBody).toContain('Disallow: /notes');
+	expect(robotsBody).toContain('Allow: /notes/published');
 	expect(robotsBody).toContain('Disallow: /sermons');
 });
 

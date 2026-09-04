@@ -1,5 +1,5 @@
 import { getDb } from '$lib/server/db';
-import { listPublishedArticleSummaries } from '$lib/server/repositories/document-publications';
+import { listPublishedDocumentSummaries } from '$lib/server/repositories/document-publications';
 
 const PAGE_SIZE = 24;
 
@@ -11,7 +11,7 @@ export async function load({ setHeaders, url }) {
 
 	const requestedPage = Number(url.searchParams.get('page') ?? '1');
 	const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-	const publications = await listPublishedArticleSummaries(getDb(), {
+	const publications = await listPublishedDocumentSummaries(getDb(), {
 		limit: PAGE_SIZE + 1,
 		offset: (page - 1) * PAGE_SIZE
 	});
@@ -21,7 +21,7 @@ export async function load({ setHeaders, url }) {
 		title: 'Veröffentlichte Notizen',
 		page,
 		hasNext,
-		articles: publications.slice(0, PAGE_SIZE).map((publication) => ({
+		publications: publications.slice(0, PAGE_SIZE).map((publication) => ({
 			slug: publication.slug,
 			title: publication.title,
 			excerpt: publication.excerpt,

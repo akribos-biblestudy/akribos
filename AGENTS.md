@@ -261,9 +261,8 @@ sind davon unberührt und verwenden weiterhin `NoteEditor.svelte`.
 ## Einheitliche Notizen und Predigten
 
 Die Oberfläche kennt zwei Schreibbereiche: veröffentlichbare Notizen und Predigten. Beide sind private
-Arbeitskopien in `documents`. Der Datenbankwert `article` bleibt ausschließlich für bereits importierte
-oder per API angelegte Altbestände kompatibel und wird wie `note` als Notiz dargestellt; neue
-Oberflächen-Workflows erzeugen keine Artikel-Arbeitskopien mehr.
+Arbeitskopien in `documents`; `kind` ist genau `note` oder `sermon`. Eine Veröffentlichung ist ein
+Schnappschuss einer Notiz und kein eigener Dokumenttyp.
 Jeder Zugriff auf Arbeitskopie, Tags und Stellenanker wird serverseitig mit `user_id` eingegrenzt; eine
 erratene UUID ist niemals eine Berechtigung, und auch Administratoren dürfen fremde Entwürfe nicht lesen
 oder veröffentlichen. `body_markdown` ist die portable Quelle. `body_html` und `plain_text` werden daraus
@@ -293,8 +292,8 @@ Besucherseiten lesen ausschließlich `document_publications`, nie die veränderl
 explizites Veröffentlichen sperrt die Arbeitskopie und ersetzt atomar die vollständige aktuelle
 Momentaufnahme (Titel, Exzerpt, bereinigtes HTML/Markdown, Autorname, Tags und Stellen); weitere
 Autosaves werden erst durch erneutes Veröffentlichen sichtbar. Nur ein Admin darf eine **eigene** aktive
-Notiz (`note` oder kompatibles `article`) mit nicht leerem Anzeigenamen veröffentlichen; eine
-E-Mail-Adresse ist nie Autor-Fallback. `public` erscheint unter `/articles`, im
+Notiz (`note`) mit nicht leerem Anzeigenamen veröffentlichen; eine
+E-Mail-Adresse ist nie Autor-Fallback. `public` erscheint unter `/notes/published`, im
 Atom-Feed und in der Sitemap. `unlisted` fehlt dort, ist aber unter dem Slug ohne Anmeldung abrufbar und
 deshalb keine Zugriffskontrolle oder geheime Freigabe. Veröffentlichungs-HTML bleibt trotz öffentlichem Snapshot
 `private, no-store`, weil das globale Layout auch für Gäste Cookie-Präferenzen enthält. Cookie-freie
@@ -304,7 +303,8 @@ sofort sichtbar wird. Sobald eine Session aufgelöst wurde, erzwingt `hooks.serv
 jede Antwort `private, no-store`. Dasselbe gilt ausdrücklich für private HTML-, JSON- und
 Download-Antworten.
 
-Migration `drizzle/0025_neat_warpath.sql` legt die fünf Dokumenttabellen an und enthält danach den
+Migration `drizzle/0025_clever_agent_brand.sql` legt die Dokument-, Publikations-, Predigtvorlagen- und
+Predigthistorien-Tabellen an und enthält danach den
 absichtlich handgeschriebenen Daten-Backfill: Jede bestehende Zeile aus `verse_comments` wird zu genau
 einem privaten Dokument mit einem translationsspezifischen Einzelvers-Anker. Das bereits bereinigte
 `comment_html` und die Quellzeile bleiben erhalten; `legacy_verse_comment_id` ist die eindeutige
@@ -375,8 +375,8 @@ Drag-and-drop; `Alt` + Pfeil links/rechts ist die barrierearme Tastaturalternati
 Status-Select wird auf der Karte nicht gerendert. `sermon_templates` enthält frei editierbare private
 Markdown-Vorlagen. `sermon_deliveries` speichert mehrere tatsächliche Durchführungen aus Kalenderdatum
 und Ort über einen zusammengesetzten Dokument-/Owner-FK; jede Mutation erhöht die Dokumentrevision.
-Migration `0026_abnormal_captain_america.sql` legt beide Tabellen und den nötigen eindeutigen
-Dokument-/Owner-Index an.
+Migration `0025_clever_agent_brand.sql` legt beide Tabellen zusammen mit dem übrigen Dokumentmodell
+und dem nötigen eindeutigen Dokument-/Owner-Index an.
 
 ### Zusammenarbeit an Verslisten (issue #129)
 

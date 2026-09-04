@@ -3,7 +3,7 @@
  *
  * Every user-scoped operation includes the owner in its database predicate. A UUID is therefore
  * never an authority token: another user's document is indistinguishable from a missing one. Public
- * article reads live separately in `document-publications.ts` and never use this mutable table.
+ * published reads live separately in `document-publications.ts` and never use this mutable table.
  */
 
 import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';

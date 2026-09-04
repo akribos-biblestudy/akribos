@@ -91,10 +91,10 @@ problem deserves. A job interrupted by a restart is marked failed at boot, not r
 
 ## Unified writing workspace
 
-Notes and sermons share one owner-scoped model. The retained `article` kind is a compatibility alias
-shown and published like a note; current UI creation uses only `note` and `sermon`. `documents` is the mutable working copy;
+Notes and sermons share one owner-scoped model with exactly the kinds `note` and `sermon`.
+`documents` is the mutable working copy;
 `document_passages` gives it ordered Bible ranges, `document_tags` and `document_tag_links` give each
-owner a hierarchy, and `document_publications` holds the current visitor-facing article snapshot.
+owner a hierarchy, and `document_publications` holds the current visitor-facing note snapshot.
 Repositories repeat the owner id in every private lookup and mutation, including both sides of tag
 links. Being an administrator does not grant read access to another account's working copies.
 
@@ -120,19 +120,18 @@ the selected leaf, while filtering an ancestor includes every descendant path.
 
 Publication is a copy, never a visibility shortcut into `documents`. It locks the parent working copy
 before changing visibility or children, so visibility and the replacement snapshot commit atomically.
-The publication repository checks that the caller is an admin, owns an active note (or legacy
-`article`) and has a real display name; an email address is not
+The publication repository checks that the caller is an admin, owns an active note and has a real display name; an email address is not
 an author fallback. Publishing copies title, excerpt, safe body, author label, tags, passages,
 visibility and source revision into the single current snapshot. Autosaving the draft therefore cannot
 change an already published page; an explicit republish replaces it, while unpublish or soft deletion
-removes it. Public routes query only snapshot rows. `public` snapshots enter the article index, Atom
+removes it. Public routes query only snapshot rows. `public` snapshots enter the published-note index, Atom
 feed and sitemap; `unlisted` snapshots are omitted from discovery but remain anonymously readable by
 slug, so unlisted is not an authorisation mechanism.
 
 The private library and editor live at `/notes`; its two-area navigation links only “Notizen” and
 “Predigten”. Import and public notes are contextual note actions, while templates are contextual to the
 sermon area. `/sermons` is a status-oriented view over sermon
-documents, not separate storage. `/articles` and `/articles/[slug]` render snapshots. The reader receives
+documents, not separate storage. `/notes/published` and `/notes/published/[slug]` render snapshots. The reader receives
 only compact owner-scoped anchor summaries, not document bodies, and marks inclusive overlaps in active
 Bible tabs. Its single notes panel opens matching documents or creates a canonical or
 translation-specific note while preserving the reader return URL.
@@ -154,7 +153,7 @@ wrapped with internal `.verse-ref` anchors; Tiptap receives equivalent ProseMirr
 not appear in `editor.getHTML()` or exported Markdown. Existing authored links, inline code and code
 blocks are not rewritten. Hover and keyboard focus reuse the public-ready Bible resource/chapter APIs;
 the action caches one fetch per chapter and inserts returned verse text only with `textContent`. The
-standalone editor and public article choose the first sorted public-ready Bible, while the Reader
+standalone editor and published note choose the first sorted public-ready Bible, while the Reader
 sidecar deliberately uses the first currently visible Bible so its preview agrees with the adjacent
 text. Cross-chapter references load at most 50 cached chapter responses; whole-chapter links do not open
 a tooltip. Inside `DocumentEditor`, the popup and `/bibel <reference>` command insert an ordinary
@@ -251,9 +250,9 @@ infrastructure while providing no capability the current stack lacks.
 
 ## Caching
 
-Cookie-free public endpoints such as the article feed and sitemap are public but currently send
+Cookie-free public endpoints such as the published-note feed and sitemap are public but currently send
 `max-age=0, must-revalidate`; every reuse is revalidated so publish and unpublish cannot leave a stale
-discovery entry. Article index/detail HTML renders only publication snapshots, but still inherits the global
+discovery entry. Published-note index/detail HTML renders only publication snapshots, but still inherits the global
 layout's cookie-based guest reader preferences; those HTML responses therefore deliberately send
 `private, no-store`. Only public rows appear on discovery endpoints. Private document HTML, the
 internal autosave endpoint, exports, and both personal v1 document endpoints also send

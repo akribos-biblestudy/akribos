@@ -113,7 +113,7 @@ export async function load({ locals, url, setHeaders }) {
 			deleted: deleted ? 'only' : 'exclude'
 		});
 	}
-	// Notes and legacy article working copies form one product area. Sermons have their own board.
+	// Notes form one product area. Sermons have their own board.
 	documents = documents.filter((document) => document.kind !== 'sermon');
 
 	if (passageText) {

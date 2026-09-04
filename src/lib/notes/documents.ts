@@ -1,6 +1,6 @@
 /** Pure document-domain vocabulary and input bounds shared by client and server code. */
 
-export const DOCUMENT_KINDS = ['note', 'article', 'sermon'] as const;
+export const DOCUMENT_KINDS = ['note', 'sermon'] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
 export const DOCUMENT_VISIBILITIES = ['private', 'unlisted', 'public'] as const;

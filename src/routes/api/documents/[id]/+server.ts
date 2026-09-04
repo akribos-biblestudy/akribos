@@ -107,7 +107,7 @@ export async function PATCH({ params, locals, request, setHeaders }) {
 		input = {
 			title: payload.title,
 			body: prepareDocumentBody(payload.markdown),
-			// Autosave never publishes. It preserves a note/article's current snapshot visibility and
+			// Autosave never publishes. It preserves a note's current snapshot visibility and
 			// keeps sermon workflow documents private; only the admin publication action changes it.
 			visibility: current.kind === 'sermon' ? 'private' : current.visibility
 		};

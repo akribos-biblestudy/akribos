@@ -24,29 +24,27 @@ The fixture accounts are development-only and use reserved addresses:
 rows using stable IDs, and does not overwrite edited fixture documents or publication snapshots. It
 refreshes the credentials, roles and display names of the two reserved accounts so the table above
 remains reliable. The fixture includes canonical, cross-chapter and translation-specific notes, a
-nested tag, a sermon in progress, and a public article whose revision-1 snapshot deliberately differs
+nested tag, a sermon in progress, and a published note whose revision-1 snapshot deliberately differs
 from its newer revision-2 working copy. It also inserts a legacy `verse_comments` row and invokes the
 same unique-provenance backfill as `pnpm db:backfill-notes`; rerunning either command cannot create a
 second migrated document.
 
-No transactional-mail configuration is needed for notes, Markdown interchange, articles or sermons.
+No transactional-mail configuration is needed for notes, Markdown interchange, publication or sermons.
 When `BREVO_API_KEY` is absent, the existing authentication mail fallback logs messages as before; the
 two seeded accounts are already verified.
 
 ## Unified-document migration and recovery
 
-The feature has two generated schema migrations and their matching snapshots:
+The feature has one generated schema migration and its matching snapshot:
 
-- `drizzle/0025_neat_warpath.sql` creates `documents`, `document_passages`, `document_tags`,
-  `document_tag_links` and `document_publications`. It then contains a reviewed hand-written data
-  section, following the repository's existing backfill convention. This copies every extant
+- `drizzle/0025_clever_agent_brand.sql` creates `documents`, `document_passages`, `document_tags`,
+  `document_tag_links`, `document_publications`, `sermon_templates` and `sermon_deliveries`. It then
+  contains a reviewed hand-written data section, following the repository's existing backfill
+  convention. This copies every extant
   `verse_comments` row into one private `note`, preserves the already sanitised `comment_html`,
   attaches one translation-specific single-verse passage, and leaves the source row untouched. A
   unique `legacy_verse_comment_id` provenance key plus conflict-safe inserts make the data step
   idempotent.
-- `drizzle/0026_abnormal_captain_america.sql` creates owner-private `sermon_templates` and
-  `sermon_deliveries`, together with the composite document/owner key used by delivery history. It has
-  no data backfill and does not alter existing sermon working copies.
 
 For a normal deploy, the container entrypoint applies this automatically. To exercise the same path
 against an existing checkout/database explicitly:
@@ -86,7 +84,7 @@ snapshots are separate rows: restoring or editing a working copy never changes w
 an admin explicitly republishes it.
 
 Take the usual logical backup before deployment. Application rollback does **not** require a schema
-rollback: migrations 0025 and 0026 are additive, the old `verse_comments` table and `GET /api/v1/notes` contract
+rollback: migration 0025 is additive, the old `verse_comments` table and `GET /api/v1/notes` contract
 remain intact, and an older binary simply cannot see unified-only documents. One operational caveat is
 resource deletion: the new `document_passages` foreign key intentionally prevents an old binary from
 deleting an anchored Bible because it cannot perform the new transfer. Treat that refusal as safe; use

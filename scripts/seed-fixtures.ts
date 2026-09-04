@@ -15,7 +15,7 @@ export const SEED_DOCUMENT_IDS = {
 	crossChapterNote: '5eed0000-0000-4000-8000-000000000002',
 	translationNote: '5eed0000-0000-4000-8000-000000000003',
 	sermon: '5eed0000-0000-4000-8000-000000000004',
-	article: '5eed0000-0000-4000-8000-000000000005'
+	publishedNote: '5eed0000-0000-4000-8000-000000000005'
 } as const;
 
 export const SEED_PASSAGE_IDS = {
@@ -23,7 +23,7 @@ export const SEED_PASSAGE_IDS = {
 	crossChapterNote: '5eed1000-0000-4000-8000-000000000002',
 	translationNote: '5eed1000-0000-4000-8000-000000000003',
 	sermon: '5eed1000-0000-4000-8000-000000000004',
-	article: '5eed1000-0000-4000-8000-000000000005'
+	publishedNote: '5eed1000-0000-4000-8000-000000000005'
 } as const;
 
 export const SEED_TAG_IDS = {

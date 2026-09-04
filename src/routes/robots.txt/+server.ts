@@ -13,6 +13,7 @@ export function GET({ setHeaders }) {
 			'Disallow: /account',
 			'Disallow: /lists',
 			'Disallow: /l/',
+			'Allow: /notes/published',
 			'Disallow: /notes',
 			'Disallow: /sermons',
 			'Disallow: /search',

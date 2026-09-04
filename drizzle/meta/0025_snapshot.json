@@ -1,5 +1,5 @@
 {
-  "id": "ebed7e61-8926-4066-95a4-74ffb4ceddc9",
+  "id": "423d0d56-bf8a-4966-995b-51e4c80a9576",
   "prevId": "09a664ca-4b67-4883-b0f0-2015dbebcd6f",
   "version": "7",
   "dialect": "postgresql",
@@ -1252,6 +1252,27 @@
         }
       },
       "indexes": {
+        "documents_id_user_idx": {
+          "name": "documents_id_user_idx",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "documents_user_updated_idx": {
           "name": "documents_user_updated_idx",
           "columns": [
@@ -1362,6 +1383,10 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "documents_kind_check": {
+          "name": "documents_kind_check",
+          "value": "\"documents\".\"kind\" in ('note', 'sermon')"
+        },
         "documents_title_check": {
           "name": "documents_title_check",
           "value": "length(btrim(\"documents\".\"title\")) > 0"
@@ -2210,6 +2235,236 @@
         "resources_sort_order_check": {
           "name": "resources_sort_order_check",
           "value": "\"resources\".\"sort_order\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.sermon_deliveries": {
+      "name": "sermon_deliveries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location": {
+          "name": "location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "sermon_deliveries_document_date_idx": {
+          "name": "sermon_deliveries_document_date_idx",
+          "columns": [
+            {
+              "expression": "document_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "sermon_deliveries_user_idx": {
+          "name": "sermon_deliveries_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sermon_deliveries_document_owner_fk": {
+          "name": "sermon_deliveries_document_owner_fk",
+          "tableFrom": "sermon_deliveries",
+          "tableTo": "documents",
+          "columnsFrom": [
+            "document_id",
+            "user_id"
+          ],
+          "columnsTo": [
+            "id",
+            "user_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "sermon_deliveries_location_check": {
+          "name": "sermon_deliveries_location_check",
+          "value": "length(btrim(\"sermon_deliveries\".\"location\")) > 0 and length(\"sermon_deliveries\".\"location\") <= 200"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.sermon_templates": {
+      "name": "sermon_templates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body_markdown": {
+          "name": "body_markdown",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "sermon_templates_user_name_idx": {
+          "name": "sermon_templates_user_name_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "sermon_templates_user_updated_idx": {
+          "name": "sermon_templates_user_updated_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sermon_templates_user_id_users_id_fk": {
+          "name": "sermon_templates_user_id_users_id_fk",
+          "tableFrom": "sermon_templates",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "sermon_templates_content_check": {
+          "name": "sermon_templates_content_check",
+          "value": "length(btrim(\"sermon_templates\".\"name\")) > 0 and length(\"sermon_templates\".\"name\") <= 120\n\t\t\t\tand octet_length(\"sermon_templates\".\"body_markdown\") <= 1048576"
         }
       },
       "isRLSEnabled": false

@@ -22,7 +22,6 @@
 	);
 
 	function kindLabel(kind: string): string {
-		if (kind === 'article') return t('documents.kind.note');
 		return t(`documents.kind.${kind}` as MessageKey);
 	}
 </script>

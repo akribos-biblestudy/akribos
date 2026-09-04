@@ -88,6 +88,7 @@ CREATE TABLE "documents" (
 	"deleted_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "documents_kind_check" CHECK ("documents"."kind" in ('note', 'sermon')),
 	CONSTRAINT "documents_title_check" CHECK (length(btrim("documents"."title")) > 0),
 	CONSTRAINT "documents_revision_check" CHECK ("documents"."revision" > 0),
 	CONSTRAINT "documents_sermon_fields_check" CHECK (("documents"."kind" = 'sermon' and "documents"."sermon_status" is not null)
@@ -97,9 +98,32 @@ CREATE TABLE "documents" (
 				or ("documents"."source" <> 'legacy-verse-comment' and "documents"."legacy_verse_comment_id" is null))
 );
 --> statement-breakpoint
--- PostgreSQL requires the referenced `(id, user_id)` key to exist before the composite self-FK is
--- added. drizzle-kit otherwise emits this index later with the remaining indexes.
+CREATE TABLE "sermon_deliveries" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"document_id" uuid NOT NULL,
+	"user_id" uuid NOT NULL,
+	"date" date NOT NULL,
+	"location" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "sermon_deliveries_location_check" CHECK (length(btrim("sermon_deliveries"."location")) > 0 and length("sermon_deliveries"."location") <= 200)
+);
+--> statement-breakpoint
+CREATE TABLE "sermon_templates" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" uuid NOT NULL,
+	"name" text NOT NULL,
+	"body_markdown" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "sermon_templates_content_check" CHECK (length(btrim("sermon_templates"."name")) > 0 and length("sermon_templates"."name") <= 120
+				and octet_length("sermon_templates"."body_markdown") <= 1048576)
+);
+--> statement-breakpoint
+-- PostgreSQL requires these referenced composite keys before their foreign keys are added.
 CREATE UNIQUE INDEX "document_tags_id_user_idx" ON "document_tags" USING btree ("id","user_id");
+--> statement-breakpoint
+CREATE UNIQUE INDEX "documents_id_user_idx" ON "documents" USING btree ("id","user_id");
 --> statement-breakpoint
 ALTER TABLE "document_passages" ADD CONSTRAINT "document_passages_document_id_documents_id_fk" FOREIGN KEY ("document_id") REFERENCES "public"."documents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_passages" ADD CONSTRAINT "document_passages_resource_id_resources_id_fk" FOREIGN KEY ("resource_id") REFERENCES "public"."resources"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -109,6 +133,8 @@ ALTER TABLE "document_tag_links" ADD CONSTRAINT "document_tag_links_tag_id_docum
 ALTER TABLE "document_tags" ADD CONSTRAINT "document_tags_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_tags" ADD CONSTRAINT "document_tags_parent_owner_fk" FOREIGN KEY ("parent_id","user_id") REFERENCES "public"."document_tags"("id","user_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "documents" ADD CONSTRAINT "documents_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sermon_deliveries" ADD CONSTRAINT "sermon_deliveries_document_owner_fk" FOREIGN KEY ("document_id","user_id") REFERENCES "public"."documents"("id","user_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sermon_templates" ADD CONSTRAINT "sermon_templates_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "document_passages_document_position_idx" ON "document_passages" USING btree ("document_id","position");--> statement-breakpoint
 CREATE INDEX "document_passages_overlap_idx" ON "document_passages" USING btree ("start_key","end_key");--> statement-breakpoint
 CREATE INDEX "document_passages_resource_overlap_idx" ON "document_passages" USING btree ("resource_id","start_key","end_key");--> statement-breakpoint
@@ -119,10 +145,15 @@ CREATE INDEX "document_tags_parent_idx" ON "document_tags" USING btree ("parent_
 CREATE INDEX "documents_user_updated_idx" ON "documents" USING btree ("user_id","updated_at");--> statement-breakpoint
 CREATE INDEX "documents_user_kind_updated_idx" ON "documents" USING btree ("user_id","kind","updated_at");--> statement-breakpoint
 CREATE INDEX "documents_user_deleted_updated_idx" ON "documents" USING btree ("user_id","deleted_at","updated_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "documents_legacy_verse_comment_idx" ON "documents" USING btree ("legacy_verse_comment_id");
+CREATE UNIQUE INDEX "documents_legacy_verse_comment_idx" ON "documents" USING btree ("legacy_verse_comment_id");--> statement-breakpoint
+CREATE INDEX "sermon_deliveries_document_date_idx" ON "sermon_deliveries" USING btree ("document_id","date");--> statement-breakpoint
+CREATE INDEX "sermon_deliveries_user_idx" ON "sermon_deliveries" USING btree ("user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "sermon_templates_user_name_idx" ON "sermon_templates" USING btree ("user_id","name");--> statement-breakpoint
+CREATE INDEX "sermon_templates_user_updated_idx" ON "sermon_templates" USING btree ("user_id","updated_at");
+--> statement-breakpoint
 
--- Preserve every private translation comment as a unified document without removing the legacy
--- source row. `legacy_verse_comment_id` is the stable provenance key: this insert and the matching
+-- Preserve every private translation comment as a unified note without removing the legacy source
+-- row. `legacy_verse_comment_id` is the stable provenance key: this insert and the matching
 -- operational backfill can be retried without creating a second document. HTML stays byte-for-byte
 -- available for the rich editor; the portable Markdown fallback is deliberately plain text because
 -- SQL is not a Markdown serializer. The application backfill uses the full converter for comments
@@ -149,14 +180,7 @@ SELECT
 	format('Versnotiz · %s:%s:%s', comment."book_id", comment."chapter", comment."verse"),
 	-- Strip genuine legacy markup before interpreting entities. Decoding first would turn visible
 	-- text such as `&lt;script&gt;` into a tag and silently delete it from the Markdown copy.
-	btrim(
-		regexp_replace(
-			comment."comment_html",
-			'<[^>]*>',
-			' ',
-			'g'
-		)
-	),
+	btrim(regexp_replace(comment."comment_html", '<[^>]*>', ' ', 'g')),
 	comment."comment_html",
 	btrim(
 		regexp_replace(

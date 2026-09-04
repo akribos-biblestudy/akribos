@@ -1,6 +1,6 @@
 import { config } from '$lib/server/config';
 import { getDb } from '$lib/server/db';
-import { listPublishedArticles } from '$lib/server/repositories/document-publications';
+import { listPublishedDocuments } from '$lib/server/repositories/document-publications';
 
 const FEED_LIMIT = 50;
 const EMPTY_FEED_UPDATED = new Date(0).toISOString();
@@ -8,9 +8,9 @@ const EMPTY_FEED_UPDATED = new Date(0).toISOString();
 /** Atom feed of public note snapshots. Unlisted notes never enter discovery surfaces. */
 export async function GET({ setHeaders }) {
 	const origin = config().ORIGIN.replace(/\/$/, '');
-	const feedUrl = `${origin}/articles/feed.xml`;
-	const articlesUrl = `${origin}/articles`;
-	const publications = await listPublishedArticles(getDb(), { limit: FEED_LIMIT });
+	const feedUrl = `${origin}/notes/published/feed.xml`;
+	const publicationsUrl = `${origin}/notes/published`;
+	const publications = await listPublishedDocuments(getDb(), { limit: FEED_LIMIT });
 	const updated = publications[0]?.publishedAt.toISOString() ?? EMPTY_FEED_UPDATED;
 
 	setHeaders({
@@ -19,7 +19,7 @@ export async function GET({ setHeaders }) {
 	});
 
 	const entries = publications.map((publication) => {
-		const articleUrl = `${origin}/articles/${encodeURIComponent(publication.slug)}`;
+		const publicationUrl = `${origin}/notes/published/${encodeURIComponent(publication.slug)}`;
 		const categories = publication.tags
 			.map((tag) => `\t\t<category term="${escapeXml(tag)}" />`)
 			.join('\n');
@@ -27,8 +27,8 @@ export async function GET({ setHeaders }) {
 		return [
 			'\t<entry>',
 			`\t\t<title>${escapeXml(publication.title)}</title>`,
-			`\t\t<id>${escapeXml(articleUrl)}</id>`,
-			`\t\t<link href="${escapeXml(articleUrl)}" />`,
+			`\t\t<id>${escapeXml(publicationUrl)}</id>`,
+			`\t\t<link href="${escapeXml(publicationUrl)}" />`,
 			`\t\t<published>${publication.firstPublishedAt.toISOString()}</published>`,
 			`\t\t<updated>${publication.publishedAt.toISOString()}</updated>`,
 			`\t\t<author><name>${escapeXml(publication.authorName)}</name></author>`,
@@ -44,8 +44,8 @@ export async function GET({ setHeaders }) {
 	return new Response(`<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xml:lang="de">
 	<title>Akribos – Veröffentlichte Notizen</title>
-	<id>${escapeXml(articlesUrl)}</id>
-	<link href="${escapeXml(articlesUrl)}" />
+	<id>${escapeXml(publicationsUrl)}</id>
+	<link href="${escapeXml(publicationsUrl)}" />
 	<link href="${escapeXml(feedUrl)}" rel="self" type="application/atom+xml" />
 	<updated>${updated}</updated>
 ${entries.join('\n')}

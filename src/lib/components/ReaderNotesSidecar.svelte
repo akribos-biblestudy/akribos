@@ -100,7 +100,6 @@
 	}
 
 	function kindLabel(kind: DocumentKind): string {
-		if (kind === 'article') return 'Notiz';
 		if (kind === 'sermon') return 'Predigt';
 		return 'Notiz';
 	}

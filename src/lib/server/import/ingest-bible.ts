@@ -499,7 +499,7 @@ export async function deleteResource(
 			// Translation-specific document anchors follow their replacement Bible in the same
 			// transaction as legacy verse comments. Canonical anchors have a null resource and stay put.
 			// Publication snapshots are historical JSON and deliberately remain unchanged until the
-			// article is explicitly republished.
+			// publication is explicitly refreshed.
 			const sourcePassages = await tx
 				.select({ documentId: documentPassages.documentId })
 				.from(documentPassages)
