@@ -103,9 +103,9 @@ jeweiligen Tab wird nahe der Scrollkante nachgeladen. Bereits geladene Streams, 
 Scrollstände werden clientseitig nach Tab-ID zwischengespeichert: Ein Wechsel in nur einer Kachel darf
 unveränderte Bibel-/Kommentarkacheln weder zurücksetzen noch deren Nachlade-API erneut aufrufen; ein
 schon zuvor geöffneter Ziel-Tab verwendet ebenfalls seinen Cache, sofern das Zielkapitel darin liegt.
-Auf schmalen Bildschirmen bleibt die
-Desktop-Anordnung gespeichert, aber es ist über die mobile Kachelauswahl immer nur eine Kachel sichtbar;
-deren Ressourcen-Tabs bleiben innerhalb der Kachel bedienbar.
+Auf schmalen Bildschirmen bleibt die Desktop-Anordnung gespeichert, wird aber nicht als zusätzliche
+Oberflächenhierarchie gezeigt: Alle Ressourcen-Tabs sämtlicher Kacheln erscheinen in einer einzigen
+flachen mobilen Tab-Leiste, und die Kachel des gewählten Tabs ist allein sichtbar.
 
 Die Kopplung gehört zum einzelnen Tab, nicht zur Kachel. Erlaubt sind `A` bis `E` oder `null` für
 unabhängiges Scrollen. Nur gerade aktive Tabs mit demselben Buchstaben synchronisieren einander. Beim
@@ -153,9 +153,10 @@ speichert Quellübersetzung, Klickstelle und Wort als `studyContext`. Grammatik 
 gewählten Lexikon aus einem öffentlichen hebräischen beziehungsweise griechischen Ausgangstext ergänzt;
 bei mehreren Quellen gewinnt ein tatsächlich vorhandener Morphologiecode und danach `sortOrder`;
 Vorkommen, Buchverteilung und „Übersetzt als“ stammen dagegen exakt aus der Quellübersetzung, die auch im
-Toolbar-Badge genannt wird. Existiert in derselben nicht-leeren A–E-Tabgruppe schon ein Lexikon-Tab, wird
-der erste davon aktualisiert und aktiviert;
-andernfalls wird das erste passend sortierte Lexikon bevorzugt in einer anderen sichtbaren Kachel
+Toolbar-Badge genannt wird. Existiert in derselben nicht-leeren A–E-Tabgruppe schon ein zur
+Strong-Sprache passender Lexikon-Tab, wird der erste davon aktualisiert und aktiviert (`H…` verwendet
+nur `hbo`, `G…` nur `grc`); ein Lexikon der anderen Sprache wird nie für die Suche wiederverwendet.
+Andernfalls wird das erste passend sortierte Lexikon bevorzugt in einer anderen sichtbaren Kachel
 desselben Sets ergänzt, ersatzweise in einer leeren beziehungsweise der Quellkachel. Bei `linkSet = null`
 gilt nur die Quellkachel als Gruppe. Mehrere Lexika werden nie zu einem Eintrag verschmolzen.
 

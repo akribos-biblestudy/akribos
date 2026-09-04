@@ -46,6 +46,12 @@
 		scrollbar-gutter: stable;
 	}
 
+	@media (max-width: 639px) {
+		html {
+			scrollbar-gutter: auto;
+		}
+	}
+
 	body {
 		@apply text-stone-900 antialiased dark:text-stone-100;
 		background-color: var(--paper);

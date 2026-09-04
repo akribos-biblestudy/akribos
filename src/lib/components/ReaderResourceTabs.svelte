@@ -4,7 +4,7 @@
 	import { page } from '$app/state';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { formatReference, type VerseRef } from '$lib/bible/reference';
-	import type { ReaderTab, ReaderTile } from '$lib/reader/workspace';
+	import { activeReaderTab, type ReaderTab, type ReaderTile } from '$lib/reader/workspace';
 	import {
 		readerActionUrl,
 		readerStateFromActionData,
@@ -23,7 +23,10 @@
 		readerUrl,
 		currentReference,
 		referenceForTab,
-		onOpenResource
+		onOpenResource,
+		mobile = false,
+		selectedTileIndex = tileIndex,
+		onSelectTile = () => {}
 	}: {
 		tile: ReaderTile;
 		tileIndex: number;
@@ -31,8 +34,11 @@
 		resources: ReadableResource[];
 		readerUrl: (reference?: VerseRef) => string;
 		currentReference: VerseRef;
-		referenceForTab: (tab: ReaderTab) => VerseRef;
+		referenceForTab: (tileId: string, tab: ReaderTab) => VerseRef;
 		onOpenResource: (tileId: string, anchor: HTMLElement) => void;
+		mobile?: boolean;
+		selectedTileIndex?: number;
+		onSelectTile?: (tileIndex: number) => void;
 	} = $props();
 
 	let moveForm = $state<HTMLFormElement>();
@@ -84,9 +90,20 @@
 		return readerActionUrl(action, readerStateFromUrl(page.url));
 	}
 
-	function referenceAfterClose(tabId: string): VerseRef | undefined {
-		const index = tile.tabs.findIndex((tab) => tab.id === tabId);
-		return tile.tabs[index + 1]?.reference ?? tile.tabs[index - 1]?.reference;
+	function referenceAfterClose(ownerTile: ReaderTile, tabId: string): VerseRef | undefined {
+		const index = ownerTile.tabs.findIndex((tab) => tab.id === tabId);
+		return ownerTile.tabs[index + 1]?.reference ?? ownerTile.tabs[index - 1]?.reference;
+	}
+
+	function isSelected(ownerTile: ReaderTile, ownerTileIndex: number, tab: ReaderTab): boolean {
+		return (
+			tab.id === activeReaderTab(ownerTile)?.id && (!mobile || ownerTileIndex === selectedTileIndex)
+		);
+	}
+
+	function referenceForActiveTab(ownerTile: ReaderTile): VerseRef {
+		const ownerActiveTab = activeReaderTab(ownerTile);
+		return ownerActiveTab ? referenceForTab(ownerTile.id, ownerActiveTab) : currentReference;
 	}
 
 	function onTabKeydown(event: KeyboardEvent): void {
@@ -144,93 +161,113 @@
 
 <header
 	class="resource-tabs"
-	data-testid="resource-tabs"
+	class:mobile
+	data-testid={mobile ? 'mobile-resource-tabs' : 'resource-tabs'}
 	role="group"
-	aria-label="Tabs für Bereich {tileIndex + 1}"
+	aria-label={mobile ? 'Reader-Tabs' : `Tabs für Bereich ${tileIndex + 1}`}
 	ondragover={(event) => event.preventDefault()}
-	ondrop={(event) => dropTab(event, tile.tabs.length)}
+	ondrop={(event) => {
+		if (!mobile) dropTab(event, tile.tabs.length);
+	}}
 >
 	<!-- svelte-ignore a11y_interactive_supports_focus -->
 	<div
 		role="tablist"
-		aria-label="Ressourcen in Bereich {tileIndex + 1}"
+		aria-label={mobile ? 'Reader-Ressourcen' : `Ressourcen in Bereich ${tileIndex + 1}`}
 		class="tab-strip"
 		onkeydown={onTabKeydown}
 	>
-		{#each tile.tabs as tab, tabIndex (tab.id)}
-			{@const resource = byId.get(tab.resourceId)}
-			{@const targetReference = referenceForTab(tab)}
-			{#if resource}
-				<div
-					role="group"
-					aria-label={resource.tabTitle}
-					class="resource-tab"
-					class:active={tab.id === activeTab?.id}
-					class:dragging={tab.id === draggedTabId}
-					draggable="true"
-					ondragstart={(event) => startDrag(event, tab.id)}
-					ondragend={() => (draggedTabId = null)}
-					ondragover={(event) => event.preventDefault()}
-					ondrop={(event) => {
-						event.stopPropagation();
-						dropTab(event, tabIndex);
-					}}
-				>
-					<form
-						method="POST"
-						action={actionUrl('activateTab')}
-						use:enhance={submitEnhancement(targetReference)}
+		{#each mobile ? tiles : [tile] as ownerTile (ownerTile.id)}
+			{@const ownerTileIndex = mobile ? tiles.indexOf(ownerTile) : tileIndex}
+			{#each ownerTile.tabs as tab, tabIndex (tab.id)}
+				{@const resource = byId.get(tab.resourceId)}
+				{@const targetReference = referenceForTab(ownerTile.id, tab)}
+				{@const selected = isSelected(ownerTile, ownerTileIndex, tab)}
+				{#if resource}
+					<div
+						role="group"
+						aria-label={resource.tabTitle}
+						class="resource-tab"
+						class:active={selected}
+						class:dragging={!mobile && tab.id === draggedTabId}
+						draggable={!mobile}
+						ondragstart={(event) => {
+							if (!mobile) startDrag(event, tab.id);
+						}}
+						ondragend={() => (draggedTabId = null)}
+						ondragover={(event) => event.preventDefault()}
+						ondrop={(event) => {
+							if (mobile) return;
+							event.stopPropagation();
+							dropTab(event, tabIndex);
+						}}
 					>
-						<input type="hidden" name="tileId" value={tile.id} />
-						<input type="hidden" name="tabId" value={tab.id} />
-						<input
-							type="hidden"
-							name="currentReference"
-							value={formatReference(currentReference)}
-						/>
-						<input type="hidden" name="targetReference" value={formatReference(targetReference)} />
-						<button
-							type="submit"
-							role="tab"
-							aria-selected={tab.id === activeTab?.id}
-							tabindex={tab.id === activeTab?.id ? 0 : -1}
-							class="tab-title"
-							title={resource.tabTitle}
+						<form
+							method="POST"
+							action={actionUrl('activateTab')}
+							use:enhance={submitEnhancement(targetReference)}
 						>
-							<span>{resource.tabTitle}</span>
-							{#if tab.linkSet}
-								<span class="tab-link-set link-{tab.linkSet.toLowerCase()}">{tab.linkSet}</span>
-							{/if}
-						</button>
-					</form>
-					<form
-						method="POST"
-						action={actionUrl('closeTab')}
-						use:enhance={submitEnhancement(referenceAfterClose(tab.id))}
-					>
-						<input type="hidden" name="tileId" value={tile.id} />
-						<input type="hidden" name="tabId" value={tab.id} />
-						<button type="submit" class="close-tab" aria-label={`${resource.tabTitle} schließen`}>
-							<Icon name="x" class="size-3" />
-						</button>
-					</form>
-				</div>
-			{/if}
+							<input type="hidden" name="tileId" value={ownerTile.id} />
+							<input type="hidden" name="tabId" value={tab.id} />
+							<input
+								type="hidden"
+								name="currentReference"
+								value={formatReference(referenceForActiveTab(ownerTile))}
+							/>
+							<input
+								type="hidden"
+								name="targetReference"
+								value={formatReference(targetReference)}
+							/>
+							<button
+								type="submit"
+								role="tab"
+								id={mobile ? `mobile-resource-tab-${tab.id}` : undefined}
+								aria-controls={mobile ? `mobile-tabpanel-${ownerTileIndex}` : undefined}
+								aria-selected={selected}
+								tabindex={selected ? 0 : -1}
+								class="tab-title"
+								title={resource.tabTitle}
+								onclick={() => {
+									if (mobile) onSelectTile(ownerTileIndex);
+								}}
+							>
+								<span>{resource.tabTitle}</span>
+								{#if tab.linkSet}
+									<span class="tab-link-set link-{tab.linkSet.toLowerCase()}">{tab.linkSet}</span>
+								{/if}
+							</button>
+						</form>
+						<form
+							method="POST"
+							action={actionUrl('closeTab')}
+							use:enhance={submitEnhancement(referenceAfterClose(ownerTile, tab.id))}
+						>
+							<input type="hidden" name="tileId" value={ownerTile.id} />
+							<input type="hidden" name="tabId" value={tab.id} />
+							<button type="submit" class="close-tab" aria-label={`${resource.tabTitle} schließen`}>
+								<Icon name="x" class="size-3" />
+							</button>
+						</form>
+					</div>
+				{/if}
+			{/each}
 		{/each}
 	</div>
 
 	<button
 		type="button"
 		class="add-tab"
-		aria-label="Ressource in Bereich {tileIndex + 1} öffnen"
+		aria-label={mobile ? 'Ressource öffnen' : `Ressource in Bereich ${tileIndex + 1} öffnen`}
 		title="Ressource öffnen"
-		data-tour-target={tileIndex === 0 ? 'column-add' : undefined}
-		onclick={(event) => onOpenResource(tile.id, event.currentTarget)}
+		data-tour-target={!mobile && tileIndex === 0 ? 'column-add' : undefined}
+		onclick={(event) =>
+			onOpenResource(tiles[selectedTileIndex]?.id ?? tile.id, event.currentTarget)}
 	>
 		<Icon name="plus" class="size-4" />
 	</button>
 
-	{#if activeTab && tiles.length > 1}
+	{#if !mobile && activeTab && tiles.length > 1}
 		<button
 			type="button"
 			class="move-tab"
@@ -285,6 +322,10 @@
 		overflow: hidden;
 		border-bottom: 1px solid var(--line);
 		background: color-mix(in oklab, var(--surface) 94%, var(--color-stone-100));
+	}
+	.resource-tabs.mobile {
+		width: 100%;
+		border-bottom: 0;
 	}
 
 	.tab-strip {

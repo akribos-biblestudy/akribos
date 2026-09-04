@@ -92,6 +92,17 @@ const LEXICON = `<?xml version="1.0" encoding="utf-8"?>
 	</entry>
 </entries></strongsdictionary>`;
 
+/** A Hebrew dictionary entry used to verify that Strong clicks choose and reuse lexicons by
+ * language instead of treating every dictionary in a tab group as interchangeable. */
+const HEBREW_LEXICON = `<?xml version="1.0" encoding="utf-8"?>
+<strongsdictionary><prologue>Seed</prologue><entries>
+	<entry strongs="00430"><strongs>430</strongs>
+		<hebrew unicode="אֱלֹהִים" translit="ʼĕlôhîym"/>
+		<pronunciation strongs="el-o-heem'"/>
+		<strongs_def>God, gods</strongs_def>
+	</entry>
+</entries></strongsdictionary>`;
+
 /** A commentary entry on the same verse as the fixture translations, so the reader has something to
  *  show alongside them. */
 const COMMENTARY = `Joh 3,16\tDer bekannteste Vers der Bibel. **Also** meint hier: auf diese Weise.`;
@@ -114,6 +125,7 @@ try {
 	await ingestBible(db, parseZefania(GREEK), { sourceFormat: 'zefania' });
 
 	await ingestLexicon(db, parseStrongsXml(LEXICON), { sourceFormat: 'strongs-xml' });
+	await ingestLexicon(db, parseStrongsXml(HEBREW_LEXICON), { sourceFormat: 'strongs-xml' });
 
 	await ingestCommentary(db, parseCommentaryCsv(COMMENTARY), {
 		sourceFormat: 'commentary-csv',
@@ -155,7 +167,7 @@ try {
 	}
 
 	console.log(
-		'seeded: SEEDDE, SEEDPLAIN, SEEDGRC, SEEDCOMMENTARY, STRONGS_GREEK and the admin account'
+		'seeded: SEEDDE, SEEDPLAIN, SEEDGRC, SEEDCOMMENTARY, STRONGS_GREEK, STRONGS_HEBREW and the admin account'
 	);
 } catch (error) {
 	console.error('seeding failed:', error);

@@ -216,8 +216,12 @@
 		class="mx-auto flex h-[var(--header-height)] max-w-[var(--content-max-width)] items-center gap-2 px-3 pt-0.5 sm:gap-5 sm:px-5"
 	>
 		<a href="/" class="group shrink-0 focus-visible:rounded-sm" aria-label="Akribos – Startseite">
-			<img src="/logo.png" alt="Akribos" class="hidden h-10 w-auto sm:block" />
-			<img src="/icon.png" alt="" class="size-9 rounded-sm sm:hidden" />
+			{#if readerPreferences}
+				<img src="/logo.png" alt="Akribos" class="h-8 w-auto sm:h-10" />
+			{:else}
+				<img src="/logo.png" alt="Akribos" class="hidden h-10 w-auto sm:block" />
+				<img src="/icon.png" alt="" class="size-9 rounded-sm sm:hidden" />
+			{/if}
 		</a>
 
 		<div class="flex min-w-0 flex-1 items-center justify-end gap-0.5">

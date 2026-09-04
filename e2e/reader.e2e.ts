@@ -919,6 +919,30 @@ test('a Strong click opens and then reuses the lexicon tab in its link group', a
 	await expect(secondTile.getByLabel('Lexikoneintrag in Strong')).toContainText('G2889');
 });
 
+test('Strong clicks reuse only a lexicon of the matching language', async ({ page }) => {
+	await page.goto('/Joh3');
+	const firstTile = page.locator('.reader-tile').first();
+	const secondTile = page.locator('.reader-tile').nth(1);
+
+	await firstTile.locator('button.strong[data-strong="G25"]').first().click();
+	await expect(secondTile.locator('.resource-tab.active')).toContainText('Strong Griechisch');
+	await expect(lexiconLookup(page)).toHaveValue('G25');
+
+	await page.goto('/1Mo1');
+	await firstTile.locator('button.strong[data-strong="H430"]').first().click();
+	await expect(secondTile.getByRole('tab', { name: /^Strong Griechisch/ })).toHaveCount(1);
+	await expect(secondTile.getByRole('tab', { name: /^Strong Hebräisch/ })).toHaveCount(1);
+	await expect(secondTile.locator('.resource-tab.active')).toContainText('Strong Hebräisch');
+	await expect(lexiconLookup(page)).toHaveValue('H430');
+	await expect(secondTile.getByLabel('Lexikoneintrag in Strong')).toContainText('אֱלֹהִים');
+
+	await page.goto('/Joh3');
+	await firstTile.locator('button.strong[data-strong="G25"]').first().click();
+	await expect(secondTile.locator('.resource-tab.active')).toContainText('Strong Griechisch');
+	await expect(lexiconLookup(page)).toHaveValue('G25');
+	await expect(secondTile.getByRole('tab', { name: /^Strong Hebräisch/ })).toHaveCount(1);
+});
+
 test('links inside a lexicon keep and expose their reader context', async ({ page }) => {
 	await page.goto('/Joh3');
 	await page.locator('button.strong[data-strong="G25"]').first().click();
@@ -1297,11 +1321,11 @@ test('on a phone a Strong click switches to the embedded lexicon tile', async ({
 	await page.locator('button.strong[data-strong="G25"]').first().click();
 	await expect(page.getByLabel('Lexikoneintrag in Strong')).toBeVisible();
 	await expect(
-		page.getByTestId('column-picker-bar').getByRole('tab', { name: 'Strong Griechisch' })
+		page.getByTestId('mobile-tab-bar').getByRole('tab', { name: 'Strong Griechisch' })
 	).toHaveAttribute('aria-selected', 'true');
 });
 
-test('the mobile tile switcher exposes real tab semantics without hiding desktop tiles', async ({
+test('mobile exposes one flat resource tab strip without hiding desktop tiles', async ({
 	page
 }) => {
 	// Default (desktop) viewport first: the regression this specifically guards against is
@@ -1315,46 +1339,96 @@ test('the mobile tile switcher exposes real tab semantics without hiding desktop
 	await expect(columns.nth(1)).not.toHaveAttribute('aria-hidden', 'true');
 	await expect(columns.nth(1)).not.toHaveAttribute('role', 'tabpanel');
 
-	// Now at phone width, where the switcher actually appears and the same mechanism legitimately
-	// hides the non-selected column from assistive tech.
+	// A second resource in the first desktop tile must become a peer of the other resources on
+	// mobile, not a nested tab below a separate tile selector. Restore the first tab as active so
+	// the flattened strip has a deterministic initial selection.
+	await addResourceTab(page, 0, 'SEEDPLAIN');
+	await page
+		.locator('.reader-tile')
+		.first()
+		.getByRole('tab', { name: /^Testübersetzung/ })
+		.click();
+	await expect(page.locator('.reader-tile').first().locator('.resource-tab.active')).toContainText(
+		'Testübersetzung'
+	);
+
+	// Now at phone width, where all three resources share a single tablist even though the persisted
+	// desktop workspace still consists of two tiles.
 	await page.setViewportSize({ width: 390, height: 780 });
 	await page.reload();
 
-	const tabs = page.getByRole('tablist', { name: 'Reader-Bereiche' }).getByRole('tab');
-	await expect(tabs).toHaveCount(2);
+	const tabs = page.getByRole('tablist', { name: 'Reader-Ressourcen' }).getByRole('tab');
+	await expect(tabs).toHaveCount(3);
 	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
 	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'false');
+	await expect(tabs.nth(2)).toHaveAttribute('aria-selected', 'false');
 	await expect(tabs.first()).toHaveAttribute('tabindex', '0');
 	await expect(tabs.nth(1)).toHaveAttribute('tabindex', '-1');
 
 	const mobileTiles = page.locator('.reader-tile');
 	await expect(mobileTiles.first()).toHaveAttribute('role', 'tabpanel');
 	await expect(mobileTiles.nth(1)).toHaveAttribute('aria-hidden', 'true');
+	await expect(page.getByRole('banner').getByRole('img', { name: 'Akribos' })).toBeVisible();
+	const [readerBounds, tabBarBounds, headerBounds, viewportBounds] = await Promise.all([
+		mobileTiles.first().boundingBox(),
+		page.getByTestId('mobile-tab-bar').boundingBox(),
+		page.getByRole('banner').boundingBox(),
+		page.evaluate(() => ({ width: document.documentElement.clientWidth, height: innerHeight }))
+	]);
+	expect(readerBounds).not.toBeNull();
+	expect(tabBarBounds).not.toBeNull();
+	expect(headerBounds).not.toBeNull();
+	expect(Math.abs(tabBarBounds!.y - (headerBounds!.y + headerBounds!.height))).toBeLessThanOrEqual(
+		1
+	);
+	expect(Math.abs(readerBounds!.x)).toBeLessThanOrEqual(1);
+	expect(
+		Math.abs(readerBounds!.x + readerBounds!.width - viewportBounds.width)
+	).toBeLessThanOrEqual(1);
+	expect(
+		Math.abs(readerBounds!.y + readerBounds!.height - viewportBounds.height)
+	).toBeLessThanOrEqual(1);
 
-	// ArrowRight moves focus to the next tab and switches to it in the same step (automatic
-	// activation), matching the existing click-to-switch behaviour. Read the focused id back from
-	// the same round trip that dispatches the key, rather than polling for it afterwards: this
+	// ArrowRight first activates the other resource in the same underlying tile; the panel therefore
+	// stays put. Read the focused id back from the same round trip that dispatches the key, rather
+	// than polling for it afterwards: this
 	// sandbox's headless browser can drop DOM focus asynchronously some time after a programmatic
 	// `.focus()` call for reasons unrelated to the app (the handler itself sets it synchronously,
 	// every time), and a later, separate assertion would be at the mercy of that.
 	await tabs.first().focus();
+	const secondTabId = await tabs.nth(1).getAttribute('id');
 	const focusedIdAfterArrowRight = await page.evaluate(() => {
 		document.activeElement?.dispatchEvent(
 			new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
 		);
 		return document.activeElement?.id;
 	});
-	expect(focusedIdAfterArrowRight).toBe('mobile-tab-1');
+	expect(focusedIdAfterArrowRight).toBe(secondTabId);
 	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+	await expect(mobileTiles.first()).not.toHaveAttribute('aria-hidden', 'true');
+	await expect(mobileTiles.nth(1)).toHaveAttribute('aria-hidden', 'true');
+
+	// The next peer tab belongs to the other desktop tile and switches the only visible panel.
+	await tabs.nth(1).focus();
+	const thirdTabId = await tabs.nth(2).getAttribute('id');
+	const focusedIdAfterSecondArrowRight = await page.evaluate(() => {
+		document.activeElement?.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+		);
+		return document.activeElement?.id;
+	});
+	expect(focusedIdAfterSecondArrowRight).toBe(thirdTabId);
+	await expect(tabs.nth(2)).toHaveAttribute('aria-selected', 'true');
 	await expect(mobileTiles.first()).toHaveAttribute('aria-hidden', 'true');
 	await expect(mobileTiles.nth(1)).not.toHaveAttribute('aria-hidden', 'true');
 
 	// Reducing the layout while its last tile is selected must clamp the mobile selection instead of
-	// leaving the only remaining tile hidden behind an out-of-range index.
+	// leaving the only remaining tile hidden behind an out-of-range index. All resource tabs survive
+	// the merge and remain in the same flat strip.
 	await page.getByTestId('layout-picker').click();
 	await page.getByRole('menuitemradio', { name: /^Eine Kachel/ }).click();
-	await expect(tabs).toHaveCount(1);
-	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+	await expect(tabs).toHaveCount(3);
+	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
 	await expect(mobileTiles).toHaveCount(1);
 	await expect(mobileTiles.first()).not.toHaveAttribute('aria-hidden', 'true');
 });

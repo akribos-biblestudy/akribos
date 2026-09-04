@@ -10,7 +10,7 @@ import {
 	previousChapter,
 	referencePath
 } from '$lib/bible/reference';
-import { normalizeStrongId } from '$lib/bible/strong';
+import { normalizeStrongId, strongLanguage } from '$lib/bible/strong';
 import { getDb } from '$lib/server/db';
 import {
 	activateReaderTab,
@@ -509,14 +509,17 @@ export const actions = {
 		const form = await request.formData();
 		const sourceTileId = String(form.get('tileId') ?? '');
 		const sourceTabId = String(form.get('tabId') ?? '');
-		const lookup = String(form.get('lookup') ?? '')
-			.trim()
-			.slice(0, 200);
+		const lookup = normalizeStrongId(
+			String(form.get('lookup') ?? '')
+				.trim()
+				.slice(0, 200)
+		);
 		const currentReference = parseReference(String(form.get('currentReference') ?? ''));
 		const clickedWord = String(form.get('word') ?? '')
 			.trim()
 			.slice(0, 200);
 		if (!lookup) return fail(400, { error: 'lookup' });
+		const lexiconLanguage = strongLanguage(lookup) === 'hebrew' ? 'hbo' : 'grc';
 
 		const db = getDb();
 		const available = await listReaderResources(db);
@@ -543,7 +546,8 @@ export const actions = {
 		const resourceById = new Map(available.map((resource) => [resource.id, resource]));
 		const existing = workspace.tiles.flatMap((tile) =>
 			tile.tabs.flatMap((tab) => {
-				if (resourceById.get(tab.resourceId)?.kind !== 'lexicon') return [];
+				const resource = resourceById.get(tab.resourceId);
+				if (resource?.kind !== 'lexicon' || resource.language !== lexiconLanguage) return [];
 				const belongsToGroup = sourceTab.linkSet
 					? tab.linkSet === sourceTab.linkSet
 					: tile.id === sourceTile.id && tab.linkSet === null;
@@ -567,7 +571,7 @@ export const actions = {
 			});
 		}
 
-		const lexicon = await firstLexiconForLookup(db, available, lookup);
+		const lexicon = await firstLexiconForLookup(db, available, lookup, lexiconLanguage);
 		if (!lexicon) return fail(404, { error: 'lexicon' });
 
 		// A–E define a real cross-tile group, so a visible peer is the most useful home for the
@@ -788,10 +792,15 @@ function endVerseFromForm(form: FormData, verse: number): number | null {
 async function firstLexiconForLookup(
 	db: ReturnType<typeof getDb>,
 	available: Awaited<ReturnType<typeof listReaderResources>>,
-	lookup: string
+	lookup: string,
+	language: 'grc' | 'hbo'
 ) {
 	for (const candidate of available) {
-		if (candidate.kind === 'lexicon' && (await findLexiconEntry(db, candidate.id, lookup))) {
+		if (
+			candidate.kind === 'lexicon' &&
+			candidate.language === language &&
+			(await findLexiconEntry(db, candidate.id, lookup))
+		) {
 			return candidate;
 		}
 	}

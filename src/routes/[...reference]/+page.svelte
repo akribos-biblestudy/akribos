@@ -23,6 +23,7 @@
 	import VerseText from '$lib/components/VerseText.svelte';
 	import {
 		MIN_READER_TRACK_FRACTION,
+		activeReaderTab,
 		normalizeReaderTracks,
 		readerLayoutDefinition,
 		readerLayoutSize,
@@ -328,14 +329,28 @@
 		);
 	}
 
-	/** Which workspace tile a reader is looking at on a phone, where only one tile fits. */
-	let mobileTile = $state(0);
+	/** Which workspace tile owns the selected resource tab on a phone. */
+	let mobileTile = $state(
+		untrack(() => {
+			const focusedIndex = data.workspace.tiles.findIndex(
+				(tile) => tile.id === data.workspace.focusedTileId
+			);
+			return Math.max(0, focusedIndex);
+		})
+	);
 
-	/** A desktop layout can be reduced while its last tile is selected on a phone-sized viewport.
-	 * Keep the mobile selection inside the new tile range so that this never leaves an empty reader. */
+	/** Keep the flat mobile selection on a real resource when layouts merge or a tile becomes empty. */
 	$effect(() => {
-		const lastTile = Math.max(0, data.workspace.tiles.length - 1);
+		const tiles = data.workspace.tiles;
+		const lastTile = Math.max(0, tiles.length - 1);
 		if (mobileTile > lastTile) mobileTile = lastTile;
+		if (activeReaderTab(tiles[mobileTile]!)) return;
+
+		const focusedIndex = tiles.findIndex(
+			(tile) => tile.id === data.workspace.focusedTileId && activeReaderTab(tile)
+		);
+		const fallbackIndex = focusedIndex >= 0 ? focusedIndex : tiles.findIndex(activeReaderTab);
+		if (fallbackIndex >= 0) mobileTile = fallbackIndex;
 	});
 
 	/**
@@ -358,34 +373,6 @@
 		query.addEventListener('change', onChange);
 		return () => query.removeEventListener('change', onChange);
 	});
-
-	let mobileTablist = $state<HTMLElement | undefined>();
-
-	/**
-	 * Roving focus for the mobile column tabs, matching `Menu.svelte`'s own arrow-key handling.
-	 * "Automatic activation": moving focus also switches `mobileTile`, the same as a click — there
-	 * is no separate "activate" step, matching the existing click-to-switch behaviour exactly.
-	 */
-	function onMobileTabKeydown(event: KeyboardEvent) {
-		if (!mobileTablist) return;
-		const tabs = [...mobileTablist.querySelectorAll<HTMLElement>('[role="tab"]')];
-		if (tabs.length === 0) return;
-
-		const current = tabs.indexOf(document.activeElement as HTMLElement);
-		let next: number | null = null;
-
-		if (event.key === 'ArrowRight') next = (current + 1) % tabs.length;
-		else if (event.key === 'ArrowLeft') next = (current - 1 + tabs.length) % tabs.length;
-		else if (event.key === 'Home') next = 0;
-		else if (event.key === 'End') next = tabs.length - 1;
-
-		if (next === null) return;
-		event.preventDefault();
-		const target = tabs[next];
-		target?.focus();
-		const index = Number(target?.id.replace('mobile-tab-', ''));
-		if (Number.isFinite(index)) mobileTile = index;
-	}
 
 	/**
 	 * Strong's number currently under the mouse. Cleared again on pointer leave; see
@@ -1456,7 +1443,7 @@
 	     would then stick to a box that never scrolls vertically. The grid's `minmax(0, 1fr)` tracks
 	     cannot overflow anyway. -->
 	<main>
-		<div class="mx-auto max-w-[var(--content-max-width)] px-2 py-2 sm:px-3 sm:py-3">
+		<div class="mx-auto max-w-[var(--content-max-width)] sm:px-3 sm:py-3">
 			<form
 				bind:this={sizesForm}
 				method="POST"
@@ -1469,43 +1456,27 @@
 				<input bind:this={sizesRowsInput} type="hidden" name="rows" />
 			</form>
 
-			<!-- On a phone the desktop arrangement stays intact, while this switcher selects one tile. -->
+			<!-- On a phone all workspace resources form one flat tab strip. The desktop tile arrangement
+			     stays intact underneath, but it is deliberately not exposed as another UI hierarchy. -->
 			<div
-				class="sticky top-[var(--header-height)] z-10 -mx-2 flex gap-1 overflow-x-auto border-b
-				       border-stone-200 bg-white/95 px-2 py-1.5 backdrop-blur sm:hidden
+				class="sticky top-[var(--header-height)] z-10 overflow-hidden border-b
+				       border-stone-200 bg-white/95 backdrop-blur sm:hidden
 				       dark:border-stone-800 dark:bg-stone-950/95"
-				data-testid="column-picker-bar"
+				data-testid="mobile-tab-bar"
 			>
-				<!-- The tablist container itself is never a stop on the Tab key — only the tabs are, via
-			     their own roving tabindex below — so it does not need one of its own either. -->
-				<!-- svelte-ignore a11y_interactive_supports_focus -->
-				<div
-					bind:this={mobileTablist}
-					role="tablist"
-					aria-label="Reader-Bereiche"
-					class="contents"
-					onkeydown={onMobileTabKeydown}
-				>
-					{#each data.workspace.tiles as tile, tileIndex (tile.id)}
-						{@const mobileColumn = columnForTile(tile.id)}
-						<button
-							type="button"
-							role="tab"
-							id="mobile-tab-{tileIndex}"
-							aria-selected={mobileTile === tileIndex}
-							aria-controls="mobile-tabpanel-{tileIndex}"
-							tabindex={mobileTile === tileIndex ? 0 : -1}
-							class="mobile-tab shrink-0 rounded-full px-3 py-1.5 text-sm"
-							class:bg-accent-600={mobileTile === tileIndex}
-							class:text-white={mobileTile === tileIndex}
-							class:bg-stone-100={mobileTile !== tileIndex}
-							class:dark:bg-stone-800={mobileTile !== tileIndex}
-							onclick={() => (mobileTile = tileIndex)}
-						>
-							{mobileColumn?.resource.abbrev ?? `Bereich ${tileIndex + 1}`}
-						</button>
-					{/each}
-				</div>
+				<ReaderResourceTabs
+					tile={(data.workspace.tiles[mobileTile] ?? data.workspace.tiles[0])!}
+					tileIndex={mobileTile}
+					tiles={data.workspace.tiles}
+					resources={data.readerResources}
+					readerUrl={currentReaderUrl}
+					currentReference={data.reference}
+					referenceForTab={tabActivationReference}
+					onOpenResource={openResourceDialog}
+					mobile
+					selectedTileIndex={mobileTile}
+					onSelectTile={(tileIndex) => (mobileTile = tileIndex)}
+				/>
 			</div>
 
 			<div
@@ -1578,20 +1549,24 @@
 						style:grid-area={TILE_AREAS[tileIndex]}
 						role={isMobileViewport ? 'tabpanel' : 'region'}
 						id={isMobileViewport ? `mobile-tabpanel-${tileIndex}` : undefined}
-						aria-labelledby={isMobileViewport ? `mobile-tab-${tileIndex}` : undefined}
+						aria-labelledby={isMobileViewport && tile.activeTabId
+							? `mobile-resource-tab-${tile.activeTabId}`
+							: undefined}
 						aria-label={isMobileViewport ? undefined : `Reader-Bereich ${tileIndex + 1}`}
 						aria-hidden={isMobileViewport && tileIndex !== mobileTile}
 					>
-						<ReaderResourceTabs
-							{tile}
-							{tileIndex}
-							tiles={data.workspace.tiles}
-							resources={data.readerResources}
-							readerUrl={currentReaderUrl}
-							currentReference={column ? toolbarReference(column) : data.reference}
-							referenceForTab={(tab) => tabActivationReference(tile.id, tab)}
-							onOpenResource={openResourceDialog}
-						/>
+						<div class="hidden sm:contents">
+							<ReaderResourceTabs
+								{tile}
+								{tileIndex}
+								tiles={data.workspace.tiles}
+								resources={data.readerResources}
+								readerUrl={currentReaderUrl}
+								currentReference={column ? toolbarReference(column) : data.reference}
+								referenceForTab={tabActivationReference}
+								onOpenResource={openResourceDialog}
+							/>
+						</div>
 						{#if column}
 							{@const columnIndex = column.index}
 							{@const columnStream = columnStreams[columnIndex]}
@@ -2125,34 +2100,6 @@
 		}
 	}
 
-	/* The mobile column tabs. The pill's background already shows which one is selected; the
-	   underline is a second, less color-dependent cue, and the one that actually animates. */
-	.mobile-tab {
-		position: relative;
-	}
-
-	.mobile-tab::after {
-		position: absolute;
-		right: 20%;
-		bottom: -0.35rem;
-		left: 20%;
-		height: 2px;
-		border-radius: 1px;
-		background: var(--color-accent-500);
-		opacity: 0;
-		transition: opacity 150ms ease;
-		content: '';
-	}
-
-	.mobile-tab[aria-selected='true']::after {
-		opacity: 1;
-	}
-
-	.mobile-tab:focus-visible {
-		outline: 2px solid var(--color-accent-500);
-		outline-offset: 2px;
-	}
-
 	.flow-reader {
 		position: relative;
 		display: grid;
@@ -2455,11 +2402,16 @@
 			grid-template-columns: minmax(0, 1fr) !important;
 			grid-template-rows: minmax(0, 1fr) !important;
 			grid-template-areas: 'a' !important;
-			height: max(25rem, calc(100dvh - var(--header-height) - 4.25rem));
+			height: max(25rem, calc(100dvh - var(--header-height) - 2.65rem - 2px));
 		}
 
 		.reader-tile {
 			grid-area: a !important;
+			border-right: 0;
+			border-bottom: 0;
+			border-left: 0;
+			border-radius: 0;
+			box-shadow: none;
 		}
 
 		.hidden-on-mobile {
