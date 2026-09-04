@@ -32,7 +32,6 @@ import {
 	InvalidDocumentInputError,
 	listDocumentPassages,
 	replaceDocumentPassages,
-	updateDocument,
 	type DocumentPassageInput,
 	type DocumentRevisionResult
 } from '$lib/server/repositories/documents';
@@ -109,8 +108,7 @@ export async function load({ params, locals, url, setHeaders }) {
 }
 
 export const actions = {
-	syncTags: async ({ request, params, locals, url, setHeaders }) => {
-		setPrivateNoStore(setHeaders);
+	syncTags: async ({ request, params, locals, url }) => {
 		const { user, documentId } = await ownedEditor(locals, params.id, url);
 		const form = await request.formData();
 		const revision = parseRequiredRevision(form.get('revision'));
@@ -132,8 +130,7 @@ export const actions = {
 		}
 	},
 
-	addPassage: async ({ request, params, locals, url, setHeaders }) => {
-		setPrivateNoStore(setHeaders);
+	addPassage: async ({ request, params, locals, url }) => {
 		const { user, documentId } = await ownedEditor(locals, params.id, url);
 		const form = await request.formData();
 		const revision = parseRequiredRevision(form.get('revision'));
@@ -180,8 +177,7 @@ export const actions = {
 		}
 	},
 
-	removePassage: async ({ request, params, locals, url, setHeaders }) => {
-		setPrivateNoStore(setHeaders);
+	removePassage: async ({ request, params, locals, url }) => {
 		const { user, documentId } = await ownedEditor(locals, params.id, url);
 		const form = await request.formData();
 		const revision = parseRequiredRevision(form.get('revision'));
@@ -202,8 +198,7 @@ export const actions = {
 		return { saved: true, revision: result.revision, passageId };
 	},
 
-	publish: async ({ request, params, locals, url, setHeaders }) => {
-		setPrivateNoStore(setHeaders);
+	publish: async ({ request, params, locals, url }) => {
 		const {
 			user,
 			documentId,
@@ -222,29 +217,13 @@ export const actions = {
 			return fail(400, { error: 'visibility' as const });
 		}
 
-		let document = initialDocument;
-		if (document.visibility !== visibility) {
-			const update = await updateDocument(getDb(), user.id, documentId, revision, { visibility });
-			if (!update.ok) {
-				if (update.reason === 'conflict') {
-					return fail(409, {
-						error: 'conflict' as const,
-						currentRevision: update.currentRevision
-					});
-				}
-				return fail(404, { error: 'notFound' as const });
-			}
-			document = update.document;
-		} else if (document.revision !== revision) {
-			return fail(409, { error: 'conflict' as const, currentRevision: document.revision });
-		}
-
-		const rawSlug = String(form.get('slug') ?? '').trim() || document.title;
+		const rawSlug = String(form.get('slug') ?? '').trim() || initialDocument.title;
 		const slug = slugifyArticle(rawSlug);
 		const result = await publishArticle(getDb(), user.id, documentId, {
 			slug,
 			excerpt: normalizeExcerpt(form.get('excerpt')),
-			expectedRevision: document.revision
+			visibility,
+			expectedRevision: revision
 		});
 		if (!result.ok) {
 			if (result.reason === 'conflict') {
@@ -259,12 +238,11 @@ export const actions = {
 		return {
 			published: true,
 			publication: result.publication,
-			revision: document.revision
+			revision: result.publication.publicationRevision
 		};
 	},
 
-	unpublish: async ({ params, locals, url, setHeaders }) => {
-		setPrivateNoStore(setHeaders);
+	unpublish: async ({ params, locals, url }) => {
 		const { user, documentId } = await ownedEditor(locals, params.id, url);
 		if (user.role !== 'admin') return fail(403, { error: 'forbidden' as const });
 		const result = await unpublishArticle(getDb(), user.id, documentId);

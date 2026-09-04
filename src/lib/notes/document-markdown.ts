@@ -1,10 +1,18 @@
 import { marked, Renderer, type Tokens } from 'marked';
 import TurndownService from 'turndown';
 import { parseDocument, stringify as stringifyYaml } from 'yaml';
+import {
+	MAX_DOCUMENT_MARKDOWN_BYTES,
+	MAX_DOCUMENT_PASSAGES,
+	MAX_OBSIDIAN_FRONTMATTER_BYTES,
+	MAX_OBSIDIAN_IMPORT_BYTES
+} from './documents.ts';
 
-/** The same ceiling is used for stored document bodies and single-file Markdown imports. */
-export const MAX_DOCUMENT_MARKDOWN_BYTES = 1024 * 1024;
-export const MAX_OBSIDIAN_FRONTMATTER_BYTES = 64 * 1024;
+export {
+	MAX_DOCUMENT_MARKDOWN_BYTES,
+	MAX_OBSIDIAN_FRONTMATTER_BYTES,
+	MAX_OBSIDIAN_IMPORT_BYTES
+} from './documents.ts';
 
 export const DOCUMENT_MARKDOWN_KINDS = ['note', 'article', 'sermon'] as const;
 export type DocumentMarkdownKind = (typeof DOCUMENT_MARKDOWN_KINDS)[number];
@@ -112,7 +120,7 @@ const ALLOWED_HTML_TAGS = new Set([
 	'a'
 ]);
 const VOID_HTML_TAGS = new Set(['hr', 'br']);
-const DANGEROUS_RAW_TAGS = ['script', 'style', 'iframe', 'object', 'embed', 'svg', 'math'];
+const DANGEROUS_RAW_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed', 'svg', 'math']);
 const ATTACHMENT_EXTENSIONS = new Set([
 	'png',
 	'jpg',
@@ -186,7 +194,10 @@ export function documentHtmlToMarkdown(input: string): string {
 		.turndown(sanitiseDocumentHtml(input))
 		// Turndown's block separator can land immediately after its explicit hard-break marker. Keeping
 		// that empty line would make Marked read the backslash as literal text on the next round trip.
-		.replace(/\\\r?\n(?:[\t ]*\r?\n)+(?=\S)/g, '\\\n');
+		.replace(/\\\r?\n(?:[\t ]*\r?\n)+(?=\S)/g, '\\\n')
+		// Entity-escaped text is decoded by the HTML parser Turndown uses. Escape a resulting tag-like
+		// opener so literal "<script>" text does not become active raw Markdown HTML and get discarded.
+		.replace(/<(?=\/?[a-z][^>\n]*>)/giu, '\\<');
 	const markdown = normalizeDocumentMarkdown(turnedDown);
 	assertSize(markdown, MAX_DOCUMENT_MARKDOWN_BYTES, 'file_too_large');
 	return markdown;
@@ -204,6 +215,7 @@ export function previewObsidianMarkdown(
 	const warnings = new WarningCollector();
 	const parsed = readImportMetadata(metadata, filename, warnings);
 	const markdown = normaliseObsidianBody(body, warnings);
+	assertSize(markdown, MAX_DOCUMENT_MARKDOWN_BYTES, 'file_too_large');
 	const renderer = new SafeDocumentRenderer(warnings, true);
 	const rendered = marked.parse(markdown, {
 		async: false,
@@ -282,6 +294,7 @@ export function exportDocumentMarkdown(input: DocumentMarkdownExportInput): stri
 
 	const body = input.markdown ?? documentHtmlToMarkdown(input.html ?? '');
 	const normalisedBody = normalizeDocumentMarkdown(body);
+	assertSize(normalisedBody, MAX_DOCUMENT_MARKDOWN_BYTES, 'file_too_large');
 	const yaml = stringifyYaml(frontmatter, {
 		schema: 'core',
 		lineWidth: 0,
@@ -289,8 +302,14 @@ export function exportDocumentMarkdown(input: DocumentMarkdownExportInput): stri
 		defaultStringType: 'PLAIN',
 		defaultKeyType: 'PLAIN'
 	});
+	if (encoder.encode(yaml).byteLength > MAX_OBSIDIAN_FRONTMATTER_BYTES) {
+		throw new DocumentMarkdownError(
+			'invalid_export',
+			'Export frontmatter exceeds the safe YAML size limit.'
+		);
+	}
 	const result = `---\n${yaml}---\n${normalisedBody ? `\n${normalisedBody}` : ''}`;
-	assertSize(result, MAX_DOCUMENT_MARKDOWN_BYTES, 'file_too_large');
+	assertSize(result, MAX_OBSIDIAN_IMPORT_BYTES, 'file_too_large');
 	return result.endsWith('\n') ? result : `${result}\n`;
 }
 
@@ -313,12 +332,14 @@ export function safeDocumentMarkdownFilename(title: string): string {
 	const titleWithoutExtension = normalisedTitle.toLowerCase().endsWith('.md')
 		? normalisedTitle.slice(0, -3)
 		: normalisedTitle;
-	let stem = replaceControlCharacters(titleWithoutExtension, ' ')
+	const cleanedStem = replaceControlCharacters(titleWithoutExtension, ' ')
 		.replace(/[<>:"/\\|?*]+/g, ' ')
 		.replace(/\.{2,}/g, ' ')
 		.replace(/\s+/g, ' ')
-		.replace(/^[ .]+|[ .]+$/g, '')
+		.replace(/^[ .]+|[ .]+$/g, '');
+	let stem = Array.from(cleanedStem)
 		.slice(0, 120)
+		.join('')
 		.replace(/[ .]+$/g, '');
 	if (!stem || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(stem)) stem = 'document';
 	return `${stem}.md`;
@@ -618,9 +639,10 @@ function normaliseTags(value: unknown, warnings: WarningCollector): string[] {
 					!segment ||
 					segment === '.' ||
 					segment === '..' ||
-					segment.length > 80 ||
+					Array.from(segment).length > 80 ||
 					containsControlCharacters(segment) ||
-					segment.includes('\\')
+					segment.includes('\\') ||
+					segment.includes(',')
 			)
 		) {
 			warnings.add('invalid-tag-entry', 'An invalid tag was ignored.');
@@ -641,7 +663,7 @@ function normalisePassages(value: unknown, warnings: WarningCollector): Document
 	const values = toMetadataList(value);
 	const passages: DocumentMarkdownPassage[] = [];
 	const seen = new Set<string>();
-	for (const candidate of values.slice(0, 100)) {
+	for (const candidate of values.slice(0, MAX_DOCUMENT_PASSAGES)) {
 		let reference: unknown;
 		let resource: unknown;
 		if (typeof candidate === 'string') {
@@ -685,8 +707,11 @@ function normalisePassages(value: unknown, warnings: WarningCollector): Document
 			passages.push({ reference: cleanReference, ...(resourceId ? { resourceId } : {}) });
 		}
 	}
-	if (values.length > 100) {
-		warnings.add('too-many-passages', 'Only the first 100 passage references were imported.');
+	if (values.length > MAX_DOCUMENT_PASSAGES) {
+		warnings.add(
+			'too-many-passages',
+			`Only the first ${MAX_DOCUMENT_PASSAGES} passage references were imported.`
+		);
 	}
 	return passages;
 }
@@ -742,10 +767,7 @@ function readSermon(
 }
 
 function sanitiseDocumentHtml(input: string): string {
-	let html = input.replace(/<!--[\s\S]*?-->/g, '');
-	for (const tag of DANGEROUS_RAW_TAGS) {
-		html = html.replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}\\s*>`, 'gi'), '');
-	}
+	const html = stripDangerousRawHtml(input);
 
 	return html.replace(
 		/<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g,
@@ -796,11 +818,73 @@ function readHtmlHref(attributes: string): string | null {
 }
 
 function rawHtmlToText(input: string): string {
-	let text = input;
-	for (const tag of DANGEROUS_RAW_TAGS) {
-		text = text.replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}\\s*>`, 'gi'), '');
+	return stripDangerousRawHtml(input).replace(/<\/?[a-zA-Z][^>]*>/g, '');
+}
+
+/**
+ * Removes active raw-HTML elements and comments in one forward scan. A repeated unterminated tag
+ * must stay linear in the one-MiB request bound; a lazy `.*?</script>` expression becomes quadratic
+ * because it retries the remainder of the document from every opening tag.
+ */
+function stripDangerousRawHtml(input: string): string {
+	let result = '';
+	let cursor = 0;
+	let suppressedTag: string | null = null;
+	let suppressedDepth = 0;
+
+	while (cursor < input.length) {
+		const opening = input.indexOf('<', cursor);
+		if (opening < 0) {
+			if (!suppressedTag) result += input.slice(cursor);
+			break;
+		}
+		if (!suppressedTag) result += input.slice(cursor, opening);
+
+		if (input.startsWith('<!--', opening)) {
+			const commentEnd = input.indexOf('-->', opening + 4);
+			if (commentEnd < 0) break;
+			cursor = commentEnd + 3;
+			continue;
+		}
+
+		const closing = input.indexOf('>', opening + 1);
+		if (closing < 0) {
+			if (!suppressedTag) result += input.slice(opening);
+			break;
+		}
+
+		const token = input.slice(opening, closing + 1);
+		const match = /^<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)\b/u.exec(token);
+		if (!match) {
+			if (!suppressedTag) result += token;
+			cursor = closing + 1;
+			continue;
+		}
+
+		const isClosing = match[1] === '/';
+		const tag = match[2]!.toLowerCase();
+		const selfClosing = /\/\s*>$/u.test(token);
+		if (suppressedTag) {
+			if (tag === suppressedTag) {
+				if (isClosing) suppressedDepth -= 1;
+				else if (!selfClosing) suppressedDepth += 1;
+				if (suppressedDepth <= 0) {
+					suppressedTag = null;
+					suppressedDepth = 0;
+				}
+			}
+		} else if (DANGEROUS_RAW_TAGS.has(tag)) {
+			if (!isClosing && !selfClosing) {
+				suppressedTag = tag;
+				suppressedDepth = 1;
+			}
+		} else {
+			result += token;
+		}
+		cursor = closing + 1;
 	}
-	return text.replace(/<!--[\s\S]*?-->/g, '').replace(/<\/?[a-zA-Z][^>]*>/g, '');
+
+	return result;
 }
 
 function isAttachmentHref(input: string): boolean {
@@ -878,11 +962,17 @@ function validateMarkdownFilename(input: string): string {
 function decodeMarkdownFile(input: string | Uint8Array): string {
 	let source: string;
 	if (typeof input === 'string') {
-		assertSize(input, MAX_DOCUMENT_MARKDOWN_BYTES, 'file_too_large');
-		source = input;
+		// The preview confirmation transports the original upload through a textarea. Browsers encode
+		// textarea line breaks as CRLF in multipart form data, so enforce the file limit only after
+		// restoring the platform-neutral LF representation that was measured during upload.
+		source = input.replace(/\r\n?/g, '\n');
+		assertSize(source, MAX_OBSIDIAN_IMPORT_BYTES, 'file_too_large');
 	} else {
-		if (input.byteLength > MAX_DOCUMENT_MARKDOWN_BYTES) {
-			throw new DocumentMarkdownError('file_too_large', 'Markdown files are limited to 1 MiB.');
+		if (input.byteLength > MAX_OBSIDIAN_IMPORT_BYTES) {
+			throw new DocumentMarkdownError(
+				'file_too_large',
+				'Markdown imports exceed the body plus frontmatter limit.'
+			);
 		}
 		try {
 			source = fatalDecoder.decode(input);
@@ -914,7 +1004,9 @@ function assertSize(
 		code,
 		code === 'invalid_frontmatter'
 			? 'YAML frontmatter is limited to 64 KiB.'
-			: 'Markdown files are limited to 1 MiB.'
+			: maximum === MAX_OBSIDIAN_IMPORT_BYTES
+				? 'Markdown imports exceed the body plus frontmatter limit.'
+				: 'Markdown document bodies are limited to 1 MiB.'
 	);
 }
 
@@ -947,7 +1039,9 @@ function normaliseTitle(value: unknown): string {
 function normaliseShortText(value: unknown, maximumLength: number): string {
 	if (typeof value !== 'string') return '';
 	const clean = value.replace(/\s+/g, ' ').trim();
-	return clean && clean.length <= maximumLength && !containsControlCharacters(clean) ? clean : '';
+	return clean && Array.from(clean).length <= maximumLength && !containsControlCharacters(clean)
+		? clean
+		: '';
 }
 
 function containsControlCharacters(input: string): boolean {

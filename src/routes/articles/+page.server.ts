@@ -1,30 +1,27 @@
 import { getDb } from '$lib/server/db';
-import { listPublishedArticles } from '$lib/server/repositories/document-publications';
+import { listPublishedArticleSummaries } from '$lib/server/repositories/document-publications';
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 24;
 
 /** Public article library. Mutable document working copies are never queried from this route. */
-export async function load({ locals, setHeaders }) {
-	setHeaders({
-		'cache-control': locals.user ? 'private, no-store' : 'public, max-age=0, s-maxage=300'
+export async function load({ setHeaders, url }) {
+	// The root layout carries cookie-based guest reader preferences, so even anonymous HTML must not
+	// enter a shared cache. Cookie-free feed and sitemap endpoints remain publicly cacheable.
+	setHeaders({ 'cache-control': 'private, no-store' });
+
+	const requestedPage = Number(url.searchParams.get('page') ?? '1');
+	const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+	const publications = await listPublishedArticleSummaries(getDb(), {
+		limit: PAGE_SIZE + 1,
+		offset: (page - 1) * PAGE_SIZE
 	});
-
-	const db = getDb();
-	const publications = [];
-	let offset = 0;
-
-	// The repository deliberately caps a single read at 100. Walk all pages so an older public
-	// article does not disappear merely because the site has published its hundred-and-first one.
-	while (true) {
-		const page = await listPublishedArticles(db, { limit: PAGE_SIZE, offset });
-		publications.push(...page);
-		if (page.length < PAGE_SIZE) break;
-		offset += page.length;
-	}
+	const hasNext = publications.length > PAGE_SIZE;
 
 	return {
 		title: 'Artikel',
-		articles: publications.map((publication) => ({
+		page,
+		hasNext,
+		articles: publications.slice(0, PAGE_SIZE).map((publication) => ({
 			slug: publication.slug,
 			title: publication.title,
 			excerpt: publication.excerpt,

@@ -82,11 +82,44 @@
 				</article>
 			{/each}
 		</div>
+		{#if data.page > 1 || data.hasNext}
+			<nav
+				class="mt-8 flex items-center justify-center gap-3"
+				aria-label={t('articles.pagination')}
+			>
+				{#if data.page > 1}
+					<a
+						class="article-page-link"
+						href={data.page === 2 ? '/articles' : `/articles?page=${data.page - 1}`}
+					>
+						<Icon name="chevron-left" class="size-4" />
+						{t('articles.previous')}
+					</a>
+				{/if}
+				<span class="text-xs text-stone-400">{t('articles.page', { page: data.page })}</span>
+				{#if data.hasNext}
+					<a class="article-page-link" href={`/articles?page=${data.page + 1}`}>
+						{t('articles.next')}
+						<Icon name="chevron-right" class="size-4" />
+					</a>
+				{/if}
+			</nav>
+		{/if}
 	{/if}
 </main>
 
 <style>
 	article {
 		position: relative;
+	}
+	.article-page-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		border: 1px solid var(--line);
+		border-radius: 0.65rem;
+		padding: 0.5rem 0.75rem;
+		font-size: 0.75rem;
+		font-weight: 700;
 	}
 </style>

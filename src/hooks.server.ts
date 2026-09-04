@@ -57,14 +57,17 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 		if (event.locals.user.role !== 'admin') {
 			// 404 rather than 403: the existence of the admin area is not worth confirming.
-			return new Response('Not found', { status: 404 });
+			return protectAuthenticatedResponse(
+				event.locals.user,
+				new Response('Not found', { status: 404 })
+			);
 		}
 	}
 
 	event.locals.apiAuth = null;
 	if (event.url.pathname.startsWith('/api/v1/')) {
 		const gated = await guardApiRequest(event.request, event.getClientAddress());
-		if (gated instanceof Response) return gated;
+		if (gated instanceof Response) return protectAuthenticatedResponse(event.locals.user, gated);
 		event.locals.apiAuth = gated;
 	}
 
@@ -77,7 +80,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// articles, and so on), but that header must never make the personalised SSR response eligible for
 	// a shared cache. Keeping this final guard in the request pipeline makes the privacy invariant apply
 	// to new routes automatically instead of relying on every page author to remember it.
-	if (event.locals.user) response.headers.set('cache-control', 'private, no-store');
+	protectAuthenticatedResponse(event.locals.user, response);
 
 	if (duration > 500) {
 		logger.warn({ path: event.url.pathname, duration, status: response.status }, 'slow request');
@@ -85,6 +88,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	return response;
 };
+
+/** Applies the shared-cache guard even to responses that short-circuit before `resolve()`. */
+function protectAuthenticatedResponse(user: App.Locals['user'], response: Response): Response {
+	if (user) response.headers.set('cache-control', 'private, no-store');
+	return response;
+}
 
 /**
  * Authenticates and rate-limits a request to the public API, returning either the resolved

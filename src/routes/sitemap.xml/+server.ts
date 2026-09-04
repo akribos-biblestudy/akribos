@@ -4,7 +4,7 @@ import { config } from '$lib/server/config';
 import { getDb } from '$lib/server/db';
 import { chapterCount } from '$lib/server/repositories/resources';
 import { listBibles } from '$lib/server/repositories/resources';
-import { listPublishedArticles } from '$lib/server/repositories/document-publications';
+import { listPublishedArticleSlugs } from '$lib/server/repositories/document-publications';
 
 const PUBLICATION_PAGE_SIZE = 100;
 
@@ -36,18 +36,21 @@ export async function GET({ setHeaders }) {
 	// somebody holding their direct link can open them.
 	let publicationOffset = 0;
 	while (true) {
-		const publications = await listPublishedArticles(db, {
+		const slugs = await listPublishedArticleSlugs(db, {
 			limit: PUBLICATION_PAGE_SIZE,
 			offset: publicationOffset
 		});
-		for (const publication of publications) {
-			urls.push(`${origin}/articles/${encodeURIComponent(publication.slug)}`);
+		for (const slug of slugs) {
+			urls.push(`${origin}/articles/${encodeURIComponent(slug)}`);
 		}
-		if (publications.length < PUBLICATION_PAGE_SIZE) break;
-		publicationOffset += publications.length;
+		if (slugs.length < PUBLICATION_PAGE_SIZE) break;
+		publicationOffset += slugs.length;
 	}
 
-	setHeaders({ 'content-type': 'application/xml', 'cache-control': 'public, max-age=3600' });
+	setHeaders({
+		'content-type': 'application/xml',
+		'cache-control': 'public, max-age=0, must-revalidate'
+	});
 
 	return new Response(
 		`<?xml version="1.0" encoding="UTF-8"?>

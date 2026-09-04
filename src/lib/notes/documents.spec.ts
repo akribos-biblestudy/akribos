@@ -8,7 +8,7 @@ import {
 	isDocumentKind,
 	isDocumentSource,
 	isDocumentVisibility,
-	isObsidianImportFileCountAllowed,
+	isDocumentPassageCountAllowed,
 	isObsidianImportSizeAllowed,
 	isSermonWorkflowState,
 	isValidDocumentMarkdown,
@@ -16,9 +16,10 @@ import {
 	isValidTagPath,
 	isValidTagSegment,
 	MAX_DOCUMENT_MARKDOWN_BYTES,
+	MAX_DOCUMENT_PASSAGES,
 	MAX_DOCUMENT_TITLE_LENGTH,
+	MAX_OBSIDIAN_FRONTMATTER_BYTES,
 	MAX_OBSIDIAN_IMPORT_BYTES,
-	MAX_OBSIDIAN_IMPORT_FILES,
 	MAX_TAG_DEPTH,
 	MAX_TAG_SEGMENT_LENGTH,
 	normalizeDocumentMarkdown,
@@ -80,10 +81,12 @@ describe('titles and tags', () => {
 		expect(isValidTagPath(normalizeTagPath('#Predigt/Evangelien/Johannes'))).toBe(true);
 	});
 
-	it('rejects empty, oversized, slash-containing and over-deep tag segments', () => {
+	it('rejects empty, oversized, delimiter-containing and over-deep tag segments', () => {
 		expect(isValidTagSegment('Glaube')).toBe(true);
 		expect(isValidTagSegment('')).toBe(false);
 		expect(isValidTagSegment('a/b')).toBe(false);
+		expect(isValidTagSegment('Gebet, Lob')).toBe(false);
+		expect(isValidTagSegment('Predigt\\Entwurf')).toBe(false);
 		expect(isValidTagSegment('x'.repeat(MAX_TAG_SEGMENT_LENGTH + 1))).toBe(false);
 		expect(isValidTagPath(['a', ''])).toBe(false);
 		expect(isValidTagPath(Array.from({ length: MAX_TAG_DEPTH + 1 }, () => 'Ebene'))).toBe(false);
@@ -103,18 +106,25 @@ describe('Markdown and import bounds', () => {
 		expect(isValidDocumentMarkdown('Text\u0000')).toBe(false);
 	});
 
-	it('bounds an Obsidian import by positive byte size and file count', () => {
-		expect(MAX_OBSIDIAN_IMPORT_BYTES).toBe(1024 * 1024);
+	it('bounds an Obsidian import by positive byte size', () => {
+		expect(MAX_OBSIDIAN_FRONTMATTER_BYTES).toBe(64 * 1024);
+		expect(MAX_OBSIDIAN_IMPORT_BYTES).toBe(
+			MAX_DOCUMENT_MARKDOWN_BYTES + MAX_OBSIDIAN_FRONTMATTER_BYTES + 16
+		);
 		expect(isObsidianImportSizeAllowed(1)).toBe(true);
 		expect(isObsidianImportSizeAllowed(MAX_OBSIDIAN_IMPORT_BYTES)).toBe(true);
 		expect(isObsidianImportSizeAllowed(0)).toBe(false);
 		expect(isObsidianImportSizeAllowed(MAX_OBSIDIAN_IMPORT_BYTES + 1)).toBe(false);
 		expect(isObsidianImportSizeAllowed(1.5)).toBe(false);
+	});
 
-		expect(isObsidianImportFileCountAllowed(1)).toBe(true);
-		expect(isObsidianImportFileCountAllowed(MAX_OBSIDIAN_IMPORT_FILES)).toBe(true);
-		expect(isObsidianImportFileCountAllowed(0)).toBe(false);
-		expect(isObsidianImportFileCountAllowed(MAX_OBSIDIAN_IMPORT_FILES + 1)).toBe(false);
+	it('centrally bounds the number of passage anchors while allowing an empty collection', () => {
+		expect(MAX_DOCUMENT_PASSAGES).toBe(100);
+		expect(isDocumentPassageCountAllowed(0)).toBe(true);
+		expect(isDocumentPassageCountAllowed(MAX_DOCUMENT_PASSAGES)).toBe(true);
+		expect(isDocumentPassageCountAllowed(-1)).toBe(false);
+		expect(isDocumentPassageCountAllowed(MAX_DOCUMENT_PASSAGES + 1)).toBe(false);
+		expect(isDocumentPassageCountAllowed(1.5)).toBe(false);
 	});
 });
 

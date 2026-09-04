@@ -16,6 +16,7 @@ import {
 export type PublishArticleInput = {
 	slug: string;
 	excerpt: string;
+	visibility: 'public' | 'unlisted';
 	expectedRevision?: number;
 };
 
@@ -37,6 +38,27 @@ export type PublishArticleResult =
 export type UnpublishArticleResult =
 	{ ok: true; unpublished: boolean } | { ok: false; reason: 'forbidden' | 'notFound' };
 
+export type PublishedArticleSummary = Pick<
+	DocumentPublication,
+	| 'slug'
+	| 'title'
+	| 'excerpt'
+	| 'authorName'
+	| 'passages'
+	| 'tags'
+	| 'firstPublishedAt'
+	| 'publishedAt'
+>;
+
+type PublicationListOptions = { limit?: number; offset?: number };
+
+function publicationWindow(options: PublicationListOptions): { limit: number; offset: number } {
+	return {
+		limit: Math.max(1, Math.min(100, Math.trunc(options.limit ?? 50))),
+		offset: Math.max(0, Math.trunc(options.offset ?? 0))
+	};
+}
+
 /** Slugs are already prepared by the caller; this check only keeps them one safe URL segment. */
 export function isPublicationSlug(value: string): boolean {
 	return value.length > 0 && value.length <= 160 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
@@ -50,7 +72,9 @@ function postgresErrorCode(error: unknown): string | undefined {
 
 /**
  * Copies the complete visitor-facing state from an owned article into its current snapshot. The
- * actor's role and ownership are read from the database rather than trusted from request data.
+ * requested public/unlisted visibility is applied to the working copy in the same locked transaction,
+ * so validation failures cannot leave visibility and snapshot out of sync. The actor's role and
+ * ownership are read from the database rather than trusted from request data.
  */
 export async function publishArticle(
 	db: Database,
@@ -60,6 +84,9 @@ export async function publishArticle(
 ): Promise<PublishArticleResult> {
 	const slug = input.slug.trim();
 	if (!isPublicationSlug(slug)) return { ok: false, reason: 'invalidSlug' };
+	if (input.visibility !== 'public' && input.visibility !== 'unlisted') {
+		return { ok: false, reason: 'private' };
+	}
 
 	try {
 		return await db.transaction(async (tx) => {
@@ -80,10 +107,10 @@ export async function publishArticle(
 						isNull(documents.deletedAt)
 					)
 				)
-				.limit(1);
+				.limit(1)
+				.for('update');
 			if (!document) return { ok: false, reason: 'notFound' };
 			if (document.kind !== 'article') return { ok: false, reason: 'notArticle' };
-			if (document.visibility === 'private') return { ok: false, reason: 'private' };
 			if (input.expectedRevision !== undefined && document.revision !== input.expectedRevision) {
 				return { ok: false, reason: 'conflict', currentRevision: document.revision };
 			}
@@ -137,6 +164,29 @@ export async function publishArticle(
 			const passages: PublishedPassageSnapshot[] = passageRows;
 			const tags = tagRows.map((tag) => tag.path);
 			const now = new Date();
+			let publicationRevision = document.revision;
+			if (document.visibility !== input.visibility) {
+				const [updated] = await tx
+					.update(documents)
+					.set({
+						visibility: input.visibility,
+						revision: document.revision + 1,
+						updatedAt: now
+					})
+					.where(
+						and(
+							eq(documents.id, documentId),
+							eq(documents.userId, actorUserId),
+							eq(documents.revision, document.revision),
+							isNull(documents.deletedAt)
+						)
+					)
+					.returning({ revision: documents.revision });
+				if (!updated) {
+					throw new Error('document changed while preparing its publication snapshot');
+				}
+				publicationRevision = updated.revision;
+			}
 			const values = {
 				slug,
 				title: document.title,
@@ -144,10 +194,10 @@ export async function publishArticle(
 				bodyHtml: document.bodyHtml,
 				bodyMarkdown: document.bodyMarkdown,
 				authorName,
-				visibility: document.visibility,
+				visibility: input.visibility,
 				passages,
 				tags,
-				publicationRevision: document.revision,
+				publicationRevision,
 				firstPublishedAt: existing[0]?.firstPublishedAt ?? now,
 				publishedAt: now
 			} as const;
@@ -187,7 +237,8 @@ export async function unpublishArticle(
 			.select({ id: documents.id })
 			.from(documents)
 			.where(and(eq(documents.id, documentId), eq(documents.userId, actorUserId)))
-			.limit(1);
+			.limit(1)
+			.for('update');
 		if (!document) return { ok: false, reason: 'notFound' };
 
 		const deleted = await tx
@@ -227,10 +278,9 @@ export async function getOwnedDocumentPublication(
 /** Public article index/feed/sitemap source. Unlisted snapshots are intentionally excluded. */
 export async function listPublishedArticles(
 	db: Database,
-	options: { limit?: number; offset?: number } = {}
+	options: PublicationListOptions = {}
 ): Promise<DocumentPublication[]> {
-	const limit = Math.max(1, Math.min(100, Math.trunc(options.limit ?? 50)));
-	const offset = Math.max(0, Math.trunc(options.offset ?? 0));
+	const { limit, offset } = publicationWindow(options);
 	return db
 		.select()
 		.from(documentPublications)
@@ -238,6 +288,46 @@ export async function listPublishedArticles(
 		.orderBy(desc(documentPublications.publishedAt), desc(documentPublications.documentId))
 		.limit(limit)
 		.offset(offset);
+}
+
+/** Lightweight public-index projection that deliberately omits both body representations. */
+export async function listPublishedArticleSummaries(
+	db: Database,
+	options: PublicationListOptions = {}
+): Promise<PublishedArticleSummary[]> {
+	const { limit, offset } = publicationWindow(options);
+	return db
+		.select({
+			slug: documentPublications.slug,
+			title: documentPublications.title,
+			excerpt: documentPublications.excerpt,
+			authorName: documentPublications.authorName,
+			passages: documentPublications.passages,
+			tags: documentPublications.tags,
+			firstPublishedAt: documentPublications.firstPublishedAt,
+			publishedAt: documentPublications.publishedAt
+		})
+		.from(documentPublications)
+		.where(eq(documentPublications.visibility, 'public'))
+		.orderBy(desc(documentPublications.publishedAt), desc(documentPublications.documentId))
+		.limit(limit)
+		.offset(offset);
+}
+
+/** Smallest sitemap projection; unlisted snapshots remain intentionally undiscoverable. */
+export async function listPublishedArticleSlugs(
+	db: Database,
+	options: PublicationListOptions = {}
+): Promise<string[]> {
+	const { limit, offset } = publicationWindow(options);
+	const rows = await db
+		.select({ slug: documentPublications.slug })
+		.from(documentPublications)
+		.where(eq(documentPublications.visibility, 'public'))
+		.orderBy(desc(documentPublications.publishedAt), desc(documentPublications.documentId))
+		.limit(limit)
+		.offset(offset);
+	return rows.map((row) => row.slug);
 }
 
 /** Direct detail lookup includes both public and unlisted snapshots, but never private working data. */

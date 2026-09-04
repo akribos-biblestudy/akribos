@@ -88,6 +88,12 @@ const answer = 42 < 100;
 		expect(result.html).toContain('<a href="https://example.com">safe</a>');
 	});
 
+	it('removes adversarial unterminated active HTML in linear time', () => {
+		const result = documentMarkdownToHtml(`${'<script>'.repeat(40_000)}never active`);
+		expect(result.html).toBe('');
+		expect(result.plainText).toBe('');
+	}, 2_000);
+
 	it('drops Markdown images while retaining readable alternative text', () => {
 		const result = documentMarkdownToHtml('Vor ![Diagramm](https://example.com/x.png) nach');
 		expect(result.html).not.toContain('<img');
@@ -120,6 +126,17 @@ describe('documentHtmlToMarkdown', () => {
 		);
 		expect(markdown).toBe('Gut Link\n');
 		expect(markdown).not.toMatch(/javascript|secret|onerror/);
+	});
+
+	it('preserves escaped angle-bracket text while removing genuinely active markup', () => {
+		const markdown = documentHtmlToMarkdown(
+			'<p>Literal &lt;script&gt; &amp; Zeichen <strong>fett</strong></p><script>weg()</script>'
+		);
+		const rendered = documentMarkdownToHtml(markdown);
+
+		expect(markdown).not.toContain('weg()');
+		expect(rendered.html).toContain('&lt;script&gt;');
+		expect(rendered.plainText).toContain('Literal <script> & Zeichen fett');
 	});
 
 	it('publishes the intentionally lossy boundary as part of the module contract', () => {
@@ -386,6 +403,13 @@ describe('Markdown export', () => {
 			contentType: 'text/markdown; charset=utf-8'
 		});
 		expect(download.content).toBe(exportDocumentMarkdown(input));
+	});
+
+	it('never truncates a Unicode export filename inside a surrogate pair', () => {
+		const boundaryTitle = `${'a'.repeat(119)}😀rest`;
+		expect(safeDocumentMarkdownFilename(boundaryTitle)).toBe(`${'a'.repeat(119)}😀.md`);
+		expect(() => markdownContentDisposition(boundaryTitle)).not.toThrow();
+		expect(markdownContentDisposition(boundaryTitle)).toContain('%F0%9F%98%80.md');
 	});
 
 	it('rejects invalid export dates, timestamps and metadata instead of guessing', () => {

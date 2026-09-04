@@ -147,10 +147,11 @@ SELECT
 	comment."user_id",
 	'note',
 	format('Versnotiz · %s:%s:%s', comment."book_id", comment."chapter", comment."verse"),
+	-- Strip genuine legacy markup before interpreting entities. Decoding first would turn visible
+	-- text such as `&lt;script&gt;` into a tag and silently delete it from the Markdown copy.
 	btrim(
 		regexp_replace(
-			replace(replace(replace(replace(replace(comment."comment_html",
-				'&amp;', '&'), '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&#39;', chr(39)),
+			comment."comment_html",
 			'<[^>]*>',
 			' ',
 			'g'
@@ -159,7 +160,9 @@ SELECT
 	comment."comment_html",
 	btrim(
 		regexp_replace(
-			regexp_replace(comment."comment_html", '<[^>]*>', ' ', 'g'),
+			replace(replace(replace(replace(replace(
+				regexp_replace(comment."comment_html", '<[^>]*>', ' ', 'g'),
+				'&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&#39;', chr(39)), '&amp;', '&'),
 			'\s+',
 			' ',
 			'g'

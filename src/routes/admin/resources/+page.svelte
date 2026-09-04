@@ -24,7 +24,14 @@
 	const selectedResource = $derived(
 		data.resources.find((resource) => resource.id === selectedId) ?? data.resources[0] ?? null
 	);
-	const bibles = $derived(data.resources.filter((resource) => resource.kind === 'bible'));
+	const replacementBibles = $derived(
+		data.resources.filter(
+			(resource) => resource.kind === 'bible' && resource.isPublic && resource.status === 'ready'
+		)
+	);
+	const availableReplacementBibles = $derived(
+		replacementBibles.filter((bible) => bible.id !== selectedResource?.id)
+	);
 	const counts = $derived(
 		new Map(
 			CATEGORY_ORDER.map((kind) => [
@@ -393,7 +400,7 @@
 										class="w-full rounded border border-red-300 px-2 py-1.5 dark:border-red-800 dark:bg-stone-900"
 									>
 										<option value="">Bibelübersetzung auswählen …</option>
-										{#each bibles.filter((bible) => bible.id !== selectedResource.id) as bible (bible.id)}
+										{#each availableReplacementBibles as bible (bible.id)}
 											<option value={bible.id}>{bible.selectionTitle ?? bible.name}</option>
 										{/each}
 									</select>
@@ -415,14 +422,15 @@
 							</label>
 							<button
 								type="submit"
-								disabled={selectedResource.kind === 'bible' && bibles.length < 2}
+								disabled={selectedResource.kind === 'bible' &&
+									availableReplacementBibles.length === 0}
 								class="w-fit rounded-lg bg-red-700 px-3 py-2 font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
 								>Endgültig löschen</button
 							>
-							{#if selectedResource.kind === 'bible' && bibles.length < 2}<p
+							{#if selectedResource.kind === 'bible' && availableReplacementBibles.length === 0}<p
 									class="text-xs text-red-700 dark:text-red-300"
 								>
-									Die letzte Bibel kann ohne Zielübersetzung nicht gelöscht werden.
+									Es ist keine öffentliche, fertig importierte Zielübersetzung verfügbar.
 								</p>{/if}
 						</form>
 					{/if}

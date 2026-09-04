@@ -11,6 +11,7 @@ import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { passageFromDbEndpoints, passageToDbEndpoints } from '../../bible/passage.ts';
 import {
 	isDocumentKind,
+	isDocumentPassageCountAllowed,
 	isDocumentSource,
 	isDocumentVisibility,
 	isSermonWorkflowState,
@@ -194,6 +195,52 @@ export async function createDocument(
 	return document!;
 }
 
+type InitialPassageFailure = Exclude<DocumentRevisionResult, { ok: true }>;
+
+export type CreateDocumentWithPassagesResult =
+	{ ok: true; document: Document } | InitialPassageFailure;
+
+class InitialPassagePersistenceError extends Error {
+	readonly result: InitialPassageFailure;
+
+	constructor(result: InitialPassageFailure) {
+		super(`initial document passages failed: ${result.reason}`);
+		this.name = 'InitialPassagePersistenceError';
+		this.result = result;
+	}
+}
+
+/** Creates a working copy and its initial anchors as one all-or-nothing persistence operation. */
+export async function createDocumentWithPassages(
+	db: Database,
+	userId: string,
+	input: CreateDocumentInput,
+	passages: DocumentPassageInput[]
+): Promise<CreateDocumentWithPassagesResult> {
+	try {
+		const document = await db.transaction(async (transaction) => {
+			// `replaceDocumentPassages` owns its own transaction for standalone calls. postgres-js maps
+			// that nested transaction to a savepoint inside this creation boundary.
+			const transactionDb = transaction as unknown as Database;
+			const created = await createDocument(transactionDb, userId, input);
+			if (passages.length === 0) return created;
+			const attached = await replaceDocumentPassages(
+				transactionDb,
+				userId,
+				created.id,
+				passages,
+				created.revision
+			);
+			if (!attached.ok) throw new InitialPassagePersistenceError(attached);
+			return { ...created, revision: attached.revision };
+		});
+		return { ok: true, document };
+	} catch (caught) {
+		if (caught instanceof InitialPassagePersistenceError) return caught.result;
+		throw caught;
+	}
+}
+
 /** Returns only an owned document; deleted working copies stay hidden unless explicitly requested. */
 export async function getDocument(
 	db: Database,
@@ -325,15 +372,17 @@ async function currentOwnedRevision(
 	db: Pick<Database, 'select'>,
 	userId: string,
 	documentId: string,
-	includeDeleted = false
+	includeDeleted = false,
+	lockForUpdate = false
 ): Promise<number | undefined> {
 	const conditions = [eq(documents.id, documentId), eq(documents.userId, userId)];
 	if (!includeDeleted) conditions.push(isNull(documents.deletedAt));
-	const [row] = await db
+	const query = db
 		.select({ revision: documents.revision })
 		.from(documents)
 		.where(and(...conditions))
 		.limit(1);
+	const [row] = lockForUpdate ? await query.for('update') : await query;
 	return row?.revision;
 }
 
@@ -345,7 +394,7 @@ export async function softDeleteDocument(
 	expectedRevision?: number
 ): Promise<DocumentRevisionResult> {
 	return db.transaction(async (tx) => {
-		const currentRevision = await currentOwnedRevision(tx, userId, documentId);
+		const currentRevision = await currentOwnedRevision(tx, userId, documentId, false, true);
 		if (currentRevision === undefined) return { ok: false, reason: 'notFound' };
 		if (expectedRevision !== undefined && currentRevision !== expectedRevision) {
 			return { ok: false, reason: 'conflict', currentRevision };
@@ -440,6 +489,20 @@ async function invalidPublicBible(
 	return resourceIds.find((id) => !valid.has(id));
 }
 
+/** Historical comments keep their exact translation even when that Bible is currently hidden/draft. */
+async function invalidExistingBible(
+	db: Pick<Database, 'select'>,
+	resourceIds: string[]
+): Promise<string | undefined> {
+	if (resourceIds.length === 0) return undefined;
+	const rows = await db
+		.select({ id: resources.id })
+		.from(resources)
+		.where(and(inArray(resources.id, resourceIds), eq(resources.kind, 'bible')));
+	const valid = new Set(rows.map((row) => row.id));
+	return resourceIds.find((id) => !valid.has(id));
+}
+
 /**
  * Replaces all anchors in one transaction and increments the working-copy revision. Non-null
  * resources must be public, ready Bible resources; `null` deliberately means translation-neutral.
@@ -451,13 +514,16 @@ export async function replaceDocumentPassages(
 	passages: DocumentPassageInput[],
 	expectedRevision?: number
 ): Promise<DocumentRevisionResult> {
+	if (!isDocumentPassageCountAllowed(passages.length)) {
+		throw new InvalidDocumentInputError('passage', 'document has too many passage anchors');
+	}
 	for (const passage of passages) validatePassage(passage);
 	const resourceIds = [
 		...new Set(passages.flatMap((passage) => (passage.resourceId ? [passage.resourceId] : [])))
 	];
 
 	return db.transaction(async (tx) => {
-		const currentRevision = await currentOwnedRevision(tx, userId, documentId);
+		const currentRevision = await currentOwnedRevision(tx, userId, documentId, false, true);
 		if (currentRevision === undefined) return { ok: false, reason: 'notFound' };
 		if (expectedRevision !== undefined && currentRevision !== expectedRevision) {
 			return { ok: false, reason: 'conflict', currentRevision };
@@ -632,19 +698,55 @@ export async function transferDocumentPassagesToBible(
 			throw new Error('replacement must be a public, ready Bible');
 		}
 
-		const moved = await tx
-			.update(documentPassages)
-			.set({ resourceId: targetResourceId })
-			.where(eq(documentPassages.resourceId, sourceResourceId))
-			.returning({ documentId: documentPassages.documentId });
-		const documentIds = [...new Set(moved.map((row) => row.documentId))];
+		const sourcePassages = await tx
+			.select({ documentId: documentPassages.documentId })
+			.from(documentPassages)
+			.where(eq(documentPassages.resourceId, sourceResourceId));
+		const documentIds = [...new Set(sourcePassages.map((row) => row.documentId))];
 		if (documentIds.length > 0) {
+			// Publication takes the same parent locks before reading its snapshot children. Lock every
+			// affected parent first so it sees either all old anchors or the complete transfer.
+			await tx
+				.select({ id: documents.id })
+				.from(documents)
+				.where(inArray(documents.id, documentIds))
+				.orderBy(documents.id)
+				.for('update');
+			await tx.execute(sql`
+				update document_passages as destination
+				set position = least(destination.position, source_ranges.position)
+				from (
+					select document_id, start_key, end_key, min(position) as position
+					from document_passages
+					where resource_id = ${sourceResourceId}
+					group by document_id, start_key, end_key
+				) as source_ranges
+				where destination.resource_id = ${targetResourceId}
+					and destination.document_id = source_ranges.document_id
+					and destination.start_key = source_ranges.start_key
+					and destination.end_key = source_ranges.end_key
+			`);
+			await tx.execute(sql`
+				delete from document_passages as source
+				where source.resource_id = ${sourceResourceId}
+					and exists (
+						select 1 from document_passages as destination
+						where destination.resource_id = ${targetResourceId}
+							and destination.document_id = source.document_id
+							and destination.start_key = source.start_key
+							and destination.end_key = source.end_key
+					)
+			`);
+			await tx
+				.update(documentPassages)
+				.set({ resourceId: targetResourceId })
+				.where(eq(documentPassages.resourceId, sourceResourceId));
 			await tx
 				.update(documents)
 				.set({ updatedAt: new Date(), revision: sql`${documents.revision} + 1` })
 				.where(inArray(documents.id, documentIds));
 		}
-		return moved.length;
+		return sourcePassages.length;
 	});
 }
 
@@ -710,7 +812,10 @@ export async function createDocumentFromLegacyVerseComment(
 		throw new InvalidDocumentInputError('passage', 'legacy comment has an invalid verse reference');
 	}
 	return db.transaction(async (tx) => {
-		const invalidResource = await invalidPublicBible(tx, [input.resourceId]);
+		// Migration 0025 preserves every existing verse comment, including comments whose historical
+		// Bible was hidden after writing. The resumable backfill follows that same fidelity policy;
+		// only a genuinely missing/non-Bible resource is an error. New anchors remain public+ready-only.
+		const invalidResource = await invalidExistingBible(tx, [input.resourceId]);
 		if (invalidResource) {
 			return { ok: false, reason: 'invalidResource', resourceId: invalidResource };
 		}

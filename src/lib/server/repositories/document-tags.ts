@@ -123,7 +123,8 @@ export async function syncDocumentTags(
 			.where(
 				and(eq(documents.id, documentId), eq(documents.userId, userId), isNull(documents.deletedAt))
 			)
-			.limit(1);
+			.limit(1)
+			.for('update');
 		if (!document) return { ok: false, reason: 'notFound' };
 		if (expectedRevision !== undefined && document.revision !== expectedRevision) {
 			return { ok: false, reason: 'conflict', currentRevision: document.revision };
@@ -219,7 +220,7 @@ export async function listDocumentsByTag(
 		eq(documents.userId, userId),
 		eq(documentTags.userId, userId),
 		sql`(${documentTags.normalizedPath} = ${normalized}
-			or left(${documentTags.normalizedPath}, ${normalized.length + 1}) = ${`${normalized}/`})`
+			or left(${documentTags.normalizedPath}, char_length(${normalized}::text) + 1) = ${`${normalized}/`})`
 	];
 	if (filters.deleted === 'only') conditions.push(isNotNull(documents.deletedAt));
 	else if (filters.deleted !== 'include') conditions.push(isNull(documents.deletedAt));

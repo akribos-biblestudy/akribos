@@ -1,13 +1,20 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { parsePassage, passageToDbEndpoints } from '$lib/bible/passage';
+import { t } from '$lib/i18n';
 import {
 	DocumentMarkdownError,
 	MARKDOWN_ROUND_TRIP_LIMITATIONS,
-	MAX_DOCUMENT_MARKDOWN_BYTES,
 	previewObsidianMarkdown,
 	type ObsidianDocumentPreview
 } from '$lib/notes/document-markdown';
-import { MAX_DOCUMENT_TAGS } from '$lib/notes/documents';
+import {
+	isDocumentPassageCountAllowed,
+	MAX_DOCUMENT_MARKDOWN_BYTES,
+	MAX_DOCUMENT_PASSAGES,
+	MAX_DOCUMENT_TAGS,
+	MAX_OBSIDIAN_FRONTMATTER_BYTES,
+	MAX_OBSIDIAN_IMPORT_BYTES
+} from '$lib/notes/documents';
 import {
 	parseCalendarDate,
 	prepareDocumentBody,
@@ -24,22 +31,54 @@ import {
 	createDocument,
 	InvalidDocumentInputError,
 	replaceDocumentPassages,
-	softDeleteDocument,
 	type DocumentPassageInput
 } from '$lib/server/repositories/documents';
 import { listBibles } from '$lib/server/repositories/resources';
+import {
+	InvalidFormBodyError,
+	readBoundedFormData,
+	RequestBodyTooLargeError
+} from './bounded-form-data';
+import { localizeImportError, localizeImportMessage } from './import-messages';
+
+const MAX_IMPORT_MULTIPART_OVERHEAD_BYTES = 64 * 1024;
+const MAX_IMPORT_PREVIEW_REQUEST_BYTES =
+	MAX_OBSIDIAN_IMPORT_BYTES + MAX_IMPORT_MULTIPART_OVERHEAD_BYTES;
+// Browsers may normalise every textarea LF to CRLF inside the confirmation multipart body.
+const MAX_IMPORT_CONFIRM_REQUEST_BYTES =
+	MAX_OBSIDIAN_IMPORT_BYTES * 2 + MAX_IMPORT_MULTIPART_OVERHEAD_BYTES;
 
 type ImportIssue =
 	| { code: 'invalidPassage'; reference: string }
 	| { code: 'invalidResource'; resourceId: string; reference: string }
 	| { code: 'invalidTag'; tag: string }
-	| { code: 'tooManyTags'; maximum: number };
+	| { code: 'tooManyTags'; maximum: number }
+	| { code: 'tooManyPassages'; maximum: number };
 
 type InspectedImport = {
 	issues: ImportIssue[];
 	warnings: string[];
 	passages: DocumentPassageInput[];
 };
+
+type ImportPersistenceFailure = {
+	error: 'conflict' | 'invalidResource' | 'notFound';
+	currentRevision?: number;
+	resourceId?: string;
+};
+
+/** Throwing this value makes the outer transaction roll back before the action formats its reply. */
+class ImportPersistenceError extends Error {
+	readonly status: 400 | 409 | 500;
+	readonly failure: ImportPersistenceFailure;
+
+	constructor(status: 400 | 409 | 500, failure: ImportPersistenceFailure) {
+		super(`document import persistence failed: ${failure.error}`);
+		this.name = 'ImportPersistenceError';
+		this.status = status;
+		this.failure = failure;
+	}
+}
 
 function inspectImport(
 	preview: ObsidianDocumentPreview,
@@ -49,7 +88,10 @@ function inspectImport(
 	const warnings = [...preview.warnings];
 	const passages: DocumentPassageInput[] = [];
 
-	for (const [position, candidate] of preview.passages.entries()) {
+	if (!isDocumentPassageCountAllowed(preview.passages.length)) {
+		issues.push({ code: 'tooManyPassages', maximum: MAX_DOCUMENT_PASSAGES });
+	}
+	for (const [position, candidate] of preview.passages.slice(0, MAX_DOCUMENT_PASSAGES).entries()) {
 		const parsed = parsePassage(candidate.reference);
 		const endpoints = parsed && passageToDbEndpoints(parsed);
 		if (!endpoints) {
@@ -95,15 +137,34 @@ function inspectImport(
 	if (issues.some((issue) => issue.code === 'tooManyTags')) {
 		warnings.push(`A document may have at most ${MAX_DOCUMENT_TAGS} tags.`);
 	}
+	if (issues.some((issue) => issue.code === 'tooManyPassages')) {
+		warnings.push(`A document may have at most ${MAX_DOCUMENT_PASSAGES} passage anchors.`);
+	}
 
-	return { issues, warnings, passages };
+	return { issues, warnings: warnings.map(localizeImportMessage), passages };
 }
 
 function markdownFailure(caught: DocumentMarkdownError) {
 	return fail(caught.code === 'file_too_large' ? 413 : 400, {
 		error: caught.code,
-		message: caught.message
+		message: localizeImportError(caught.code)
 	});
+}
+
+function importFormFailure(caught: unknown) {
+	if (caught instanceof RequestBodyTooLargeError) {
+		return fail(413, {
+			error: 'request_too_large' as const,
+			message: t('documents.import.error.requestTooLarge')
+		});
+	}
+	if (caught instanceof InvalidFormBodyError) {
+		return fail(400, {
+			error: 'invalid_form' as const,
+			message: t('documents.import.error.invalidForm')
+		});
+	}
+	return null;
 }
 
 function decodedSource(bytes: Uint8Array): string {
@@ -117,34 +178,46 @@ export async function load({ locals, url, setHeaders }) {
 	requireDocumentUser(locals.user, url);
 
 	return {
-		maxFileBytes: MAX_DOCUMENT_MARKDOWN_BYTES,
-		limitations: MARKDOWN_ROUND_TRIP_LIMITATIONS,
+		maxFileBytes: MAX_OBSIDIAN_IMPORT_BYTES,
+		maxBodyBytes: MAX_DOCUMENT_MARKDOWN_BYTES,
+		maxFrontmatterBytes: MAX_OBSIDIAN_FRONTMATTER_BYTES,
+		maxPassages: MAX_DOCUMENT_PASSAGES,
+		limitations: MARKDOWN_ROUND_TRIP_LIMITATIONS.map(localizeImportMessage),
 		bibles: await listBibles(getDb())
 	};
 }
 
 export const actions = {
 	/** Parse and sanitise one upload without writing any document state. */
-	preview: async ({ request, locals, url, setHeaders }) => {
-		setPrivateNoStore(setHeaders);
+	preview: async ({ request, locals, url }) => {
 		requireDocumentUser(locals.user, url);
-		const form = await request.formData();
+		let form: FormData;
+		try {
+			form = await readBoundedFormData(request, MAX_IMPORT_PREVIEW_REQUEST_BYTES);
+		} catch (caught) {
+			const failure = importFormFailure(caught);
+			if (failure) return failure;
+			throw caught;
+		}
 		const candidates = form.getAll('file');
 		if (candidates.length !== 1 || !(candidates[0] instanceof File)) {
 			return fail(400, {
 				error: 'fileCount' as const,
-				message: 'Select exactly one Markdown file.'
+				message: t('documents.import.error.fileCount')
 			});
 		}
 
 		const file = candidates[0];
 		if (file.size === 0) {
-			return fail(400, { error: 'emptyFile' as const, message: 'The Markdown file is empty.' });
+			return fail(400, {
+				error: 'emptyFile' as const,
+				message: t('documents.import.error.emptyFile')
+			});
 		}
-		if (file.size > MAX_DOCUMENT_MARKDOWN_BYTES) {
+		if (file.size > MAX_OBSIDIAN_IMPORT_BYTES) {
 			return fail(413, {
 				error: 'file_too_large' as const,
-				message: 'Markdown files are limited to 1 MiB.'
+				message: t('documents.import.error.fileTooLarge')
 			});
 		}
 
@@ -166,10 +239,16 @@ export const actions = {
 	},
 
 	/** Reparse the source shown in the preview; hidden parsed metadata is never authoritative. */
-	confirm: async ({ request, locals, url, setHeaders }) => {
-		setPrivateNoStore(setHeaders);
+	confirm: async ({ request, locals, url }) => {
 		const user = requireDocumentUser(locals.user, url);
-		const form = await request.formData();
+		let form: FormData;
+		try {
+			form = await readBoundedFormData(request, MAX_IMPORT_CONFIRM_REQUEST_BYTES);
+		} catch (caught) {
+			const failure = importFormFailure(caught);
+			if (failure) return failure;
+			throw caught;
+		}
 		const filenameValue = form.get('filename') ?? form.get('sourceFilename');
 		const sourceValue = form.get('source');
 		if (typeof filenameValue !== 'string' || typeof sourceValue !== 'string') {
@@ -205,63 +284,75 @@ export const actions = {
 			sermonDate = parsedDate.value;
 		}
 
-		let created: Awaited<ReturnType<typeof createDocument>> | undefined;
-		let currentRevision: number | undefined;
+		let created: Awaited<ReturnType<typeof createDocument>>;
 		try {
-			created = await createDocument(db, user.id, {
-				kind: preview.kind,
-				title: preview.title,
-				visibility: 'private',
-				source: 'obsidian',
-				sourceFilename: preview.sourceFilename,
-				sermonStatus: preview.kind === 'sermon' ? (preview.sermon?.status ?? 'idea') : undefined,
-				sermonDate: preview.kind === 'sermon' ? sermonDate : undefined,
-				sermonSeries: preview.kind === 'sermon' ? preview.sermon?.series : undefined,
-				...prepareDocumentBody(preview.markdown)
+			created = await db.transaction(async (transaction) => {
+				// Repository mutations open their own transactions; postgres-js maps these nested calls to
+				// savepoints while this outer transaction remains the all-or-nothing import boundary.
+				const transactionDb = transaction as unknown as typeof db;
+				const document = await createDocument(transactionDb, user.id, {
+					kind: preview.kind,
+					title: preview.title,
+					visibility: 'private',
+					source: 'obsidian',
+					sourceFilename: preview.sourceFilename,
+					sermonStatus: preview.kind === 'sermon' ? (preview.sermon?.status ?? 'idea') : undefined,
+					sermonDate: preview.kind === 'sermon' ? sermonDate : undefined,
+					sermonSeries: preview.kind === 'sermon' ? preview.sermon?.series : undefined,
+					...prepareDocumentBody(preview.markdown)
+				});
+				let currentRevision = document.revision;
+
+				if (preview.tags.length > 0) {
+					const tags = await syncDocumentTags(
+						transactionDb,
+						user.id,
+						document.id,
+						preview.tags,
+						currentRevision
+					);
+					if (!tags.ok) {
+						if (tags.reason === 'conflict') {
+							throw new ImportPersistenceError(409, {
+								error: tags.reason,
+								currentRevision: tags.currentRevision
+							});
+						}
+						throw new ImportPersistenceError(500, { error: tags.reason });
+					}
+					currentRevision = tags.revision;
+				}
+
+				if (inspected.passages.length > 0) {
+					const passages = await replaceDocumentPassages(
+						transactionDb,
+						user.id,
+						document.id,
+						inspected.passages,
+						currentRevision
+					);
+					if (!passages.ok) {
+						if (passages.reason === 'conflict') {
+							throw new ImportPersistenceError(409, {
+								error: passages.reason,
+								currentRevision: passages.currentRevision
+							});
+						}
+						if (passages.reason === 'invalidResource') {
+							throw new ImportPersistenceError(400, {
+								error: passages.reason,
+								resourceId: passages.resourceId
+							});
+						}
+						throw new ImportPersistenceError(500, { error: passages.reason });
+					}
+				}
+
+				return document;
 			});
-			currentRevision = created.revision;
-
-			if (preview.tags.length > 0) {
-				const tags = await syncDocumentTags(db, user.id, created.id, preview.tags, currentRevision);
-				if (!tags.ok) {
-					await softDeleteDocument(db, user.id, created.id);
-					return fail(tags.reason === 'conflict' ? 409 : 500, {
-						error: tags.reason,
-						...(tags.reason === 'conflict' ? { currentRevision: tags.currentRevision } : {})
-					});
-				}
-				currentRevision = tags.revision;
-			}
-
-			if (inspected.passages.length > 0) {
-				const passages = await replaceDocumentPassages(
-					db,
-					user.id,
-					created.id,
-					inspected.passages,
-					currentRevision
-				);
-				if (!passages.ok) {
-					await softDeleteDocument(db, user.id, created.id);
-					if (passages.reason === 'conflict') {
-						return fail(409, {
-							error: passages.reason,
-							currentRevision: passages.currentRevision
-						});
-					}
-					if (passages.reason === 'invalidResource') {
-						return fail(400, {
-							error: passages.reason,
-							resourceId: passages.resourceId
-						});
-					}
-					return fail(500, { error: passages.reason });
-				}
-				currentRevision = passages.revision;
-			}
 		} catch (caught) {
-			if (created) {
-				await softDeleteDocument(db, user.id, created.id, currentRevision).catch(() => undefined);
+			if (caught instanceof ImportPersistenceError) {
+				return fail(caught.status, caught.failure);
 			}
 			if (caught instanceof InvalidTagPathError) {
 				return fail(400, { error: 'invalidTag' as const });

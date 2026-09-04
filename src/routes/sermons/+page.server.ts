@@ -16,11 +16,9 @@ import {
 import { getDb } from '$lib/server/db';
 import { listDocumentTagTree } from '$lib/server/repositories/document-tags';
 import {
-	createDocument,
+	createDocumentWithPassages,
 	InvalidDocumentInputError,
-	listDocuments,
-	replaceDocumentPassages,
-	softDeleteDocument
+	listDocuments
 } from '$lib/server/repositories/documents';
 import { listBibles } from '$lib/server/repositories/resources';
 
@@ -40,7 +38,15 @@ export async function load({ locals, url, setHeaders }) {
 		: allSermons;
 
 	return {
-		sermons,
+		// Board cards receive only their preview/workflow fields, not every private Markdown/HTML body.
+		sermons: sermons.map((sermon) => ({
+			id: sermon.id,
+			title: sermon.title,
+			plainText: sermon.plainText,
+			sermonStatus: sermon.sermonStatus,
+			sermonDate: sermon.sermonDate,
+			sermonSeries: sermon.sermonSeries
+		})),
 		tagTree,
 		statuses: SERMON_WORKFLOW_STATES,
 		filters: { q, status: status ?? null },
@@ -49,8 +55,7 @@ export async function load({ locals, url, setHeaders }) {
 }
 
 export const actions = {
-	create: async ({ request, locals, url, setHeaders }) => {
-		setPrivateNoStore(setHeaders);
+	create: async ({ request, locals, url }) => {
 		const user = requireDocumentUser(locals.user, url);
 		const form = await request.formData();
 		const title = String(form.get('title') ?? '').trim() || 'Neue Predigt';
@@ -78,33 +83,33 @@ export const actions = {
 		}
 
 		try {
-			const sermon = await createDocument(db, user.id, {
-				kind: 'sermon',
-				title,
-				visibility: 'private',
-				source: 'native',
-				sermonStatus: rawStatus,
-				sermonDate: date.value,
-				sermonSeries: series,
-				...prepareDocumentBody(GERMAN_SERMON_STARTER_TEMPLATE)
-			});
-			if (endpoints) {
-				const passages = await replaceDocumentPassages(db, user.id, sermon.id, [
-					{ ...endpoints, resourceId, position: 0 }
-				]);
-				if (!passages.ok) {
-					await softDeleteDocument(db, user.id, sermon.id);
-					if (passages.reason === 'invalidResource') {
-						return fail(400, {
-							error: 'invalidResource' as const,
-							resourceId: passages.resourceId
-						});
-					}
-					return fail(passages.reason === 'conflict' ? 409 : 404, {
-						error: passages.reason
+			const created = await createDocumentWithPassages(
+				db,
+				user.id,
+				{
+					kind: 'sermon',
+					title,
+					visibility: 'private',
+					source: 'native',
+					sermonStatus: rawStatus,
+					sermonDate: date.value,
+					sermonSeries: series,
+					...prepareDocumentBody(GERMAN_SERMON_STARTER_TEMPLATE)
+				},
+				endpoints ? [{ ...endpoints, resourceId, position: 0 }] : []
+			);
+			if (!created.ok) {
+				if (created.reason === 'invalidResource') {
+					return fail(400, {
+						error: 'invalidResource' as const,
+						resourceId: created.resourceId
 					});
 				}
+				return fail(created.reason === 'conflict' ? 409 : 404, {
+					error: created.reason
+				});
 			}
+			const sermon = created.document;
 			redirect(303, documentEditorUrl(sermon.id, form.get('returnTo')));
 		} catch (caught) {
 			if (caught instanceof InvalidDocumentInputError) {

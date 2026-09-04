@@ -5,7 +5,8 @@
 
 	let { data, form } = $props();
 
-	const dateFormat = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' });
+	// Sermon dates are calendar values stored at UTC midnight, not instants in the viewer's zone.
+	const dateFormat = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeZone: 'UTC' });
 
 	function statusLabel(status: string): string {
 		return t(`sermons.status.${status}` as MessageKey);
@@ -58,6 +59,7 @@
 			action="?/create"
 			class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[1.5fr_1fr_1fr_1fr_auto]"
 		>
+			<input type="hidden" name="returnTo" value="/sermons" />
 			<label class="field-label">
 				<span>{t('documents.editor.title')}</span>
 				<input name="title" class="field-control" placeholder={t('documents.create.sermon')} />

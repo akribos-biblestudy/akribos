@@ -21,12 +21,15 @@ export type DocumentSource = (typeof DOCUMENT_SOURCES)[number];
 export const MAX_DOCUMENT_TITLE_LENGTH = 200;
 export const MAX_TAG_SEGMENT_LENGTH = 80;
 export const MAX_DOCUMENT_MARKDOWN_BYTES = 1024 * 1024;
-export const MAX_OBSIDIAN_IMPORT_BYTES = 1024 * 1024;
+export const MAX_OBSIDIAN_FRONTMATTER_BYTES = 64 * 1024;
+/** Includes a one-MiB body, bounded YAML headroom, BOM and frontmatter delimiters. */
+export const MAX_OBSIDIAN_IMPORT_BYTES =
+	MAX_DOCUMENT_MARKDOWN_BYTES + MAX_OBSIDIAN_FRONTMATTER_BYTES + 16;
 
 /** Practical guards for a nested-tag UI and a single import operation. */
 export const MAX_TAG_DEPTH = 8;
 export const MAX_DOCUMENT_TAGS = 50;
-export const MAX_OBSIDIAN_IMPORT_FILES = 100;
+export const MAX_DOCUMENT_PASSAGES = 100;
 
 /** A useful title for a newly created draft, never a public-author fallback. */
 export const DEFAULT_DOCUMENT_TITLE = 'Unbenanntes Dokument';
@@ -123,6 +126,8 @@ export function isValidTagSegment(value: string): boolean {
 		normalized.length > 0 &&
 		characterLength(normalized) <= MAX_TAG_SEGMENT_LENGTH &&
 		!normalized.includes('/') &&
+		!normalized.includes(',') &&
+		!normalized.includes('\\') &&
 		!normalized.includes('#')
 	);
 }
@@ -158,8 +163,9 @@ export function isObsidianImportSizeAllowed(bytes: number): boolean {
 	return Number.isSafeInteger(bytes) && bytes > 0 && bytes <= MAX_OBSIDIAN_IMPORT_BYTES;
 }
 
-export function isObsidianImportFileCountAllowed(count: number): boolean {
-	return Number.isSafeInteger(count) && count > 0 && count <= MAX_OBSIDIAN_IMPORT_FILES;
+/** Zero anchors are valid; a document only becomes invalid once the bounded collection overflows. */
+export function isDocumentPassageCountAllowed(count: number): boolean {
+	return Number.isSafeInteger(count) && count >= 0 && count <= MAX_DOCUMENT_PASSAGES;
 }
 
 export function normalizeSermonWorkflowState(

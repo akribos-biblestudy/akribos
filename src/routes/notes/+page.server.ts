@@ -22,11 +22,10 @@ import {
 	normalizeTagPath
 } from '$lib/server/repositories/document-tags';
 import {
-	createDocument,
+	createDocumentWithPassages,
 	findDocumentsOverlappingPassage,
 	InvalidDocumentInputError,
 	listDocuments,
-	replaceDocumentPassages,
 	restoreDocument,
 	softDeleteDocument
 } from '$lib/server/repositories/documents';
@@ -133,7 +132,17 @@ export async function load({ locals, url, setHeaders }) {
 	if (filterErrors.length > 0) documents = [];
 
 	return {
-		documents,
+		// The library needs searchable excerpts, never complete private bodies in its SSR payload.
+		documents: documents.map((document) => ({
+			id: document.id,
+			kind: document.kind,
+			title: document.title,
+			plainText: document.plainText,
+			visibility: document.visibility,
+			revision: document.revision,
+			source: document.source,
+			updatedAt: document.updatedAt
+		})),
 		tags: tagTree,
 		tagTree,
 		bibles,
@@ -151,8 +160,7 @@ export async function load({ locals, url, setHeaders }) {
 }
 
 export const actions = {
-	create: async ({ request, locals, url, setHeaders }) => {
-		setPrivateNoStore(setHeaders);
+	create: async ({ request, locals, url }) => {
 		const user = requireDocumentUser(locals.user, url);
 		const form = await request.formData();
 		const rawKind = String(form.get('kind') ?? 'note');
@@ -176,22 +184,31 @@ export const actions = {
 		const title = String(form.get('title') ?? '').trim() || defaultTitle(rawKind);
 		const markdown = rawKind === 'sermon' ? GERMAN_SERMON_STARTER_TEMPLATE : '';
 		try {
-			const document = await createDocument(db, user.id, {
-				kind: rawKind,
-				title,
-				visibility: 'private',
-				source: 'native',
-				sermonStatus: rawKind === 'sermon' ? 'idea' : undefined,
-				...prepareDocumentBody(markdown)
-			});
-			if (endpoints) {
-				const result = await replaceDocumentPassages(db, user.id, document.id, [
-					{ ...endpoints, resourceId, position: 0 }
-				]);
-				if (!result.ok) {
-					await softDeleteDocument(db, user.id, document.id);
-					return revisionFailure(result);
-				}
+			const created = await createDocumentWithPassages(
+				db,
+				user.id,
+				{
+					kind: rawKind,
+					title,
+					visibility: 'private',
+					source: 'native',
+					sermonStatus: rawKind === 'sermon' ? 'idea' : undefined,
+					...prepareDocumentBody(markdown)
+				},
+				endpoints ? [{ ...endpoints, resourceId, position: 0 }] : []
+			);
+			if (!created.ok) return revisionFailure(created);
+			const document = created.document;
+			// An enhanced Reader form keeps the private id in component memory and opens the same working
+			// copy in the notes sidecar. Every other create workflow retains the established redirect.
+			if (form.get('readerSidecar') === '1') {
+				return {
+					created: true,
+					documentId: document.id,
+					documentTitle: document.title,
+					documentKind: document.kind,
+					documentSource: document.source
+				};
 			}
 			redirect(303, documentEditorUrl(document.id, form.get('returnTo')));
 		} catch (caught) {
@@ -202,8 +219,7 @@ export const actions = {
 		}
 	},
 
-	softDelete: async ({ request, locals, url, setHeaders }) => {
-		setPrivateNoStore(setHeaders);
+	softDelete: async ({ request, locals, url }) => {
 		const user = requireDocumentUser(locals.user, url);
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');
@@ -215,8 +231,7 @@ export const actions = {
 		return { saved: true, id, revision: result.revision };
 	},
 
-	restore: async ({ request, locals, url, setHeaders }) => {
-		setPrivateNoStore(setHeaders);
+	restore: async ({ request, locals, url }) => {
 		const user = requireDocumentUser(locals.user, url);
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');

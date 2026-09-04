@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
 	db: { marker: 'publication-test-db' },
 	listPublishedArticles: vi.fn(),
+	listPublishedArticleSummaries: vi.fn(),
+	listPublishedArticleSlugs: vi.fn(),
 	getPublishedArticleBySlug: vi.fn(),
 	listBibles: vi.fn(),
 	chapterCount: vi.fn()
@@ -18,6 +20,8 @@ vi.mock('$lib/server/db', () => ({
 
 vi.mock('$lib/server/repositories/document-publications', () => ({
 	listPublishedArticles: mocks.listPublishedArticles,
+	listPublishedArticleSummaries: mocks.listPublishedArticleSummaries,
+	listPublishedArticleSlugs: mocks.listPublishedArticleSlugs,
 	getPublishedArticleBySlug: mocks.getPublishedArticleBySlug
 }));
 
@@ -50,20 +54,26 @@ const publication = {
 
 beforeEach(() => {
 	mocks.listPublishedArticles.mockReset();
+	mocks.listPublishedArticleSummaries.mockReset();
+	mocks.listPublishedArticleSlugs.mockReset();
 	mocks.getPublishedArticleBySlug.mockReset();
 	mocks.listBibles.mockReset();
+	mocks.listBibles.mockResolvedValue([]);
 	mocks.chapterCount.mockReset();
 });
 
 describe('public article page loads', () => {
-	it('returns snapshot summaries and makes only anonymous responses publicly cacheable', async () => {
-		mocks.listPublishedArticles.mockResolvedValueOnce([publication]);
+	it('returns snapshot summaries without shared-caching the personalised root layout', async () => {
+		mocks.listPublishedArticleSummaries.mockResolvedValueOnce([publication]);
 		const setHeaders = vi.fn();
 
-		const result = await loadArticleIndex({ locals: { user: null }, setHeaders } as never);
+		const result = await loadArticleIndex({
+			setHeaders,
+			url: new URL('https://example.test/articles')
+		} as never);
 
-		expect(mocks.listPublishedArticles).toHaveBeenCalledWith(mocks.db, {
-			limit: 100,
+		expect(mocks.listPublishedArticleSummaries).toHaveBeenCalledWith(mocks.db, {
+			limit: 25,
 			offset: 0
 		});
 		expect(result.articles).toEqual([
@@ -71,15 +81,13 @@ describe('public article page loads', () => {
 		]);
 		expect(result.articles[0]).not.toHaveProperty('bodyMarkdown');
 		expect(result.articles[0]).not.toHaveProperty('documentId');
-		expect(setHeaders).toHaveBeenCalledWith({
-			'cache-control': 'public, max-age=0, s-maxage=300'
-		});
+		expect(setHeaders).toHaveBeenCalledWith({ 'cache-control': 'private, no-store' });
 
-		mocks.listPublishedArticles.mockResolvedValueOnce([]);
+		mocks.listPublishedArticleSummaries.mockResolvedValueOnce([]);
 		const signedInHeaders = vi.fn();
 		await loadArticleIndex({
-			locals: { user: { id: 'user-id' } },
-			setHeaders: signedInHeaders
+			setHeaders: signedInHeaders,
+			url: new URL('https://example.test/articles')
 		} as never);
 		expect(signedInHeaders).toHaveBeenCalledWith({ 'cache-control': 'private, no-store' });
 	});
@@ -92,12 +100,13 @@ describe('public article page loads', () => {
 		const setHeaders = vi.fn();
 
 		const result = await loadArticle({
-			locals: { user: null },
 			params: { slug: publication.slug },
 			setHeaders
 		} as never);
 
 		expect(mocks.getPublishedArticleBySlug).toHaveBeenCalledWith(mocks.db, publication.slug);
+		expect(mocks.listBibles).toHaveBeenCalledWith(mocks.db);
+		expect(result.bibles).toEqual([]);
 		expect(result.article).toMatchObject({
 			slug: publication.slug,
 			bodyHtml: publication.bodyHtml,
@@ -105,14 +114,12 @@ describe('public article page loads', () => {
 		});
 		expect(result.article).not.toHaveProperty('bodyMarkdown');
 		expect(result.article).not.toHaveProperty('documentId');
-		expect(setHeaders).toHaveBeenCalledWith({
-			'cache-control': 'public, max-age=0, s-maxage=300'
-		});
+		expect(setHeaders).toHaveBeenCalledWith({ 'cache-control': 'private, no-store' });
+		expect(setHeaders).toHaveBeenCalledWith({ 'x-robots-tag': 'noindex, nofollow' });
 
 		mocks.getPublishedArticleBySlug.mockResolvedValueOnce(undefined);
 		await expect(
 			loadArticle({
-				locals: { user: null },
 				params: { slug: 'nicht-vorhanden' },
 				setHeaders: vi.fn()
 			} as never)
@@ -136,7 +143,7 @@ describe('article feed', () => {
 		expect(xml).not.toContain(publication.documentId);
 		expect(setHeaders).toHaveBeenCalledWith({
 			'content-type': 'application/atom+xml; charset=utf-8',
-			'cache-control': 'public, max-age=0, s-maxage=900'
+			'cache-control': 'public, max-age=0, must-revalidate'
 		});
 	});
 });
@@ -145,13 +152,13 @@ describe('article discovery', () => {
 	it('adds every public snapshot returned by the publication repository to the sitemap', async () => {
 		mocks.listBibles.mockResolvedValueOnce([]);
 		mocks.chapterCount.mockResolvedValue(0);
-		mocks.listPublishedArticles.mockResolvedValueOnce([publication]);
+		mocks.listPublishedArticleSlugs.mockResolvedValueOnce([publication.slug]);
 
 		const response = await getSitemap({ setHeaders: vi.fn() } as never);
 		const xml = await response.text();
 
 		expect(xml).toContain('<loc>https://example.test/articles/hoffnung-und-liebe</loc>');
-		expect(mocks.listPublishedArticles).toHaveBeenCalledWith(mocks.db, {
+		expect(mocks.listPublishedArticleSlugs).toHaveBeenCalledWith(mocks.db, {
 			limit: 100,
 			offset: 0
 		});

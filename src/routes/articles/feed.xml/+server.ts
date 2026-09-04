@@ -15,7 +15,7 @@ export async function GET({ setHeaders }) {
 
 	setHeaders({
 		'content-type': 'application/atom+xml; charset=utf-8',
-		'cache-control': 'public, max-age=0, s-maxage=900'
+		'cache-control': 'public, max-age=0, must-revalidate'
 	});
 
 	const entries = publications.map((publication) => {

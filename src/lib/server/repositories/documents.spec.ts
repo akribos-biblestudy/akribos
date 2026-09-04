@@ -1,14 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { passageToDbEndpoints } from '../../bible/passage.ts';
+import { MAX_DOCUMENT_PASSAGES } from '../../notes/documents.ts';
 import { closeDb, getDb } from '../db/index.ts';
-import { resources, users, verseComments } from '../db/schema.ts';
+import { documents, resources, users, verseComments } from '../db/schema.ts';
 import {
 	getOwnedDocumentPublication,
-	publishArticle,
 	getPublishedArticleBySlug,
-	listPublishedArticles
+	listPublishedArticleSlugs,
+	listPublishedArticleSummaries,
+	listPublishedArticles,
+	publishArticle
 } from './document-publications.ts';
 import {
 	listDocumentsByTag,
@@ -19,6 +22,7 @@ import {
 import {
 	createDocument,
 	createDocumentFromLegacyVerseComment,
+	createDocumentWithPassages,
 	findDocumentsOverlappingPassage,
 	getDocument,
 	listDocumentPassages,
@@ -115,6 +119,42 @@ describe.sequential('unified document repositories', () => {
 		expect((await getDocument(db, ownerId, created.id))?.title).toBe('Saved');
 	});
 
+	it('atomically creates a working copy with its initial passage', async () => {
+		const created = await createDocumentWithPassages(
+			db,
+			ownerId,
+			{
+				kind: 'note',
+				title: 'Atomic initial passage',
+				...EMPTY_BODY
+			},
+			[{ ...passage({ book: 43, chapter: 3, verse: 16 }), resourceId }]
+		);
+		expect(created.ok).toBe(true);
+		if (!created.ok) throw new Error('expected atomic document creation to succeed');
+		expect(created.document.revision).toBe(2);
+		expect(await listDocumentPassages(db, ownerId, created.document.id)).toHaveLength(1);
+
+		const rollbackTitle = `Atomic rollback ${randomUUID()}`;
+		const rejected = await createDocumentWithPassages(
+			db,
+			ownerId,
+			{ kind: 'sermon', title: rollbackTitle, sermonStatus: 'idea', ...EMPTY_BODY },
+			[{ ...passage({ book: 43, chapter: 3, verse: 17 }), resourceId: privateResourceId }]
+		);
+		expect(rejected).toEqual({
+			ok: false,
+			reason: 'invalidResource',
+			resourceId: privateResourceId
+		});
+		expect(
+			await db
+				.select({ id: documents.id })
+				.from(documents)
+				.where(and(eq(documents.userId, ownerId), eq(documents.title, rollbackTitle)))
+		).toEqual([]);
+	});
+
 	it('replaces validated canonical and translation anchors and finds inclusive overlaps', async () => {
 		const document = await createDocument(db, ownerId, {
 			kind: 'note',
@@ -150,6 +190,18 @@ describe.sequential('unified document repositories', () => {
 				{ ...translated, resourceId: privateResourceId }
 			])
 		).toEqual({ ok: false, reason: 'invalidResource', resourceId: privateResourceId });
+		await expect(
+			replaceDocumentPassages(
+				db,
+				ownerId,
+				document.id,
+				Array.from({ length: MAX_DOCUMENT_PASSAGES + 1 }, (_, position) => ({
+					...translated,
+					resourceId: null,
+					position
+				}))
+			)
+		).rejects.toMatchObject({ code: 'passage' });
 
 		await softDeleteDocument(db, ownerId, document.id);
 		expect(
@@ -188,6 +240,16 @@ describe.sequential('unified document repositories', () => {
 		expect((await listDocumentsByTag(db, ownerId, 'theology')).map((row) => row.id)).toContain(
 			document.id
 		);
+		const unicodeDocument = await createDocument(db, ownerId, {
+			kind: 'note',
+			title: 'Unicode tagged note',
+			...EMPTY_BODY
+		});
+		const unicodeSync = await syncDocumentTags(db, ownerId, unicodeDocument.id, ['😀/Kind']);
+		expect(unicodeSync.ok).toBe(true);
+		expect((await listDocumentsByTag(db, ownerId, '😀')).map((row) => row.id)).toContain(
+			unicodeDocument.id
+		);
 		expect(await syncDocumentTags(db, adminId, document.id, ['Foreign'])).toEqual({
 			ok: false,
 			reason: 'notFound'
@@ -202,6 +264,51 @@ describe.sequential('unified document repositories', () => {
 		).toContain(document.id);
 	});
 
+	it('locks the working copy before changing tag links', async () => {
+		const document = await createDocument(db, ownerId, {
+			kind: 'note',
+			title: 'Concurrent tag note',
+			...EMPTY_BODY
+		});
+		let syncPromise: ReturnType<typeof syncDocumentTags> | undefined;
+		let syncSettled = false;
+
+		await db.transaction(async (tx) => {
+			await tx
+				.select({ id: documents.id })
+				.from(documents)
+				.where(eq(documents.id, document.id))
+				.for('update');
+			syncPromise = syncDocumentTags(
+				db,
+				ownerId,
+				document.id,
+				['Concurrent/Child'],
+				document.revision
+			);
+			void syncPromise.then(
+				() => (syncSettled = true),
+				() => (syncSettled = true)
+			);
+			await new Promise((resolve) => setTimeout(resolve, 75));
+			expect(syncSettled).toBe(false);
+			await tx
+				.update(documents)
+				.set({ revision: sql`${documents.revision} + 1`, updatedAt: new Date() })
+				.where(eq(documents.id, document.id));
+		});
+
+		if (!syncPromise) throw new Error('tag sync did not start');
+		expect(await syncPromise).toEqual({
+			ok: false,
+			reason: 'conflict',
+			currentRevision: document.revision + 1
+		});
+		expect((await listDocumentTagTree(db, ownerId)).map((tag) => tag.path)).not.toContain(
+			'Concurrent/Child'
+		);
+	});
+
 	it('publishes only an admin-owned article and keeps working changes out of its snapshot', async () => {
 		const ownerArticle = await createDocument(db, ownerId, {
 			kind: 'article',
@@ -212,20 +319,22 @@ describe.sequential('unified document repositories', () => {
 		expect(
 			await publishArticle(db, ownerId, ownerArticle.id, {
 				slug: `owner-${randomUUID()}`,
-				excerpt: ''
+				excerpt: '',
+				visibility: 'public'
 			})
 		).toMatchObject({ ok: false, reason: 'forbidden' });
 		expect(
 			await publishArticle(db, adminId, ownerArticle.id, {
 				slug: `foreign-${randomUUID()}`,
-				excerpt: ''
+				excerpt: '',
+				visibility: 'public'
 			})
 		).toMatchObject({ ok: false, reason: 'notFound' });
 
 		const article = await createDocument(db, adminId, {
 			kind: 'article',
 			title: 'Snapshot article',
-			visibility: 'public',
+			visibility: 'private',
 			bodyMarkdown: 'Version one',
 			bodyHtml: '<p>Version one</p>',
 			plainText: 'Version one'
@@ -234,13 +343,52 @@ describe.sequential('unified document repositories', () => {
 		const first = await publishArticle(db, adminId, article.id, {
 			slug,
 			excerpt: 'First excerpt',
+			visibility: 'public',
 			expectedRevision: article.revision
 		});
 		expect(first.ok && first.publication.bodyMarkdown).toBe('Version one');
+		expect(first.ok && first.publication.publicationRevision).toBe(article.revision + 1);
+		expect((await getDocument(db, adminId, article.id))?.visibility).toBe('public');
 		expect(await getOwnedDocumentPublication(db, ownerId, article.id)).toBeUndefined();
 		expect((await getOwnedDocumentPublication(db, adminId, article.id))?.slug).toBe(slug);
+		const summary = (await listPublishedArticleSummaries(db)).find((row) => row.slug === slug);
+		expect(summary).toMatchObject({ title: 'Snapshot article', excerpt: 'First excerpt' });
+		expect(summary).not.toHaveProperty('bodyHtml');
+		expect(await listPublishedArticleSlugs(db)).toContain(slug);
+		const conflictingArticle = await createDocument(db, adminId, {
+			kind: 'article',
+			title: 'Conflicting slug article',
+			visibility: 'private',
+			...EMPTY_BODY
+		});
+		expect(
+			await publishArticle(db, adminId, conflictingArticle.id, {
+				slug,
+				excerpt: '',
+				visibility: 'unlisted',
+				expectedRevision: conflictingArticle.revision
+			})
+		).toMatchObject({ ok: false, reason: 'slugConflict' });
+		expect(await getDocument(db, adminId, conflictingArticle.id)).toMatchObject({
+			visibility: 'private',
+			revision: conflictingArticle.revision
+		});
+		expect(await getOwnedDocumentPublication(db, adminId, conflictingArticle.id)).toBeUndefined();
+		const unlistedSlug = `unlisted-${randomUUID()}`;
+		const unlisted = await publishArticle(db, adminId, conflictingArticle.id, {
+			slug: unlistedSlug,
+			excerpt: '',
+			visibility: 'unlisted',
+			expectedRevision: conflictingArticle.revision
+		});
+		expect(unlisted.ok && unlisted.publication.visibility).toBe('unlisted');
+		expect((await listPublishedArticleSummaries(db)).map((row) => row.slug)).not.toContain(
+			unlistedSlug
+		);
+		expect(await listPublishedArticleSlugs(db)).not.toContain(unlistedSlug);
 
-		const changed = await updateDocument(db, adminId, article.id, article.revision, {
+		const publishedRevision = first.ok ? first.publication.publicationRevision : 0;
+		const changed = await updateDocument(db, adminId, article.id, publishedRevision, {
 			body: {
 				bodyMarkdown: 'Version two',
 				bodyHtml: '<p>Version two</p>',
@@ -255,9 +403,60 @@ describe.sequential('unified document repositories', () => {
 		const second = await publishArticle(db, adminId, article.id, {
 			slug,
 			excerpt: 'Second excerpt',
+			visibility: 'public',
 			expectedRevision: changed.document.revision
 		});
 		expect(second.ok && second.publication.bodyMarkdown).toBe('Version two');
+		expect(second.ok && second.publication.publicationRevision).toBe(changed.document.revision);
+		expect((await getDocument(db, adminId, article.id))?.revision).toBe(changed.document.revision);
+	});
+
+	it('serializes publication snapshots with concurrent working-copy mutations', async () => {
+		const article = await createDocument(db, adminId, {
+			kind: 'article',
+			title: 'Locking article',
+			visibility: 'public',
+			...EMPTY_BODY
+		});
+		const slug = `locking-${randomUUID()}`;
+		let publicationPromise: ReturnType<typeof publishArticle> | undefined;
+		let publicationSettled = false;
+
+		await db.transaction(async (tx) => {
+			await tx
+				.select({ id: documents.id })
+				.from(documents)
+				.where(eq(documents.id, article.id))
+				.for('update');
+			publicationPromise = publishArticle(db, adminId, article.id, {
+				slug,
+				excerpt: '',
+				visibility: 'public',
+				expectedRevision: article.revision
+			});
+			void publicationPromise.then(
+				() => (publicationSettled = true),
+				() => (publicationSettled = true)
+			);
+			await new Promise((resolve) => setTimeout(resolve, 75));
+			expect(publicationSettled).toBe(false);
+			await tx
+				.update(documents)
+				.set({
+					title: 'Concurrent working copy',
+					revision: sql`${documents.revision} + 1`,
+					updatedAt: new Date()
+				})
+				.where(eq(documents.id, article.id));
+		});
+
+		if (!publicationPromise) throw new Error('publication did not start');
+		expect(await publicationPromise).toEqual({
+			ok: false,
+			reason: 'conflict',
+			currentRevision: article.revision + 1
+		});
+		expect(await getPublishedArticleBySlug(db, slug)).toBeUndefined();
 	});
 
 	it('creates an idempotent private document for a legacy verse comment', async () => {
@@ -292,5 +491,27 @@ describe.sequential('unified document repositories', () => {
 		expect(first.ok && first.created).toBe(true);
 		expect(second.ok && second.created).toBe(false);
 		expect(first.ok && second.ok && second.document.id).toBe(first.ok ? first.document.id : '');
+
+		const hiddenLegacyId = randomUUID();
+		await db.insert(verseComments).values({
+			id: hiddenLegacyId,
+			userId: ownerId,
+			resourceId: privateResourceId,
+			bookId: 43,
+			chapter: 3,
+			verse: 17,
+			commentHtml: '<p>Historically hidden translation</p>'
+		});
+		const hidden = await createDocumentFromLegacyVerseComment(db, {
+			...input,
+			id: hiddenLegacyId,
+			resourceId: privateResourceId,
+			verse: 17,
+			title: 'Historical hidden Bible note'
+		});
+		expect(hidden.ok && hidden.created).toBe(true);
+		expect(
+			hidden.ok && (await listDocumentPassages(db, ownerId, hidden.document.id))[0]
+		).toMatchObject({ resourceId: privateResourceId });
 	});
 });

@@ -142,6 +142,10 @@ export const de = {
 	'documents.editor.saved': 'Gespeichert',
 	'documents.editor.unsaved': 'Nicht gespeicherte Änderungen',
 	'documents.editor.saveError': 'Speichern fehlgeschlagen. Die Änderungen bleiben im Editor.',
+	'documents.editor.authenticationRequired':
+		'Deine Sitzung ist abgelaufen. Melde dich erneut an; die Änderungen bleiben im Editor.',
+	'documents.editor.notFound': 'Das Dokument wurde nicht gefunden oder du hast keinen Zugriff.',
+	'documents.editor.tooLarge': 'Das Dokument ist zu groß. Kürze den Text und speichere erneut.',
 	'documents.editor.conflict':
 		'Das Dokument wurde an anderer Stelle geändert. Lade die Seite neu, um nichts zu überschreiben.',
 	'documents.editor.markdownHint':
@@ -182,6 +186,90 @@ export const de = {
 	'documents.import.limitations':
 		'Anhänge, Einbettungen, unsicheres HTML und unbekannte Metadaten werden nicht importiert.',
 	'documents.import.error': 'Die Datei konnte nicht sicher verarbeitet werden.',
+	'documents.import.sizeLimit':
+		'Maximal {bodyMiB} MiB Dokumenttext plus {frontmatterKiB} KiB YAML-Frontmatter.',
+	'documents.import.passageLimit':
+		'Pro Dokument werden höchstens {maximum} Bibelstellen verknüpft.',
+	'documents.import.limitation.rawHtml':
+		'Rohes HTML, Medien, Einbettungen und Attribute werden entfernt.',
+	'documents.import.limitation.headingDepth':
+		'Überschriften ab Ebene 4 werden auf Ebene 3 zurückgeführt.',
+	'documents.import.limitation.layout':
+		'Tabellenlayout, Startwerte nummerierter Listen und Linktitel bleiben nicht erhalten.',
+	'documents.import.limitation.taskCheckboxes':
+		'Aufgaben-Kontrollkästchen werden zu gewöhnlichem lesbarem Text.',
+	'documents.import.limitation.whitespace':
+		'Zeilenenden und nachgestellte Leerzeichen werden vereinheitlicht.',
+	'documents.import.warning.attachmentLink':
+		'Ein Anhangslink wurde auf seine lesbare Beschriftung reduziert.',
+	'documents.import.warning.attachmentRemoved': 'Ein Bild oder Anhang wurde beim Import entfernt.',
+	'documents.import.warning.rawHtml': 'Rohes HTML wurde beim Import entfernt.',
+	'documents.import.warning.embed': 'Eine Obsidian-Einbettung wurde beim Import entfernt.',
+	'documents.import.warning.unsafeWikilink':
+		'Ein unsicherer Wiki- oder Anhangslink wurde auf lesbaren Text reduziert.',
+	'documents.import.warning.wikilink':
+		'Obsidian-Wikilinks wurden in gewöhnliche interne Links umgewandelt.',
+	'documents.import.warning.timestamps':
+		'Exportierte Zeitstempel dienen nur zur Information und werden beim Import nicht wiederhergestellt.',
+	'documents.import.warning.unsafeMetadata':
+		'Das Frontmatter-Feld „{field}“ wurde ignoriert; Importe können weder Eigentum noch Veröffentlichungsstatus setzen.',
+	'documents.import.warning.unknownMetadata':
+		'Das unbekannte Frontmatter-Feld „{field}“ wurde ignoriert.',
+	'documents.import.warning.invalidTitle':
+		'Der Titel im Frontmatter war ungültig; stattdessen wurde der Dateiname verwendet.',
+	'documents.import.warning.kindConflict':
+		'„type“ und „kind“ waren beide vorhanden; „type“ hatte Vorrang.',
+	'documents.import.warning.invalidKind':
+		'Der Dokumenttyp war ungültig und wurde auf „Notiz“ gesetzt.',
+	'documents.import.warning.invalidTags':
+		'Schlagwörter müssen als Text oder als Liste von Textwerten angegeben werden.',
+	'documents.import.warning.nonTextTag': 'Ein Schlagwort ohne Textwert wurde ignoriert.',
+	'documents.import.warning.invalidTag': 'Ein ungültiges Schlagwort wurde ignoriert.',
+	'documents.import.warning.tooManyTags':
+		'Nur die ersten {maximum} Schlagwörter wurden eingelesen.',
+	'documents.import.warning.passageResourceConflict':
+		'Eine Bibelstelle enthielt „resource“ und „resourceId“; „resource“ hatte Vorrang.',
+	'documents.import.warning.invalidPassageEntry':
+		'Ein ungültiger Bibelstellen-Eintrag wurde ignoriert.',
+	'documents.import.warning.missingPassageReference':
+		'Eine Bibelstelle ohne gültige Referenz wurde ignoriert.',
+	'documents.import.warning.invalidPassageResource':
+		'Ein ungültiger Übersetzungsbezug wurde ignoriert; die Bibelstelle blieb erhalten.',
+	'documents.import.warning.tooManyPassages':
+		'Nur die ersten {maximum} Bibelstellen wurden eingelesen.',
+	'documents.import.warning.invalidSermon':
+		'Predigtmetadaten müssen als Zuordnung angegeben werden.',
+	'documents.import.warning.sermonOnOtherKind':
+		'Predigtmetadaten wurden bei einem anderen Dokumenttyp ignoriert.',
+	'documents.import.warning.invalidSermonStatus':
+		'Der Predigtstatus war ungültig und wurde auf „Idee“ gesetzt.',
+	'documents.import.warning.invalidSermonDate': 'Ein ungültiges Predigtdatum wurde ignoriert.',
+	'documents.import.warning.invalidSermonSeries': 'Eine ungültige Predigtreihe wurde ignoriert.',
+	'documents.import.warning.unparsedPassage':
+		'Mindestens eine Bibelstelle konnte nicht erkannt werden und muss korrigiert werden.',
+	'documents.import.warning.unavailableBible':
+		'Mindestens eine Bibelstelle nennt eine nicht verfügbare Übersetzung.',
+	'documents.import.warning.invalidTagPath':
+		'Mindestens ein Schlagwortpfad ist ungültig oder zu tief verschachtelt.',
+	'documents.import.warning.documentTagLimit':
+		'Ein Dokument darf höchstens {maximum} Schlagwörter haben.',
+	'documents.import.warning.documentPassageLimit':
+		'Ein Dokument darf höchstens {maximum} Bibelstellen verknüpfen.',
+	'documents.import.warning.unspecified':
+		'Beim Import wurde eine nicht näher beschriebene Anpassung vorgenommen.',
+	'documents.import.error.requestTooLarge':
+		'Die Importanfrage ist größer als der zulässige, begrenzte Dateiumschlag.',
+	'documents.import.error.invalidForm': 'Die Importanfrage enthält keine gültigen Formulardaten.',
+	'documents.import.error.fileCount': 'Wähle genau eine Markdown-Datei aus.',
+	'documents.import.error.emptyFile': 'Die Markdown-Datei ist leer.',
+	'documents.import.error.invalidFilename':
+		'Es kann nur eine pfadfreie Datei mit der Endung „.md“ importiert werden.',
+	'documents.import.error.invalidEncoding': 'Die Markdown-Datei ist kein gültiges UTF-8.',
+	'documents.import.error.binaryFile': 'Binärdaten können nicht als Markdown importiert werden.',
+	'documents.import.error.fileTooLarge':
+		'Der Dokumenttext ist auf 1 MiB zuzüglich begrenztem YAML-Frontmatter beschränkt.',
+	'documents.import.error.invalidFrontmatter':
+		'Das YAML-Frontmatter ist ungültig oder überschreitet seine sichere Größen- und Komplexitätsgrenze.',
 	'documents.publication.title': 'Veröffentlichung',
 	'documents.publication.adminOnly': 'Nur Administratoren können Artikel veröffentlichen.',
 	'documents.publication.private':
@@ -197,6 +285,9 @@ export const de = {
 	'documents.publication.currentCopy': 'Die Veröffentlichung entspricht der Arbeitskopie.',
 	'documents.publication.open': 'Öffentliche Seite öffnen',
 	'documents.publication.error': 'Der Artikel konnte nicht veröffentlicht werden.',
+	'documents.editor.actionError': 'Die Änderung konnte nicht gespeichert werden.',
+	'documents.tags.error': 'Die Schlagwörter konnten nicht gespeichert werden.',
+	'documents.passages.error': 'Die Bibelstellen-Verknüpfung konnte nicht gespeichert werden.',
 	'documents.reader.title': 'Notizen zu dieser Stelle',
 	'documents.reader.open': 'Notizen zu {reference} öffnen',
 	'documents.reader.create': 'Notiz zu {reference} erstellen',
@@ -209,6 +300,7 @@ export const de = {
 	// --- sermon workflow ----------------------------------------------------
 	'sermons.title': 'Predigtvorbereitung',
 	'sermons.subtitle': 'Entwürfe vom ersten Gedanken bis zur gehaltenen Predigt begleiten.',
+	'sermons.back': 'Zur Predigtvorbereitung',
 	'sermons.new': 'Predigt aus Vorlage erstellen',
 	'sermons.empty': 'Noch keine Predigten in Vorbereitung.',
 	'sermons.status': 'Arbeitsstand',
@@ -230,6 +322,10 @@ export const de = {
 	'articles.published': 'Veröffentlicht am {date}',
 	'articles.read': 'Artikel lesen',
 	'articles.unlisted': 'Nicht gelisteter Artikel',
+	'articles.pagination': 'Artikelseiten',
+	'articles.previous': 'Neuere Artikel',
+	'articles.next': 'Ältere Artikel',
+	'articles.page': 'Seite {page}',
 
 	// --- Strong word study --------------------------------------------------
 	'strong.title': 'Strong-Nummer {id}',

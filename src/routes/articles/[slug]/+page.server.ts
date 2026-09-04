@@ -1,21 +1,30 @@
 import { error } from '@sveltejs/kit';
 import { getDb } from '$lib/server/db';
 import { getPublishedArticleBySlug } from '$lib/server/repositories/document-publications';
+import { listBibles } from '$lib/server/repositories/resources';
 
 /**
  * A visitor-facing publication snapshot. Direct links intentionally resolve both public and
  * unlisted snapshots; neither kind is ever hydrated from its mutable document working copy.
  */
-export async function load({ locals, params, setHeaders }) {
-	setHeaders({
-		'cache-control': locals.user ? 'private, no-store' : 'public, max-age=0, s-maxage=300'
-	});
+export async function load({ params, setHeaders }) {
+	// The snapshot is public, but the shared root layout embeds cookie-based guest preferences.
+	// Avoid caching the resulting HTML across visitors; feed and sitemap have no such layout data.
+	setHeaders({ 'cache-control': 'private, no-store' });
 
-	const publication = await getPublishedArticleBySlug(getDb(), params.slug);
+	const db = getDb();
+	const [publication, bibles] = await Promise.all([
+		getPublishedArticleBySlug(db, params.slug),
+		listBibles(db)
+	]);
 	if (!publication) error(404, 'Dieser Artikel ist nicht veröffentlicht.');
+	if (publication.visibility === 'unlisted') {
+		setHeaders({ 'x-robots-tag': 'noindex, nofollow' });
+	}
 
 	return {
 		title: publication.title,
+		bibles,
 		article: {
 			slug: publication.slug,
 			title: publication.title,
