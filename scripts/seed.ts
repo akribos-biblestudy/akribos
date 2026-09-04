@@ -34,35 +34,18 @@ import {
 	users,
 	verseComments
 } from '../src/lib/server/db/schema.ts';
+import {
+	SEED_ADMIN,
+	SEED_DOCUMENT_IDS,
+	SEED_LEGACY_VERSE_COMMENT_ID,
+	SEED_PASSAGE_IDS,
+	SEED_READER,
+	SEED_TAG_IDS
+} from './seed-fixtures.ts';
 
-const SEED_ADMIN = { email: 'admin@example.com', password: 'seed-admin-password' };
-const SEED_READER = { email: 'reader@example.com', password: 'seed-reader-password' };
-
-/** Reserved ids keep fixture relations stable without relying on titles or mutable content. */
-const SEED_DOCUMENT_IDS = {
-	privateNote: '5eed0000-0000-4000-8000-000000000001',
-	crossChapterNote: '5eed0000-0000-4000-8000-000000000002',
-	translationNote: '5eed0000-0000-4000-8000-000000000003',
-	sermon: '5eed0000-0000-4000-8000-000000000004',
-	article: '5eed0000-0000-4000-8000-000000000005'
-} as const;
-
-const SEED_PASSAGE_IDS = {
-	privateNote: '5eed1000-0000-4000-8000-000000000001',
-	crossChapterNote: '5eed1000-0000-4000-8000-000000000002',
-	translationNote: '5eed1000-0000-4000-8000-000000000003',
-	sermon: '5eed1000-0000-4000-8000-000000000004',
-	article: '5eed1000-0000-4000-8000-000000000005'
-} as const;
-
-const SEED_TAG_IDS = {
-	root: '5eed2000-0000-4000-8000-000000000001',
-	child: '5eed2000-0000-4000-8000-000000000002'
-} as const;
-
-const SEED_LEGACY_VERSE_COMMENT_ID = '5eed3000-0000-4000-8000-000000000001';
 const SEED_CREATED_AT = new Date('2025-01-15T10:00:00.000Z');
 const SEED_PUBLISHED_AT = new Date('2025-02-01T10:00:00.000Z');
+const SEED_READER_COLUMNS = ['SEEDDE', 'SEEDCOMMENTARY', 'STRONGS_GREEK'] as const;
 
 /** A German translation with Strong's numbers, in the format of the bundled files. */
 const GERMAN = `<?xml version="1.0" encoding="utf-8"?>
@@ -81,6 +64,11 @@ const GERMAN = `<?xml version="1.0" encoding="utf-8"?>
 		<CHAPTER cnumber="2">
 			<VERS vnumber="1">Und so wurden <gr str="8064">Himmel </gr> und <gr str="776">Erde </gr> vollendet.</VERS>
 			<VERS vnumber="2">Und <gr str="430">Gott </gr> ruhte am siebten Tag.</VERS>
+		</CHAPTER>
+	</BIBLEBOOK>
+	<BIBLEBOOK bnumber="40">
+		<CHAPTER cnumber="3">
+			<VERS vnumber="12">Er hat die Worfschaufel in seiner Hand und wird seine Tenne gründlich reinigen.</VERS>
 		</CHAPTER>
 	</BIBLEBOOK>
 	<BIBLEBOOK bnumber="43">
@@ -159,6 +147,27 @@ async function ensureSeedAccount(
 	role: 'user' | 'admin'
 ): Promise<string> {
 	const passwordHash = await hashPassword(account.password);
+	const readerColumns = [...SEED_READER_COLUMNS];
+	const readerWorkspace = {
+		version: 1 as const,
+		layout: 'columns-3' as const,
+		tiles: readerColumns.map((resourceId, index) => ({
+			id: `tile-${index + 1}`,
+			tabs: [
+				{
+					id: `tab-${index + 1}`,
+					resourceId,
+					linkSet: 'A' as const,
+					reference: { book: 43, chapter: 3, verse: 16 },
+					lookup: null,
+					studyContext: null
+				}
+			],
+			activeTabId: `tab-${index + 1}`
+		})),
+		focusedTileId: 'tile-1',
+		layoutSizes: {}
+	};
 	const [user] = await db
 		.insert(users)
 		.values({
@@ -166,16 +175,23 @@ async function ensureSeedAccount(
 			passwordHash,
 			displayName,
 			role,
+			readerColumns,
+			readerWorkspace,
+			tourCompletedAt: SEED_CREATED_AT,
 			emailVerifiedAt: SEED_CREATED_AT
 		})
 		.onConflictDoUpdate({
 			target: users.email,
-			// These example.com addresses are reserved fixtures. Refreshing only their account fields keeps
-			// the documented credentials reliable without touching any other development account or data.
+			// These example.com addresses are reserved fixtures. Refreshing their login and deterministic
+			// compact reader workspace keeps the documented walkthrough reliable without touching any other
+			// development account or user-created document.
 			set: {
 				passwordHash,
 				displayName,
 				role,
+				readerColumns,
+				readerWorkspace,
+				tourCompletedAt: SEED_CREATED_AT,
 				emailVerifiedAt: SEED_CREATED_AT,
 				disabledAt: null,
 				updatedAt: new Date()
@@ -248,26 +264,34 @@ async function seedUnifiedDocuments(
 	readerUserId: string,
 	adminUserId: string
 ): Promise<void> {
-	const privateNoteMarkdown = `# Gebet und Antwort
+	const privateNoteMarkdown = `Gottes Liebe in Johannes 3 lädt zu einer persönlichen Antwort ein. Das Bild aus Mt 3,12 ruft zu einer entschiedenen Antwort.
 
-Gottes Liebe in Johannes 3 lädt zu einer persönlichen Antwort ein.
+## Gebetsimpuls
+
+Wo wird aus dem gelesenen Wort heute eine konkrete Antwort?
 `;
-	const crossChapterMarkdown = `# Schöpfung und Ruhe
+	const crossChapterMarkdown = `Der Übergang von der Schöpfung zur Ruhe verbindet **Genesis 1** und **Genesis 2**.
 
-Der Übergang von der Schöpfung zur Ruhe verbindet **Genesis 1** und **Genesis 2**.
+## Beobachtung
+
+Der literarische Zusammenhang endet nicht an der Kapitelgrenze.
 `;
-	const translationNoteMarkdown = `# Wortwahl
+	const translationNoteMarkdown = `Diese Beobachtung bezieht sich bewusst auf die Testübersetzung mit Strong-Verknüpfungen.
 
-Diese Beobachtung bezieht sich bewusst auf die Testübersetzung mit Strong-Verknüpfungen.
+## Wortwahl
+
+Der übersetzungsspezifische Anker bleibt von kanonischen Verknüpfungen unterscheidbar.
 `;
 	const sermonMarkdown = `${GERMAN_SERMON_STARTER_TEMPLATE}
 ## Nächster Schritt
 
 Die Gliederung mit einer konkreten Anwendung ergänzen.
 `;
-	const publishedArticleMarkdown = `# Gnade, die trägt
+	const publishedArticleMarkdown = `Gottes Liebe geht dem Menschen entgegen. Dieser Absatz ist der veröffentlichte Demo-Stand. Mt 3,12 erinnert zugleich an Gottes gerechtes Handeln.
 
-Gottes Liebe geht dem Menschen entgegen. Dieser Absatz ist der veröffentlichte Demo-Stand.
+## Getragen im Alltag
+
+Gnade bleibt nicht abstrakt, sondern prägt Hoffnung, Gebet und gelebte Nächstenliebe.
 `;
 	const workingArticleMarkdown = `${publishedArticleMarkdown}
 ## Noch unveröffentlichte Ergänzung
@@ -520,11 +544,4 @@ try {
 	await client.end();
 }
 
-export {
-	SEED_ADMIN,
-	SEED_DOCUMENT_IDS,
-	SEED_LEGACY_VERSE_COMMENT_ID,
-	SEED_PASSAGE_IDS,
-	SEED_READER,
-	SEED_TAG_IDS
-};
+export * from './seed-fixtures.ts';
