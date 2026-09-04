@@ -163,7 +163,7 @@
 	}
 
 	function kindLabel(kind: ReaderDocumentSummary['kind']): string {
-		if (kind === 'article') return t('documents.kind.article');
+		if (kind === 'article') return t('documents.kind.note');
 		if (kind === 'sermon') return t('documents.kind.sermon');
 		return t('documents.kind.note');
 	}

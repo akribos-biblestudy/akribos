@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { onDestroy, tick } from 'svelte';
+	import type { DocumentKind, DocumentSource } from '$lib/notes/documents';
 	import type { ReaderCreatedDocument } from '$lib/reader/document-notes';
 	import type { ReaderNotesContext } from './ReaderNotesPanel.svelte';
 	import Icon from './Icon.svelte';
@@ -14,6 +15,17 @@
 		bodyHtml: string;
 		revision: number;
 	};
+
+	type LibraryDocument = {
+		id: string;
+		kind: DocumentKind;
+		title: string;
+		excerpt: string;
+		source: DocumentSource;
+		updatedAt: string;
+	};
+
+	type LibraryTag = { id: string; path: string };
 
 	let {
 		bibleId = null,
@@ -35,6 +47,17 @@
 	let requestGeneration = 0;
 	let request: AbortController | undefined;
 	let createError = $state('');
+	let libraryQuery = $state('');
+	let libraryTag = $state('');
+	let onlyCurrentPassage = $state(false);
+	let libraryDocuments = $state<LibraryDocument[]>([]);
+	let libraryTags = $state<LibraryTag[]>([]);
+	let libraryTruncated = $state(false);
+	let libraryState = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
+	let libraryError = $state('');
+	let libraryRequest: AbortController | undefined;
+	let libraryGeneration = 0;
+	let libraryTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const enhanceCreate: SubmitFunction = ({ formData }) => {
 		createError = '';
@@ -75,6 +98,91 @@
 		if (status === 404) return 'Die Notiz wurde nicht gefunden oder du hast keinen Zugriff.';
 		return 'Die Notiz konnte nicht geladen werden. Versuche es erneut.';
 	}
+
+	function kindLabel(kind: DocumentKind): string {
+		if (kind === 'article') return 'Notiz';
+		if (kind === 'sermon') return 'Predigt';
+		return 'Notiz';
+	}
+
+	function libraryUrl(): URL {
+		const url = new URL('/api/documents', window.location.origin);
+		if (libraryQuery.trim()) url.searchParams.set('q', libraryQuery.trim());
+		if (libraryTag) url.searchParams.set('tag', libraryTag);
+		if (onlyCurrentPassage && context) {
+			url.searchParams.set('passage', context.passage);
+			url.searchParams.set('resource', context.resource.id);
+		}
+		return url;
+	}
+
+	function libraryFilterSignature(): string {
+		return JSON.stringify([
+			libraryQuery,
+			libraryTag,
+			onlyCurrentPassage,
+			onlyCurrentPassage ? context?.passage : null,
+			onlyCurrentPassage ? context?.resource.id : null
+		]);
+	}
+
+	async function loadLibrary(): Promise<void> {
+		libraryRequest?.abort();
+		const generation = ++libraryGeneration;
+		libraryRequest = new AbortController();
+		libraryState = 'loading';
+		libraryError = '';
+
+		try {
+			const response = await fetch(libraryUrl(), {
+				headers: { accept: 'application/json' },
+				signal: libraryRequest.signal
+			});
+			const result = (await response.json().catch(() => ({}))) as {
+				documents?: LibraryDocument[];
+				tags?: LibraryTag[];
+				truncated?: boolean;
+			};
+			if (generation !== libraryGeneration) return;
+			if (!response.ok || !Array.isArray(result.documents) || !Array.isArray(result.tags)) {
+				libraryState = 'error';
+				libraryError =
+					response.status === 401
+						? 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.'
+						: 'Deine Notizen konnten nicht geladen werden.';
+				return;
+			}
+			libraryDocuments = result.documents;
+			libraryTags = result.tags;
+			libraryTruncated = result.truncated === true;
+			libraryState = 'ready';
+		} catch (caught) {
+			if (
+				generation !== libraryGeneration ||
+				(caught instanceof DOMException && caught.name === 'AbortError')
+			) {
+				return;
+			}
+			libraryState = 'error';
+			libraryError = 'Deine Notizen konnten nicht geladen werden.';
+		}
+	}
+
+	$effect(() => {
+		if (loadState !== 'empty') return;
+		const signature = libraryFilterSignature();
+
+		if (libraryTimer) clearTimeout(libraryTimer);
+		libraryTimer = setTimeout(
+			() => {
+				if (signature === libraryFilterSignature()) void loadLibrary();
+			},
+			onlyCurrentPassage ? 180 : libraryQuery.trim() ? 250 : 0
+		);
+		return () => {
+			if (libraryTimer) clearTimeout(libraryTimer);
+		};
+	});
 
 	/** Opens an owned working copy without exposing its id in the Reader URL or history state. */
 	export async function openDocument(id: string): Promise<boolean> {
@@ -148,13 +256,17 @@
 		if (activeDocumentId) void openDocument(activeDocumentId);
 	}
 
-	onDestroy(() => request?.abort());
+	onDestroy(() => {
+		request?.abort();
+		libraryRequest?.abort();
+		if (libraryTimer) clearTimeout(libraryTimer);
+	});
 </script>
 
 <aside
 	class="reader-notes-sidecar"
 	aria-label="Notizen im Reader"
-	aria-busy={loadState === 'loading'}
+	aria-busy={loadState === 'loading' || libraryState === 'loading'}
 	data-testid="reader-notes-sidecar"
 >
 	<header class="sidecar-header">
@@ -220,73 +332,136 @@
 				/>
 			{/key}
 		</div>
-	{:else if context}
+	{:else}
 		<div class="context-picker" data-testid="reader-notes-sidecar-context">
-			<div class="context-heading">
-				<span class="empty-icon"><Icon name="file-text" class="size-6" /></span>
-				<div>
-					<p>Aktueller Bibelvers</p>
-					<h2>{context.reference}</h2>
-				</div>
-			</div>
+			{#if context}
+				<section class="current-context" data-testid="reader-notes-current-context">
+					<div class="context-heading">
+						<span class="context-icon"><Icon name="book-open" class="size-5" /></span>
+						<div>
+							<p>Aktuelle Stelle</p>
+							<h2>{context.reference}</h2>
+						</div>
+					</div>
 
-			{#if context.documents.length > 0}
-				<p class="context-count">
-					{context.documents.length === 1
-						? 'Eine verknüpfte Notiz'
-						: `${context.documents.length} verknüpfte Notizen`}
-				</p>
-				<ul class="context-documents">
-					{#each context.documents as document (document.id)}
-						<li>
-							<button
-								type="button"
-								data-testid="reader-notes-open-document"
-								data-document-id={document.id}
-								onclick={() => void openDocument(document.id)}
-							>
-								<Icon name="file-text" class="size-4" />
-								<span>{document.title}</span>
-								<Icon name="chevron-right" class="size-4" />
-							</button>
-						</li>
-					{/each}
-				</ul>
-			{:else}
-				<p class="context-empty">Für diesen Vers ist noch keine Notiz verknüpft.</p>
+					{#if context.documents.length > 0}
+						<p class="context-count">
+							{context.documents.length === 1
+								? 'Eine verknüpfte Notiz'
+								: `${context.documents.length} verknüpfte Notizen`}
+						</p>
+						<ul class="context-documents">
+							{#each context.documents as document (document.id)}
+								<li>
+									<button
+										type="button"
+										data-testid="reader-notes-open-document"
+										data-document-id={document.id}
+										onclick={() => void openDocument(document.id)}
+									>
+										<Icon name="file-text" class="size-4" />
+										<span>{document.title}</span>
+										<Icon name="chevron-right" class="size-4" />
+									</button>
+								</li>
+							{/each}
+						</ul>
+					{:else}
+						<p class="context-empty">Für diese Stelle ist noch keine Notiz verknüpft.</p>
+					{/if}
+
+					<form
+						method="POST"
+						action="/notes?/create"
+						class="context-create"
+						use:enhance={enhanceCreate}
+					>
+						<input type="hidden" name="kind" value="note" />
+						<input type="hidden" name="passage" value={context.passage} />
+						<input type="hidden" name="returnTo" value={context.returnTo} />
+						<label>
+							<span>Übersetzungsbezug</span>
+							<select name="resourceId">
+								<option value={context.resource.id}>{context.resource.title}</option>
+								<option value="">Kanonisch (alle Übersetzungen)</option>
+							</select>
+						</label>
+						<button type="submit" class="create-button" data-testid="reader-notes-sidecar-create">
+							<Icon name="plus" class="size-4" />
+							Notiz für {context.reference} anlegen
+						</button>
+						{#if createError}<p class="create-error" role="alert">{createError}</p>{/if}
+					</form>
+				</section>
 			{/if}
 
-			<form
-				method="POST"
-				action="/notes?/create"
-				class="context-create"
-				use:enhance={enhanceCreate}
-			>
-				<input type="hidden" name="kind" value="note" />
-				<input type="hidden" name="passage" value={context.passage} />
-				<input type="hidden" name="returnTo" value={context.returnTo} />
-				<label>
-					<span>Übersetzungsbezug</span>
-					<select name="resourceId">
-						<option value={context.resource.id}>{context.resource.title}</option>
-						<option value="">Kanonisch (alle Übersetzungen)</option>
-					</select>
+			<section class="library" aria-labelledby="reader-notes-library-heading">
+				<div class="library-heading">
+					<div>
+						<p>Bibliothek</p>
+						<h2 id="reader-notes-library-heading">Meine Dokumente</h2>
+					</div>
+					{#if libraryState === 'ready'}
+						<span>{libraryDocuments.length}{libraryTruncated ? '+' : ''}</span>
+					{/if}
+				</div>
+
+				<label class="library-search">
+					<span class="sr-only">Dokumente durchsuchen</span>
+					<Icon name="search" class="size-4" />
+					<input
+						bind:value={libraryQuery}
+						type="search"
+						placeholder="Titel und Inhalt durchsuchen"
+					/>
 				</label>
-				<button type="submit" class="create-button" data-testid="reader-notes-sidecar-create">
-					<Icon name="plus" class="size-4" />
-					Notiz für {context.reference} anlegen
-				</button>
-				{#if createError}<p class="create-error" role="alert">{createError}</p>{/if}
-			</form>
-		</div>
-	{:else}
-		<div class="sidecar-state empty">
-			<span class="empty-icon"><Icon name="file-text" class="size-7" /></span>
-			<h2>Noch keine Notiz geöffnet</h2>
-			<p>
-				Öffne die Notizmarkierung an einem Vers, um eine verknüpfte Notiz hier zu bearbeiten oder
-				eine neue anzulegen.
-			</p>
+
+				<div class="library-filters">
+					<label>
+						<span class="sr-only">Tag</span>
+						<select bind:value={libraryTag} aria-label="Tag filtern">
+							<option value="">Alle Tags</option>
+							{#each libraryTags as tag (tag.id)}
+								<option value={tag.path}>{tag.path}</option>
+							{/each}
+						</select>
+					</label>
+				</div>
+
+				<label class="context-filter" class:disabled={!context}>
+					<input bind:checked={onlyCurrentPassage} type="checkbox" disabled={!context} />
+					<span>Nur Dokumente zur aktuellen Stelle</span>
+				</label>
+
+				{#if libraryState === 'loading' || libraryState === 'idle'}
+					<div class="library-message" role="status">Dokumente werden geladen …</div>
+				{:else if libraryState === 'error'}
+					<div class="library-message error" role="alert">
+						<p>{libraryError}</p>
+						<button type="button" onclick={() => void loadLibrary()}>Erneut versuchen</button>
+					</div>
+				{:else if libraryDocuments.length === 0}
+					<div class="library-message">Keine passenden Dokumente gefunden.</div>
+				{:else}
+					<ul class="library-documents" data-testid="reader-notes-library">
+						{#each libraryDocuments as document (document.id)}
+							<li>
+								<button type="button" onclick={() => void openDocument(document.id)}>
+									<span class="document-row-heading">
+										<strong>{document.title}</strong>
+										<small>{kindLabel(document.kind)}</small>
+									</span>
+									{#if document.excerpt}<span class="document-excerpt">{document.excerpt}</span
+										>{/if}
+								</button>
+							</li>
+						{/each}
+					</ul>
+					{#if libraryTruncated}
+						<p class="library-truncated">Weitere Treffer über die Suche oder Filter eingrenzen.</p>
+					{/if}
+				{/if}
+			</section>
 		</div>
 	{/if}
 </aside>
@@ -376,17 +551,8 @@
 		color: var(--color-stone-500);
 		text-align: center;
 	}
-	.sidecar-state p,
-	.sidecar-state h2 {
+	.sidecar-state p {
 		margin: 0;
-	}
-	.sidecar-state h2 {
-		color: var(--color-stone-800);
-		font-family: var(--font-serif);
-		font-size: 1.15rem;
-	}
-	:global(.dark) .sidecar-state h2 {
-		color: var(--color-stone-100);
 	}
 	.sidecar-state p {
 		max-width: 24rem;
@@ -408,7 +574,16 @@
 		min-height: 0;
 		flex: 1;
 		overflow-y: auto;
-		padding: 1.1rem;
+		padding: 1rem;
+	}
+	.current-context {
+		padding: 0.9rem;
+		border: 1px solid color-mix(in oklab, var(--color-accent-500) 42%, var(--line));
+		border-radius: 0.8rem;
+		background: color-mix(in oklab, var(--color-accent-50) 62%, transparent);
+	}
+	:global(.dark) .current-context {
+		background: color-mix(in oklab, var(--color-accent-950) 38%, transparent);
 	}
 	.context-heading {
 		display: flex;
@@ -429,13 +604,15 @@
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 	}
-	.context-heading h2 {
+	.context-heading h2,
+	.library-heading h2 {
+		margin: 0;
 		font-family: var(--font-serif);
 		font-size: 1.15rem;
 	}
 	.context-count,
 	.context-empty {
-		margin-top: 1.2rem;
+		margin-top: 0.8rem;
 		color: var(--color-stone-500);
 		font-size: 0.78rem;
 	}
@@ -480,8 +657,8 @@
 	.context-create {
 		display: grid;
 		gap: 0.7rem;
-		margin-top: 1.25rem;
-		padding-top: 1rem;
+		margin-top: 0.9rem;
+		padding-top: 0.8rem;
 		border-top: 1px solid var(--line);
 	}
 	.context-create label {
@@ -522,18 +699,195 @@
 	:global(.dark) .sidecar-state.error {
 		color: var(--color-red-300);
 	}
-	.empty-icon {
+	.context-icon {
 		display: inline-flex;
-		width: 3.25rem;
-		height: 3.25rem;
+		width: 2.6rem;
+		height: 2.6rem;
+		flex: 0 0 auto;
 		align-items: center;
 		justify-content: center;
 		border-radius: 999px;
 		background: var(--color-accent-50);
 		color: var(--color-accent-700);
 	}
-	:global(.dark) .empty-icon {
+	:global(.dark) .context-icon {
 		background: color-mix(in oklab, var(--color-accent-900) 52%, transparent);
 		color: var(--color-accent-300);
+	}
+	.library {
+		margin-top: 1.2rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--line);
+	}
+	.library-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+	.library-heading p {
+		margin: 0 0 0.12rem;
+		color: var(--color-stone-500);
+		font-size: 0.66rem;
+		font-weight: 750;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	.library-heading > span {
+		display: inline-flex;
+		min-width: 1.8rem;
+		height: 1.8rem;
+		align-items: center;
+		justify-content: center;
+		border-radius: 999px;
+		background: var(--color-stone-100);
+		color: var(--color-stone-500);
+		font-size: 0.7rem;
+		font-weight: 700;
+	}
+	:global(.dark) .library-heading > span {
+		background: rgb(255 255 255 / 0.07);
+	}
+	.library-search {
+		display: flex;
+		min-height: 2.55rem;
+		align-items: center;
+		gap: 0.5rem;
+		margin-top: 0.8rem;
+		padding: 0 0.7rem;
+		border: 1px solid var(--line);
+		border-radius: 0.55rem;
+		color: var(--color-stone-400);
+	}
+	.library-search:focus-within {
+		border-color: var(--color-accent-500);
+		box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-accent-500) 18%, transparent);
+	}
+	.library-search input {
+		min-width: 0;
+		flex: 1;
+		border: 0;
+		background: transparent;
+		color: var(--color-stone-900);
+		font-size: 0.78rem;
+		outline: none;
+	}
+	:global(.dark) .library-search input {
+		color: var(--color-stone-100);
+	}
+	.library-filters {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.5rem;
+		margin-top: 0.5rem;
+	}
+	.library-filters select {
+		width: 100%;
+		min-height: 2.35rem;
+		padding: 0.45rem 0.55rem;
+		border: 1px solid var(--line);
+		border-radius: 0.5rem;
+		background: var(--surface);
+		color: inherit;
+		font-size: 0.72rem;
+	}
+	.context-filter {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-top: 0.65rem;
+		color: var(--color-stone-600);
+		font-size: 0.72rem;
+		font-weight: 650;
+	}
+	.context-filter input {
+		width: 1rem;
+		height: 1rem;
+		accent-color: var(--color-accent-600);
+	}
+	.context-filter.disabled {
+		opacity: 0.45;
+	}
+	.library-message {
+		margin-top: 0.9rem;
+		padding: 1.25rem 0.75rem;
+		border: 1px dashed var(--line);
+		border-radius: 0.6rem;
+		color: var(--color-stone-500);
+		font-size: 0.76rem;
+		text-align: center;
+	}
+	.library-message p {
+		margin: 0;
+	}
+	.library-message button {
+		margin-top: 0.65rem;
+		color: var(--color-accent-700);
+		font-weight: 700;
+	}
+	.library-message.error {
+		color: var(--color-red-700);
+	}
+	.library-documents {
+		display: grid;
+		gap: 0.45rem;
+		margin: 0.8rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.library-documents button {
+		display: grid;
+		width: 100%;
+		gap: 0.28rem;
+		padding: 0.72rem;
+		border: 1px solid var(--line);
+		border-radius: 0.6rem;
+		color: inherit;
+		text-align: left;
+	}
+	.library-documents button:hover,
+	.library-documents button:focus-visible {
+		border-color: var(--color-accent-400);
+		background: var(--color-accent-50);
+	}
+	:global(.dark) .library-documents button:hover,
+	:global(.dark) .library-documents button:focus-visible {
+		background: color-mix(in oklab, var(--color-accent-900) 40%, transparent);
+	}
+	.document-row-heading {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.6rem;
+	}
+	.document-row-heading strong {
+		overflow: hidden;
+		font-family: var(--font-serif);
+		font-size: 0.86rem;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.document-row-heading small {
+		flex: 0 0 auto;
+		color: var(--color-accent-700);
+		font-size: 0.62rem;
+		font-weight: 750;
+		text-transform: uppercase;
+	}
+	.document-excerpt {
+		display: -webkit-box;
+		overflow: hidden;
+		color: var(--color-stone-500);
+		font-size: 0.72rem;
+		line-height: 1.4;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+	}
+	.library-truncated {
+		margin: 0.7rem 0 0;
+		color: var(--color-stone-500);
+		font-size: 0.68rem;
+		text-align: center;
 	}
 </style>

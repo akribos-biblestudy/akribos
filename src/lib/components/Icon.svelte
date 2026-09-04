@@ -27,6 +27,7 @@
 			| 'list'
 			| 'list-ordered'
 			| 'message'
+			| 'map-pin'
 			| 'moon'
 			| 'more-horizontal'
 			| 'open-external'
@@ -136,6 +137,9 @@
 	{:else if name === 'calendar'}
 		<rect x="3" y="5" width="18" height="16" rx="2" />
 		<path d="M8 3v4M16 3v4M3 10h18" />
+	{:else if name === 'map-pin'}
+		<path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
+		<circle cx="12" cy="10" r="2.5" />
 	{:else if name === 'download'}
 		<path d="M12 3v12M7.5 10.5 12 15l4.5-4.5M4 20h16" />
 	{:else if name === 'file-text'}

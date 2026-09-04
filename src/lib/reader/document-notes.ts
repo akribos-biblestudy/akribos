@@ -66,3 +66,37 @@ export function readerDocumentsAt(
 
 	return [...matched.values()];
 }
+
+/**
+ * Returns the documents whose passage starts or ends inside the rendered verse block.
+ *
+ * A ranged anchor therefore paints every covered verse through `readerDocumentsAt()`, while its
+ * document button appears only at the range boundary (once for a one-verse or merged cell). This
+ * keeps long study passages discoverable without repeating the same icon after every verse.
+ */
+export function readerDocumentBoundariesAt(
+	anchors: readonly ReaderDocumentAnchor[],
+	reference: { book: number; chapter: number; verse: number; verseEnd?: number | null }
+): ReaderDocumentSummary[] {
+	const startKey = passagePointKey(reference);
+	const endKey = passagePointKey({
+		book: reference.book,
+		chapter: reference.chapter,
+		verse: reference.verseEnd ?? reference.verse
+	});
+	const boundaryDocumentIds = new Set<string>();
+
+	for (const anchor of anchors) {
+		if (anchor.startKey > endKey || anchor.endKey < startKey) continue;
+		if (
+			(anchor.startKey >= startKey && anchor.startKey <= endKey) ||
+			(anchor.endKey >= startKey && anchor.endKey <= endKey)
+		) {
+			boundaryDocumentIds.add(anchor.documentId);
+		}
+	}
+
+	return readerDocumentsAt(anchors, reference).filter((document) =>
+		boundaryDocumentIds.has(document.id)
+	);
+}

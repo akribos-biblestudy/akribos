@@ -9,7 +9,8 @@
  */
 
 import { segmentsToText, type VerseSegment } from '../bible/segments.ts';
-import { formatReference } from '../bible/reference.ts';
+import { formatPassage, parsePassage, type Passage } from '../bible/passage.ts';
+import { formatReference, nextChapter } from '../bible/reference.ts';
 
 type ChapterVerseRow = { verse: number; verseEnd?: number; segments: VerseSegment[] };
 
@@ -60,11 +61,62 @@ function collectVerseText(rows: ChapterVerseRow[], verse: number, verseEnd?: num
 		.join(' ');
 }
 
+export type BibleQuotation = {
+	reference: string;
+	translation: string;
+	text: string;
+};
+
+/** Loads an inclusive, potentially cross-chapter passage without ever injecting resource HTML. */
+export async function loadBibleQuotation(
+	bibleId: string,
+	reference: string
+): Promise<BibleQuotation> {
+	const passage = parsePassage(reference);
+	if (!passage) throw new Error('invalid reference');
+	const chunks: string[] = [];
+	let cursor = { book: passage.start.book, chapter: passage.start.chapter };
+	let chapterCount = 0;
+	while (chapterCount++ < 50) {
+		const rows = await loadChapterVerses(bibleId, cursor.book, cursor.chapter);
+		const firstVerse =
+			cursor.book === passage.start.book && cursor.chapter === passage.start.chapter
+				? passage.start.verse
+				: 1;
+		const lastVerse =
+			cursor.book === passage.end.book && cursor.chapter === passage.end.chapter
+				? passage.end.verse
+				: Number.MAX_SAFE_INTEGER;
+		const text = collectVerseText(rows, firstVerse, lastVerse);
+		if (text) chunks.push(text);
+		if (cursor.book === passage.end.book && cursor.chapter === passage.end.chapter) break;
+		const following = nextChapter(cursor.book, cursor.chapter);
+		if (!following) throw new Error('passage unavailable');
+		cursor = following;
+	}
+	if (
+		cursor.book !== passage.end.book ||
+		cursor.chapter !== passage.end.chapter ||
+		chunks.length === 0
+	) {
+		throw new Error('passage unavailable');
+	}
+	const labels = await loadResourceLabels().catch(() => [] as ResourceLabel[]);
+	return {
+		reference: formatPassage(passage, { style: 'full' }) ?? reference,
+		translation: labels.find((label) => label.id === bibleId)?.tabTitle ?? '',
+		text: chunks.join(' ')
+	};
+}
+
 export type VerseHoverParams = {
 	/** Resource id of the reader's primary translation; previewing does nothing without one. */
 	bibleId: string | null;
 	/** Stable id when links already carry an `aria-describedby` relation (notably ProseMirror). */
 	tooltipId?: string;
+	/** Makes the otherwise read-only preview actionable inside a document editor. */
+	onInsert?: (quotation: BibleQuotation) => void;
+	insertLabel?: string;
 };
 
 let popupSequence = 0;
@@ -78,6 +130,10 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 	let activeAnchor: HTMLElement | null = null;
 	let hoveredAnchor: HTMLElement | null = null;
 	let focusedAnchor: HTMLElement | null = null;
+	let popupHovered = false;
+	let popupFocused = false;
+	let onInsert = params.onInsert;
+	let insertLabel = params.insertLabel ?? 'Bibeltext einfügen';
 	let escapeDismissedReference: string | null = null;
 	let describedAnchor: { element: HTMLElement; addedByAction: boolean } | null = null;
 	const ownerDocument = node.ownerDocument;
@@ -92,6 +148,35 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 			popup.setAttribute('role', 'tooltip');
 			popup.dataset.testid = 'bible-reference-preview';
 			popup.style.display = 'none';
+			popup.addEventListener('pointerenter', () => {
+				popupHovered = true;
+				clearTimeout(hideTimer);
+			});
+			popup.addEventListener('pointerleave', () => {
+				popupHovered = false;
+				scheduleHide();
+			});
+			popup.addEventListener('focusin', () => {
+				popupFocused = true;
+				clearTimeout(hideTimer);
+			});
+			popup.addEventListener('focusout', () => {
+				queueMicrotask(() => {
+					popupFocused = Boolean(popup && popup.contains(ownerDocument.activeElement));
+					scheduleHide();
+				});
+			});
+			popup.addEventListener('keydown', (event) => {
+				if (event.key === 'Escape') {
+					event.preventDefault();
+					const anchor = activeAnchor;
+					hide(true);
+					anchor?.focus({ preventScroll: true });
+				} else if (event.key === 'Tab' && event.shiftKey && activeAnchor) {
+					event.preventDefault();
+					activeAnchor.focus({ preventScroll: true });
+				}
+			});
 			ownerDocument.body.appendChild(popup);
 		}
 		return popup;
@@ -117,6 +202,7 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 
 	function removeDescription(): void {
 		if (!describedAnchor) return;
+		describedAnchor.element.removeEventListener('keydown', onKeyDown);
 		if (describedAnchor.addedByAction) {
 			const ids = (describedAnchor.element.getAttribute('aria-describedby') ?? '')
 				.split(/\s+/u)
@@ -129,6 +215,10 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 
 	function addDescription(anchor: HTMLElement): void {
 		removeDescription();
+		// ProseMirror owns the surrounding contenteditable's keyboard handling. Keep a listener on
+		// the generated anchor itself as well as the delegated document listener so Tab can enter the
+		// interactive preview before an editor keymap handles it.
+		anchor.addEventListener('keydown', onKeyDown);
 		const ids = new Set(
 			(anchor.getAttribute('aria-describedby') ?? '').split(/\s+/u).filter(Boolean)
 		);
@@ -146,6 +236,7 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 		clearTimeout(hideTimer);
 		requestToken += 1;
 		if (popup) popup.style.display = 'none';
+		popupFocused = false;
 		removeDescription();
 		activeAnchor = null;
 		if (resetInteraction) {
@@ -156,7 +247,7 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 
 	function scheduleHide(): void {
 		clearTimeout(hideTimer);
-		if (hoveredAnchor || focusedAnchor) return;
+		if (hoveredAnchor || focusedAnchor || popupHovered || popupFocused) return;
 		hideTimer = setTimeout(() => hide(), 50);
 	}
 
@@ -165,7 +256,8 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 		box: HTMLDivElement,
 		referenceLabel: string,
 		translationLabel: string,
-		text: string
+		text: string,
+		quotation?: BibleQuotation
 	): void {
 		box.replaceChildren();
 		const heading = ownerDocument.createElement('div');
@@ -176,6 +268,25 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 		const body = ownerDocument.createElement('div');
 		body.textContent = text;
 		box.append(heading, body);
+		if (quotation && onInsert) {
+			box.classList.add('interactive');
+			box.setAttribute('role', 'dialog');
+			box.setAttribute('aria-label', `${referenceLabel}: ${insertLabel}`);
+			const button = ownerDocument.createElement('button');
+			button.type = 'button';
+			button.className = 'verse-hover-popup-insert';
+			button.textContent = insertLabel;
+			button.addEventListener('pointerdown', (event) => event.preventDefault());
+			button.addEventListener('click', () => {
+				onInsert?.(quotation);
+				hide(true);
+			});
+			box.append(button);
+		} else {
+			box.classList.remove('interactive');
+			box.setAttribute('role', 'tooltip');
+			box.removeAttribute('aria-label');
+		}
 	}
 
 	async function show(target: HTMLElement): Promise<void> {
@@ -191,27 +302,30 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 		activeAnchor = target;
 		const box = ensurePopup();
 		addDescription(target);
-		const referenceLabel = formatReference(
-			{ book, chapter, verse, ...(verseEnd ? { verseEnd } : {}) },
-			{ style: 'full' }
-		);
+		const endBook = Number(target.dataset.endBook || book);
+		const endChapter = Number(target.dataset.endChapter || chapter);
+		const endVerse = Number(target.dataset.endVerse || verseEnd || verse);
+		const passage: Passage = {
+			start: { book, chapter, verse },
+			end: { book: endBook, chapter: endChapter, verse: endVerse }
+		};
+		const referenceLabel =
+			formatPassage(passage, { style: 'full' }) ??
+			formatReference(
+				{ book, chapter, verse, ...(verseEnd ? { verseEnd } : {}) },
+				{ style: 'full' }
+			);
 		renderContent(box, referenceLabel, '', '…');
 		box.style.display = 'block';
 		place(target, box);
 
 		try {
-			const [rows, labels] = await Promise.all([
-				loadChapterVerses(bibleId, book, chapter),
-				loadResourceLabels().catch(() => [] as ResourceLabel[])
-			]);
-			if (token !== requestToken || activeAnchor !== target || !target.isConnected) return;
-			const translationLabel = labels.find((label) => label.id === bibleId)?.tabTitle ?? '';
-			renderContent(
-				box,
-				referenceLabel,
-				translationLabel,
-				collectVerseText(rows, verse, verseEnd) || '…'
+			const quotation = await loadBibleQuotation(
+				bibleId,
+				target.dataset.reference ?? referenceLabel
 			);
+			if (token !== requestToken || activeAnchor !== target || !target.isConnected) return;
+			renderContent(box, quotation.reference, quotation.translation, quotation.text, quotation);
 			place(target, box);
 		} catch {
 			if (token === requestToken) hide();
@@ -293,6 +407,19 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 				focusedAnchor = replacement;
 				return;
 			}
+			// ProseMirror moves DOM focus from an inline decoration back to its editing host even
+			// though the user has not left the reference. Retain the logical reference focus until a
+			// real pointer/focus move occurs, so the next Tab can enter the interactive preview.
+			if (
+				active instanceof Element &&
+				node.contains(active) &&
+				activeAnchor !== null &&
+				referenceIdentity(activeAnchor) === referenceIdentity(target) &&
+				popup?.style.display !== 'none'
+			) {
+				focusedAnchor = target;
+				return;
+			}
 			if (focusedAnchor === target) focusedAnchor = null;
 			if (escapeDismissedReference === referenceIdentity(target)) {
 				escapeDismissedReference = null;
@@ -302,6 +429,24 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 	}
 
 	function onKeyDown(event: KeyboardEvent): void {
+		const eventTarget = event.target;
+		if (
+			event.key === 'Tab' &&
+			!event.shiftKey &&
+			activeAnchor !== null &&
+			eventTarget instanceof Node &&
+			node.contains(eventTarget) &&
+			popup &&
+			popup.style.display !== 'none'
+		) {
+			const insertButton = popup.querySelector<HTMLButtonElement>('.verse-hover-popup-insert');
+			if (insertButton) {
+				event.preventDefault();
+				event.stopPropagation();
+				insertButton.focus({ preventScroll: true });
+				return;
+			}
+		}
 		if (event.key !== 'Escape' || !popup || popup.style.display === 'none') return;
 		event.preventDefault();
 		event.stopPropagation();
@@ -316,6 +461,7 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 	function onDocumentPointerDown(event: PointerEvent): void {
 		if (!activeAnchor) return;
 		if (event.target instanceof Node && activeAnchor.contains(event.target)) return;
+		if (event.target instanceof Node && popup?.contains(event.target)) return;
 		escapeDismissedReference = null;
 		hide(true);
 	}
@@ -325,20 +471,22 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 	node.addEventListener('focusin', onFocusIn);
 	node.addEventListener('focusout', onFocusOut);
 	// Capture Escape before a contenteditable/ProseMirror keymap can move focus away from the link.
-	node.addEventListener('keydown', onKeyDown, true);
+	ownerDocument.addEventListener('keydown', onKeyDown, true);
 	ownerDocument.addEventListener('pointerdown', onDocumentPointerDown);
 
 	return {
 		update(next: VerseHoverParams): void {
 			if (bibleId !== next.bibleId) hide(true);
 			bibleId = next.bibleId;
+			onInsert = next.onInsert;
+			insertLabel = next.insertLabel ?? 'Bibeltext einfügen';
 		},
 		destroy(): void {
 			node.removeEventListener('pointerover', onOver);
 			node.removeEventListener('pointerout', onOut);
 			node.removeEventListener('focusin', onFocusIn);
 			node.removeEventListener('focusout', onFocusOut);
-			node.removeEventListener('keydown', onKeyDown, true);
+			ownerDocument.removeEventListener('keydown', onKeyDown, true);
 			ownerDocument.removeEventListener('pointerdown', onDocumentPointerDown);
 			clearTimeout(showTimer);
 			clearTimeout(hideTimer);

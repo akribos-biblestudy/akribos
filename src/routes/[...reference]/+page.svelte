@@ -17,8 +17,6 @@
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
 	import { readerContentLinks } from '$lib/actions/reader-content-links';
 	import { t } from '$lib/i18n';
-	import CommentBubble from '$lib/components/CommentBubble.svelte';
-	import CommentToggle from '$lib/components/CommentToggle.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import ReaderLexiconTab from '$lib/components/ReaderLexiconTab.svelte';
 	import ReaderNotesPanel, {
@@ -52,15 +50,21 @@
 	} from '$lib/reader/url-state';
 	import type { ReaderTabSearchResponse } from '$lib/reader/tab-search';
 	import {
+		readerDocumentBoundariesAt,
 		readerDocumentsAt,
 		type ReaderCreatedDocument,
 		type ReaderDocumentAnchor,
 		type ReaderDocumentSummary
 	} from '$lib/reader/document-notes';
 	import {
+		DEFAULT_READER_NOTES_SIDECAR_WIDTH,
+		MAX_READER_NOTES_SIDECAR_WIDTH,
+		MIN_READER_NOTES_SIDECAR_WIDTH,
 		readReaderNotesSidecarOpen,
+		readReaderNotesSidecarWidth,
 		READER_NOTES_SIDECAR_EVENT,
 		setReaderNotesSidecarOpen,
+		setReaderNotesSidecarWidth,
 		type ReaderNotesSidecarEvent
 	} from '$lib/reader/notes-sidecar';
 
@@ -84,6 +88,11 @@
 	let readerNotesSidecar = $state<ReaderNotesSidecar | undefined>();
 	let readerNotesSidecarOpen = $state(false);
 	let readerNotesContext = $state<ReaderNotesContext | null>(null);
+	let readerWorkspaceShell = $state<HTMLElement>();
+	let readerNotesSidecarWidth = $state(DEFAULT_READER_NOTES_SIDECAR_WIDTH);
+	let sidecarResizePointerId: number | null = null;
+	let sidecarResizeStartX = 0;
+	let sidecarResizeStartWidth = 0;
 	let mobileReaderView = $state<'reading' | 'notes'>('reading');
 	let translationDialog = $state<TranslationDialog | undefined>();
 
@@ -290,6 +299,69 @@
 		sizesForm.requestSubmit();
 	}
 
+	function sidecarWidthLimits(): { minimum: number; maximum: number } {
+		const available =
+			readerWorkspaceShell?.clientWidth ??
+			(typeof window === 'undefined' ? 1440 : window.innerWidth);
+		const minimum = Math.min(MIN_READER_NOTES_SIDECAR_WIDTH, Math.max(240, available / 2));
+		return {
+			minimum,
+			maximum: Math.max(
+				minimum,
+				Math.min(MAX_READER_NOTES_SIDECAR_WIDTH, available - Math.min(360, available / 2))
+			)
+		};
+	}
+
+	function clampSidecarWidth(width: number): number {
+		const { minimum, maximum } = sidecarWidthLimits();
+		return Math.max(minimum, Math.min(maximum, width));
+	}
+
+	function startSidecarResize(event: PointerEvent): void {
+		if (isMobileViewport) return;
+		event.preventDefault();
+		sidecarResizePointerId = event.pointerId;
+		sidecarResizeStartX = event.clientX;
+		sidecarResizeStartWidth = readerNotesSidecarWidth;
+		(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+	}
+
+	function onSidecarResizeMove(event: PointerEvent): void {
+		if (sidecarResizePointerId !== event.pointerId) return;
+		// The handle is on the sidecar's left edge: moving left grows it, moving right shrinks it.
+		readerNotesSidecarWidth = clampSidecarWidth(
+			sidecarResizeStartWidth + sidecarResizeStartX - event.clientX
+		);
+	}
+
+	function finishSidecarResize(event?: PointerEvent): void {
+		if (sidecarResizePointerId === null) return;
+		if (event && event.pointerId !== sidecarResizePointerId) return;
+		sidecarResizePointerId = null;
+		readerNotesSidecarWidth = clampSidecarWidth(readerNotesSidecarWidth);
+		setReaderNotesSidecarWidth(readerNotesSidecarWidth);
+	}
+
+	function onSidecarResizeKeydown(event: KeyboardEvent): void {
+		if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+		event.preventDefault();
+		readerNotesSidecarWidth = clampSidecarWidth(
+			readerNotesSidecarWidth + (event.key === 'ArrowLeft' ? 24 : -24)
+		);
+		setReaderNotesSidecarWidth(readerNotesSidecarWidth);
+	}
+
+	function onReaderPointerMove(event: PointerEvent): void {
+		onLayoutResizeMove(event);
+		onSidecarResizeMove(event);
+	}
+
+	function onReaderPointerEnd(event: PointerEvent): void {
+		onLayoutResizeEnd();
+		finishSidecarResize(event);
+	}
+
 	/** Opens the whole-verse menu (verse-number click, or a selection covering the entire verse). */
 	function openVerseMenuForWholeVerse(
 		anchor: HTMLElement,
@@ -323,7 +395,6 @@
 			highlightByKey.get(`${book}:${chapter}:${verse}`)?.styleId ?? null,
 			(styleId) => updateStreamHighlight(book, chapter, verse, styleId),
 			resource,
-			() => openVerseComment(book, chapter, verse, resource.id),
 			() =>
 				openReaderNotesPanel(
 					anchor,
@@ -656,11 +727,8 @@
 
 		const context = currentReaderNotesContext();
 		if (context) readerNotesContext = context;
-		await tick();
-		if (!context || !(await readerNotesSidecar?.showContext())) return;
-		if (context.documents.length === 1) {
-			await readerNotesSidecar?.openDocument(context.documents[0]!.id);
-		}
+		// Hiding the sidecar through the layout menu is a layout change, not an editor close. Reopening
+		// it therefore resumes the in-memory working copy; a first mount already starts in context view.
 	}
 
 	async function showMobileReading(): Promise<boolean> {
@@ -694,6 +762,7 @@
 
 	onMount(() => {
 		if (!data.user) return;
+		readerNotesSidecarWidth = clampSidecarWidth(readReaderNotesSidecarWidth());
 		const synchronize = (event: Event) => {
 			void handleReaderNotesSidecarRequest((event as ReaderNotesSidecarEvent).detail.open);
 		};
@@ -815,6 +884,18 @@
 	let visibleReferenceTabKeys = $state<string[]>(
 		untrack(() => data.columns.map((column) => columnReferenceKey(column)))
 	);
+
+	/** While the library is visible, its create action and contextual filter follow real Reader scroll. */
+	$effect(() => {
+		if (!readerNotesSidecarOpen) return;
+		const next = currentReaderNotesContext();
+		if (!next) return;
+		const previousKey = readerNotesContext
+			? `${readerNotesContext.resource.id}:${readerNotesContext.passage}:${readerNotesContext.returnTo}:${readerNotesContext.documents.map((document) => document.id).join(',')}`
+			: '';
+		const nextKey = `${next.resource.id}:${next.passage}:${next.returnTo}:${next.documents.map((document) => document.id).join(',')}`;
+		if (previousKey !== nextKey) readerNotesContext = next;
+	});
 
 	function columnReferenceKey(column: (typeof data.columns)[number]): string {
 		const reference = column.activeTab.reference;
@@ -1087,57 +1168,6 @@
 		const prefix = `${formatReference({ book, chapter, verse })}:`;
 		return [...marks].some((key) => key.startsWith(prefix));
 	}
-	/** Empty editors opened through the verse menu but not saved yet. */
-	const draftCommentKeys = new SvelteSet<string>();
-	/** Existing comments explicitly expanded through the icon at the end of their verse. */
-	const expandedCommentKeys = new SvelteSet<string>();
-
-	function verseCommentKey(book: number, chapter: number, verse: number, resourceId: string) {
-		return `${book}:${chapter}:${verse}:${resourceId}`;
-	}
-
-	function openVerseComment(book: number, chapter: number, verse: number, resourceId: string) {
-		const key = verseCommentKey(book, chapter, verse, resourceId);
-		expandedCommentKeys.add(key);
-		draftCommentKeys.add(key);
-	}
-
-	function toggleVerseComment(key: string) {
-		if (expandedCommentKeys.has(key)) {
-			expandedCommentKeys.delete(key);
-			draftCommentKeys.delete(key);
-		} else {
-			expandedCommentKeys.add(key);
-		}
-	}
-
-	function verseCommentAt(stream: StreamChapter, resourceId: string, verse: number) {
-		return stream.verseComments.find(
-			(comment) => comment.resourceId === resourceId && comment.verse === verse
-		);
-	}
-
-	function updateVerseComment(
-		stream: StreamChapter,
-		resourceId: string,
-		verse: number,
-		html: string
-	) {
-		const current = verseCommentAt(stream, resourceId, verse);
-		if (html) {
-			if (current) current.html = html;
-			else stream.verseComments.push({ resourceId, verse, html });
-		} else if (current) {
-			stream.verseComments.splice(stream.verseComments.indexOf(current), 1);
-		}
-		expandedCommentKeys.add(
-			verseCommentKey(stream.reference.book, stream.reference.chapter, verse, resourceId)
-		);
-		draftCommentKeys.delete(
-			verseCommentKey(stream.reference.book, stream.reference.chapter, verse, resourceId)
-		);
-	}
-
 	/** Every whole-verse highlight across every loaded chapter, keyed like `data-verse-key`. Partial,
 	 *  translation-specific highlights are looked up separately through `partialHighlightsByKey`. */
 	const highlightByKey = $derived(
@@ -1755,7 +1785,11 @@
 	}
 </script>
 
-<svelte:window onpointermove={onLayoutResizeMove} onpointerup={onLayoutResizeEnd} />
+<svelte:window
+	onpointermove={onReaderPointerMove}
+	onpointerup={onReaderPointerEnd}
+	onpointercancel={onReaderPointerEnd}
+/>
 
 <svelte:head>
 	<meta
@@ -1766,7 +1800,12 @@
 	/>
 </svelte:head>
 
-<div class="reader-workspace-shell min-h-0 flex-1" class:sidecar-open={readerNotesSidecarOpen}>
+<div
+	bind:this={readerWorkspaceShell}
+	class="reader-workspace-shell min-h-0 flex-1"
+	class:sidecar-open={readerNotesSidecarOpen}
+	style:--reader-notes-sidecar-width={`${readerNotesSidecarWidth}px`}
+>
 	{#if data.user}
 		<div
 			class="mobile-reader-view-switch"
@@ -2065,209 +2104,72 @@
 														partialHighlightsByKey.get(
 															`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}:${column.resource.id}`
 														) ?? []}
-													{@const comment = verseCommentAt(stream, column.resource.id, cell.verse)}
 													{@const attachedDocuments = readerDocumentsAt(stream.documentAnchors, {
 														book: stream.reference.book,
 														chapter: stream.reference.chapter,
 														verse: cell.verse,
 														verseEnd: cell.verseEnd
 													})}
-													{@const commentKey = verseCommentKey(
-														stream.reference.book,
-														stream.reference.chapter,
-														cell.verse,
-														column.resource.id
+													{@const boundaryDocuments = readerDocumentBoundariesAt(
+														stream.documentAnchors,
+														{
+															book: stream.reference.book,
+															chapter: stream.reference.chapter,
+															verse: cell.verse,
+															verseEnd: cell.verseEnd
+														}
 													)}
-													{@const commentVisible =
-														draftCommentKeys.has(commentKey) ||
-														Boolean(comment && expandedCommentKeys.has(commentKey))}
-													<div class="verse-comment-row" class:with-comment={commentVisible}>
-														<p
-															class="flow-verse"
-															data-verse-key={`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}`}
-															data-verse-end={cell.verseEnd ?? cell.verse}
-															id={columnIndex === 0
-																? `${stream.shortBookName}${stream.reference.chapter}_${cell.verse}`
-																: undefined}
-															class:highlighted={stream.reference.book ===
-																column.activeTab.reference.book &&
-																stream.reference.chapter === column.activeTab.reference.chapter &&
-																column.activeTab.reference.verse !== undefined &&
-																cell.verse <= column.activeTab.reference.verse &&
-																(cell.verseEnd ?? cell.verse) >= column.activeTab.reference.verse}
-															class:has-highlight={mark?.color}
-															style:background-color={mark?.color}
-														>
-															<span class="verse-lead">
-																{#if cell.verse === firstVerse}
-																	<a
-																		class="flow-chapter-number"
-																		class:in-list={isInAnyList(
-																			stream.reference.book,
-																			stream.reference.chapter,
-																			cell.verse
-																		)}
-																		title={stream.fullTitle}
-																		href={contextualReferenceUrl(columnIndex, {
-																			book: stream.reference.book,
-																			chapter: stream.reference.chapter,
-																			verse: cell.verse
-																		})}
-																		aria-haspopup="menu"
-																		aria-label={t('verse.menu', {
-																			reference: formatReference(
-																				{
-																					book: stream.reference.book,
-																					chapter: stream.reference.chapter,
-																					verse: cell.verse
-																				},
-																				{ style: 'full' }
-																			)
-																		})}
-																		onclick={(event) =>
-																			onVerseNumberClick(
-																				event,
-																				stream.reference.book,
-																				stream.reference.chapter,
-																				cell.verse,
-																				cell.verseEnd,
-																				cell.segments,
-																				{
-																					id: column.resource.id,
-																					name: column.resource.tabTitle,
-																					kind: 'bible'
-																				},
-																				attachedDocuments,
-																				column.tileId,
-																				column.activeTab.id
-																			)}
-																	>
-																		{stream.reference.chapter}
-																	</a>
-																{/if}
-																{#if cell.verse !== 1 || cell.verse !== firstVerse}
-																	<a
-																		class="verse-number"
-																		class:in-list={isInAnyList(
-																			stream.reference.book,
-																			stream.reference.chapter,
-																			cell.verse
-																		)}
-																		href={contextualReferenceUrl(columnIndex, {
-																			book: stream.reference.book,
-																			chapter: stream.reference.chapter,
-																			verse: cell.verse
-																		})}
-																		aria-haspopup="menu"
-																		aria-label={t('verse.menu', {
-																			reference: formatReference(
-																				{
-																					book: stream.reference.book,
-																					chapter: stream.reference.chapter,
-																					verse: cell.verse
-																				},
-																				{ style: 'full' }
-																			)
-																		})}
-																		onclick={(event) =>
-																			onVerseNumberClick(
-																				event,
-																				stream.reference.book,
-																				stream.reference.chapter,
-																				cell.verse,
-																				cell.verseEnd,
-																				cell.segments,
-																				{
-																					id: column.resource.id,
-																					name: column.resource.tabTitle,
-																					kind: 'bible'
-																				},
-																				attachedDocuments,
-																				column.tileId,
-																				column.activeTab.id
-																			)}
-																	>
-																		{cell.verse}{#if cell.verseEnd && cell.verseEnd > cell.verse}-{cell.verseEnd}{/if}
-																	</a>
-																{/if}<span
-																	class="verse-text"
-																	lang={column.resource.language}
-																	dir={column.resource.direction}
-																	><VerseText
-																		segments={leadSegments}
-																		onStrongClick={(strong, word) =>
-																			openStrong(
-																				strong,
-																				word,
-																				cell.verse,
-																				stream.reference.book,
-																				stream.reference.chapter,
-																				columnIndex
-																			)}
-																		highlights={partial}
-																		{hoverStrong}
-																		onStrongHover={(strong) => (hoverStrong = strong)}
-																	/></span
-																></span
-															><span
-																class="verse-text"
-																lang={column.resource.language}
-																dir={column.resource.direction}
-															>
-																<VerseText
-																	segments={remainingSegments}
-																	onStrongClick={(strong, word) =>
-																		openStrong(
-																			strong,
-																			word,
-																			cell.verse,
-																			stream.reference.book,
-																			stream.reference.chapter,
-																			columnIndex
-																		)}
-																	highlights={partial}
-																	wordOffset={leadWordCount}
-																	{hoverStrong}
-																	onStrongHover={(strong) => (hoverStrong = strong)}
-																/>
-															</span>
-															{#if data.user && comment}
-																<CommentToggle
-																	hasComment
-																	active={commentVisible}
-																	onclick={() => toggleVerseComment(commentKey)}
-																/>
-															{/if}
-															{#if data.user && attachedDocuments.length > 0}
-																<button
-																	type="button"
-																	class="reader-note-indicator"
-																	title={t('documents.reader.open', {
-																		reference: formatReference({
-																			book: stream.reference.book,
-																			chapter: stream.reference.chapter,
-																			verse: cell.verse,
-																			...(cell.verseEnd && cell.verseEnd > cell.verse
-																				? { verseEnd: cell.verseEnd }
-																				: {})
-																		})
+													<p
+														class="flow-verse"
+														class:has-document-notes={attachedDocuments.length > 0}
+														data-verse-key={`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}`}
+														data-verse-end={cell.verseEnd ?? cell.verse}
+														id={columnIndex === 0
+															? `${stream.shortBookName}${stream.reference.chapter}_${cell.verse}`
+															: undefined}
+														class:highlighted={stream.reference.book ===
+															column.activeTab.reference.book &&
+															stream.reference.chapter === column.activeTab.reference.chapter &&
+															column.activeTab.reference.verse !== undefined &&
+															cell.verse <= column.activeTab.reference.verse &&
+															(cell.verseEnd ?? cell.verse) >= column.activeTab.reference.verse}
+														class:has-highlight={mark?.color}
+														style:background-color={mark?.color}
+													>
+														<span class="verse-lead">
+															{#if cell.verse === firstVerse}
+																<a
+																	class="flow-chapter-number"
+																	class:in-list={isInAnyList(
+																		stream.reference.book,
+																		stream.reference.chapter,
+																		cell.verse
+																	)}
+																	title={stream.fullTitle}
+																	href={contextualReferenceUrl(columnIndex, {
+																		book: stream.reference.book,
+																		chapter: stream.reference.chapter,
+																		verse: cell.verse
 																	})}
-																	aria-label={t('documents.reader.open', {
-																		reference: formatReference({
-																			book: stream.reference.book,
-																			chapter: stream.reference.chapter,
-																			verse: cell.verse,
-																			...(cell.verseEnd && cell.verseEnd > cell.verse
-																				? { verseEnd: cell.verseEnd }
-																				: {})
-																		})
+																	aria-haspopup="menu"
+																	aria-label={t('verse.menu', {
+																		reference: formatReference(
+																			{
+																				book: stream.reference.book,
+																				chapter: stream.reference.chapter,
+																				verse: cell.verse
+																			},
+																			{ style: 'full' }
+																		)
 																	})}
-																	onclick={() =>
-																		openReaderNotesSidecar(
+																	onclick={(event) =>
+																		onVerseNumberClick(
+																			event,
 																			stream.reference.book,
 																			stream.reference.chapter,
 																			cell.verse,
 																			cell.verseEnd,
+																			cell.segments,
 																			{
 																				id: column.resource.id,
 																				name: column.resource.tabTitle,
@@ -2278,28 +2180,140 @@
 																			column.activeTab.id
 																		)}
 																>
-																	<Icon name="file-text" class="size-3.5" />
-																	<span>{attachedDocuments.length}</span>
-																</button>
+																	{stream.reference.chapter}
+																</a>
 															{/if}
-														</p>
-														{#if commentVisible}
-															<CommentBubble
-																action="?/saveVerseComment"
-																reference={formatReference({
-																	book: stream.reference.book,
-																	chapter: stream.reference.chapter,
-																	verse: cell.verse
-																})}
-																resourceId={column.resource.id}
-																html={comment?.html}
-																startEditing={draftCommentKeys.has(commentKey)}
-																onSaved={(html) =>
-																	updateVerseComment(stream, column.resource.id, cell.verse, html)}
-																onClose={() => draftCommentKeys.delete(commentKey)}
+															{#if cell.verse !== 1 || cell.verse !== firstVerse}
+																<a
+																	class="verse-number"
+																	class:in-list={isInAnyList(
+																		stream.reference.book,
+																		stream.reference.chapter,
+																		cell.verse
+																	)}
+																	href={contextualReferenceUrl(columnIndex, {
+																		book: stream.reference.book,
+																		chapter: stream.reference.chapter,
+																		verse: cell.verse
+																	})}
+																	aria-haspopup="menu"
+																	aria-label={t('verse.menu', {
+																		reference: formatReference(
+																			{
+																				book: stream.reference.book,
+																				chapter: stream.reference.chapter,
+																				verse: cell.verse
+																			},
+																			{ style: 'full' }
+																		)
+																	})}
+																	onclick={(event) =>
+																		onVerseNumberClick(
+																			event,
+																			stream.reference.book,
+																			stream.reference.chapter,
+																			cell.verse,
+																			cell.verseEnd,
+																			cell.segments,
+																			{
+																				id: column.resource.id,
+																				name: column.resource.tabTitle,
+																				kind: 'bible'
+																			},
+																			attachedDocuments,
+																			column.tileId,
+																			column.activeTab.id
+																		)}
+																>
+																	{cell.verse}{#if cell.verseEnd && cell.verseEnd > cell.verse}-{cell.verseEnd}{/if}
+																</a>
+															{/if}<span
+																class="verse-text"
+																lang={column.resource.language}
+																dir={column.resource.direction}
+																><VerseText
+																	segments={leadSegments}
+																	onStrongClick={(strong, word) =>
+																		openStrong(
+																			strong,
+																			word,
+																			cell.verse,
+																			stream.reference.book,
+																			stream.reference.chapter,
+																			columnIndex
+																		)}
+																	highlights={partial}
+																	{hoverStrong}
+																	onStrongHover={(strong) => (hoverStrong = strong)}
+																/></span
+															></span
+														><span
+															class="verse-text"
+															lang={column.resource.language}
+															dir={column.resource.direction}
+														>
+															<VerseText
+																segments={remainingSegments}
+																onStrongClick={(strong, word) =>
+																	openStrong(
+																		strong,
+																		word,
+																		cell.verse,
+																		stream.reference.book,
+																		stream.reference.chapter,
+																		columnIndex
+																	)}
+																highlights={partial}
+																wordOffset={leadWordCount}
+																{hoverStrong}
+																onStrongHover={(strong) => (hoverStrong = strong)}
 															/>
+														</span>
+														{#if data.user && boundaryDocuments.length > 0}
+															<button
+																type="button"
+																class="reader-note-indicator"
+																title={t('documents.reader.open', {
+																	reference: formatReference({
+																		book: stream.reference.book,
+																		chapter: stream.reference.chapter,
+																		verse: cell.verse,
+																		...(cell.verseEnd && cell.verseEnd > cell.verse
+																			? { verseEnd: cell.verseEnd }
+																			: {})
+																	})
+																})}
+																aria-label={t('documents.reader.open', {
+																	reference: formatReference({
+																		book: stream.reference.book,
+																		chapter: stream.reference.chapter,
+																		verse: cell.verse,
+																		...(cell.verseEnd && cell.verseEnd > cell.verse
+																			? { verseEnd: cell.verseEnd }
+																			: {})
+																	})
+																})}
+																onclick={() =>
+																	openReaderNotesSidecar(
+																		stream.reference.book,
+																		stream.reference.chapter,
+																		cell.verse,
+																		cell.verseEnd,
+																		{
+																			id: column.resource.id,
+																			name: column.resource.tabTitle,
+																			kind: 'bible'
+																		},
+																		attachedDocuments,
+																		column.tileId,
+																		column.activeTab.id
+																	)}
+															>
+																<Icon name="file-text" class="size-3.5" />
+																<span>{boundaryDocuments.length}</span>
+															</button>
 														{/if}
-													</div>
+													</p>
 												{:else if column.resource.kind === 'commentary'}
 													{@const entries = commentaryAt(
 														stream.referenceResources,
@@ -2423,6 +2437,23 @@
 			role={isMobileViewport ? 'tabpanel' : undefined}
 			aria-labelledby={isMobileViewport ? 'reader-mobile-notes-tab' : undefined}
 		>
+			<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+			<div
+				role="separator"
+				aria-orientation="vertical"
+				aria-label="Breite des Notizbereichs ändern"
+				aria-valuenow={Math.round(readerNotesSidecarWidth)}
+				aria-valuemin={Math.round(sidecarWidthLimits().minimum)}
+				aria-valuemax={Math.round(sidecarWidthLimits().maximum)}
+				tabindex="0"
+				class="sidecar-resize-handle"
+				data-testid="reader-notes-sidecar-resize"
+				onpointerdown={startSidecarResize}
+				onkeydown={onSidecarResizeKeydown}
+			>
+				<span aria-hidden="true"><i></i><i></i><i></i></span>
+			</div>
 			<ReaderNotesSidecar
 				bind:this={readerNotesSidecar}
 				bibleId={primaryBibleId}
@@ -2475,7 +2506,7 @@
 		height: calc(100dvh - var(--header-height));
 		min-width: 0;
 		min-height: 0;
-		overflow: hidden;
+		overflow: visible;
 	}
 
 	.reader-sidecar-slot[hidden],
@@ -2489,8 +2520,56 @@
 
 	@media (min-width: 640px) {
 		.reader-workspace-shell.sidecar-open {
-			grid-template-columns: minmax(0, 1fr) clamp(20rem, 27vw, 26rem);
+			grid-template-columns: minmax(0, 1fr) var(--reader-notes-sidecar-width);
 		}
+	}
+
+	.sidecar-resize-handle {
+		position: absolute;
+		top: 50%;
+		/* Centre the grip in the narrow gutter between Reader content and the sidecar border. */
+		left: -0.5625rem;
+		z-index: 20;
+		display: flex;
+		width: 18px;
+		height: 3.25rem;
+		align-items: center;
+		justify-content: center;
+		border-radius: 999px;
+		transform: translate(-50%, -50%);
+		cursor: col-resize;
+		touch-action: none;
+	}
+
+	.sidecar-resize-handle span {
+		display: flex;
+		width: 0.75rem;
+		height: 2.35rem;
+		align-items: center;
+		justify-content: center;
+		gap: 1px;
+		border: 1px solid var(--line);
+		border-radius: 999px;
+		background: var(--surface-raised);
+		box-shadow: 0 2px 7px rgb(28 25 23 / 0.16);
+	}
+
+	.sidecar-resize-handle i {
+		display: block;
+		width: 1px;
+		height: 0.75rem;
+		background: var(--color-stone-400);
+	}
+
+	.sidecar-resize-handle:hover span,
+	.sidecar-resize-handle:focus-visible span {
+		border-color: var(--color-accent-500);
+		background: var(--color-accent-50);
+	}
+
+	.sidecar-resize-handle:focus-visible {
+		outline: 2px solid var(--color-accent-500);
+		outline-offset: 2px;
 	}
 
 	/* Straddles the boundary halfway down the reading area. Only the handle itself takes pointer
@@ -2779,21 +2858,6 @@
 		hyphens: auto;
 	}
 
-	.verse-comment-row:not(.with-comment) {
-		display: contents;
-	}
-
-	.verse-comment-row.with-comment {
-		display: block;
-		margin-block: 0.8rem;
-		text-align: left;
-	}
-
-	.verse-comment-row.with-comment .flow-verse {
-		display: block;
-		margin-bottom: 0.65rem;
-	}
-
 	.verse-lead {
 		white-space: nowrap;
 	}
@@ -2801,6 +2865,14 @@
 	.flow-verse .verse-text {
 		overflow-wrap: break-word;
 		word-break: normal;
+	}
+
+	.flow-verse.has-document-notes .verse-text {
+		text-decoration-line: underline;
+		text-decoration-style: dotted;
+		text-decoration-color: color-mix(in oklab, var(--color-accent-500) 52%, transparent);
+		text-decoration-thickness: 0.07em;
+		text-underline-offset: 0.2em;
 	}
 
 	.flow-verse::after {
@@ -2973,6 +3045,10 @@
 			position: relative;
 			top: auto;
 			height: calc(100dvh - var(--header-height) - 2.9rem);
+		}
+
+		.sidecar-resize-handle {
+			display: none;
 		}
 
 		.reader-sidecar-slot.mobile-visible {

@@ -45,8 +45,6 @@
 	let copied = $state<'text' | 'link' | null>(null);
 	let activeStyleId = $state<string | null>(null);
 	let onHighlightChange: ((styleId: string | null) => void) | undefined;
-	let commentResource: { id: string; name: string } | null = $state(null);
-	let onAddComment: (() => void) | undefined;
 	let onOpenNotes = $state<(() => void) | undefined>();
 
 	/**
@@ -62,7 +60,6 @@
 		highlight: string | null,
 		onChange: (styleId: string | null) => void,
 		resource: { id: string; name: string; kind: string } | null,
-		addComment: (() => void) | undefined,
 		openNotes: (() => void) | undefined,
 		focusMenu = true
 	): void {
@@ -70,8 +67,6 @@
 		copied = null;
 		activeStyleId = highlight;
 		onHighlightChange = onChange;
-		commentResource = resource?.kind === 'bible' ? resource : null;
-		onAddComment = addComment;
 		onOpenNotes = resource?.kind === 'bible' ? openNotes : undefined;
 		menu?.openAt(anchor, { focus: focusMenu });
 	}
@@ -169,31 +164,19 @@
 			</div>
 		{/if}
 
-		{#if signedIn && commentResource}
+		{#if signedIn && onOpenNotes}
 			<hr />
-			{#if onOpenNotes}
-				<button
-					type="button"
-					role="menuitem"
-					class="notes-item"
-					onclick={() => {
-						onOpenNotes?.();
-						menu?.close();
-					}}
-				>
-					<Icon name="file-text" class="size-4 shrink-0" />
-					<span>{t('documents.reader.open', { reference: context.label })}</span>
-				</button>
-			{/if}
 			<button
 				type="button"
 				role="menuitem"
+				class="notes-item"
 				onclick={() => {
-					onAddComment?.();
+					onOpenNotes?.();
 					menu?.close();
 				}}
 			>
-				{t('comments.addForTranslation', { translation: commentResource.name })}
+				<Icon name="file-text" class="size-4 shrink-0" />
+				<span>{t('documents.reader.open', { reference: context.label })}</span>
 			</button>
 		{/if}
 

@@ -58,7 +58,7 @@ export type BibleReferenceMatch = {
 	href: string;
 	/** Compact, canonical Reader reference without the leading slash, e.g. `Mt3,12`. */
 	canonical: string;
-	/** False for cross-chapter/book ranges, whose text cannot be represented by one chapter fetch. */
+	/** True for references whose verse text can be loaded for the hover preview. */
 	previewable: boolean;
 };
 
@@ -71,7 +71,7 @@ export function bibleReferenceAttributes(
 	options: BibleReferenceLinkOptions = {}
 ): BibleReferenceAttributes {
 	return {
-		class: match.previewable ? 'bible-reference verse-ref' : 'bible-reference',
+		class: match.passage ? 'bible-reference verse-ref' : 'bible-reference',
 		href: match.href,
 		tabindex: '0',
 		'data-sveltekit-preload-data': 'off',
@@ -82,6 +82,15 @@ export function bibleReferenceAttributes(
 		...(match.reference.verseEnd === undefined
 			? {}
 			: { 'data-verse-end': String(match.reference.verseEnd) }),
+		...(match.passage &&
+		(match.passage.end.book !== match.passage.start.book ||
+			match.passage.end.chapter !== match.passage.start.chapter)
+			? {
+					'data-end-book': String(match.passage.end.book),
+					'data-end-chapter': String(match.passage.end.chapter),
+					'data-end-verse': String(match.passage.end.verse)
+				}
+			: {}),
 		...(match.previewable && options.tooltipId ? { 'aria-describedby': options.tooltipId } : {})
 	};
 }
@@ -110,7 +119,7 @@ function matchFromReference(
 			crossesChapter && canonicalPassage
 				? canonicalPassage.replace(/^(\S+)\s+/u, '$1')
 				: href.slice(1),
-		previewable: reference.verse !== undefined && !crossesChapter
+		previewable: reference.verse !== undefined
 	};
 }
 

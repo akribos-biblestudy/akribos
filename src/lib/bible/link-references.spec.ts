@@ -55,13 +55,13 @@ describe('linkBibleReferences', () => {
 		expect(linked).not.toContain('data-reference="Joh5,3"');
 	});
 
-	it('links a cross-chapter or cross-book range as one non-previewable link', () => {
+	it('links a cross-chapter or cross-book range as one hover-previewable link', () => {
 		const crossChapter = linkBibleReferences('Siehe 1Mo 1,31-2,3.');
 		expect(crossChapter).toContain(
-			'<a class="bible-reference" href="/1Mo1,31" tabindex="0" data-sveltekit-preload-data="off" data-reference="1Mo1,31-2,3"'
+			'<a class="bible-reference verse-ref" href="/1Mo1,31" tabindex="0" data-sveltekit-preload-data="off" data-reference="1Mo1,31-2,3"'
 		);
 		expect(crossChapter).toContain('>1Mo 1,31-2,3</a>.');
-		expect(crossChapter).not.toContain('class="bible-reference verse-ref"');
+		expect(crossChapter).toContain('data-end-chapter="2" data-end-verse="3"');
 
 		const crossBook = linkBibleReferences('1Mo 50,26-2Mo 1,2');
 		expect(crossBook).toContain('data-reference="1Mo50,26-2Mo 1,2"');

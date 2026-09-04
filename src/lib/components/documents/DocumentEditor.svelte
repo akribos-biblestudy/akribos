@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { beforeNavigate, goto } from '$app/navigation';
-	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
+	import {
+		loadBibleQuotation,
+		verseHoverPopover,
+		type BibleQuotation
+	} from '$lib/actions/verse-hover-popover';
+	import { parsePassage } from '$lib/bible/passage';
 	import { documentHtmlToMarkdown, documentMarkdownToHtml } from '$lib/notes/document-markdown';
 	import { t } from '$lib/i18n';
 	import { Editor } from '@tiptap/core';
@@ -50,6 +55,7 @@
 	let applyingContent = false;
 	let resumingNavigation = false;
 	let pendingNavigation = false;
+	let quotationState = $state<'idle' | 'loading' | 'error'>('idle');
 	const bibleReferenceTooltipId = untrack(() => `document-bible-reference-preview-${document.id}`);
 	let lastSavedSignature = untrack(() => signature(title, markdown));
 
@@ -255,6 +261,39 @@
 		if (window.document.visibilityState === 'hidden' && saveState === 'dirty') void save();
 	}
 
+	function insertBibleQuotation(quotation: BibleQuotation): void {
+		if (!editor) return;
+		const source = [quotation.reference, quotation.translation].filter(Boolean).join(' · ');
+		editor
+			.chain()
+			.focus()
+			.insertContent({
+				type: 'blockquote',
+				content: [
+					{ type: 'paragraph', content: [{ type: 'text', text: quotation.text }] },
+					{
+						type: 'paragraph',
+						content: [{ type: 'text', marks: [{ type: 'bold' }], text: source }]
+					}
+				]
+			})
+			.run();
+		quotationState = 'idle';
+	}
+
+	async function insertBibleQuotationFromReference(reference: string): Promise<void> {
+		if (!editor || !bibleId || !parsePassage(reference)) {
+			quotationState = 'error';
+			return;
+		}
+		quotationState = 'loading';
+		try {
+			insertBibleQuotation(await loadBibleQuotation(bibleId, reference));
+		} catch {
+			quotationState = 'error';
+		}
+	}
+
 	onMount(() => {
 		if (!editorHost) return;
 		const instance = new Editor({
@@ -272,6 +311,34 @@
 					'aria-label': t('documents.editor.bodyPlaceholder'),
 					'aria-multiline': 'true',
 					...(compact ? { 'data-testid': 'reader-notes-sidecar-body' } : {})
+				},
+				handleKeyDown: (view, event) => {
+					if (
+						event.key !== 'Enter' ||
+						event.shiftKey ||
+						event.ctrlKey ||
+						event.metaKey ||
+						event.altKey
+					) {
+						return false;
+					}
+					const resolvedPosition = view.state.selection.$from;
+					if (!resolvedPosition.parent.isTextblock) return false;
+					const before = resolvedPosition.parent.textBetween(
+						0,
+						resolvedPosition.parentOffset,
+						'\n',
+						'\n'
+					);
+					const command = /(?:^|\s)\/(?:bibel|stelle)\s+(.+)$/iu.exec(before);
+					const reference = command?.[1]?.trim();
+					if (!command || !reference || !parsePassage(reference)) return false;
+					event.preventDefault();
+					const from =
+						resolvedPosition.start() + command.index + (command[0].startsWith(' ') ? 1 : 0);
+					view.dispatch(view.state.tr.delete(from, resolvedPosition.pos));
+					void insertBibleQuotationFromReference(reference);
+					return true;
 				}
 			},
 			onCreate: ({ editor }) => (editorState = { editor }),
@@ -445,10 +512,27 @@
 				>
 			</div>
 		{/if}
+		<p
+			class="quotation-hint"
+			class:error={quotationState === 'error'}
+			role="status"
+			aria-live="polite"
+		>
+			{quotationState === 'loading'
+				? t('documents.editor.bibleQuoteLoading')
+				: quotationState === 'error'
+					? t('documents.editor.bibleQuoteError')
+					: t('documents.editor.bibleQuoteHint')}
+		</p>
 		<div
 			class="editor-host"
 			bind:this={editorHost}
-			use:verseHoverPopover={{ bibleId, tooltipId: bibleReferenceTooltipId }}
+			use:verseHoverPopover={{
+				bibleId,
+				tooltipId: bibleReferenceTooltipId,
+				onInsert: insertBibleQuotation,
+				insertLabel: t('documents.editor.insertBibleQuote')
+			}}
 		></div>
 	</div>
 	{#if mode === 'markdown'}
@@ -520,6 +604,16 @@
 		color: var(--color-stone-600);
 		font-size: 0.78rem;
 		line-height: 1.1;
+	}
+	.quotation-hint {
+		margin: 0;
+		border-bottom: 1px solid var(--line);
+		padding: 0.4rem 1rem;
+		color: var(--color-stone-500);
+		font-size: 0.7rem;
+	}
+	.quotation-hint.error {
+		color: var(--color-red-700);
 	}
 	.editor-toolbar button:hover:not(:disabled),
 	.editor-toolbar button.active {
@@ -649,27 +743,44 @@
 		padding-inline: 0.5rem;
 	}
 	.document-editor.compact > [role='tabpanel'] {
+		display: flex;
 		min-height: 0;
 		flex: 1;
-		overflow-y: auto;
+		flex-direction: column;
+		overflow: hidden;
+	}
+	.document-editor.compact > [role='tabpanel'][hidden] {
+		display: none;
 	}
 	.document-editor.compact .editor-toolbar {
 		top: 0;
 		padding: 0.4rem 0.6rem;
 	}
 	.document-editor.compact .editor-host {
-		min-height: 100%;
-		padding: 1rem 1rem 4rem;
+		display: flex;
+		min-height: 0;
+		flex: 1;
+		overflow-y: auto;
+		padding: 1rem;
 	}
 	.document-editor.compact .editor-host :global(.document-prose) {
-		min-height: 18rem;
+		width: 100%;
+		min-height: 100%;
+		flex: 1;
+		padding-bottom: 3rem;
 		font-size: 0.98rem;
 	}
 	.document-editor.compact .markdown-editor {
-		padding: 0.8rem 1rem 2rem;
+		display: flex;
+		min-height: 0;
+		flex: 1;
+		flex-direction: column;
+		padding: 0.8rem 1rem 1rem;
 	}
 	.document-editor.compact .markdown-editor textarea {
-		min-height: 20rem;
+		min-height: 0;
+		max-height: 100%;
+		flex: 1;
 		resize: none;
 	}
 

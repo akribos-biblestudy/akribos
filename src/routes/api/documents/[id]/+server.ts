@@ -107,9 +107,9 @@ export async function PATCH({ params, locals, request, setHeaders }) {
 		input = {
 			title: payload.title,
 			body: prepareDocumentBody(payload.markdown),
-			// A note or sermon can never become visitor-facing through a crafted autosave request.
-			visibility:
-				current.kind === 'article' ? (requestedVisibility ?? current.visibility) : 'private'
+			// Autosave never publishes. It preserves a note/article's current snapshot visibility and
+			// keeps sermon workflow documents private; only the admin publication action changes it.
+			visibility: current.kind === 'sermon' ? 'private' : current.visibility
 		};
 	} catch (caught) {
 		if (caught instanceof DocumentMarkdownError) {

@@ -4,7 +4,6 @@ import type { Database } from './db/client.ts';
 import { loadChapter } from './repositories/chapter.ts';
 import { loadReferenceResources } from './repositories/reference-resources.ts';
 import type { ReadableResource } from './repositories/resources.ts';
-import { loadChapterVerseComments } from './repositories/verse-comments.ts';
 import { loadChapterHighlights } from './repositories/verse-highlights.ts';
 import { markedVersesByList } from './repositories/verse-lists.ts';
 import { loadReaderDocumentAnchors } from './repositories/reader-documents.ts';
@@ -21,7 +20,7 @@ export async function loadReaderTabChapter(
 	userId: string | null
 ) {
 	const bibleIds = resource.kind === 'bible' ? [resource.id] : [];
-	const [chapter, referenceResources, verseComments, highlights, markedVerses, documentAnchors] =
+	const [chapter, referenceResources, highlights, markedVerses, documentAnchors] =
 		await Promise.all([
 			loadChapter(db, {
 				resourceIds: bibleIds,
@@ -33,9 +32,6 @@ export async function loadReaderTabChapter(
 				book: reference.book,
 				chapter: reference.chapter
 			}),
-			userId
-				? loadChapterVerseComments(db, userId, bibleIds, reference.book, reference.chapter)
-				: Promise.resolve([]),
 			userId
 				? loadChapterHighlights(db, userId, reference.book, reference.chapter)
 				: Promise.resolve([]),
@@ -64,7 +60,6 @@ export async function loadReaderTabChapter(
 		fullTitle: `${bookName(reference.book)} ${reference.chapter}`,
 		shortBookName: bookShortName(reference.book),
 		chapter: { ...chapter, headings: [...chapter.headings.entries()] },
-		verseComments,
 		highlights,
 		markedVerses,
 		documentAnchors,

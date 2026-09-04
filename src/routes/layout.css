@@ -142,6 +142,28 @@
 		pointer-events: none;
 	}
 
+	.verse-hover-popup.interactive {
+		pointer-events: auto;
+	}
+
+	.verse-hover-popup-insert {
+		display: flex;
+		width: 100%;
+		min-height: 2rem;
+		align-items: center;
+		justify-content: center;
+		margin-top: 0.55rem;
+		border-top: 1px solid var(--color-stone-200);
+		padding-top: 0.45rem;
+		color: var(--color-accent-700);
+		font-size: 0.72rem;
+		font-weight: 700;
+	}
+
+	.verse-hover-popup-insert:hover {
+		text-decoration: underline;
+	}
+
 	.verse-hover-popup-ref {
 		margin-bottom: 0.2rem;
 		font-size: 0.7rem;
@@ -158,5 +180,10 @@
 		border-color: var(--color-stone-700);
 		background: var(--color-stone-900);
 		color: var(--color-stone-200);
+	}
+
+	:where(.dark) .verse-hover-popup-insert {
+		border-color: var(--color-stone-700);
+		color: var(--color-accent-300);
 	}
 }
