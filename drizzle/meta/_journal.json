@@ -176,6 +176,13 @@
       "when": 1788429869109,
       "tag": "0024_famous_maestro",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788526004069,
+      "tag": "0025_neat_warpath",
+      "breakpoints": true
     }
   ]
 }
