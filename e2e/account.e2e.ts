@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { and, eq, inArray } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { createDb } from '../src/lib/server/db/client.ts';
-import { resources, users, verseComments } from '../src/lib/server/db/schema.ts';
+import { documents, resources, users, verseComments } from '../src/lib/server/db/schema.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
 import { lastMailLinkTo } from './lib/mail-outbox.ts';
 
@@ -476,6 +477,7 @@ test('deleting a Bible transfers every comment without overwriting collisions', 
 	const suffix = Math.random().toString(36).slice(2, 9).toUpperCase();
 	const sourceId = `DELETE_${suffix}`;
 	const targetId = `TARGET_${suffix}`;
+	const commentIds = [randomUUID(), randomUUID(), randomUUID()];
 	const databaseUrl =
 		process.env.E2E_DATABASE_URL ??
 		testDatabaseUrl(
@@ -507,12 +509,15 @@ test('deleting a Bible transfers every comment without overwriting collisions', 
 				name: 'Ziel-Testbibel',
 				abbrev: 'Ziel',
 				language: 'de',
-				isPublic: false,
+				// Resource deletion intentionally permits only a public, fully imported Bible as the
+				// transfer target, matching the repository invariant and the admin selector.
+				isPublic: true,
 				status: 'ready'
 			}
 		]);
 		await db.insert(verseComments).values([
 			{
+				id: commentIds[0],
 				userId: admin!.id,
 				resourceId: sourceId,
 				bookId: 43,
@@ -521,6 +526,7 @@ test('deleting a Bible transfers every comment without overwriting collisions', 
 				commentHtml: '<p>Kommentar aus der Quelle</p>'
 			},
 			{
+				id: commentIds[1],
 				userId: admin!.id,
 				resourceId: targetId,
 				bookId: 43,
@@ -529,6 +535,7 @@ test('deleting a Bible transfers every comment without overwriting collisions', 
 				commentHtml: '<p>Kommentar am Ziel</p>'
 			},
 			{
+				id: commentIds[2],
 				userId: admin!.id,
 				resourceId: sourceId,
 				bookId: 43,
@@ -563,6 +570,10 @@ test('deleting a Bible transfers every comment without overwriting collisions', 
 		expect(merged).toContain('Übertragen aus Quelle');
 		expect(remaining.find((comment) => comment.verse === 17)?.html).toContain('Nur in der Quelle');
 	} finally {
+		// A collision is intentionally materialised as provenance documents before the legacy rows are
+		// merged. Remove those test-owned documents first so their restricted passage FK can release the
+		// dynamically-created target resource.
+		await db.delete(documents).where(inArray(documents.legacyVerseCommentId, commentIds));
 		await db.delete(verseComments).where(inArray(verseComments.resourceId, [sourceId, targetId]));
 		await db.delete(resources).where(inArray(resources.id, [sourceId, targetId]));
 		await client.end();
