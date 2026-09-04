@@ -5,7 +5,9 @@ import {
 	MAX_DOCUMENT_MARKDOWN_BYTES,
 	MAX_DOCUMENT_PASSAGES,
 	MAX_OBSIDIAN_FRONTMATTER_BYTES,
-	MAX_OBSIDIAN_IMPORT_BYTES
+	MAX_OBSIDIAN_IMPORT_BYTES,
+	MAX_SERMON_DELIVERIES,
+	MAX_SERMON_DELIVERY_LOCATION_LENGTH
 } from './documents.ts';
 
 export {
@@ -36,6 +38,7 @@ export type DocumentMarkdownSermon = {
 	status: SermonMarkdownStatus;
 	date?: string;
 	series?: string;
+	deliveries?: Array<{ date: string; location: string }>;
 };
 
 export type ObsidianDocumentPreview = {
@@ -272,7 +275,7 @@ export function exportDocumentMarkdown(input: DocumentMarkdownExportInput): stri
 		if (!isSermonStatus(status)) {
 			throw new DocumentMarkdownError('invalid_export', 'The sermon status is not exportable.');
 		}
-		const sermon: Record<string, string> = { status };
+		const sermon: Record<string, unknown> = { status };
 		if (input.sermon?.date) {
 			if (!isCalendarDate(input.sermon.date)) {
 				throw new DocumentMarkdownError('invalid_export', 'The sermon date must use YYYY-MM-DD.');
@@ -285,6 +288,24 @@ export function exportDocumentMarkdown(input: DocumentMarkdownExportInput): stri
 				throw new DocumentMarkdownError('invalid_export', 'The sermon series is invalid.');
 			}
 			sermon.series = series;
+		}
+		if (input.sermon?.deliveries?.length) {
+			if (input.sermon.deliveries.length > MAX_SERMON_DELIVERIES) {
+				throw new DocumentMarkdownError(
+					'invalid_export',
+					`A sermon export may contain at most ${MAX_SERMON_DELIVERIES} deliveries.`
+				);
+			}
+			sermon.deliveries = input.sermon.deliveries.map((delivery) => {
+				if (!isCalendarDate(delivery.date)) {
+					throw new DocumentMarkdownError('invalid_export', 'A delivery date must use YYYY-MM-DD.');
+				}
+				const location = normaliseShortText(delivery.location, 200);
+				if (!location) {
+					throw new DocumentMarkdownError('invalid_export', 'A delivery location is invalid.');
+				}
+				return { date: delivery.date, location };
+			});
 		}
 		frontmatter.sermon = sermon;
 	}
@@ -328,9 +349,15 @@ export function createDocumentMarkdownExport(
 
 /** Produce a portable leaf filename; it never returns path separators or control characters. */
 export function safeDocumentMarkdownFilename(title: string): string {
+	return safeDocumentFilename(title, 'md');
+}
+
+/** Produce the same portable filename for every supported download format. */
+export function safeDocumentFilename(title: string, extension: 'md' | 'docx' | 'pdf'): string {
 	const normalisedTitle = title.normalize('NFKC');
-	const titleWithoutExtension = normalisedTitle.toLowerCase().endsWith('.md')
-		? normalisedTitle.slice(0, -3)
+	const suffix = `.${extension}`;
+	const titleWithoutExtension = normalisedTitle.toLowerCase().endsWith(suffix)
+		? normalisedTitle.slice(0, -suffix.length)
 		: normalisedTitle;
 	const cleanedStem = replaceControlCharacters(titleWithoutExtension, ' ')
 		.replace(/[<>:"/\\|?*]+/g, ' ')
@@ -342,14 +369,22 @@ export function safeDocumentMarkdownFilename(title: string): string {
 		.join('')
 		.replace(/[ .]+$/g, '');
 	if (!stem || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(stem)) stem = 'document';
-	return `${stem}.md`;
+	return `${stem}.${extension}`;
 }
 
 /** RFC 6266/5987-compatible header value with an ASCII fallback and a UTF-8 filename. */
 export function markdownContentDisposition(filenameOrTitle: string): string {
-	const filename = filenameOrTitle.toLowerCase().endsWith('.md')
-		? safeDocumentMarkdownFilename(filenameOrTitle.slice(0, -3))
-		: safeDocumentMarkdownFilename(filenameOrTitle);
+	return documentContentDisposition(filenameOrTitle, 'md');
+}
+
+export function documentContentDisposition(
+	filenameOrTitle: string,
+	extension: 'md' | 'docx' | 'pdf'
+): string {
+	const suffix = `.${extension}`;
+	const filename = filenameOrTitle.toLowerCase().endsWith(suffix)
+		? safeDocumentFilename(filenameOrTitle.slice(0, -suffix.length), extension)
+		: safeDocumentFilename(filenameOrTitle, extension);
 	const ascii =
 		filename
 			.replaceAll('ß', 'ss')
@@ -357,7 +392,7 @@ export function markdownContentDisposition(filenameOrTitle: string): string {
 			.normalize('NFKD')
 			.replace(/[\u0300-\u036f]/g, '')
 			.replace(/[^\x20-\x7E]/g, '-')
-			.replace(/["\\]/g, '-') || 'document.md';
+			.replace(/["\\]/g, '-') || `document.${extension}`;
 	const encoded = encodeURIComponent(filename).replace(
 		/[!'()*]/g,
 		(character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`
@@ -763,7 +798,41 @@ function readSermon(
 		if (!series) warnings.add('invalid-sermon-series', 'An invalid sermon series was ignored.');
 	}
 
-	return { status, ...(date ? { date } : {}), ...(series ? { series } : {}) };
+	const deliveryValues = nested.deliveries;
+	const deliveries: NonNullable<DocumentMarkdownSermon['deliveries']> = [];
+	if (deliveryValues != null && !Array.isArray(deliveryValues)) {
+		warnings.add('invalid-sermon-deliveries', 'Sermon deliveries must be a list.');
+	} else if (Array.isArray(deliveryValues)) {
+		for (const candidate of deliveryValues.slice(0, MAX_SERMON_DELIVERIES)) {
+			if (!isPlainRecord(candidate)) {
+				warnings.add('invalid-sermon-delivery', 'An invalid sermon delivery was ignored.');
+				continue;
+			}
+			const deliveryDate =
+				typeof candidate.date === 'string' && isCalendarDate(candidate.date)
+					? candidate.date
+					: undefined;
+			const location = normaliseShortText(candidate.location, MAX_SERMON_DELIVERY_LOCATION_LENGTH);
+			if (!deliveryDate || !location) {
+				warnings.add('invalid-sermon-delivery', 'An invalid sermon delivery was ignored.');
+				continue;
+			}
+			deliveries.push({ date: deliveryDate, location });
+		}
+		if (deliveryValues.length > MAX_SERMON_DELIVERIES) {
+			warnings.add(
+				'too-many-sermon-deliveries',
+				`Only the first ${MAX_SERMON_DELIVERIES} sermon deliveries were imported.`
+			);
+		}
+	}
+
+	return {
+		status,
+		...(date ? { date } : {}),
+		...(series ? { series } : {}),
+		...(deliveries.length ? { deliveries } : {})
+	};
 }
 
 function sanitiseDocumentHtml(input: string): string {

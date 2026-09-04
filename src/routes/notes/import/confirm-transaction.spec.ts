@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 	createDocument: vi.fn(),
 	syncDocumentTags: vi.fn(),
 	replaceDocumentPassages: vi.fn(),
+	addSermonDelivery: vi.fn(),
 	committed: false,
 	rolledBack: false
 }));
@@ -37,6 +38,10 @@ vi.mock('$lib/server/repositories/documents', async (importOriginal) => {
 	};
 });
 
+vi.mock('$lib/server/repositories/sermon-deliveries', () => ({
+	addSermonDelivery: mocks.addSermonDelivery
+}));
+
 import { actions } from './+page.server.ts';
 
 beforeEach(() => {
@@ -56,6 +61,33 @@ beforeEach(() => {
 });
 
 describe('Obsidian import confirmation transaction', () => {
+	it('identifies the failing file in a loose Markdown preview batch', async () => {
+		mocks.listBibles.mockResolvedValue([]);
+		const form = new FormData();
+		form.append('file', new File(['# Gültig\n'], 'gueltig.md', { type: 'text/markdown' }));
+		form.append(
+			'file',
+			new File(['---\ntitle: [ungueltig\n---\nText\n'], 'defekt.md', {
+				type: 'text/markdown'
+			})
+		);
+		const request = new Request('http://localhost/notes/import?/preview', {
+			method: 'POST',
+			body: form
+		});
+
+		const result = await actions.preview({
+			request,
+			url: new URL(request.url),
+			locals: { user: { id: 'import-owner' } }
+		} as never);
+
+		expect(result).toMatchObject({
+			status: 400,
+			data: { error: 'invalid_frontmatter', filename: 'defekt.md' }
+		});
+	});
+
 	it('accepts a near-limit LF upload after browser textarea submission expands it to CRLF', async () => {
 		mocks.listBibles.mockResolvedValue([]);
 		mocks.createDocument.mockResolvedValue({
@@ -151,5 +183,96 @@ Text
 		expect(mocks.syncDocumentTags.mock.calls[0]?.[0]).toBe(mocks.transactionDb);
 		expect(mocks.replaceDocumentPassages.mock.calls[0]?.[0]).toBe(mocks.transactionDb);
 		expect(mocks.syncDocumentTags).toHaveBeenCalledBefore(mocks.replaceDocumentPassages);
+	});
+
+	it('imports multiple loose-file previews in one transaction and returns to the unified library', async () => {
+		mocks.listBibles.mockResolvedValue([]);
+		mocks.createDocument
+			.mockResolvedValueOnce({ id: '75ad7f30-7480-4c25-8778-72bfa1878a61', revision: 1 })
+			.mockResolvedValueOnce({ id: '75ad7f30-7480-4c25-8778-72bfa1878a62', revision: 1 });
+		const form = new FormData();
+		form.set(
+			'sourcePackage',
+			JSON.stringify([
+				{ filename: 'eins.md', source: 'Erste Notiz\n' },
+				{ filename: 'zwei.md', source: 'Zweite Notiz\n' }
+			])
+		);
+		const request = new Request('http://localhost/notes/import?/confirm', {
+			method: 'POST',
+			body: form
+		});
+
+		await expect(
+			actions.confirm({
+				request,
+				url: new URL(request.url),
+				locals: { user: { id: 'import-owner' } }
+			} as never)
+		).rejects.toMatchObject({ status: 303, location: '/notes' });
+
+		expect(mocks.committed).toBe(true);
+		expect(mocks.createDocument).toHaveBeenCalledTimes(2);
+		expect(mocks.createDocument.mock.calls.every((call) => call[0] === mocks.transactionDb)).toBe(
+			true
+		);
+	});
+
+	it('restores exported sermon delivery history with revision guards', async () => {
+		mocks.listBibles.mockResolvedValue([]);
+		mocks.createDocument.mockResolvedValue({
+			id: '75ad7f30-7480-4c25-8778-72bfa1878a63',
+			revision: 1
+		});
+		mocks.addSermonDelivery
+			.mockResolvedValueOnce({ ok: true, revision: 2 })
+			.mockResolvedValueOnce({ ok: true, revision: 3 });
+		const form = new FormData();
+		form.set('filename', 'predigt.md');
+		form.set(
+			'source',
+			`---
+title: Predigt
+type: sermon
+sermon:
+  status: delivered
+  deliveries:
+    - date: 2026-09-06
+      location: Gemeinde Nord
+    - date: 2026-09-13
+      location: Hauskreis Süd
+---
+Text
+`
+		);
+		const request = new Request('http://localhost/notes/import?/confirm', {
+			method: 'POST',
+			body: form
+		});
+
+		await expect(
+			actions.confirm({
+				request,
+				url: new URL(request.url),
+				locals: { user: { id: 'import-owner' } }
+			} as never)
+		).rejects.toMatchObject({ status: 303 });
+
+		expect(mocks.addSermonDelivery).toHaveBeenNthCalledWith(
+			1,
+			mocks.transactionDb,
+			'import-owner',
+			'75ad7f30-7480-4c25-8778-72bfa1878a63',
+			1,
+			expect.objectContaining({ location: 'Gemeinde Nord' })
+		);
+		expect(mocks.addSermonDelivery).toHaveBeenNthCalledWith(
+			2,
+			mocks.transactionDb,
+			'import-owner',
+			'75ad7f30-7480-4c25-8778-72bfa1878a63',
+			2,
+			expect.objectContaining({ location: 'Hauskreis Süd' })
+		);
 	});
 });

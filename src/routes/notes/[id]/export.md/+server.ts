@@ -14,6 +14,7 @@ import {
 import { getDb } from '$lib/server/db';
 import { listDocumentTags } from '$lib/server/repositories/document-tags';
 import { getDocument, listDocumentPassages } from '$lib/server/repositories/documents';
+import { listSermonDeliveries } from '$lib/server/repositories/sermon-deliveries';
 
 export const prerender = false;
 
@@ -26,9 +27,10 @@ export async function GET({ params, locals, url, setHeaders }) {
 	const document = await getDocument(db, user.id, params.id);
 	if (!document) error(404, 'Dokument nicht gefunden');
 
-	const [passageRows, tags] = await Promise.all([
+	const [passageRows, tags, deliveries] = await Promise.all([
 		listDocumentPassages(db, user.id, document.id),
-		listDocumentTags(db, user.id, document.id)
+		listDocumentTags(db, user.id, document.id),
+		document.kind === 'sermon' ? listSermonDeliveries(db, user.id, document.id) : []
 	]);
 	const passages: DocumentMarkdownPassage[] = passageRows.map((row) => {
 		const passage = passageFromDbEndpoints(row);
@@ -52,7 +54,11 @@ export async function GET({ params, locals, url, setHeaders }) {
 						sermon: {
 							status: document.sermonStatus ?? 'idea',
 							date: formatCalendarDate(document.sermonDate),
-							series: document.sermonSeries ?? undefined
+							series: document.sermonSeries ?? undefined,
+							deliveries: deliveries.map((delivery) => ({
+								date: formatCalendarDate(delivery.date)!,
+								location: delivery.location
+							}))
 						}
 					}
 				: {}),

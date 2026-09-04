@@ -335,7 +335,15 @@ describe('Markdown export', () => {
 		kind: 'sermon',
 		tags: ['Predigt/Johannes', 'Gnade'],
 		passages: [{ reference: 'Joh 3,16-17' }, { reference: 'Gen 1,1', resourceId: 'SEEDDE' }],
-		sermon: { status: 'ready', date: '2026-09-06', series: 'Johannes' },
+		sermon: {
+			status: 'ready',
+			date: '2026-09-06',
+			series: 'Johannes',
+			deliveries: [
+				{ date: '2026-09-13', location: 'Gemeinde Nord' },
+				{ date: '2026-10-04', location: 'Hauskreis Süd' }
+			]
+		},
 		markdown: '# Anfang\r\n\r\nEin **Text**.  \r\n',
 		createdAt: '2026-09-01T10:20:30.000Z',
 		updatedAt: new Date('2026-09-04T12:00:00.000Z')

@@ -1,11 +1,28 @@
 <script lang="ts">
 	import BibleReferenceProse from '$lib/components/documents/BibleReferenceProse.svelte';
+	import DocumentAreaNav from '$lib/components/documents/DocumentAreaNav.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { t, type MessageKey } from '$lib/i18n';
+	import type { ObsidianDocumentPreview } from '$lib/notes/document-markdown';
 
 	let { data, form } = $props();
+	type ImportActionResult = {
+		error?: string;
+		message?: string;
+		filename?: string;
+		preview?: ObsidianDocumentPreview;
+		previews?: ObsidianDocumentPreview[];
+		source?: string;
+		sourcePackage?: string;
+		canImport?: boolean;
+	};
+	const importResult = $derived(form as unknown as ImportActionResult | null);
+	const importPreviews = $derived(
+		importResult?.previews ?? (importResult?.preview ? [importResult.preview] : [])
+	);
 
 	function kindLabel(kind: string): string {
+		if (kind === 'article') return t('documents.kind.note');
 		return t(`documents.kind.${kind}` as MessageKey);
 	}
 </script>
@@ -30,6 +47,7 @@
 			{t('documents.import.subtitle')}
 		</p>
 	</header>
+	<DocumentAreaNav active="notes" />
 
 	<div class="mt-7 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
 		<section
@@ -37,6 +55,7 @@
 		>
 			<form
 				method="POST"
+				data-tour-target="import-upload"
 				action="?/preview"
 				enctype="multipart/form-data"
 				class="border-b border-stone-200/80 p-5 sm:p-6 dark:border-white/8"
@@ -47,7 +66,8 @@
 						type="file"
 						name="file"
 						required
-						accept=".md,text/markdown,text/plain"
+						multiple
+						accept=".md,.zip,text/markdown,text/plain,application/zip"
 						class="block w-full rounded-xl border border-dashed border-stone-300 bg-stone-50 p-4 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-accent-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-accent-800 hover:border-accent-400 dark:border-stone-700 dark:bg-white/3 dark:file:bg-accent-900/45 dark:file:text-accent-200"
 					/>
 				</label>
@@ -71,86 +91,105 @@
 					role="alert"
 				>
 					<p class="font-semibold">{t('documents.import.error')}</p>
+					{#if importResult?.filename}
+						<p class="mt-1 text-xs">
+							Datei: <strong class="font-mono">{importResult.filename}</strong>
+						</p>
+					{/if}
 					{#if form.message}<p class="mt-1 text-xs">{form.message}</p>{/if}
 				</div>
 			{/if}
 
-			{#if form?.preview}
-				<article class="p-5 sm:p-7" data-testid="import-preview">
-					<div class="flex flex-wrap items-center gap-2 text-xs">
-						<span
-							class="rounded-full bg-accent-50 px-2.5 py-1 font-semibold text-accent-700 dark:bg-accent-900/35 dark:text-accent-300"
-						>
-							{kindLabel(form.preview.kind)}
-						</span>
-						<span class="font-mono text-stone-400">{form.preview.sourceFilename}</span>
-						<span
-							class="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-1 text-stone-500 dark:bg-white/6 dark:text-stone-400"
-						>
-							<Icon name="lock" class="size-3" />
-							{t('documents.visibility.private')}
-						</span>
-					</div>
-					<h2 class="mt-4 font-serif text-2xl font-semibold">{form.preview.title}</h2>
-
-					{#if form.preview.tags.length > 0 || form.preview.passages.length > 0}
-						<div class="mt-3 flex flex-wrap gap-1.5">
-							{#each form.preview.tags as tag (tag)}
-								<span class="metadata-chip"><Icon name="tag" class="size-3" />{tag}</span>
-							{/each}
-							{#each form.preview.passages as passage (passage.reference + passage.resourceId)}
-								<span class="metadata-chip">
-									<Icon name="book-open" class="size-3" />
-									{passage.reference}{#if passage.resourceId}
-										· {passage.resourceId}{/if}
+			{#if importPreviews.length > 0}
+				<div class="p-5 sm:p-7" data-testid="import-preview">
+					<p class="mb-4 text-xs font-semibold text-stone-500">
+						{importPreviews.length === 1
+							? t('documents.import.previewSingle')
+							: t('documents.import.previewCount', { count: importPreviews.length })}
+					</p>
+					{#each importPreviews as preview, index (`${preview.sourceFilename}-${index}`)}
+						<article class="import-preview-document">
+							<div class="flex flex-wrap items-center gap-2 text-xs">
+								<span
+									class="rounded-full bg-accent-50 px-2.5 py-1 font-semibold text-accent-700 dark:bg-accent-900/35 dark:text-accent-300"
+								>
+									{kindLabel(preview.kind)}
 								</span>
-							{/each}
-						</div>
-					{/if}
+								<span class="font-mono text-stone-400">{preview.sourceFilename}</span>
+								<span
+									class="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-1 text-stone-500 dark:bg-white/6 dark:text-stone-400"
+								>
+									<Icon name="lock" class="size-3" />
+									{t('documents.visibility.private')}
+								</span>
+							</div>
+							<h2 class="mt-4 font-serif text-2xl font-semibold">{preview.title}</h2>
 
-					{#if form.preview.warnings.length > 0}
-						<section
-							class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-100"
-						>
-							<h3 class="text-sm font-semibold">{t('documents.import.warnings')}</h3>
-							<ul class="mt-2 list-disc space-y-1 pl-5 text-xs">
-								{#each form.preview.warnings as warning, index (`${warning}-${index}`)}
-									<li>{warning}</li>
-								{/each}
-							</ul>
-						</section>
-					{/if}
+							{#if preview.tags.length > 0 || preview.passages.length > 0}
+								<div class="mt-3 flex flex-wrap gap-1.5">
+									{#each preview.tags as tag (tag)}
+										<span class="metadata-chip"><Icon name="tag" class="size-3" />{tag}</span>
+									{/each}
+									{#each preview.passages as passage (passage.reference + passage.resourceId)}
+										<span class="metadata-chip">
+											<Icon name="book-open" class="size-3" />
+											{passage.reference}{#if passage.resourceId}
+												· {passage.resourceId}{/if}
+										</span>
+									{/each}
+								</div>
+							{/if}
 
-					<BibleReferenceProse
-						html={form.preview.html}
-						bibleId={data.bibles[0]?.id ?? null}
-						tooltipId="import-bible-reference-preview"
-						class="imported-prose prose-like mt-7 border-t border-stone-200 pt-6 dark:border-white/8"
-					/>
+							{#if preview.warnings.length > 0}
+								<section
+									class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-100"
+								>
+									<h3 class="text-sm font-semibold">{t('documents.import.warnings')}</h3>
+									<ul class="mt-2 list-disc space-y-1 pl-5 text-xs">
+										{#each preview.warnings as warning, warningIndex (`${warning}-${warningIndex}`)}
+											<li>{warning}</li>
+										{/each}
+									</ul>
+								</section>
+							{/if}
 
-					<form
-						method="POST"
-						action="?/confirm"
-						enctype="multipart/form-data"
-						class="mt-8 border-t border-stone-200 pt-5 dark:border-white/8"
-					>
-						<input type="hidden" name="filename" value={form.preview.sourceFilename} />
-						<textarea class="hidden" name="source" aria-hidden="true">{form.source}</textarea>
-						<div class="flex flex-wrap items-center justify-between gap-3">
-							<p class="max-w-md text-xs text-stone-500 dark:text-stone-400">
-								{t('documents.import.safe')}
-							</p>
-							<button
-								type="submit"
-								disabled={!form.canImport}
-								class="inline-flex items-center gap-2 rounded-lg bg-accent-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-45"
-							>
-								<Icon name="upload" class="size-4" />
-								{t('documents.import.confirm')}
-							</button>
-						</div>
-					</form>
-				</article>
+							<BibleReferenceProse
+								html={preview.html}
+								bibleId={data.bibles[0]?.id ?? null}
+								tooltipId="import-bible-reference-preview"
+								class="imported-prose prose-like mt-7 border-t border-stone-200 pt-6 dark:border-white/8"
+							/>
+
+							{#if index === importPreviews.length - 1}<form
+									method="POST"
+									action="?/confirm"
+									enctype="multipart/form-data"
+									class="mt-8 border-t border-stone-200 pt-5 dark:border-white/8"
+								>
+									<input type="hidden" name="filename" value={preview.sourceFilename} />
+									<textarea class="hidden" name="source" aria-hidden="true"
+										>{importResult?.source ?? ''}</textarea
+									>
+									<textarea class="hidden" name="sourcePackage" aria-hidden="true"
+										>{importResult?.sourcePackage ?? ''}</textarea
+									>
+									<div class="flex flex-wrap items-center justify-between gap-3">
+										<p class="max-w-md text-xs text-stone-500 dark:text-stone-400">
+											{t('documents.import.safe')}
+										</p>
+										<button
+											type="submit"
+											disabled={!importResult?.canImport}
+											class="inline-flex items-center gap-2 rounded-lg bg-accent-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-45"
+										>
+											<Icon name="upload" class="size-4" />
+											{t('documents.import.confirm')}
+										</button>
+									</div>
+								</form>{/if}
+						</article>
+					{/each}
+				</div>
 			{/if}
 		</section>
 
@@ -195,6 +234,11 @@
 		padding: 0.25rem 0.55rem;
 		color: var(--color-stone-600);
 		font-size: 0.68rem;
+	}
+	.import-preview-document + .import-preview-document {
+		margin-top: 2rem;
+		padding-top: 2rem;
+		border-top: 2px solid var(--line);
 	}
 	:global(.imported-prose > * + *) {
 		margin-top: 0.8em;
