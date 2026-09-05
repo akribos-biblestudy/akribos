@@ -159,11 +159,20 @@ text. Cross-chapter references load at most 50 cached chapter responses; whole-c
 a tooltip. Inside `DocumentEditor`, the popup and `/bibel <reference>` command insert an ordinary
 Markdown-round-trippable blockquote containing fetched text and its translation/source label.
 
+The same caret-anchored assistant handles `/` block commands and owner-only `@` document search.
+Mentions remain ordinary `/notes/<uuid>` Markdown links. A derived `document_links` table indexes both
+directions with composite owner foreign keys and is replaced in the same transaction as a revisioned
+body update. The editor's right panel switches between its derived H1–H6 outline and those live
+outgoing/backlink summaries; the Reader supplies an opener which flushes and changes the current
+sidecar document without writing its private id into Reader state.
+
 `sermon_templates` stores arbitrary owner-private Markdown starters. `sermon_deliveries` stores any
 number of actual date/location records behind a composite `(document_id,user_id)` foreign key; both it
 and board status moves use the parent document revision. The planned sermon date is separate from this
 history. The import boundary accepts loose Markdown batches or one preflighted ZIP, never extracts to
-disk, and commits all documents atomically. Owner-only exports are Markdown/YAML, DOCX and PDF.
+disk, and commits all documents atomically. Owner-only exports are Markdown/YAML, DOCX and PDF. PDF
+output keeps safe links as green clickable annotations resolved against the request origin and adds a
+repeated header and numbered footer after buffering all A4 pages.
 
 The public v1 API adds read-only `GET /api/v1/documents` and `GET /api/v1/documents/[id]` for a session
 or `personal` API-key scope. It intentionally has no write endpoint. The older `GET /api/v1/notes`

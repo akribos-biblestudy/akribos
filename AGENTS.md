@@ -374,12 +374,27 @@ Der Dokumenteditor begrenzt seine Höhe auch eigenständig auf den Viewport; nur
 scrollt, Werkzeugleiste und Footer bleiben erreichbar. Die Zähler im Footer zählen den sichtbaren
 Dokumenttext ohne Titel und Markdown-Syntax: Wörter als Läufe ohne Leerraum, Zeichen als Unicode-Codepoints
 inklusive innerem Leerraum. Die einklappbare Inhaltsübersicht wird aus H1–H6 im Editor abgeleitet,
-ohne IDs oder andere Metadaten in Markdown zu schreiben. Eine Textauswahl öffnet die Formatierung
+ohne IDs oder andere Metadaten in Markdown zu schreiben. Sie steht rechts in einer gemeinsamen
+Seitenleiste mit den aus- und eingehenden Dokumentverknüpfungen. Eine Textauswahl öffnet die Formatierung
 am Text; Linkbearbeitung verwendet dasselbe am Viewport begrenzte Popup.
 „Zen-Modus“ beziehungsweise Strg-/Cmd+Shift+F im Editor maximiert auch den Sidecar-Editor.
 Dabei wird dieselbe Editor-DOM-Instanz in einen modalen Dialog verschoben und danach zurückgesetzt:
 Undo-Historie, Auswahl und Autosave bleiben erhalten. Escape verlässt den Modus. Die Bibelvorschau
 muss innerhalb dieses Dialogs liegen, damit sie in der modalen Browser-Ebene bedienbar bleibt.
+
+Ein `/` an einer Wortgrenze öffnet im visuellen Editor ein an der Schreibmarke platziertes Befehlsmenü
+für Absatz, H1–H3, Listen, Zitat, Codeblock, Trennlinie und Bibeltext; `/bibel <Stelle>` plus Enter bleibt
+der direkte Tastaturweg. `@` öffnet dort die Suche nach ausschließlich eigenen, nicht gelöschten Notizen
+und Predigten anhand von Titel, Fließtext oder Schlagwort. Eine Auswahl fügt einen gewöhnlichen
+Markdown-Link der Form `[Titel](/notes/<uuid>)` ein. `document_links` ist nur der daraus abgeleitete,
+gerichtete Suchindex für Rückverknüpfungen: `syncDocumentLinks()` ersetzt ihn innerhalb derselben
+revisionierten Speichertransaktion. Beide Fremdschlüssel enthalten `user_id`, unbekannte oder fremde IDs
+werden verworfen, Selbstverknüpfungen sind verboten. Gelöschte Ziele bleiben als nicht aufrufbare
+Verknüpfung indexiert, eingehende Links gelöschter Quelldokumente werden ausgeblendet. Beim Reader-Sidecar
+öffnet die Seitenleiste ein verknüpftes Dokument erst nach erfolgreichem `flush()` im selben Sidecar;
+private Dokument-IDs gelangen dabei weiterhin nicht in Reader-URL oder lokalen Speicher.
+Die eigenständige `/notes/[id]`-Seite schlüsselt `DocumentEditor` nach Dokument-ID und setzt ihre lokale
+Arbeitskopie auch dann zurück, wenn zwei nacheinander geladene Dokumente dieselbe Revision besitzen.
 
 Der kompakte Reader-Editor ist kein neunter Workspace-Tab: Der Schalter „Notizbereich“ im
 `ReaderLayoutPicker` blendet ihn am Desktop als eigene rechte Sidecar-Spalte neben der unveränderten
@@ -415,7 +430,9 @@ entfernt. Pro Dokument gelten höchstens 100 Stellenanker und 50 ausgewählte Ta
 sind in Tagsegmenten nicht zulässig. Tags werden nie implizit als Bibelstellen interpretiert. Exporte
 stehen owner-only als Markdown/YAML, Word `.docx` und PDF bereit, enthalten aber keine E-Mail,
 Eigentümer-ID oder Veröffentlichungsberechtigung. Anhänge und automatisches Zusammenführen sind nicht
-implementiert. Die Bereichsnavigation besteht nur aus „Notizen“ und „Predigten“; Import und
+implementiert. Der PDF-Export löst relative Linkziele gegen den Request-Ursprung auf, bewahrt Links als
+klickbare grüne Annotationen und setzt auf jeder gepufferten A4-Seite eine Akribos-Kopfzeile sowie eine
+Fußzeile mit Seitenzahl. Die Bereichsnavigation besteht nur aus „Notizen“ und „Predigten“; Import und
 veröffentlichte Notizen sind kontextuelle Aktionen, Vorlagen gehören in den Predigtbereich. Predigten
 bleiben normale Dokumente mit den Zuständen `idea`, `research`, `outline`, `ready`, `delivered`;
 `/sermons` ist nur ihre fokussierte Workflow-Ansicht. Karten wechseln den Status revisioniert per
@@ -425,6 +442,8 @@ Markdown-Vorlagen. `sermon_deliveries` speichert mehrere tatsächliche Durchfüh
 und Ort über einen zusammengesetzten Dokument-/Owner-FK; jede Mutation erhöht die Dokumentrevision.
 Migration `0025_clever_agent_brand.sql` legt beide Tabellen zusammen mit dem übrigen Dokumentmodell
 und dem nötigen eindeutigen Dokument-/Owner-Index an.
+Migration `0027_thankful_vin_gonzales.sql` ergänzt `document_links` und baut den abgeleiteten Index für
+bestehende echte HTML-Links owner-sicher auf; Codebeispiele und bloßer URL-Text werden nicht erfasst.
 
 ### Zusammenarbeit an Verslisten (issue #129)
 

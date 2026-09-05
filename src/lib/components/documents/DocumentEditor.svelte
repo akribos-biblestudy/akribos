@@ -19,6 +19,7 @@
 	import Icon from '../Icon.svelte';
 	import { BibleReferenceDecorations } from './bible-reference-decorations';
 	import { DocumentHighlight } from './document-highlight';
+	import { editorAssistantTrigger, type EditorAssistantTrigger } from './editor-assistant';
 
 	type EditableDocument = {
 		id: string;
@@ -33,7 +34,8 @@
 		bibleId = null,
 		compact = false,
 		onSaved,
-		onState
+		onState,
+		onOpenDocument
 	}: {
 		document: Omit<EditableDocument, 'bodyHtml'>;
 		bibleId?: string | null;
@@ -41,6 +43,8 @@
 		compact?: boolean;
 		onSaved?: (document: EditableDocument) => void;
 		onState?: (state: { status: SaveState; revision: number }) => void;
+		/** Keeps document mentions inside the Reader sidecar when it supplies its owner-checked opener. */
+		onOpenDocument?: (documentId: string) => boolean | Promise<boolean>;
 	} = $props();
 
 	type Mode = 'visual' | 'markdown';
@@ -49,12 +53,25 @@
 	let editorRoot: HTMLElement | undefined = $state();
 	let zen = $state(false);
 	let outlineOpen = $state(untrack(() => !compact));
+	let sidePanelTab = $state<'outline' | 'links'>('outline');
 	let floatingMenu: HTMLElement | undefined = $state();
 	let selectionMenuOpen = $state(false);
 	let floatingPosition = $state({ left: 8, top: 8 });
 	let placementFrame = 0;
 	let pointerSelecting = false;
 	let selectionDismissed = false;
+	let assistantElement: HTMLElement | undefined = $state();
+	let assistantMenu = $state<EditorAssistantTrigger | null>(null);
+	let assistantPosition = $state({ left: 8, top: 8 });
+	let assistantIndex = $state(0);
+	let mentionDocuments = $state<MentionDocument[]>([]);
+	let mentionState = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
+	let mentionRequest: AbortController | undefined;
+	let mentionTimer: ReturnType<typeof setTimeout> | undefined;
+	let mentionGeneration = 0;
+	let relations = $state<DocumentRelations>({ outgoing: [], incoming: [] });
+	let relationsState = $state<'loading' | 'ready' | 'error'>('loading');
+	let relationsRequest: AbortController | undefined;
 	let editorHost: HTMLDivElement | undefined = $state();
 	let editorState = $state<{ editor: Editor | null }>({ editor: null });
 	let mode = $state<Mode>('visual');
@@ -77,6 +94,133 @@
 	const headingLevels = [1, 2, 3, 4, 5, 6] as const;
 	const bibleReferenceTooltipId = untrack(() => `document-bible-reference-preview-${document.id}`);
 	let lastSavedSignature = untrack(() => signature(title, markdown));
+
+	type MentionDocument = {
+		id: string;
+		kind: 'note' | 'sermon';
+		title: string;
+		updatedAt: string;
+	};
+	type DocumentRelation = MentionDocument & { deleted: boolean };
+	type DocumentRelations = { outgoing: DocumentRelation[]; incoming: DocumentRelation[] };
+	type SlashCommandId =
+		| 'paragraph'
+		| 'heading-1'
+		| 'heading-2'
+		| 'heading-3'
+		| 'bullet-list'
+		| 'ordered-list'
+		| 'quote'
+		| 'code-block'
+		| 'divider'
+		| 'bible';
+	type SlashCommand = {
+		id: SlashCommandId;
+		label: string;
+		description: string;
+		keywords: string;
+		icon:
+			| 'file-text'
+			| 'heading'
+			| 'list'
+			| 'list-ordered'
+			| 'quote'
+			| 'code'
+			| 'more-horizontal'
+			| 'book-open';
+	};
+
+	const slashCommands = $derived<SlashCommand[]>([
+		{
+			id: 'paragraph',
+			label: t('documents.editor.command.paragraph'),
+			description: t('documents.editor.command.paragraphDescription'),
+			keywords: 'text absatz normal',
+			icon: 'file-text'
+		},
+		{
+			id: 'heading-1',
+			label: t('documents.editor.command.heading1'),
+			description: t('documents.editor.command.heading1Description'),
+			keywords: 'titel überschrift h1',
+			icon: 'heading'
+		},
+		{
+			id: 'heading-2',
+			label: t('documents.editor.command.heading2'),
+			description: t('documents.editor.command.heading2Description'),
+			keywords: 'überschrift h2',
+			icon: 'heading'
+		},
+		{
+			id: 'heading-3',
+			label: t('documents.editor.command.heading3'),
+			description: t('documents.editor.command.heading3Description'),
+			keywords: 'überschrift h3',
+			icon: 'heading'
+		},
+		{
+			id: 'bullet-list',
+			label: t('documents.editor.command.bulletList'),
+			description: t('documents.editor.command.bulletListDescription'),
+			keywords: 'liste aufzählung punkte',
+			icon: 'list'
+		},
+		{
+			id: 'ordered-list',
+			label: t('documents.editor.command.orderedList'),
+			description: t('documents.editor.command.orderedListDescription'),
+			keywords: 'liste nummeriert zahlen',
+			icon: 'list-ordered'
+		},
+		{
+			id: 'quote',
+			label: t('documents.editor.command.quote'),
+			description: t('documents.editor.command.quoteDescription'),
+			keywords: 'zitat blockquote',
+			icon: 'quote'
+		},
+		{
+			id: 'code-block',
+			label: t('documents.editor.command.code'),
+			description: t('documents.editor.command.codeDescription'),
+			keywords: 'code programm',
+			icon: 'code'
+		},
+		{
+			id: 'divider',
+			label: t('documents.editor.command.divider'),
+			description: t('documents.editor.command.dividerDescription'),
+			keywords: 'linie trennlinie horizontal',
+			icon: 'more-horizontal'
+		},
+		{
+			id: 'bible',
+			label: t('documents.editor.command.bible'),
+			description: t('documents.editor.command.bibleDescription'),
+			keywords: 'bibel bibeltext vers stelle',
+			icon: 'book-open'
+		}
+	]);
+
+	function normalizeAssistantQuery(value: string): string {
+		return value
+			.normalize('NFKD')
+			.replace(/[\u0300-\u036f]/gu, '')
+			.toLocaleLowerCase('de-DE');
+	}
+
+	const visibleSlashCommands = $derived.by(() => {
+		if (assistantMenu?.kind !== 'slash') return [];
+		const query = normalizeAssistantQuery(assistantMenu.query);
+		if (!query) return slashCommands;
+		return slashCommands.filter((command) =>
+			normalizeAssistantQuery(`${command.label} ${command.keywords}`).includes(query)
+		);
+	});
+	const assistantOptionCount = $derived(
+		assistantMenu?.kind === 'slash' ? visibleSlashCommands.length : mentionDocuments.length
+	);
 
 	const editor = $derived(editorState.editor);
 	// Tiptap mutates one Editor instance. Derive toolbar state from the transaction wrapper,
@@ -152,13 +296,17 @@
 
 	function queuePlacement(): void {
 		cancelAnimationFrame(placementFrame);
-		placementFrame = requestAnimationFrame(() => void placeFloatingMenu());
+		placementFrame = requestAnimationFrame(() => {
+			void placeFloatingMenu();
+			void placeAssistantMenu();
+		});
 	}
 
 	async function placeFloatingMenu(): Promise<void> {
 		if (!editor || mode !== 'visual') return;
 		if (!linkEditorOpen) {
 			selectionMenuOpen =
+				!assistantMenu &&
 				!pointerSelecting &&
 				!selectionDismissed &&
 				!editor.state.selection.empty &&
@@ -194,18 +342,168 @@
 		};
 	}
 
+	async function placeAssistantMenu(): Promise<void> {
+		if (!assistantMenu || !editor || mode !== 'visual') return;
+		await tick();
+		if (!assistantElement || !assistantMenu || editor.isDestroyed) return;
+		const caret = editor.view.coordsAtPos(assistantMenu.to);
+		const box = assistantElement.getBoundingClientRect();
+		const host = editorHost?.getBoundingClientRect();
+		const visibleTop = Math.max(8, host?.top ?? 8);
+		const visibleBottom = Math.min(window.innerHeight - 8, host?.bottom ?? window.innerHeight - 8);
+		assistantPosition = {
+			left: Math.max(8, Math.min(caret.left, window.innerWidth - box.width - 8)),
+			top:
+				caret.bottom + box.height + 8 <= visibleBottom
+					? caret.bottom + 6
+					: Math.max(visibleTop, caret.top - box.height - 6)
+		};
+	}
+
+	function updateAssistantMenu(current: Editor): void {
+		if (
+			mode !== 'visual' ||
+			!current.isFocused ||
+			!current.state.selection.empty ||
+			current.isActive('code') ||
+			current.isActive('codeBlock')
+		) {
+			assistantMenu = null;
+			return;
+		}
+		const position = current.state.selection.$from;
+		if (!position.parent.isTextblock) {
+			assistantMenu = null;
+			return;
+		}
+		const before = position.parent.textBetween(0, position.parentOffset, '\n', '\n');
+		const next = editorAssistantTrigger(before, position.start(), position.pos);
+		if (next?.kind === 'mention' && current.isActive('link')) {
+			assistantMenu = null;
+			return;
+		}
+		const changed =
+			next?.kind !== assistantMenu?.kind ||
+			next?.from !== assistantMenu?.from ||
+			next?.query !== assistantMenu?.query;
+		assistantMenu = next;
+		if (changed) assistantIndex = 0;
+		if (next) {
+			selectionMenuOpen = false;
+			queuePlacement();
+		}
+	}
+
 	function onPointerDown(event: PointerEvent): void {
 		if (!(event.target instanceof Node)) return;
+		if (assistantElement?.contains(event.target)) return;
 		if (editorHost?.contains(event.target)) {
 			pointerSelecting = true;
 			selectionDismissed = false;
 			selectionMenuOpen = false;
 			linkEditorOpen = false;
 		} else if (!floatingMenu?.contains(event.target)) {
+			assistantMenu = null;
 			selectionDismissed = true;
 			selectionMenuOpen = false;
 			linkEditorOpen = false;
 		}
+	}
+
+	function kindLabel(kind: MentionDocument['kind']): string {
+		return kind === 'sermon' ? t('documents.kind.sermon') : t('documents.kind.note');
+	}
+
+	function runSlashCommand(command: SlashCommand): void {
+		if (!editor || assistantMenu?.kind !== 'slash') return;
+		const { from, to } = assistantMenu;
+		assistantMenu = null;
+		const chain = editor.chain().focus().deleteRange({ from, to });
+		switch (command.id) {
+			case 'paragraph':
+				chain.setParagraph().run();
+				break;
+			case 'heading-1':
+			case 'heading-2':
+			case 'heading-3':
+				chain.setHeading({ level: Number(command.id.at(-1)) as 1 | 2 | 3 }).run();
+				break;
+			case 'bullet-list':
+				chain.toggleBulletList().run();
+				break;
+			case 'ordered-list':
+				chain.toggleOrderedList().run();
+				break;
+			case 'quote':
+				chain.toggleBlockquote().run();
+				break;
+			case 'code-block':
+				chain.toggleCodeBlock().run();
+				break;
+			case 'divider':
+				chain.setHorizontalRule().run();
+				break;
+			case 'bible':
+				chain.insertContent('/bibel ').run();
+				break;
+		}
+	}
+
+	function insertDocumentMention(target: MentionDocument): void {
+		if (!editor || assistantMenu?.kind !== 'mention') return;
+		const { from, to } = assistantMenu;
+		assistantMenu = null;
+		editor
+			.chain()
+			.focus()
+			.deleteRange({ from, to })
+			.insertContent([
+				{
+					type: 'text',
+					text: target.title,
+					marks: [{ type: 'link', attrs: { href: `/notes/${target.id}` } }]
+				},
+				{ type: 'text', text: ' ' }
+			])
+			.run();
+	}
+
+	function handleAssistantKey(event: KeyboardEvent): boolean {
+		if (!assistantMenu) return false;
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			assistantMenu = null;
+			return true;
+		}
+		if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key) || assistantOptionCount === 0) {
+			return false;
+		}
+		event.preventDefault();
+		if (event.key === 'ArrowDown') {
+			assistantIndex = (assistantIndex + 1) % assistantOptionCount;
+			return true;
+		}
+		if (event.key === 'ArrowUp') {
+			assistantIndex = (assistantIndex - 1 + assistantOptionCount) % assistantOptionCount;
+			return true;
+		}
+		if (assistantMenu.kind === 'slash') {
+			const command = visibleSlashCommands[assistantIndex];
+			if (command) runSlashCommand(command);
+		} else {
+			const target = mentionDocuments[assistantIndex];
+			if (target) insertDocumentMention(target);
+		}
+		return true;
+	}
+
+	async function openRelatedDocument(event: MouseEvent, documentId: string): Promise<void> {
+		event.preventDefault();
+		if (onOpenDocument) {
+			await onOpenDocument(documentId);
+			return;
+		}
+		if (await flush()) await goto(`/notes/${documentId}`);
 	}
 
 	function onPointerUp(): void {
@@ -243,6 +541,106 @@
 	$effect(() => {
 		onState?.({ status: saveState, revision });
 	});
+
+	$effect(() => {
+		void loadRelations();
+		return () => relationsRequest?.abort();
+	});
+
+	$effect(() => {
+		const trigger = assistantMenu;
+		if (trigger?.kind !== 'mention') {
+			mentionRequest?.abort();
+			if (mentionTimer) clearTimeout(mentionTimer);
+			mentionState = 'idle';
+			mentionDocuments = [];
+			return;
+		}
+
+		const query = trigger.query;
+		const generation = ++mentionGeneration;
+		mentionRequest?.abort();
+		const request = new AbortController();
+		mentionRequest = request;
+		mentionState = 'loading';
+		if (mentionTimer) clearTimeout(mentionTimer);
+		mentionTimer = setTimeout(
+			() => void loadMentionDocuments(query, generation, request),
+			query ? 160 : 0
+		);
+		return () => {
+			if (mentionTimer) clearTimeout(mentionTimer);
+			mentionRequest?.abort();
+		};
+	});
+
+	async function loadMentionDocuments(
+		query: string,
+		generation: number,
+		request: AbortController
+	): Promise<void> {
+		try {
+			const url = new URL('/api/documents', window.location.origin);
+			if (query) url.searchParams.set('q', query);
+			const response = await fetch(url, {
+				headers: { accept: 'application/json' },
+				signal: request.signal
+			});
+			const result = (await response.json().catch(() => ({}))) as {
+				documents?: MentionDocument[];
+			};
+			if (generation !== mentionGeneration) return;
+			if (!response.ok || !Array.isArray(result.documents)) {
+				mentionState = 'error';
+				mentionDocuments = [];
+				return;
+			}
+			mentionDocuments = result.documents
+				.filter((candidate) => candidate.id !== document.id)
+				.slice(0, 8);
+			mentionState = 'ready';
+			assistantIndex = Math.min(assistantIndex, Math.max(0, mentionDocuments.length - 1));
+			queuePlacement();
+		} catch (caught) {
+			if (
+				generation !== mentionGeneration ||
+				(caught instanceof DOMException && caught.name === 'AbortError')
+			) {
+				return;
+			}
+			mentionState = 'error';
+			mentionDocuments = [];
+		}
+	}
+
+	async function loadRelations(): Promise<void> {
+		relationsRequest?.abort();
+		const request = new AbortController();
+		relationsRequest = request;
+		relationsState = 'loading';
+		try {
+			const response = await fetch(`/api/documents/${encodeURIComponent(document.id)}/links`, {
+				headers: { accept: 'application/json' },
+				signal: request.signal
+			});
+			const result = (await response.json().catch(() => ({}))) as Partial<DocumentRelations>;
+			if (request !== relationsRequest) return;
+			if (!response.ok || !Array.isArray(result.outgoing) || !Array.isArray(result.incoming)) {
+				relationsState = 'error';
+				return;
+			}
+			relations = { outgoing: result.outgoing, incoming: result.incoming };
+			relationsState = 'ready';
+		} catch (caught) {
+			if (
+				request !== relationsRequest ||
+				(caught instanceof DOMException && caught.name === 'AbortError')
+			) {
+				return;
+			}
+			relationsState = 'error';
+		}
+	}
 
 	function signature(nextTitle: string, nextMarkdown: string): string {
 		return `${nextTitle}\u0000${nextMarkdown}`;
@@ -325,6 +723,7 @@
 				revision = result.document.revision;
 				lastSavedSignature = signature(requestedTitle, requestedMarkdown);
 				onSaved?.(result.document);
+				void loadRelations();
 				// If typing continued during the request, loop immediately with the new revision so flush()
 				// cannot return before the newest title/body is durable.
 				if (signature(title, markdown) === lastSavedSignature) {
@@ -544,35 +943,40 @@
 						editLink();
 						return true;
 					}
-					if (
-						event.key !== 'Enter' ||
-						event.shiftKey ||
-						event.ctrlKey ||
-						event.metaKey ||
-						event.altKey
-					) {
-						return false;
+					const plainEnter =
+						event.key === 'Enter' &&
+						!event.shiftKey &&
+						!event.ctrlKey &&
+						!event.metaKey &&
+						!event.altKey;
+					if (plainEnter) {
+						const resolvedPosition = view.state.selection.$from;
+						if (resolvedPosition.parent.isTextblock) {
+							const before = resolvedPosition.parent.textBetween(
+								0,
+								resolvedPosition.parentOffset,
+								'\n',
+								'\n'
+							);
+							const command = /(?:^|\s)\/(?:bibel|stelle)\s+(.+)$/iu.exec(before);
+							const reference = command?.[1]?.trim();
+							if (command && reference && parsePassage(reference)) {
+								event.preventDefault();
+								const from =
+									resolvedPosition.start() + command.index + (command[0].startsWith(' ') ? 1 : 0);
+								view.dispatch(view.state.tr.delete(from, resolvedPosition.pos));
+								void insertBibleQuotationFromReference(reference);
+								return true;
+							}
+						}
 					}
-					const resolvedPosition = view.state.selection.$from;
-					if (!resolvedPosition.parent.isTextblock) return false;
-					const before = resolvedPosition.parent.textBetween(
-						0,
-						resolvedPosition.parentOffset,
-						'\n',
-						'\n'
-					);
-					const command = /(?:^|\s)\/(?:bibel|stelle)\s+(.+)$/iu.exec(before);
-					const reference = command?.[1]?.trim();
-					if (!command || !reference || !parsePassage(reference)) return false;
-					event.preventDefault();
-					const from =
-						resolvedPosition.start() + command.index + (command[0].startsWith(' ') ? 1 : 0);
-					view.dispatch(view.state.tr.delete(from, resolvedPosition.pos));
-					void insertBibleQuotationFromReference(reference);
-					return true;
+					return handleAssistantKey(event);
 				}
 			},
-			onCreate: ({ editor }) => (editorState = { editor }),
+			onCreate: ({ editor }) => {
+				editorState = { editor };
+				updateAssistantMenu(editor);
+			},
 			onUpdate: ({ editor }) => {
 				editorState = { editor };
 				updateFromVisual();
@@ -583,6 +987,7 @@
 			},
 			onTransaction: ({ editor }) => {
 				editorState = { editor };
+				updateAssistantMenu(editor);
 				queuePlacement();
 			}
 		});
@@ -595,6 +1000,9 @@
 			if (debounceTimer) clearTimeout(debounceTimer);
 			window.document.removeEventListener('visibilitychange', onVisibilityChange);
 			window.document.removeEventListener('scroll', queuePlacement, true);
+			mentionRequest?.abort();
+			relationsRequest?.abort();
+			if (mentionTimer) clearTimeout(mentionTimer);
 			cancelAnimationFrame(placementFrame);
 			instance.destroy();
 		};
@@ -668,8 +1076,8 @@
 			<div class="editor-view-actions">
 				<button
 					type="button"
-					aria-label={t('documents.editor.outline')}
-					title={t('documents.editor.outline')}
+					aria-label={t('documents.editor.sidebar')}
+					title={t('documents.editor.sidebar')}
 					aria-pressed={outlineOpen}
 					onclick={() => (outlineOpen = !outlineOpen)}><Icon name="list" class="size-4" /></button
 				>
@@ -899,6 +1307,65 @@
 				{/if}
 			</div>
 		{/if}
+		{#if assistantMenu && editor}
+			<div
+				class="assistant-menu"
+				bind:this={assistantElement}
+				style:left={`${assistantPosition.left}px`}
+				style:top={`${assistantPosition.top}px`}
+				role="listbox"
+				aria-label={assistantMenu.kind === 'slash'
+					? t('documents.editor.slashCommands')
+					: t('documents.editor.ownDocuments')}
+			>
+				<p class="assistant-heading">
+					{assistantMenu.kind === 'slash'
+						? t('documents.editor.slashCommands')
+						: t('documents.editor.ownDocuments')}
+				</p>
+				{#if assistantMenu.kind === 'slash'}
+					{#each visibleSlashCommands as command, index (command.id)}
+						<button
+							type="button"
+							role="option"
+							aria-selected={assistantIndex === index}
+							class:selected={assistantIndex === index}
+							class="assistant-item"
+							onpointerenter={() => (assistantIndex = index)}
+							onpointerdown={(event) => event.preventDefault()}
+							onclick={() => runSlashCommand(command)}
+						>
+							<span class="assistant-icon"><Icon name={command.icon} class="size-4" /></span>
+							<span><strong>{command.label}</strong><small>{command.description}</small></span>
+						</button>
+					{:else}
+						<p class="assistant-state">{t('documents.editor.commandsEmpty')}</p>
+					{/each}
+				{:else if mentionState === 'loading'}
+					<p class="assistant-state" role="status">{t('documents.editor.mentionsLoading')}</p>
+				{:else if mentionState === 'error'}
+					<p class="assistant-state" role="alert">{t('documents.editor.mentionsError')}</p>
+				{:else}
+					{#each mentionDocuments as target, index (target.id)}
+						<button
+							type="button"
+							role="option"
+							aria-selected={assistantIndex === index}
+							class:selected={assistantIndex === index}
+							class="assistant-item"
+							onpointerenter={() => (assistantIndex = index)}
+							onpointerdown={(event) => event.preventDefault()}
+							onclick={() => insertDocumentMention(target)}
+						>
+							<span class="assistant-icon"><Icon name="file-text" class="size-4" /></span>
+							<span><strong>{target.title}</strong><small>{kindLabel(target.kind)}</small></span>
+						</button>
+					{:else}
+						<p class="assistant-state">{t('documents.editor.mentionsEmpty')}</p>
+					{/each}
+				{/if}
+			</div>
+		{/if}
 		{#if quotationState !== 'idle'}
 			<p class="quotation-hint" class:error={quotationState === 'error'} role="status">
 				{quotationState === 'loading'
@@ -919,19 +1386,84 @@
 				}}
 			></div>
 			{#if outlineOpen}
-				<nav class="document-outline" aria-label={t('documents.editor.outline')}>
-					<p>{t('documents.editor.outline')}</p>
-					{#each headings as heading (heading.position)}
+				<aside class="document-outline" aria-label={t('documents.editor.sidebar')}>
+					<div class="outline-tabs" role="tablist" aria-label={t('documents.editor.sidebar')}>
 						<button
 							type="button"
-							style:padding-left={`${0.5 + (heading.level - 1) * 0.6}rem`}
-							onclick={() => jumpToHeading(heading.position)}
-							>{heading.text || t('documents.editor.heading')}</button
+							role="tab"
+							aria-selected={sidePanelTab === 'outline'}
+							class:active={sidePanelTab === 'outline'}
+							onclick={() => (sidePanelTab = 'outline')}>{t('documents.editor.outline')}</button
 						>
+						<button
+							type="button"
+							role="tab"
+							aria-selected={sidePanelTab === 'links'}
+							class:active={sidePanelTab === 'links'}
+							onclick={() => (sidePanelTab = 'links')}>{t('documents.editor.links')}</button
+						>
+					</div>
+					{#if sidePanelTab === 'outline'}
+						<div class="outline-content" role="tabpanel">
+							{#each headings as heading (heading.position)}
+								<button
+									type="button"
+									style:padding-left={`${0.5 + (heading.level - 1) * 0.6}rem`}
+									onclick={() => jumpToHeading(heading.position)}
+									>{heading.text || t('documents.editor.heading')}</button
+								>
+							{:else}
+								<small>{t('documents.editor.outlineEmpty')}</small>
+							{/each}
+						</div>
 					{:else}
-						<small>{t('documents.editor.outlineEmpty')}</small>
-					{/each}
-				</nav>
+						<div class="relations-content" role="tabpanel">
+							{#if relationsState === 'loading'}
+								<small role="status">{t('documents.editor.linksLoading')}</small>
+							{:else if relationsState === 'error'}
+								<small role="alert">{t('documents.editor.linksError')}</small>
+							{:else if relations.outgoing.length === 0 && relations.incoming.length === 0}
+								<small>{t('documents.editor.linksEmpty')}</small>
+							{:else}
+								{#if relations.outgoing.length}
+									<section class="relations-section">
+										<h3>{t('documents.editor.outgoingLinks')}</h3>
+										{#each relations.outgoing as relation (relation.id)}
+											{#if relation.deleted}
+												<span class="relation-link unavailable">
+													<strong>{relation.title}</strong>
+													<small>{t('documents.editor.linkedDeleted')}</small>
+												</span>
+											{:else}
+												<a
+													href={`/notes/${relation.id}`}
+													class="relation-link"
+													onclick={(event) => openRelatedDocument(event, relation.id)}
+												>
+													<strong>{relation.title}</strong><small>{kindLabel(relation.kind)}</small>
+												</a>
+											{/if}
+										{/each}
+									</section>
+								{/if}
+								{#if relations.incoming.length}
+									<section class="relations-section">
+										<h3>{t('documents.editor.incomingLinks')}</h3>
+										{#each relations.incoming as relation (relation.id)}
+											<a
+												href={`/notes/${relation.id}`}
+												class="relation-link"
+												onclick={(event) => openRelatedDocument(event, relation.id)}
+											>
+												<strong>{relation.title}</strong><small>{kindLabel(relation.kind)}</small>
+											</a>
+										{/each}
+									</section>
+								{/if}
+							{/if}
+						</div>
+					{/if}
+				</aside>
 			{/if}
 		</div>
 	</div>
@@ -1058,6 +1590,67 @@
 		background: var(--surface);
 		box-shadow: 0 6px 24px rgb(0 0 0 / 0.16);
 	}
+	.assistant-menu {
+		position: fixed;
+		z-index: 61;
+		width: min(23rem, calc(100vw - 1rem));
+		max-height: min(24rem, calc(100dvh - 1rem));
+		overflow-y: auto;
+		border: 1px solid var(--line);
+		border-radius: 0.7rem;
+		background: var(--surface);
+		padding: 0.35rem;
+		box-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
+	}
+	.assistant-heading {
+		padding: 0.45rem 0.55rem 0.3rem;
+		color: var(--color-stone-500);
+		font-size: 0.68rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	.assistant-item {
+		display: flex;
+		width: 100%;
+		align-items: center;
+		gap: 0.7rem;
+		border-radius: 0.5rem;
+		padding: 0.55rem;
+		text-align: left;
+	}
+	.assistant-item:hover,
+	.assistant-item.selected {
+		background: var(--surface-raised);
+	}
+	.assistant-icon {
+		display: inline-flex;
+		width: 2rem;
+		height: 2rem;
+		flex: 0 0 2rem;
+		align-items: center;
+		justify-content: center;
+		border: 1px solid var(--line);
+		border-radius: 0.45rem;
+		color: var(--color-accent-700);
+	}
+	.assistant-item strong,
+	.assistant-item small {
+		display: block;
+	}
+	.assistant-item strong {
+		color: var(--color-stone-800);
+		font-size: 0.82rem;
+		font-weight: 650;
+	}
+	.assistant-item small,
+	.assistant-state {
+		color: var(--color-stone-500);
+		font-size: 0.72rem;
+	}
+	.assistant-state {
+		padding: 0.7rem 0.55rem;
+	}
 	.selection-toolbar {
 		display: flex;
 		padding: 0.25rem;
@@ -1077,22 +1670,40 @@
 		min-width: 0;
 	}
 	.document-outline {
-		width: 12rem;
+		width: 15rem;
 		flex-shrink: 0;
 		align-self: flex-start;
 		position: sticky;
 		top: calc(var(--header-height) + 4rem);
 		max-height: 65vh;
 		overflow-y: auto;
-		padding: 1.25rem 0.75rem;
+		border-left: 1px solid var(--line);
+		background: color-mix(in oklab, var(--surface) 97%, var(--color-stone-100));
+		padding: 0.65rem;
 		color: var(--color-stone-500);
 		font-size: 0.78rem;
 	}
-	.document-outline p {
-		margin-bottom: 0.75rem;
-		font-weight: 600;
+	.outline-tabs {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.2rem;
+		margin-bottom: 0.65rem;
+		border-radius: 0.45rem;
+		background: var(--surface-raised);
+		padding: 0.2rem;
 	}
-	.document-outline button {
+	.outline-tabs button {
+		border-radius: 0.35rem;
+		padding: 0.4rem 0.3rem;
+		font-weight: 650;
+		text-align: center;
+	}
+	.outline-tabs button.active {
+		background: var(--surface);
+		box-shadow: 0 1px 2px rgb(28 25 23 / 0.08);
+		color: var(--color-stone-800);
+	}
+	.outline-content > button {
 		display: block;
 		width: 100%;
 		text-align: left;
@@ -1100,9 +1711,46 @@
 		border-left: 1px solid var(--line);
 		overflow-wrap: anywhere;
 	}
-	.document-outline button:hover {
+	.outline-content > button:hover {
 		color: var(--color-accent-600);
 		background: var(--surface-raised);
+	}
+	.relations-section + .relations-section {
+		margin-top: 1rem;
+	}
+	.relations-section h3 {
+		margin: 0 0 0.35rem;
+		color: var(--color-stone-500);
+		font-size: 0.68rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+	.relation-link {
+		display: block;
+		border-radius: 0.4rem;
+		padding: 0.45rem 0.5rem;
+		color: var(--color-stone-700);
+		overflow-wrap: anywhere;
+	}
+	.relation-link:hover {
+		background: var(--surface-raised);
+		color: var(--color-accent-700);
+	}
+	.relation-link strong,
+	.relation-link small {
+		display: block;
+	}
+	.relation-link strong {
+		font-weight: 600;
+	}
+	.relation-link small {
+		margin-top: 0.12rem;
+		color: var(--color-stone-500);
+		font-size: 0.68rem;
+	}
+	.relation-link.unavailable {
+		opacity: 0.62;
 	}
 	.editor-host :global(.document-prose > :first-child) {
 		margin-top: 0;
@@ -1122,6 +1770,7 @@
 		width: 100%;
 		max-height: 9rem;
 		padding: 0.6rem 1rem;
+		border-left: 0;
 		border-bottom: 1px solid var(--line);
 	}
 	.document-editor.zen .document-outline {
@@ -1136,6 +1785,7 @@
 			width: 100%;
 			max-height: 9rem;
 			padding: 0.75rem 1rem;
+			border-left: 0;
 			border-bottom: 1px solid var(--line);
 		}
 		.editor-host {
@@ -1314,6 +1964,14 @@
 		text-underline-offset: 0.14em;
 		cursor: pointer;
 	}
+	.editor-host :global(.document-prose a[href^='/notes/']) {
+		border-radius: 0.24em;
+		background: color-mix(in oklab, var(--color-accent-500) 12%, transparent);
+		padding: 0.04em 0.2em;
+		font-weight: 600;
+		text-decoration: none;
+		box-decoration-break: clone;
+	}
 	.editor-host :global(.document-prose p.is-editor-empty:first-child::before) {
 		float: left;
 		height: 0;
@@ -1340,6 +1998,11 @@
 	:global(.dark) .editor-host :global(.document-prose a),
 	:global(.dark) .editor-host :global(.document-prose .bible-reference) {
 		color: var(--color-accent-300);
+	}
+	:global(.dark) .assistant-item strong,
+	:global(.dark) .outline-tabs button.active,
+	:global(.dark) .relation-link {
+		color: var(--color-stone-100);
 	}
 
 	.document-editor.compact {

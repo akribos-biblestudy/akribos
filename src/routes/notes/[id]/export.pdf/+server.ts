@@ -11,7 +11,7 @@ export async function GET({ params, locals, url, setHeaders }) {
 	if (!isUuid(params.id)) error(404, 'Dokument nicht gefunden');
 	const data = await loadOwnedDocumentExport(getDb(), user.id, params.id);
 	if (!data) error(404, 'Dokument nicht gefunden');
-	const exported = await createPdfExport(data);
+	const exported = await createPdfExport(data, { baseUrl: url.origin });
 	return new Response(new Uint8Array(exported.buffer), {
 		headers: {
 			'content-type': 'application/pdf',

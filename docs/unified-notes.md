@@ -118,6 +118,8 @@ loose-file count reports the actual count and limit, rather than suggesting that
 Exports are owner-only and available as deterministic UTF-8 Markdown, editable Word `.docx` and A4 PDF.
 Markdown carries YAML frontmatter for title, kind, tags, passages, sermon metadata, delivery history and
 timestamps. Word/PDF contain readable metadata and body structure but may simplify Markdown-only layout.
+PDF links remain clickable, use Akribos green in the page content, and relative targets are resolved
+against the exporting request's origin. Every PDF page has an Akribos header and a numbered footer.
 No export contains an email address, owner/internal id or publication authority; download responses are
 `private, no-store` and use portable filenames.
 
@@ -151,6 +153,15 @@ Hovering or focusing a verse reference shows its actual text, including a bounde
 Inside the visual editor the popup includes “Bibeltext einfügen”; `/bibel Mt 3,12` followed by Enter is
 the keyboard-first equivalent. Both insert an ordinary blockquote plus a bold reference/translation
 line, so the content survives the Markdown round trip without a proprietary editor node.
+Typing `/` at a word boundary opens the caret-anchored visual command menu for paragraphs, H1–H3,
+lists, quotes, code blocks, dividers and Bible quotations. Typing `@` opens an owner-only search over
+active notes and sermons by title, body or tag, and inserts the chosen item as an ordinary portable
+`[title](/notes/<uuid>)` Markdown link. The right editor panel combines the H1–H6 outline with outgoing
+links and backlinks. Those relationships are a derived `document_links` index refreshed atomically with
+body saves. Composite owner foreign keys prevent cross-account relationships; unknown ids and self-links
+are ignored. Deleted sources disappear from backlinks, while deleted targets remain visibly unavailable
+until restored. The Reader sidecar opens a related working copy inside itself after flushing the current
+one.
 The standalone editor and public notes use the first configured public, ready Bible; the Reader
 sidecar intentionally uses the first Bible currently visible beside it, so the preview matches the
 reading context. The popup uses the public chapter API, caches per chapter, bounds a request to 50
@@ -224,7 +235,7 @@ constraint merely to make the old deletion succeed.
 - administrator access to somebody else's draft;
 - revision history beyond optimistic locking, publication history and scheduled publication;
 - media uploads, attachment copying and a server-side Obsidian vault filesystem;
-- backlinks/transclusion and automatic wikilink resolution across imported files;
+- transclusion and automatic wikilink resolution across imported files;
 - real-time co-editing and offline conflict merging;
 - comments or reactions on public notes;
 - custom publication domains;

@@ -6,7 +6,20 @@
  * published reads live separately in `document-publications.ts` and never use this mutable table.
  */
 
-import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+	and,
+	desc,
+	eq,
+	exists,
+	gte,
+	ilike,
+	inArray,
+	isNotNull,
+	isNull,
+	lte,
+	or,
+	sql
+} from 'drizzle-orm';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { passageFromDbEndpoints, passageToDbEndpoints } from '../../bible/passage.ts';
 import {
@@ -27,12 +40,15 @@ import type { Database } from '../db/client.ts';
 import {
 	documentPassages,
 	documentPublications,
+	documentTagLinks,
+	documentTags,
 	documents,
 	resources,
 	verseComments,
 	type Document,
 	type DocumentPassage
 } from '../db/schema.ts';
+import { syncDocumentLinks } from './document-links.ts';
 
 export type { DocumentKind, DocumentSource, DocumentVisibility, SermonWorkflowState };
 
@@ -174,25 +190,29 @@ export async function createDocument(
 	input: CreateDocumentInput
 ): Promise<Document> {
 	validateCreateInput(input);
-	const [document] = await db
-		.insert(documents)
-		.values({
-			userId,
-			kind: input.kind,
-			title: cleanTitle(input.title),
-			bodyMarkdown: input.bodyMarkdown,
-			bodyHtml: input.bodyHtml,
-			plainText: input.plainText,
-			visibility: input.visibility ?? 'private',
-			source: input.source ?? 'native',
-			sourceFilename: cleanSourceFilename(input.sourceFilename),
-			legacyVerseCommentId: input.legacyVerseCommentId ?? null,
-			sermonStatus: input.kind === 'sermon' ? (input.sermonStatus ?? 'idea') : null,
-			sermonDate: input.kind === 'sermon' ? (input.sermonDate ?? null) : null,
-			sermonSeries: input.kind === 'sermon' ? cleanOptionalText(input.sermonSeries) : null
-		})
-		.returning();
-	return document!;
+	return db.transaction(async (transaction) => {
+		const transactionDb = transaction as unknown as Database;
+		const [document] = await transactionDb
+			.insert(documents)
+			.values({
+				userId,
+				kind: input.kind,
+				title: cleanTitle(input.title),
+				bodyMarkdown: input.bodyMarkdown,
+				bodyHtml: input.bodyHtml,
+				plainText: input.plainText,
+				visibility: input.visibility ?? 'private',
+				source: input.source ?? 'native',
+				sourceFilename: cleanSourceFilename(input.sourceFilename),
+				legacyVerseCommentId: input.legacyVerseCommentId ?? null,
+				sermonStatus: input.kind === 'sermon' ? (input.sermonStatus ?? 'idea') : null,
+				sermonDate: input.kind === 'sermon' ? (input.sermonDate ?? null) : null,
+				sermonSeries: input.kind === 'sermon' ? cleanOptionalText(input.sermonSeries) : null
+			})
+			.returning();
+		await syncDocumentLinks(transactionDb, userId, document!.id, input.bodyMarkdown);
+		return document!;
+	});
 }
 
 type InitialPassageFailure = Exclude<DocumentRevisionResult, { ok: true }>;
@@ -280,7 +300,25 @@ export async function listDocuments(
 	const query = filters.query?.trim();
 	if (query) {
 		const pattern = `%${query}%`;
-		conditions.push(or(ilike(documents.title, pattern), ilike(documents.plainText, pattern))!);
+		conditions.push(
+			or(
+				ilike(documents.title, pattern),
+				ilike(documents.plainText, pattern),
+				exists(
+					db
+						.select({ id: documentTagLinks.tagId })
+						.from(documentTagLinks)
+						.innerJoin(documentTags, eq(documentTags.id, documentTagLinks.tagId))
+						.where(
+							and(
+								eq(documentTagLinks.documentId, documents.id),
+								eq(documentTags.userId, userId),
+								ilike(documentTags.path, pattern)
+							)
+						)
+				)
+			)!
+		);
 	}
 
 	return db
@@ -348,18 +386,29 @@ export async function updateDocument(
 		}
 	}
 
-	const [document] = await db
-		.update(documents)
-		.set(changes)
-		.where(
-			and(
-				eq(documents.id, documentId),
-				eq(documents.userId, userId),
-				eq(documents.revision, expectedRevision),
-				isNull(documents.deletedAt)
+	const document = await db.transaction(async (transaction) => {
+		const [updated] = await transaction
+			.update(documents)
+			.set(changes)
+			.where(
+				and(
+					eq(documents.id, documentId),
+					eq(documents.userId, userId),
+					eq(documents.revision, expectedRevision),
+					isNull(documents.deletedAt)
+				)
 			)
-		)
-		.returning();
+			.returning();
+		if (updated && input.body) {
+			await syncDocumentLinks(
+				transaction as unknown as Database,
+				userId,
+				documentId,
+				input.body.bodyMarkdown
+			);
+		}
+		return updated;
+	});
 	if (document) return { ok: true, document };
 
 	const latest = await getDocument(db, userId, documentId);
