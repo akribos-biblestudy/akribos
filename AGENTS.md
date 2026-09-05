@@ -354,8 +354,9 @@ speichern diese Ziele im bereinigten Markdown; bestehende Dokumente werden beim 
 sofort entsprechend dargestellt und beim nächsten visuellen Speichern normalisiert, ohne Neuimport
 oder schreibenden GET. Andere Links behalten ihre Ziele. Im Tiptap-Editor sind
 dieselben Treffer nicht persistierte ProseMirror-Dekorationen; sie dürfen `body_markdown` und damit einen
-Markdown-Roundtrip nicht verändern. Im Editor öffnen interne und externe Links erst mit Strg-/Cmd-Klick;
-ein einfacher Klick positioniert die Schreibmarke. Die Toolbar unterstützt Links und H1–H6.
+Markdown-Roundtrip nicht verändern. Im Editor positioniert ein Linkklick die Schreibmarke;
+Strg-/Cmd-Klick öffnet kein Ziel mehr. Die Bibelvorschau bietet „Bibelstelle öffnen“, der am Text
+verankerte Linkeditor „Link öffnen“. Die Toolbar unterstützt Links und H1–H6.
 Unterstreichen und Hervorheben verwenden ausschließlich attributfreie `<u>`-/`<mark>`-Tags als
 Markdown-Erweiterung; alle sonstigen Roh-HTML-Regeln bleiben erhalten. Explizite Verse und kapitelübergreifende Bereiche zeigen über
 `verseHoverPopover` bei Maus-Hover und Tastaturfokus echten Bibeltext; dafür werden die bestehenden
@@ -364,9 +365,21 @@ Dokumenteditor und auf öffentlichen Notizseiten stammt der Text aus der ersten 
 fertigen Bibel. Der Reader-Sidecar verwendet bewusst die erste gerade sichtbare Bibelressource, damit
 die Vorschau mit dem unmittelbar daneben gelesenen Text übereinstimmt. Escape schließt die zugängliche
 Vorschau. Mehrkapitelabrufe sind auf 50 Kapitel begrenzt; reine Kapitelangaben bleiben navigierbare
-Links ohne Popup. Im visuellen Dokumenteditor besitzt das Popup zusätzlich „Bibeltext einfügen“;
+Links ohne Textvorschau; im Editor erhalten sie nur das explizite Öffnen-Angebot.
+Im visuellen Dokumenteditor besitzt die Versvorschau zusätzlich „Bibeltext einfügen“;
 `/bibel <Stelle>` plus Enter ist der Tastaturweg. Beide fügen ein gewöhnliches Blockzitat mit fetter
 Quellenzeile ein, kein proprietäres ProseMirror-Element.
+
+Der Dokumenteditor begrenzt seine Höhe auch eigenständig auf den Viewport; nur der Schreibbereich
+scrollt, Werkzeugleiste und Footer bleiben erreichbar. Die Zähler im Footer zählen den sichtbaren
+Dokumenttext ohne Titel und Markdown-Syntax: Wörter als Läufe ohne Leerraum, Zeichen als Unicode-Codepoints
+inklusive innerem Leerraum. Die einklappbare Inhaltsübersicht wird aus H1–H6 im Editor abgeleitet,
+ohne IDs oder andere Metadaten in Markdown zu schreiben. Eine Textauswahl öffnet die Formatierung
+am Text; Linkbearbeitung verwendet dasselbe am Viewport begrenzte Popup.
+„Zen-Modus“ beziehungsweise Strg-/Cmd+Shift+F im Editor maximiert auch den Sidecar-Editor.
+Dabei wird dieselbe Editor-DOM-Instanz in einen modalen Dialog verschoben und danach zurückgesetzt:
+Undo-Historie, Auswahl und Autosave bleiben erhalten. Escape verlässt den Modus. Die Bibelvorschau
+muss innerhalb dieses Dialogs liegen, damit sie in der modalen Browser-Ebene bedienbar bleibt.
 
 Der kompakte Reader-Editor ist kein neunter Workspace-Tab: Der Schalter „Notizbereich“ im
 `ReaderLayoutPicker` blendet ihn am Desktop als eigene rechte Sidecar-Spalte neben der unveränderten

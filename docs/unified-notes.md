@@ -87,8 +87,15 @@ Markdown is the portable representation and sanitised HTML is the rendering/edit
 The supported round-trip subset includes paragraphs, headings H1–H6, emphasis, strong text, strike-through,
 lists, block quotes, inline/fenced code, horizontal rules and safe links. Underline and highlighting
 round-trip as attribute-free `<u>` and `<mark>` tags; other raw HTML remains unsupported.
-The editor toolbar can add, edit and remove links. All editor links open with Ctrl-click (Cmd-click on
-Mac); an ordinary click positions the caret. Links are underlined and expose their destination on hover.
+The editor toolbar and selection popup can add, edit and remove links. Link editing is anchored at
+the selection. Ordinary clicks position the caret; opening a destination uses the explicit action in
+the link editor or Bible preview, including on touch devices. Ctrl/Cmd-click no longer opens links.
+The editor stays within the viewport and scrolls its writing area internally. Its footer counts body
+words and Unicode codepoints (including internal whitespace), excluding the title and Markdown syntax.
+A collapsible outline navigates H1–H6 without persisting generated IDs. Zen mode is available in both
+the standalone editor and Reader sidecar via its button or Ctrl/Cmd+Shift+F while focused in the editor;
+Escape exits it. The existing editor moves into a modal dialog, preserving undo history and autosave.
+Bible previews join that same dialog so their buttons remain usable in the browser's modal top layer.
 
 Import accepts one or more UTF-8 `.md` files, or exactly one ZIP containing Markdown files, and always
 presents one shared side-effect-free preview before creation. Each document has at most 1 MiB of

@@ -15,7 +15,7 @@
 	import { Editor } from '@tiptap/core';
 	import { Placeholder } from '@tiptap/extension-placeholder';
 	import { StarterKit } from '@tiptap/starter-kit';
-	import { onMount, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import Icon from '../Icon.svelte';
 	import { BibleReferenceDecorations } from './bible-reference-decorations';
 	import { DocumentHighlight } from './document-highlight';
@@ -46,6 +46,15 @@
 	type Mode = 'visual' | 'markdown';
 	type SaveState = 'saved' | 'dirty' | 'saving' | 'error' | 'conflict';
 
+	let editorRoot: HTMLElement | undefined = $state();
+	let zen = $state(false);
+	let outlineOpen = $state(untrack(() => !compact));
+	let floatingMenu: HTMLElement | undefined = $state();
+	let selectionMenuOpen = $state(false);
+	let floatingPosition = $state({ left: 8, top: 8 });
+	let placementFrame = 0;
+	let pointerSelecting = false;
+	let selectionDismissed = false;
 	let editorHost: HTMLDivElement | undefined = $state();
 	let editorState = $state<{ editor: Editor | null }>({ editor: null });
 	let mode = $state<Mode>('visual');
@@ -70,6 +79,151 @@
 	let lastSavedSignature = untrack(() => signature(title, markdown));
 
 	const editor = $derived(editorState.editor);
+	// Tiptap mutates one Editor instance. Derive toolbar state from the transaction wrapper,
+	// not from Editor identity, so active marks and undo/redo update after every transaction.
+	const formatting = $derived.by(() => {
+		const current = editorState.editor;
+		return {
+			active: new Set(
+				[
+					'bold',
+					'italic',
+					'strike',
+					'underline',
+					'highlight',
+					'link',
+					'heading',
+					'bulletList',
+					'orderedList',
+					'blockquote',
+					'code'
+				].filter((mark) => current?.isActive(mark))
+			),
+			heading: current?.isActive('heading') ? current.getAttributes('heading').level : 'paragraph',
+			canUndo: current?.can().undo() ?? false,
+			canRedo: current?.can().redo() ?? false
+		};
+	});
+	const countText = $derived(documentMarkdownToHtml(markdown).plainText.trim());
+	const wordCount = $derived(countText ? countText.split(/\s+/u).length : 0);
+	const characterCount = $derived(Array.from(countText).length);
+	const headings = $derived.by(() => {
+		const result: { position: number; level: number; text: string }[] = [];
+		editorState.editor?.state.doc.descendants((node, position) => {
+			if (node.type.name === 'heading') {
+				result.push({ position, level: node.attrs.level, text: node.textContent });
+			}
+		});
+		return result;
+	});
+
+	// Move the existing editor into the browser's top layer; never recreate its history or autosave.
+	$effect(() => {
+		if (!zen || !editorRoot) return;
+		const root = editorRoot;
+		const marker = window.document.createComment('document editor');
+		root.before(marker);
+		const dialog = window.document.createElement('dialog');
+		dialog.className = 'document-zen-dialog';
+		dialog.setAttribute('aria-label', t('documents.editor.zen'));
+		window.document.body.append(dialog);
+		const focused = window.document.activeElement as HTMLElement | null;
+		const scrollTop = editorHost?.scrollTop ?? 0;
+		dialog.append(root);
+		const overflow = window.document.body.style.overflow;
+		window.document.body.style.overflow = 'hidden';
+		dialog.addEventListener('cancel', (event) => {
+			event.preventDefault();
+			zen = false;
+		});
+		dialog.showModal();
+		focused?.focus({ preventScroll: true });
+		if (editorHost) editorHost.scrollTop = scrollTop;
+		queuePlacement();
+		return () => {
+			const focused = window.document.activeElement as HTMLElement | null;
+			marker.replaceWith(root);
+			dialog.close();
+			dialog.remove();
+			window.document.body.style.overflow = overflow;
+			if (root.contains(focused)) focused?.focus({ preventScroll: true });
+		};
+	});
+
+	function queuePlacement(): void {
+		cancelAnimationFrame(placementFrame);
+		placementFrame = requestAnimationFrame(() => void placeFloatingMenu());
+	}
+
+	async function placeFloatingMenu(): Promise<void> {
+		if (!editor || mode !== 'visual') return;
+		if (!linkEditorOpen) {
+			selectionMenuOpen =
+				!pointerSelecting &&
+				!selectionDismissed &&
+				!editor.state.selection.empty &&
+				editor.isFocused;
+		}
+		if (!linkEditorOpen && !selectionMenuOpen) return;
+		await tick();
+		if (!floatingMenu || !editor || editor.isDestroyed) return;
+		const { from, to } = editor.state.selection;
+		const start = editor.view.coordsAtPos(from);
+		const end = editor.view.coordsAtPos(to);
+		const host = editorHost?.getBoundingClientRect();
+		const visibleTop = Math.max(8, host?.top ?? 8);
+		const visibleBottom = Math.min(window.innerHeight - 8, host?.bottom ?? window.innerHeight - 8);
+		if (end.bottom < visibleTop || start.top > visibleBottom) {
+			selectionMenuOpen = false;
+			linkEditorOpen = false;
+			return;
+		}
+		const box = floatingMenu.getBoundingClientRect();
+		const top = Math.max(start.top, visibleTop);
+		floatingPosition = {
+			left: Math.max(8, Math.min(start.left, window.innerWidth - box.width - 8)),
+			top: Math.max(
+				8,
+				Math.min(
+					top - box.height - 8 >= visibleTop
+						? top - box.height - 8
+						: Math.min(end.bottom, visibleBottom) + 8,
+					window.innerHeight - box.height - 8
+				)
+			)
+		};
+	}
+
+	function onPointerDown(event: PointerEvent): void {
+		if (!(event.target instanceof Node)) return;
+		if (editorHost?.contains(event.target)) {
+			pointerSelecting = true;
+			selectionDismissed = false;
+			selectionMenuOpen = false;
+			linkEditorOpen = false;
+		} else if (!floatingMenu?.contains(event.target)) {
+			selectionDismissed = true;
+			selectionMenuOpen = false;
+			linkEditorOpen = false;
+		}
+	}
+
+	function onPointerUp(): void {
+		pointerSelecting = false;
+		queuePlacement();
+	}
+
+	function jumpToHeading(position: number): void {
+		if (!editor) return;
+		editor
+			.chain()
+			.focus()
+			.setTextSelection(position + 1)
+			.run();
+		const node = editor.view.nodeDOM(position);
+		if (node instanceof HTMLElement) node.scrollIntoView({ block: 'start' });
+	}
+
 	const statusText = $derived(
 		saveState === 'saving'
 			? t('documents.editor.saving')
@@ -207,6 +361,8 @@
 			editor.commands.setContent(html, { emitUpdate: false });
 			applyingContent = false;
 		}
+		selectionMenuOpen = false;
+		linkEditorOpen = false;
 		mode = nextMode;
 	}
 
@@ -228,6 +384,24 @@
 	}
 
 	function onWindowKeydown(event: KeyboardEvent): void {
+		if (
+			(event.ctrlKey || event.metaKey) &&
+			event.shiftKey &&
+			event.key.toLowerCase() === 'f' &&
+			(zen || editorRoot?.contains(event.target as Node))
+		) {
+			event.preventDefault();
+			zen = !zen;
+			return;
+		}
+		if (event.key === 'Escape' && (linkEditorOpen || selectionMenuOpen)) {
+			selectionDismissed = true;
+			event.preventDefault();
+			linkEditorOpen = false;
+			selectionMenuOpen = false;
+			editor?.commands.focus();
+		}
+
 		if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 's') {
 			event.preventDefault();
 			void save();
@@ -296,6 +470,8 @@
 		linkUrl = editor.getAttributes('link').href ?? '';
 		linkError = false;
 		linkEditorOpen = true;
+		selectionMenuOpen = false;
+		queuePlacement();
 		requestAnimationFrame(() => linkInput?.focus());
 	}
 
@@ -320,12 +496,6 @@
 		const link = target?.closest('a');
 		if (!link) return false;
 		event.preventDefault();
-		if (event.ctrlKey || event.metaKey) {
-			const reference =
-				target?.closest('[data-reference]') ?? link.querySelector('[data-reference]');
-			const href = safeLinkHref(reference?.getAttribute('href') ?? link.getAttribute('href') ?? '');
-			if (href) window.open(href, '_blank', 'noopener,noreferrer');
-		}
 		return true;
 	}
 
@@ -407,25 +577,43 @@
 				editorState = { editor };
 				updateFromVisual();
 			},
-			onTransaction: ({ editor }) => (editorState = { editor })
+			onSelectionUpdate: () => {
+				selectionDismissed = false;
+				queuePlacement();
+			},
+			onTransaction: ({ editor }) => {
+				editorState = { editor };
+				queuePlacement();
+			}
 		});
 		editorState = { editor: instance };
 		window.document.addEventListener('visibilitychange', onVisibilityChange);
+		window.document.addEventListener('scroll', queuePlacement, true);
 
 		return () => {
 			destroyed = true;
 			if (debounceTimer) clearTimeout(debounceTimer);
 			window.document.removeEventListener('visibilitychange', onVisibilityChange);
+			window.document.removeEventListener('scroll', queuePlacement, true);
+			cancelAnimationFrame(placementFrame);
 			instance.destroy();
 		};
 	});
 </script>
 
-<svelte:window onkeydown={onWindowKeydown} onbeforeunload={onBeforeUnload} />
+<svelte:window
+	onkeydown={onWindowKeydown}
+	onbeforeunload={onBeforeUnload}
+	onpointerdown={onPointerDown}
+	onpointerup={onPointerUp}
+	onresize={queuePlacement}
+/>
 
 <section
 	class="document-editor overflow-hidden rounded-2xl border border-stone-200/80 bg-[color:var(--surface)] shadow-[var(--shadow-soft)] dark:border-white/8"
 	class:compact
+	class:zen
+	bind:this={editorRoot}
 	data-document-editor
 	data-testid="document-editor"
 >
@@ -477,6 +665,24 @@
 				</button>
 			</div>
 
+			<div class="editor-view-actions">
+				<button
+					type="button"
+					aria-label={t('documents.editor.outline')}
+					title={t('documents.editor.outline')}
+					aria-pressed={outlineOpen}
+					onclick={() => (outlineOpen = !outlineOpen)}><Icon name="list" class="size-4" /></button
+				>
+				<button
+					type="button"
+					aria-label={zen ? t('documents.editor.exitZen') : t('documents.editor.zen')}
+					title={`${t('documents.editor.zen')} · Strg/Cmd+Shift+F`}
+					aria-keyshortcuts="Control+Shift+F Meta+Shift+F"
+					aria-pressed={zen}
+					onclick={() => (zen = !zen)}
+					><Icon name={zen ? 'minimize' : 'maximize'} class="size-4" /></button
+				>
+			</div>
 			<p
 				class:error={saveState === 'error' || saveState === 'conflict'}
 				class="save-status"
@@ -501,22 +707,22 @@
 			<div class="editor-toolbar" role="toolbar" aria-label={t('documents.editor.formatting')}>
 				<button
 					type="button"
-					class:active={editor.isActive('bold')}
-					aria-pressed={editor.isActive('bold')}
+					class:active={formatting.active.has('bold')}
+					aria-pressed={formatting.active.has('bold')}
 					onclick={() => editor.chain().focus().toggleBold().run()}
 					aria-label={t('documents.editor.bold')}><Icon name="bold" class="size-4" /></button
 				>
 				<button
 					type="button"
-					class:active={editor.isActive('italic')}
-					aria-pressed={editor.isActive('italic')}
+					class:active={formatting.active.has('italic')}
+					aria-pressed={formatting.active.has('italic')}
 					onclick={() => editor.chain().focus().toggleItalic().run()}
 					aria-label={t('documents.editor.italic')}><Icon name="italic" class="size-4" /></button
 				>
 				<button
 					type="button"
-					class:active={editor.isActive('strike')}
-					aria-pressed={editor.isActive('strike')}
+					class:active={formatting.active.has('strike')}
+					aria-pressed={formatting.active.has('strike')}
 					onclick={() => editor.chain().focus().toggleStrike().run()}
 					aria-label={t('documents.editor.strike')}
 					><Icon name="strikethrough" class="size-4" /></button
@@ -524,30 +730,30 @@
 				<span class="toolbar-separator"></span>
 				<button
 					type="button"
-					class:active={editor.isActive('underline')}
-					aria-pressed={editor.isActive('underline')}
+					class:active={formatting.active.has('underline')}
+					aria-pressed={formatting.active.has('underline')}
 					aria-label={t('documents.editor.underline')}
 					onclick={() => editor.chain().focus().toggleUnderline().run()}
 					><Icon name="underline" class="size-4" /></button
 				>
 				<button
 					type="button"
-					class:active={editor.isActive('highlight')}
-					aria-pressed={editor.isActive('highlight')}
+					class:active={formatting.active.has('highlight')}
+					aria-pressed={formatting.active.has('highlight')}
 					aria-label={t('documents.editor.highlight')}
 					onclick={() => editor.chain().focus().toggleMark('highlight').run()}
 					><Icon name="highlight" class="size-4" /></button
 				>
 				<button
 					type="button"
-					class:active={editor.isActive('link')}
+					class:active={formatting.active.has('link')}
 					aria-expanded={linkEditorOpen}
 					aria-label={t('documents.editor.link')}
 					onclick={editLink}><Icon name="link" class="size-4" /></button
 				>
 				<select
 					aria-label={t('documents.editor.heading')}
-					value={editor.isActive('heading') ? editor.getAttributes('heading').level : 'paragraph'}
+					value={formatting.heading}
 					onchange={(event) => {
 						const level = headingLevels.find(
 							(level) => String(level) === event.currentTarget.value
@@ -563,111 +769,171 @@
 				</select>
 				<button
 					type="button"
-					class:active={editor.isActive('bulletList')}
-					aria-pressed={editor.isActive('bulletList')}
+					class:active={formatting.active.has('bulletList')}
+					aria-pressed={formatting.active.has('bulletList')}
 					onclick={() => editor.chain().focus().toggleBulletList().run()}
 					aria-label={t('documents.editor.list')}><Icon name="list" class="size-4" /></button
 				>
 				<button
 					type="button"
-					class:active={editor.isActive('orderedList')}
-					aria-pressed={editor.isActive('orderedList')}
+					class:active={formatting.active.has('orderedList')}
+					aria-pressed={formatting.active.has('orderedList')}
 					onclick={() => editor.chain().focus().toggleOrderedList().run()}
 					aria-label={t('documents.editor.orderedList')}
 					><Icon name="list-ordered" class="size-4" /></button
 				>
 				<button
 					type="button"
-					class:active={editor.isActive('blockquote')}
-					aria-pressed={editor.isActive('blockquote')}
+					class:active={formatting.active.has('blockquote')}
+					aria-pressed={formatting.active.has('blockquote')}
 					onclick={() => editor.chain().focus().toggleBlockquote().run()}
 					aria-label={t('documents.editor.quote')}><Icon name="quote" class="size-4" /></button
 				>
 				<button
 					type="button"
-					class:active={editor.isActive('code')}
-					aria-pressed={editor.isActive('code')}
+					class:active={formatting.active.has('code')}
+					aria-pressed={formatting.active.has('code')}
 					onclick={() => editor.chain().focus().toggleCode().run()}
 					aria-label={t('documents.editor.code')}><Icon name="code" class="size-4" /></button
 				>
 				<span class="toolbar-separator"></span>
 				<button
 					type="button"
-					disabled={!editor.can().undo()}
+					disabled={!formatting.canUndo}
 					onclick={() => editor.chain().focus().undo().run()}
 					aria-label={t('documents.editor.undo')}><Icon name="undo" class="size-4" /></button
 				>
 				<button
 					type="button"
-					disabled={!editor.can().redo()}
+					disabled={!formatting.canRedo}
 					onclick={() => editor.chain().focus().redo().run()}
 					aria-label={t('documents.editor.redo')}><Icon name="redo" class="size-4" /></button
 				>
 			</div>
 		{/if}
-		{#if linkEditorOpen}
-			<form
-				class="link-editor"
-				onsubmit={(event) => {
-					event.preventDefault();
-					applyLink();
-				}}
+
+		{#if (selectionMenuOpen || linkEditorOpen) && editor}
+			<div
+				class="floating-menu"
+				bind:this={floatingMenu}
+				style:left={`${floatingPosition.left}px`}
+				style:top={`${floatingPosition.top}px`}
 			>
-				<label
-					>{t('documents.editor.linkUrl')}
-					<input
-						bind:this={linkInput}
-						bind:value={linkUrl}
-						placeholder="https://… oder /Joh3,16"
-						onkeydown={(event) => {
-							if (event.key === 'Escape') {
+				{#if linkEditorOpen}
+					<form
+						aria-label={t('documents.editor.link')}
+						class="link-editor"
+						onsubmit={(event) => {
+							event.preventDefault();
+							applyLink();
+						}}
+					>
+						<label
+							>{t('documents.editor.linkUrl')}
+							<input
+								bind:this={linkInput}
+								bind:value={linkUrl}
+								placeholder="https://… oder /Joh3,16"
+								onkeydown={(event) => {
+									if (event.key === 'Escape') {
+										event.preventDefault();
+										event.stopPropagation();
+										selectionDismissed = true;
+										linkEditorOpen = false;
+										editor?.commands.focus();
+									}
+								}}
+							/>
+						</label>
+
+						{#if safeLinkHref(linkUrl)}
+							<a
+								href={safeLinkHref(linkUrl)!}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="open-link"
+								>{t('documents.editor.openLink')}<Icon name="open-external" class="size-4" /></a
+							>
+						{/if}
+						<button type="submit">{t('documents.editor.linkApply')}</button>
+						<button
+							type="button"
+							onclick={() => {
+								editor?.chain().focus().extendMarkRange('link').unsetLink().run();
+								linkEditorOpen = false;
+							}}>{t('documents.editor.linkRemove')}</button
+						>
+						<button
+							type="button"
+							onclick={() => {
 								linkEditorOpen = false;
 								editor?.commands.focus();
-							}
-						}}
-					/>
-				</label>
-				<button type="submit">{t('documents.editor.linkApply')}</button>
-				<button
-					type="button"
-					onclick={() => {
-						editor?.chain().focus().extendMarkRange('link').unsetLink().run();
-						linkEditorOpen = false;
-					}}>{t('documents.editor.linkRemove')}</button
-				>
-				<button
-					type="button"
-					onclick={() => {
-						linkEditorOpen = false;
-						editor?.commands.focus();
-					}}>{t('documents.editor.linkCancel')}</button
-				>
-				{#if linkError}<p role="alert">{t('documents.editor.linkInvalid')}</p>{/if}
-			</form>
+							}}>{t('documents.editor.linkCancel')}</button
+						>
+						{#if linkError}<p role="alert">{t('documents.editor.linkInvalid')}</p>{/if}
+					</form>
+				{/if}
+				{#if !linkEditorOpen}
+					<div
+						class="selection-toolbar"
+						role="toolbar"
+						aria-label={t('documents.editor.selectionFormatting')}
+					>
+						{#each [{ mark: 'bold', icon: 'bold', label: 'documents.editor.bold' }, { mark: 'italic', icon: 'italic', label: 'documents.editor.italic' }, { mark: 'underline', icon: 'underline', label: 'documents.editor.underline' }, { mark: 'strike', icon: 'strikethrough', label: 'documents.editor.strike' }, { mark: 'highlight', icon: 'highlight', label: 'documents.editor.highlight' }] as const as item (item.mark)}
+							<button
+								type="button"
+								aria-label={t(item.label)}
+								aria-pressed={formatting.active.has(item.mark)}
+								onpointerdown={(event) => event.preventDefault()}
+								onclick={() => editor.chain().focus().toggleMark(item.mark).run()}
+								><Icon name={item.icon} class="size-4" /></button
+							>
+						{/each}
+						<button
+							type="button"
+							aria-label={t('documents.editor.link')}
+							onpointerdown={(event) => event.preventDefault()}
+							onclick={editLink}><Icon name="link" class="size-4" /></button
+						>
+					</div>
+				{/if}
+			</div>
 		{/if}
-		<p class="quotation-hint">{t('documents.editor.linkHint')}</p>
-		<p
-			class="quotation-hint"
-			class:error={quotationState === 'error'}
-			role="status"
-			aria-live="polite"
-		>
-			{quotationState === 'loading'
-				? t('documents.editor.bibleQuoteLoading')
-				: quotationState === 'error'
-					? t('documents.editor.bibleQuoteError')
-					: t('documents.editor.bibleQuoteHint')}
-		</p>
-		<div
-			class="editor-host"
-			bind:this={editorHost}
-			use:verseHoverPopover={{
-				bibleId,
-				tooltipId: bibleReferenceTooltipId,
-				onInsert: insertBibleQuotation,
-				insertLabel: t('documents.editor.insertBibleQuote')
-			}}
-		></div>
+		{#if quotationState !== 'idle'}
+			<p class="quotation-hint" class:error={quotationState === 'error'} role="status">
+				{quotationState === 'loading'
+					? t('documents.editor.bibleQuoteLoading')
+					: t('documents.editor.bibleQuoteError')}
+			</p>
+		{/if}
+		<div class="editor-writing-area">
+			<div
+				class="editor-host"
+				bind:this={editorHost}
+				use:verseHoverPopover={{
+					bibleId,
+					tooltipId: bibleReferenceTooltipId,
+					onInsert: insertBibleQuotation,
+					insertLabel: t('documents.editor.insertBibleQuote'),
+					openLabel: t('documents.editor.openBibleReference')
+				}}
+			></div>
+			{#if outlineOpen}
+				<nav class="document-outline" aria-label={t('documents.editor.outline')}>
+					<p>{t('documents.editor.outline')}</p>
+					{#each headings as heading (heading.position)}
+						<button
+							type="button"
+							style:padding-left={`${0.5 + (heading.level - 1) * 0.6}rem`}
+							onclick={() => jumpToHeading(heading.position)}
+							>{heading.text || t('documents.editor.heading')}</button
+						>
+					{:else}
+						<small>{t('documents.editor.outlineEmpty')}</small>
+					{/each}
+				</nav>
+			{/if}
+		</div>
 	</div>
 	{#if mode === 'markdown'}
 		<div
@@ -690,10 +956,196 @@
 			</p>
 		</div>
 	{/if}
+	<footer
+		class="editor-footer"
+		title={t('documents.editor.countHint')}
+		data-testid="document-counts"
+	>
+		<span>{wordCount.toLocaleString('de-DE')} {t('documents.editor.words')}</span>
+		<span>{characterCount.toLocaleString('de-DE')} {t('documents.editor.characters')}</span>
+	</footer>
 </section>
 
 <style>
+	.document-editor {
+		display: flex;
+		flex-direction: column;
+		height: calc(100dvh - var(--header-height) - 7rem);
+		max-height: calc(100dvh - var(--header-height) - 1rem);
+		min-height: 0;
+	}
+	.document-editor > header,
+	.editor-toolbar,
+	.editor-footer {
+		flex-shrink: 0;
+	}
+	.document-editor > header {
+		padding: 0.8rem 1rem;
+	}
+	.editor-footer {
+		display: flex;
+		justify-content: flex-end;
+		gap: 1rem;
+		border-top: 1px solid var(--line);
+		padding: 0.55rem 1rem;
+		font-size: 0.72rem;
+		color: var(--color-stone-500);
+	}
+	.document-editor .document-outline {
+		align-self: stretch;
+		position: static;
+		max-height: none;
+		overflow-y: auto;
+	}
+	.document-editor.compact {
+		max-height: 100dvh;
+	}
+
+	:global(.document-zen-dialog) {
+		inset: 0;
+		width: 100vw;
+		max-width: none;
+		height: 100dvh;
+		max-height: none;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		background: var(--surface);
+		color: inherit;
+	}
+	.document-editor.zen {
+		height: 100dvh;
+		max-height: 100dvh;
+		border: 0;
+		border-radius: 0;
+		overflow: hidden;
+	}
+	.document-editor.zen > header {
+		position: sticky;
+		top: 0;
+		z-index: 6;
+		background: var(--surface);
+	}
+	.document-editor.zen .editor-toolbar {
+		top: 0;
+	}
+	.editor-view-actions {
+		display: flex;
+		gap: 0.25rem;
+		margin-left: auto;
+	}
+	.editor-view-actions button,
+	.selection-toolbar button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.2rem;
+		height: 2.2rem;
+		border-radius: 0.4rem;
+	}
+	.editor-view-actions button:hover,
+	.selection-toolbar button:hover,
+	.selection-toolbar button[aria-pressed='true'] {
+		background: var(--surface-raised);
+		color: var(--color-accent-600);
+	}
+	.floating-menu {
+		position: fixed;
+		z-index: 60;
+		max-width: calc(100vw - 1rem);
+		border: 1px solid var(--line);
+		border-radius: 0.65rem;
+		background: var(--surface);
+		box-shadow: 0 6px 24px rgb(0 0 0 / 0.16);
+	}
+	.selection-toolbar {
+		display: flex;
+		padding: 0.25rem;
+	}
+	.open-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		color: var(--color-accent-600);
+	}
+	.editor-writing-area {
+		display: flex;
+		min-height: 0;
+	}
+	.editor-host {
+		flex: 1;
+		min-width: 0;
+	}
+	.document-outline {
+		width: 12rem;
+		flex-shrink: 0;
+		align-self: flex-start;
+		position: sticky;
+		top: calc(var(--header-height) + 4rem);
+		max-height: 65vh;
+		overflow-y: auto;
+		padding: 1.25rem 0.75rem;
+		color: var(--color-stone-500);
+		font-size: 0.78rem;
+	}
+	.document-outline p {
+		margin-bottom: 0.75rem;
+		font-weight: 600;
+	}
+	.document-outline button {
+		display: block;
+		width: 100%;
+		text-align: left;
+		padding: 0.4rem 0.5rem;
+		border-left: 1px solid var(--line);
+		overflow-wrap: anywhere;
+	}
+	.document-outline button:hover {
+		color: var(--color-accent-600);
+		background: var(--surface-raised);
+	}
+	.editor-host :global(.document-prose > :first-child) {
+		margin-top: 0;
+	}
+	.editor-host :global(.document-prose :is(h1, h2, h3, h4, h5, h6)) {
+		scroll-margin-top: 1rem;
+	}
+	.document-editor .editor-writing-area {
+		flex: 1;
+		overflow: hidden;
+	}
+	.document-editor.compact:not(.zen) .editor-writing-area {
+		flex-direction: column-reverse;
+	}
+	.document-editor.compact:not(.zen) .document-outline {
+		position: static;
+		width: 100%;
+		max-height: 9rem;
+		padding: 0.6rem 1rem;
+		border-bottom: 1px solid var(--line);
+	}
+	.document-editor.zen .document-outline {
+		top: 1rem;
+	}
+	@media (max-width: 700px) {
+		.editor-writing-area {
+			flex-direction: column-reverse;
+		}
+		.document-editor .document-outline {
+			position: static;
+			width: 100%;
+			max-height: 9rem;
+			padding: 0.75rem 1rem;
+			border-bottom: 1px solid var(--line);
+		}
+		.editor-host {
+			padding: 1rem;
+		}
+	}
+
 	.link-editor {
+		width: 23rem;
+		max-width: calc(100vw - 1rem);
 		display: flex;
 		flex-wrap: wrap;
 		align-items: end;
@@ -758,8 +1210,8 @@
 	}
 	.editor-toolbar {
 		display: flex;
-		position: sticky;
-		top: var(--header-height);
+		position: relative;
+		top: 0;
 		z-index: 5;
 		flex-wrap: wrap;
 		align-items: center;
@@ -804,18 +1256,14 @@
 	}
 	.editor-host {
 		min-height: 36rem;
-		padding: 2rem clamp(1.25rem, 5vw, 4.5rem) 5rem;
+		padding: 1.25rem 1.5rem 3rem;
 	}
 	.editor-host :global(.document-prose) {
-		min-height: 30rem;
+		min-height: 100%;
+		width: 100%;
 		max-width: 50rem;
 		margin: 0 auto;
 		outline: none;
-	}
-	.editor-host :global(.document-prose:focus-visible) {
-		border-radius: 0.2rem;
-		outline: 2px solid var(--color-accent-500);
-		outline-offset: 0.45rem;
 	}
 	.editor-host :global(.document-prose > * + *) {
 		margin-top: 0.85em;
@@ -874,7 +1322,7 @@
 		pointer-events: none;
 	}
 	.markdown-editor {
-		padding: 1.5rem clamp(1.25rem, 5vw, 4.5rem) 4rem;
+		padding: 1.25rem 1.5rem 3rem;
 	}
 
 	:global(.dark) .mode-tab.active {
@@ -917,21 +1365,21 @@
 		min-width: 4.5rem;
 		padding-inline: 0.5rem;
 	}
-	.document-editor.compact > [role='tabpanel'] {
+	.document-editor > [role='tabpanel'] {
 		display: flex;
 		min-height: 0;
 		flex: 1;
 		flex-direction: column;
 		overflow: hidden;
 	}
-	.document-editor.compact > [role='tabpanel'][hidden] {
+	.document-editor > [role='tabpanel'][hidden] {
 		display: none;
 	}
 	.document-editor.compact .editor-toolbar {
 		top: 0;
 		padding: 0.4rem 0.6rem;
 	}
-	.document-editor.compact .editor-host {
+	.document-editor .editor-host {
 		display: flex;
 		min-height: 0;
 		flex: 1;
@@ -945,14 +1393,14 @@
 		padding-bottom: 3rem;
 		font-size: 0.98rem;
 	}
-	.document-editor.compact .markdown-editor {
+	.document-editor .markdown-editor {
 		display: flex;
 		min-height: 0;
 		flex: 1;
 		flex-direction: column;
 		padding: 0.8rem 1rem 1rem;
 	}
-	.document-editor.compact .markdown-editor textarea {
+	.document-editor .markdown-editor textarea {
 		min-height: 0;
 		max-height: 100%;
 		flex: 1;

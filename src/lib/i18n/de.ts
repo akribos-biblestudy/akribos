@@ -155,8 +155,16 @@ export const de = {
 	'documents.editor.linkCancel': 'Abbrechen',
 	'documents.editor.linkInvalid':
 		'Bitte gib eine gültige Webadresse, E-Mail-Verknüpfung oder einen internen Pfad ein.',
-	'documents.editor.linkHint':
-		'Links bearbeiten: klicken. Link öffnen: Strg+Klick (Mac: Cmd+Klick). Linkziel bearbeiten: Strg+K.',
+	'documents.editor.selectionFormatting': 'Auswahl formatieren',
+	'documents.editor.openLink': 'Link öffnen',
+	'documents.editor.openBibleReference': 'Bibelstelle öffnen',
+	'documents.editor.zen': 'Zen-Modus',
+	'documents.editor.exitZen': 'Zen-Modus beenden',
+	'documents.editor.outline': 'Inhalt',
+	'documents.editor.outlineEmpty': 'Überschriften erscheinen hier.',
+	'documents.editor.words': 'Wörter',
+	'documents.editor.characters': 'Zeichen',
+	'documents.editor.countHint': 'Dokumenttext ohne Titel; Zeichen einschließlich Leerzeichen.',
 	'documents.editor.list': 'Aufzählung',
 	'documents.editor.orderedList': 'Nummerierte Liste',
 	'documents.editor.quote': 'Zitat',
