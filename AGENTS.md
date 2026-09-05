@@ -347,7 +347,8 @@ Autosave-Route und SvelteKit Form Actions.
 
 Bibelstellen im Dokument-Fließtext werden bei der Darstellung automatisch verlinkt:
 `findBibleReferences()`/`linkBibleReferences()` akzeptieren die gemeinsamen Buchnamen und Schreibweisen,
-überspringen Code und erzeugen interne `.verse-ref`-Links. Dokumente ergänzen
+überspringen Code und erzeugen interne `.verse-ref`-Links. Gepunktete Kalenderdaten wie
+`am 03.05.2026` dürfen dabei nicht als Amos-Stelle erkannt werden. Dokumente ergänzen
 `rewriteBibleReferenceLinks()`: Ist der vollständige Text eines vorhandenen Links eine Bibelstelle,
 wird dessen Ziel aus diesem Text abgeleitet, einschließlich des ganzen Versbereichs. Neue Importe
 speichern diese Ziele im bereinigten Markdown; bestehende Dokumente werden beim Anzeigen und im Editor

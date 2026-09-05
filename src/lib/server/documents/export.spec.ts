@@ -32,8 +32,8 @@ describe('portable rich document exports', () => {
 	});
 
 	it('marks inline Bible references as green PDF runs without changing code spans', () => {
-		expect(pdfInlineRuns('Siehe Joh 3,16 und `Mt 5,3`.')).toEqual([
-			{ text: 'Siehe ' },
+		expect(pdfInlineRuns('Predigt am 03.05.2026. Siehe Joh 3,16 und `Mt 5,3`.')).toEqual([
+			{ text: 'Predigt am 03.05.2026. Siehe ' },
 			{ text: 'Joh 3,16', bibleReference: true },
 			{ text: ' und Mt 5,3.' }
 		]);
