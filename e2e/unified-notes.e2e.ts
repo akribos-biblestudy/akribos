@@ -1455,10 +1455,13 @@ test('editor selection tools, outline, counts and Zen mode preserve the same doc
 	await page.getByLabel('Linkziel').fill('https://example.com');
 	await page.getByRole('button', { name: 'Übernehmen', exact: true }).click();
 	await expect(prose.locator('a[href="https://example.com"]')).toHaveText('Hallo Welt');
-	await editor
-		.getByRole('complementary', { name: 'Inhalt und Verknüpfungen' })
-		.getByRole('button', { name: 'Ende', exact: true })
-		.click();
+	const outline = editor.getByRole('complementary', { name: 'Inhalt und Verknüpfungen' });
+	const outlinePanel = outline.locator('.outline-panel');
+	await expect(outline.locator('.outline-strokes > span')).toHaveCount(2);
+	await expect(outlinePanel).not.toBeVisible();
+	await outline.locator('.outline-rail').hover();
+	await expect(outlinePanel).toBeVisible();
+	await outlinePanel.getByRole('button', { name: 'Ende', exact: true }).click();
 	await expect(prose.locator('h2')).toBeInViewport();
 	await prose.press('Control+Shift+f');
 	const zen = page.getByRole('dialog', { name: 'Zen-Modus', exact: true });
@@ -1533,6 +1536,8 @@ test('slash commands create blocks and mentions add owner-private backlinks', as
 	);
 
 	const sidePanel = page.getByRole('complementary', { name: 'Inhalt und Verknüpfungen' });
+	await sidePanel.locator('.outline-rail').focus();
+	await expect(sidePanel.getByRole('tab', { name: 'Verknüpfungen' })).toBeVisible();
 	await sidePanel.getByRole('tab', { name: 'Verknüpfungen' }).click();
 	const outgoing = sidePanel.getByRole('heading', { name: 'Verweist auf' }).locator('..');
 	await expect(outgoing.getByRole('link', { name: /Zielbeitrag/ })).toBeVisible();
@@ -1540,6 +1545,8 @@ test('slash commands create blocks and mentions add owner-private backlinks', as
 	await expect(page).toHaveURL(`/notes/${targetId}`);
 
 	const targetPanel = page.getByRole('complementary', { name: 'Inhalt und Verknüpfungen' });
+	await targetPanel.locator('.outline-rail').focus();
+	await expect(targetPanel.getByRole('tab', { name: 'Verknüpfungen' })).toBeVisible();
 	await targetPanel.getByRole('tab', { name: 'Verknüpfungen' }).click();
 	const incoming = targetPanel.getByRole('heading', { name: 'Hier erwähnt' }).locator('..');
 	await expect(incoming.getByRole('link', { name: /Quellbeitrag/ })).toHaveAttribute(

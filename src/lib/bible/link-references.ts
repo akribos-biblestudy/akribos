@@ -47,6 +47,9 @@ const REFERENCE_PATTERN = new RegExp(
 const CONTINUATION_PATTERN =
 	/^(\s*;\s*)(\d{1,3}\s*[,:_]\s*\d{1,3}(?:\s*[-–]\s*\d{1,3})?)(?![\p{L}\p{N}])/u;
 
+/** A dotted date must not turn a preceding word such as German `am` into the book Amos. */
+const CALENDAR_DATE_CONTINUATION_PATTERN = /^\s*\.\s*\d{1,2}(?:\s*\.\s*\d{2,4})?(?!\d)/u;
+
 export type BibleReferenceMatch = {
 	/** UTF-16 offsets in the original text node, as expected by ProseMirror positions. */
 	from: number;
@@ -158,11 +161,13 @@ export function findBibleReferences(text: string): BibleReferenceMatch[] {
 	while ((primary = REFERENCE_PATTERN.exec(text))) {
 		const prefix = primary[1] ?? '';
 		const label = primary[2] ?? '';
+		const from = primary.index + prefix.length;
+		const to = from + label.length;
+		if (CALENDAR_DATE_CONTINUATION_PATTERN.test(text.slice(to))) continue;
+
 		const parsed = parseMatchReference(label);
 		if (!parsed) continue;
 
-		const from = primary.index + prefix.length;
-		const to = from + label.length;
 		matches.push(matchFromReference(text, from, to, parsed.reference, parsed.passage));
 
 		let continuationOffset = to;

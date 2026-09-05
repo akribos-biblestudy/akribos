@@ -347,7 +347,8 @@ Autosave-Route und SvelteKit Form Actions.
 
 Bibelstellen im Dokument-Fließtext werden bei der Darstellung automatisch verlinkt:
 `findBibleReferences()`/`linkBibleReferences()` akzeptieren die gemeinsamen Buchnamen und Schreibweisen,
-überspringen Code und erzeugen interne `.verse-ref`-Links. Dokumente ergänzen
+überspringen Code und erzeugen interne `.verse-ref`-Links. Gepunktete Kalenderdaten wie
+`am 03.05.2026` dürfen dabei nicht als Amos-Stelle erkannt werden. Dokumente ergänzen
 `rewriteBibleReferenceLinks()`: Ist der vollständige Text eines vorhandenen Links eine Bibelstelle,
 wird dessen Ziel aus diesem Text abgeleitet, einschließlich des ganzen Versbereichs. Neue Importe
 speichern diese Ziele im bereinigten Markdown; bestehende Dokumente werden beim Anzeigen und im Editor
@@ -373,10 +374,12 @@ Quellenzeile ein, kein proprietäres ProseMirror-Element.
 Der Dokumenteditor begrenzt seine Höhe auch eigenständig auf den Viewport; nur der Schreibbereich
 scrollt, Werkzeugleiste und Footer bleiben erreichbar. Die Zähler im Footer zählen den sichtbaren
 Dokumenttext ohne Titel und Markdown-Syntax: Wörter als Läufe ohne Leerraum, Zeichen als Unicode-Codepoints
-inklusive innerem Leerraum. Die einklappbare Inhaltsübersicht wird aus H1–H6 im Editor abgeleitet,
-ohne IDs oder andere Metadaten in Markdown zu schreiben. Sie steht rechts in einer gemeinsamen
-Seitenleiste mit den aus- und eingehenden Dokumentverknüpfungen. Eine Textauswahl öffnet die Formatierung
-am Text; Linkbearbeitung verwendet dasselbe am Viewport begrenzte Popup.
+inklusive innerem Leerraum. Die Inhaltsübersicht wird aus H1–H6 im Editor abgeleitet, ohne IDs oder
+andere Metadaten in Markdown zu schreiben. Am rechten Rand zeigt sie im Ruhezustand nur schmale Striche
+für die Überschriften; Hover über diese Leiste beziehungsweise Tastaturfokus oder Antippen öffnet die
+vollständige Gliederung als überlagernde Karte. Dieselbe Karte enthält die aus- und eingehenden
+Dokumentverknüpfungen. Eine Textauswahl öffnet die Formatierung am Text; Linkbearbeitung verwendet
+dasselbe am Viewport begrenzte Popup.
 „Zen-Modus“ beziehungsweise Strg-/Cmd+Shift+F im Editor maximiert auch den Sidecar-Editor.
 Dabei wird dieselbe Editor-DOM-Instanz in einen modalen Dialog verschoben und danach zurückgesetzt:
 Undo-Historie, Auswahl und Autosave bleiben erhalten. Escape verlässt den Modus. Die Bibelvorschau
@@ -431,8 +434,9 @@ sind in Tagsegmenten nicht zulässig. Tags werden nie implizit als Bibelstellen 
 stehen owner-only als Markdown/YAML, Word `.docx` und PDF bereit, enthalten aber keine E-Mail,
 Eigentümer-ID oder Veröffentlichungsberechtigung. Anhänge und automatisches Zusammenführen sind nicht
 implementiert. Der PDF-Export löst relative Linkziele gegen den Request-Ursprung auf, bewahrt Links als
-klickbare grüne Annotationen und setzt auf jeder gepufferten A4-Seite eine Akribos-Kopfzeile sowie eine
-Fußzeile mit Seitenzahl. Die Bereichsnavigation besteht nur aus „Notizen“ und „Predigten“; Import und
+klickbare grüne Annotationen und färbt auch freie, vom gemeinsamen Parser erkannte Bibelstellen grün;
+Inline-Code bleibt davon ausgenommen. Auf jeder gepufferten A4-Seite setzt er eine Akribos-Kopfzeile
+sowie eine Fußzeile mit Seitenzahl. Die Bereichsnavigation besteht nur aus „Notizen“ und „Predigten“; Import und
 veröffentlichte Notizen sind kontextuelle Aktionen, Vorlagen gehören in den Predigtbereich. Predigten
 bleiben normale Dokumente mit den Zuständen `idea`, `research`, `outline`, `ready`, `delivered`;
 `/sermons` ist nur ihre fokussierte Workflow-Ansicht. Karten wechseln den Status revisioniert per

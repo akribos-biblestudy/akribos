@@ -119,7 +119,8 @@ Exports are owner-only and available as deterministic UTF-8 Markdown, editable W
 Markdown carries YAML frontmatter for title, kind, tags, passages, sermon metadata, delivery history and
 timestamps. Word/PDF contain readable metadata and body structure but may simplify Markdown-only layout.
 PDF links remain clickable, use Akribos green in the page content, and relative targets are resolved
-against the exporting request's origin. Every PDF page has an Akribos header and a numbered footer.
+against the exporting request's origin. Free inline Bible references recognized by the shared parser
+use the same green outside code spans. Every PDF page has an Akribos header and a numbered footer.
 No export contains an email address, owner/internal id or publication authority; download responses are
 `private, no-store` and use portable filenames.
 
@@ -156,8 +157,9 @@ line, so the content survives the Markdown round trip without a proprietary edit
 Typing `/` at a word boundary opens the caret-anchored visual command menu for paragraphs, H1–H3,
 lists, quotes, code blocks, dividers and Bible quotations. Typing `@` opens an owner-only search over
 active notes and sermons by title, body or tag, and inserts the chosen item as an ordinary portable
-`[title](/notes/<uuid>)` Markdown link. The right editor panel combines the H1–H6 outline with outgoing
-links and backlinks. Those relationships are a derived `document_links` index refreshed atomically with
+`[title](/notes/<uuid>)` Markdown link. At rest, the right editor edge represents the H1–H6 outline as
+short hierarchy strokes; hover or keyboard/touch focus opens an overlaid outline card which also holds
+outgoing links and backlinks. Those relationships are a derived `document_links` index refreshed atomically with
 body saves. Composite owner foreign keys prevent cross-account relationships; unknown ids and self-links
 are ignored. Deleted sources disappear from backlinks, while deleted targets remain visibly unavailable
 until restored. The Reader sidecar opens a related working copy inside itself after flushing the current
