@@ -30,6 +30,8 @@
 			| 'list-ordered'
 			| 'message'
 			| 'map-pin'
+			| 'maximize'
+			| 'minimize'
 			| 'moon'
 			| 'more-horizontal'
 			| 'open-external'
@@ -118,9 +120,13 @@
 	{:else if name === 'list-ordered'}
 		<path d="M10 6h10M10 12h10M10 18h10M4 5h2v3M4 11h2l-2 3h2M4 17h2v3H4" />
 	{:else if name === 'link'}
-		<path d="m10 13.5 4-4" />
-		<path d="m7.5 15.5-1 1a3.54 3.54 0 0 1-5-5l3-3a3.54 3.54 0 0 1 5 0" />
-		<path d="m16.5 8.5 1-1a3.54 3.54 0 0 1 5 5l-3 3a3.54 3.54 0 0 1-5 0" />
+		<path
+			d="M10 13a5 5 0 0 0 7 .3l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7-.3l-3 3a5 5 0 0 0 7 7l1.7-1.7"
+		/>
+	{:else if name === 'maximize'}
+		<path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5" />
+	{:else if name === 'minimize'}
+		<path d="M3 8h5V3M21 8h-5V3M16 21v-5h5M8 21v-5H3" />
 	{:else if name === 'plus'}
 		<path d="M12 5v14M5 12h14" />
 	{:else if name === 'quote'}

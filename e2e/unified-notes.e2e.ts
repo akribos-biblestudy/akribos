@@ -297,6 +297,20 @@ test('a reader verse creates and reopens a translation-specific unified note', a
 	expect((await save).ok()).toBe(true);
 	await expect(sidecar.getByTestId('reader-notes-sidecar-save-status')).toHaveText('Gespeichert');
 
+	// The sidecar maximizes the existing editor, including a pending edit and the same save queue.
+	await body.press('Control+Shift+f');
+	const zen = page.getByRole('dialog', { name: 'Zen-Modus', exact: true });
+	await expect(zen).toBeVisible();
+	await expect(zen.getByTestId('reader-notes-sidecar-body-markdown')).toHaveValue(
+		new RegExp(bodyMarker)
+	);
+	await expect(zen.getByTestId('document-counts')).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(zen).toHaveCount(0);
+	await expect(sidecar.getByTestId('reader-notes-sidecar-body-markdown')).toHaveValue(
+		new RegExp(bodyMarker)
+	);
+
 	const fullEditorHref = await sidecar
 		.getByRole('link', { name: 'Im vollständigen Notiz-Editor öffnen' })
 		.getAttribute('href');
@@ -588,14 +602,14 @@ test('a private note links inline Bible references and previews real text by hov
 	await reference.click();
 	await expect(page).toHaveURL(`/notes/${SEED_PRIVATE_NOTE_ID}`);
 	const opened = page.waitForEvent('popup');
-	await reference.click({ modifiers: ['Control'] });
+	await preview.getByRole('link', { name: 'Bibelstelle öffnen' }).click();
 	const reader = await opened;
 	await expect(reader).toHaveURL((url) => url.pathname === '/Mt3,12');
 	await expect(reader.locator('[data-verse-key="40:3:12"]').first()).toContainText('Worfschaufel');
 	await reader.close();
 });
 
-test('imported Bible links preview and editor links require Control-click while formatting survives reload', async ({
+test('imported Bible links preview and contextual link actions preserve formatting through reload', async ({
 	page,
 	context
 }) => {
@@ -630,7 +644,10 @@ test('imported Bible links preview and editor links require Control-click while 
 	await expect(page).toHaveURL(url);
 	await page.keyboard.type('X');
 	await expect(web).toContainText('X');
-	await page.getByRole('button', { name: 'Link bearbeiten', exact: true }).click();
+	await page
+		.getByRole('toolbar', { name: 'Text formatieren', exact: true })
+		.getByRole('button', { name: 'Link bearbeiten', exact: true })
+		.click();
 	await expect(page.getByLabel('Linkziel')).toHaveValue('https://example.com/');
 	await page.getByLabel('Linkziel').fill('https://example.com/edited');
 	await page.getByRole('button', { name: 'Übernehmen', exact: true }).click();
@@ -639,16 +656,27 @@ test('imported Bible links preview and editor links require Control-click while 
 		route.fulfill({ body: 'Externes Linkziel' })
 	);
 	const opened = page.waitForEvent('popup');
-	await web.click({ modifiers: ['Control'] });
+	await page
+		.getByRole('toolbar', { name: 'Text formatieren', exact: true })
+		.getByRole('button', { name: 'Link bearbeiten', exact: true })
+		.click();
+	await page.getByRole('link', { name: 'Link öffnen', exact: true }).click();
 	const external = await opened;
 	await expect(external).toHaveURL('https://example.com/edited');
 	await external.close();
+	await page.getByRole('button', { name: 'Abbrechen', exact: true }).click();
 	await prose.getByText('Formatierung', { exact: true }).click();
 	await page.getByLabel('Überschrift', { exact: true }).selectOption('6');
 	await expect(prose.locator('h6')).toHaveText('Formatierung');
 	await prose.locator('h6').selectText();
-	await page.getByRole('button', { name: 'Unterstreichen', exact: true }).click();
-	await page.getByRole('button', { name: 'Hervorheben', exact: true }).click();
+	await page
+		.getByRole('toolbar', { name: 'Auswahl formatieren' })
+		.getByRole('button', { name: 'Unterstreichen', exact: true })
+		.click();
+	await page
+		.getByRole('toolbar', { name: 'Auswahl formatieren' })
+		.getByRole('button', { name: 'Hervorheben', exact: true })
+		.click();
 	await expect(prose.locator('h6 u')).toHaveText('Formatierung');
 	await expect(prose.locator('h6 mark')).toHaveText('Formatierung');
 	await page.getByRole('tab', { name: 'Markdown' }).click();
@@ -1394,4 +1422,76 @@ test('the notes workspace remains operable on mobile, by keyboard and in dark mo
 	const lightMode = page.getByRole('button', { name: 'Helles Design' });
 	await lightMode.press('Enter');
 	await expect(page.locator('html')).not.toHaveClass(/dark/);
+});
+
+test('editor selection tools, outline, counts and Zen mode preserve the same document', async ({
+	page
+}) => {
+	await register(page);
+	await createNoteFromLibrary(page);
+	await page.getByRole('tab', { name: 'Markdown' }).click();
+	const source = '# Anfang\n\nHallo Welt\n\n## Ende\n\n' + 'Langer Absatz.\n\n'.repeat(35);
+	await page.getByRole('textbox', { name: 'Markdown' }).fill(source);
+	await page.getByRole('tab', { name: 'Visuell' }).click();
+	const editor = page.getByTestId('document-editor');
+	const prose = editor.locator('.document-prose');
+	await expect(editor.getByTestId('document-counts')).toContainText('74 Wörter');
+	const bounds = await editor.boundingBox();
+	expect(bounds!.height).toBeLessThan(page.viewportSize()!.height);
+	expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+	await prose.getByText('Hallo Welt', { exact: true }).selectText();
+	const bubble = page.getByRole('toolbar', { name: 'Auswahl formatieren' });
+	await expect(bubble).toBeVisible();
+	const selectionBounds = await prose.getByText('Hallo Welt', { exact: true }).boundingBox();
+	const bubbleBounds = await bubble.boundingBox();
+	expect(Math.abs(bubbleBounds!.y - selectionBounds!.y)).toBeLessThan(100);
+	await bubble.getByRole('button', { name: 'Hervorheben', exact: true }).click();
+	await expect(prose.locator('mark')).toHaveText('Hallo Welt');
+	await expect(bubble.getByRole('button', { name: 'Hervorheben', exact: true })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await bubble.getByRole('button', { name: 'Link bearbeiten' }).click();
+	await page.getByLabel('Linkziel').fill('https://example.com');
+	await page.getByRole('button', { name: 'Übernehmen', exact: true }).click();
+	await expect(prose.locator('a[href="https://example.com"]')).toHaveText('Hallo Welt');
+	await editor
+		.getByRole('navigation', { name: 'Inhalt' })
+		.getByRole('button', { name: 'Ende', exact: true })
+		.click();
+	await expect(prose.locator('h2')).toBeInViewport();
+	await prose.press('Control+Shift+f');
+	const zen = page.getByRole('dialog', { name: 'Zen-Modus', exact: true });
+	await expect(zen).toBeVisible();
+	await expect(zen.locator('mark')).toHaveText('Hallo Welt');
+	await expect(zen.getByTestId('document-counts')).toContainText('74 Wörter');
+	await zen.locator('mark').scrollIntoViewIfNeeded();
+	await zen.locator('mark').selectText();
+	await zen
+		.getByRole('toolbar', { name: 'Auswahl formatieren' })
+		.getByRole('button', { name: 'Link bearbeiten' })
+		.click();
+	await zen.getByLabel('Linkziel').press('Escape');
+	await expect(zen.getByLabel('Linkziel')).toHaveCount(0);
+	await expect(zen).toBeVisible();
+	await page.keyboard.press('Control+Shift+f');
+	await expect(zen).toHaveCount(0);
+	await editor.getByRole('button', { name: 'Zen-Modus', exact: true }).click();
+	await expect(zen).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(zen).toHaveCount(0);
+	await page.getByRole('tab', { name: 'Markdown' }).click();
+	await page.getByRole('textbox', { name: 'Markdown' }).fill('Hallo Welt');
+	await expect(editor.getByTestId('document-counts')).toHaveText('2 Wörter 10 Zeichen');
+	await page.getByRole('textbox', { name: 'Markdown' }).press('Control+s');
+	await expect(editor.locator('.save-status')).toHaveText('Gespeichert');
+	await page.reload();
+	await expect(page.locator('.document-prose')).toHaveText('Hallo Welt');
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect(page.getByTestId('document-counts')).toBeInViewport();
+	await page.getByRole('button', { name: 'Zen-Modus', exact: true }).click();
+	await expect(zen).toBeVisible();
+	await expect(zen.getByTestId('document-counts')).toBeInViewport();
+	await page.getByRole('button', { name: 'Zen-Modus beenden', exact: true }).click();
+	await expect(zen).toHaveCount(0);
 });

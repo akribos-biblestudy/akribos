@@ -8,6 +8,7 @@
  * injected as HTML.
  */
 
+import { safeLinkHref } from '../notes/document-markdown.ts';
 import { segmentsToText, type VerseSegment } from '../bible/segments.ts';
 import { formatPassage, parsePassage, type Passage } from '../bible/passage.ts';
 import { formatReference, nextChapter } from '../bible/reference.ts';
@@ -117,6 +118,7 @@ export type VerseHoverParams = {
 	/** Makes the otherwise read-only preview actionable inside a document editor. */
 	onInsert?: (quotation: BibleQuotation) => void;
 	insertLabel?: string;
+	openLabel?: string;
 };
 
 let popupSequence = 0;
@@ -133,6 +135,7 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 	let popupHovered = false;
 	let popupFocused = false;
 	let onInsert = params.onInsert;
+	let openLabel = params.openLabel ?? 'Bibelstelle öffnen';
 	let insertLabel = params.insertLabel ?? 'Bibeltext einfügen';
 	let escapeDismissedReference: string | null = null;
 	let describedAnchor: { element: HTMLElement; addedByAction: boolean } | null = null;
@@ -172,13 +175,21 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 					const anchor = activeAnchor;
 					hide(true);
 					anchor?.focus({ preventScroll: true });
-				} else if (event.key === 'Tab' && event.shiftKey && activeAnchor) {
+				} else if (
+					event.key === 'Tab' &&
+					event.shiftKey &&
+					activeAnchor &&
+					event.target === popup?.querySelector('button, a[href]')
+				) {
 					event.preventDefault();
 					activeAnchor.focus({ preventScroll: true });
 				}
 			});
 			ownerDocument.body.appendChild(popup);
 		}
+		// A Zen editor lives in a modal top layer; its preview must be inside that dialog as well.
+		const container = node.closest('dialog') ?? ownerDocument.body;
+		if (popup.parentElement !== container) container.append(popup);
 		return popup;
 	}
 
@@ -268,20 +279,32 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 		const body = ownerDocument.createElement('div');
 		body.textContent = text;
 		box.append(heading, body);
-		if (quotation && onInsert) {
+		if (onInsert) {
 			box.classList.add('interactive');
 			box.setAttribute('role', 'dialog');
-			box.setAttribute('aria-label', `${referenceLabel}: ${insertLabel}`);
-			const button = ownerDocument.createElement('button');
-			button.type = 'button';
-			button.className = 'verse-hover-popup-insert';
-			button.textContent = insertLabel;
-			button.addEventListener('pointerdown', (event) => event.preventDefault());
-			button.addEventListener('click', () => {
-				onInsert?.(quotation);
-				hide(true);
-			});
-			box.append(button);
+			box.setAttribute('aria-label', `${referenceLabel}: ${quotation ? insertLabel : openLabel}`);
+			if (quotation) {
+				const button = ownerDocument.createElement('button');
+				button.type = 'button';
+				button.className = 'verse-hover-popup-insert';
+				button.textContent = insertLabel;
+				button.addEventListener('pointerdown', (event) => event.preventDefault());
+				button.addEventListener('click', () => {
+					onInsert?.(quotation);
+					hide(true);
+				});
+				box.append(button);
+			}
+			const href = safeLinkHref(activeAnchor?.getAttribute('href') ?? '');
+			if (href) {
+				const open = ownerDocument.createElement('a');
+				open.className = 'verse-hover-popup-insert';
+				open.textContent = openLabel;
+				open.href = href;
+				open.target = '_blank';
+				open.rel = 'noopener noreferrer';
+				box.append(open);
+			}
 		} else {
 			box.classList.remove('interactive');
 			box.setAttribute('role', 'tooltip');
@@ -290,18 +313,24 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 	}
 
 	async function show(target: HTMLElement): Promise<void> {
-		if (!bibleId) return;
+		if (!bibleId && !onInsert) return;
 		const book = Number(target.dataset.book);
 		const chapter = Number(target.dataset.chapter);
 		const verse = Number(target.dataset.verse);
 		const verseEnd = target.dataset.verseEnd ? Number(target.dataset.verseEnd) : undefined;
-		// Whole-chapter references remain links, but deliberately do not open a chapter-sized tooltip.
-		if (!book || !chapter || !verse) return;
+		// Chapter-only references in editors still need an explicit way to open their destination.
+		if (!book || !chapter || (!verse && !onInsert)) return;
 
 		const token = ++requestToken;
 		activeAnchor = target;
 		const box = ensurePopup();
 		addDescription(target);
+		if (!verse || !bibleId) {
+			renderContent(box, target.dataset.reference ?? target.textContent ?? '', '', '');
+			box.style.display = 'block';
+			place(target, box);
+			return;
+		}
 		const endBook = Number(target.dataset.endBook || book);
 		const endChapter = Number(target.dataset.endChapter || chapter);
 		const endVerse = Number(target.dataset.endVerse || verseEnd || verse);
@@ -365,6 +394,16 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 		if (activeAnchor === target && popup?.style.display !== 'none') return;
 		clearTimeout(showTimer);
 		showTimer = setTimeout(() => void show(target), 150);
+	}
+
+	function onClick(event: MouseEvent): void {
+		if (!onInsert) return;
+		const target = referenceTarget(event);
+		if (!target) return;
+		event.preventDefault();
+		focusedAnchor = target;
+		escapeDismissedReference = null;
+		void show(target);
 	}
 
 	function onOut(event: PointerEvent): void {
@@ -439,7 +478,7 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 			popup &&
 			popup.style.display !== 'none'
 		) {
-			const insertButton = popup.querySelector<HTMLButtonElement>('.verse-hover-popup-insert');
+			const insertButton = popup.querySelector<HTMLElement>('button, a[href]');
 			if (insertButton) {
 				event.preventDefault();
 				event.stopPropagation();
@@ -466,6 +505,7 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 		hide(true);
 	}
 
+	node.addEventListener('click', onClick);
 	node.addEventListener('pointerover', onOver);
 	node.addEventListener('pointerout', onOut);
 	node.addEventListener('focusin', onFocusIn);
@@ -480,8 +520,10 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 			bibleId = next.bibleId;
 			onInsert = next.onInsert;
 			insertLabel = next.insertLabel ?? 'Bibeltext einfügen';
+			openLabel = next.openLabel ?? 'Bibelstelle öffnen';
 		},
 		destroy(): void {
+			node.removeEventListener('click', onClick);
 			node.removeEventListener('pointerover', onOver);
 			node.removeEventListener('pointerout', onOut);
 			node.removeEventListener('focusin', onFocusIn);
