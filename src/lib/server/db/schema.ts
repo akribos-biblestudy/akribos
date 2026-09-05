@@ -721,6 +721,45 @@ export const documents = pgTable(
 
 export type Document = typeof documents.$inferSelect;
 
+/**
+ * Owner-private directed links extracted from ordinary Markdown links to `/notes/<uuid>`.
+ *
+ * Both composite foreign keys contain `user_id`, so a guessed document UUID can never create a
+ * relationship across accounts. The rows are a derived index of `documents.body_markdown`: replacing
+ * them does not increment the document revision independently.
+ */
+export const documentLinks = pgTable(
+	'document_links',
+	{
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		sourceDocumentId: uuid('source_document_id').notNull(),
+		targetDocumentId: uuid('target_document_id').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => [
+		primaryKey({ columns: [table.sourceDocumentId, table.targetDocumentId] }),
+		foreignKey({
+			columns: [table.sourceDocumentId, table.userId],
+			foreignColumns: [documents.id, documents.userId],
+			name: 'document_links_source_owner_fk'
+		}).onDelete('cascade'),
+		foreignKey({
+			columns: [table.targetDocumentId, table.userId],
+			foreignColumns: [documents.id, documents.userId],
+			name: 'document_links_target_owner_fk'
+		}).onDelete('cascade'),
+		index('document_links_user_target_idx').on(table.userId, table.targetDocumentId),
+		check(
+			'document_links_distinct_documents_check',
+			sql`${table.sourceDocumentId} <> ${table.targetDocumentId}`
+		)
+	]
+);
+
+export type DocumentLink = typeof documentLinks.$inferSelect;
+
 /** Reusable, owner-private Markdown starters selected when a sermon document is created. */
 export const sermonTemplates = pgTable(
 	'sermon_templates',

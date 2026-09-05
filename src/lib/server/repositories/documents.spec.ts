@@ -3,6 +3,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { passageToDbEndpoints } from '../../bible/passage.ts';
 import { MAX_DOCUMENT_PASSAGES } from '../../notes/documents.ts';
+import { prepareDocumentBody } from '../documents/application.ts';
 import { closeDb, getDb } from '../db/index.ts';
 import { documents, resources, users, verseComments } from '../db/schema.ts';
 import {
@@ -20,12 +21,14 @@ import {
 	listDocumentTagTreeWithCounts,
 	syncDocumentTags
 } from './document-tags.ts';
+import { listDocumentRelations } from './document-links.ts';
 import {
 	createDocument,
 	createDocumentFromLegacyVerseComment,
 	createDocumentWithPassages,
 	findDocumentsOverlappingPassage,
 	getDocument,
+	listDocuments,
 	listDocumentPassages,
 	replaceDocumentPassages,
 	restoreDocument,
@@ -118,6 +121,43 @@ describe.sequential('unified document repositories', () => {
 		const restored = await restoreDocument(db, ownerId, created.id);
 		expect(restored.ok).toBe(true);
 		expect((await getDocument(db, ownerId, created.id))?.title).toBe('Saved');
+	});
+
+	it('indexes private document links in both directions without crossing owners', async () => {
+		const target = await createDocument(db, ownerId, {
+			kind: 'note',
+			title: 'Linked target',
+			...EMPTY_BODY
+		});
+		const foreignTarget = await createDocument(db, adminId, {
+			kind: 'sermon',
+			title: 'Foreign target',
+			sermonStatus: 'idea',
+			...EMPTY_BODY
+		});
+		const linkedBody = prepareDocumentBody(
+			`[Eigenes Ziel](/notes/${target.id}) und [fremdes Ziel](/notes/${foreignTarget.id})`
+		);
+		const source = await createDocument(db, ownerId, {
+			kind: 'sermon',
+			title: 'Link source',
+			sermonStatus: 'idea',
+			...linkedBody
+		});
+
+		expect(
+			(await listDocumentRelations(db, ownerId, source.id)).outgoing.map((row) => row.id)
+		).toEqual([target.id]);
+		expect(
+			(await listDocumentRelations(db, ownerId, target.id)).incoming.map((row) => row.id)
+		).toEqual([source.id]);
+		expect((await listDocumentRelations(db, adminId, foreignTarget.id)).incoming).toEqual([]);
+
+		const removed = await updateDocument(db, ownerId, source.id, source.revision, {
+			body: prepareDocumentBody('Link entfernt')
+		});
+		expect(removed.ok).toBe(true);
+		expect((await listDocumentRelations(db, ownerId, target.id)).incoming).toEqual([]);
 	});
 
 	it('atomically creates a working copy with its initial passage', async () => {
@@ -239,6 +279,9 @@ describe.sequential('unified document repositories', () => {
 			'Theology/Grace'
 		]);
 		expect((await listDocumentsByTag(db, ownerId, 'theology')).map((row) => row.id)).toContain(
+			document.id
+		);
+		expect((await listDocuments(db, ownerId, { query: 'Grace' })).map((row) => row.id)).toContain(
 			document.id
 		);
 		const unicodeDocument = await createDocument(db, ownerId, {

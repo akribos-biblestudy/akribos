@@ -328,6 +328,7 @@
 					{bibleId}
 					compact
 					onSaved={(next) => (loadedDocument = next)}
+					onOpenDocument={openDocument}
 				/>
 			{/key}
 		</div>

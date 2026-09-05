@@ -24,6 +24,12 @@
 	);
 
 	$effect(() => {
+		if (data.document.id !== workingDocument.id) {
+			workingDocument = data.document;
+			currentRevision = data.document.revision;
+			sermonMessage = '';
+			return;
+		}
 		if (data.document.revision > currentRevision) {
 			currentRevision = data.document.revision;
 			workingDocument = { ...workingDocument, ...data.document };
@@ -224,13 +230,15 @@
 	{/if}
 
 	<div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
-		<DocumentEditor
-			bind:this={editor}
-			document={workingDocument}
-			bibleId={data.bibles[0]?.id ?? null}
-			onSaved={onEditorSaved}
-			onState={onEditorState}
-		/>
+		{#key workingDocument.id}
+			<DocumentEditor
+				bind:this={editor}
+				document={workingDocument}
+				bibleId={data.bibles[0]?.id ?? null}
+				onSaved={onEditorSaved}
+				onState={onEditorState}
+			/>
+		{/key}
 
 		<aside
 			class="space-y-4 xl:sticky xl:top-[calc(var(--header-height)+1rem)]"

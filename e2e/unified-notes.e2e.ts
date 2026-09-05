@@ -1456,7 +1456,7 @@ test('editor selection tools, outline, counts and Zen mode preserve the same doc
 	await page.getByRole('button', { name: 'Übernehmen', exact: true }).click();
 	await expect(prose.locator('a[href="https://example.com"]')).toHaveText('Hallo Welt');
 	await editor
-		.getByRole('navigation', { name: 'Inhalt' })
+		.getByRole('complementary', { name: 'Inhalt und Verknüpfungen' })
 		.getByRole('button', { name: 'Ende', exact: true })
 		.click();
 	await expect(prose.locator('h2')).toBeInViewport();
@@ -1494,4 +1494,56 @@ test('editor selection tools, outline, counts and Zen mode preserve the same doc
 	await expect(zen.getByTestId('document-counts')).toBeInViewport();
 	await page.getByRole('button', { name: 'Zen-Modus beenden', exact: true }).click();
 	await expect(zen).toHaveCount(0);
+});
+
+test('slash commands create blocks and mentions add owner-private backlinks', async ({ page }) => {
+	await register(page);
+	const targetId = await createNoteFromLibrary(page);
+	await saveMarkdownDocument(page, {
+		title: 'Zielbeitrag',
+		markdown: 'Inhalt des Zielbeitrags',
+		requestMarker: 'Zielbeitrag'
+	});
+
+	const sourceId = await createNoteFromLibrary(page);
+	await page.getByLabel('Titel').fill('Quellbeitrag');
+	const prose = page.getByTestId('document-editor').locator('.document-prose');
+	await prose.click();
+	await page.keyboard.type('/');
+	const commands = page.getByRole('listbox', { name: 'Befehle' });
+	await expect(commands).toBeVisible();
+	await commands.getByRole('option', { name: /^Überschrift 2/ }).click();
+	await page.keyboard.type('Einleitung');
+	await page.keyboard.press('Enter');
+	await page.keyboard.type('@Zielbeitrag');
+	const ownDocuments = page.getByRole('listbox', { name: 'Eigene Beiträge' });
+	await expect(ownDocuments.getByRole('option', { name: /Zielbeitrag/ })).toBeVisible();
+	const linkedSave = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'PATCH' &&
+			response.url().endsWith(`/api/documents/${sourceId}`) &&
+			(response.request().postData()?.includes(targetId) ?? false)
+	);
+	await ownDocuments.getByRole('option', { name: /Zielbeitrag/ }).click();
+	await expect(prose.locator('h2')).toHaveText('Einleitung');
+	await expect(prose.locator(`a[href="/notes/${targetId}"]`)).toHaveText('Zielbeitrag');
+	expect((await linkedSave).ok()).toBe(true);
+	await expect(page.getByTestId('document-editor').locator('.save-status')).toHaveText(
+		'Gespeichert'
+	);
+
+	const sidePanel = page.getByRole('complementary', { name: 'Inhalt und Verknüpfungen' });
+	await sidePanel.getByRole('tab', { name: 'Verknüpfungen' }).click();
+	const outgoing = sidePanel.getByRole('heading', { name: 'Verweist auf' }).locator('..');
+	await expect(outgoing.getByRole('link', { name: /Zielbeitrag/ })).toBeVisible();
+	await outgoing.getByRole('link', { name: /Zielbeitrag/ }).click();
+	await expect(page).toHaveURL(`/notes/${targetId}`);
+
+	const targetPanel = page.getByRole('complementary', { name: 'Inhalt und Verknüpfungen' });
+	await targetPanel.getByRole('tab', { name: 'Verknüpfungen' }).click();
+	const incoming = targetPanel.getByRole('heading', { name: 'Hier erwähnt' }).locator('..');
+	await expect(incoming.getByRole('link', { name: /Quellbeitrag/ })).toHaveAttribute(
+		'href',
+		`/notes/${sourceId}`
+	);
 });
