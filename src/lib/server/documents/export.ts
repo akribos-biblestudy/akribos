@@ -9,6 +9,7 @@ import {
 import PDFDocument from 'pdfkit';
 import { Lexer, type Token, type Tokens } from 'marked';
 import { createRequire } from 'node:module';
+import { findBibleReferences } from '$lib/bible/link-references';
 import { formatPassage, passageFromDbEndpoints } from '$lib/bible/passage';
 import { formatGermanCalendarDate } from '$lib/notes/calendar-date';
 import {
@@ -31,16 +32,32 @@ export type OwnedDocumentExport = {
 
 export const PDF_LINK_COLOR = '#2f7d32';
 
-export type PdfInlineRun = { text: string; href?: string };
+export type PdfInlineRun = { text: string; href?: string; bibleReference?: boolean };
 
 /** Turns portable inline Markdown into ordered text/link runs for PDFKit. */
 export function pdfInlineRuns(markdown: string): PdfInlineRun[] {
 	const runs: PdfInlineRun[] = [];
-	const append = (text: string, href?: string) => {
+	const append = (text: string, href?: string, bibleReference = false) => {
 		if (!text) return;
 		const previous = runs.at(-1);
-		if (previous && previous.href === href) previous.text += text;
-		else runs.push({ text, ...(href ? { href } : {}) });
+		if (previous && previous.href === href && Boolean(previous.bibleReference) === bibleReference) {
+			previous.text += text;
+		} else {
+			runs.push({ text, ...(href ? { href } : {}), ...(bibleReference ? { bibleReference } : {}) });
+		}
+	};
+	const appendProse = (text: string, href?: string) => {
+		if (href) {
+			append(text, href);
+			return;
+		}
+		let offset = 0;
+		for (const reference of findBibleReferences(text)) {
+			append(text.slice(offset, reference.from));
+			append(reference.label, undefined, true);
+			offset = reference.to;
+		}
+		append(text.slice(offset));
 	};
 	const visit = (tokens: Token[], inheritedHref?: string) => {
 		for (const token of tokens) {
@@ -54,7 +71,7 @@ export function pdfInlineRuns(markdown: string): PdfInlineRun[] {
 				case 'text': {
 					const text = token as Tokens.Text;
 					if (text.tokens?.length) visit(text.tokens, inheritedHref);
-					else append(text.text, inheritedHref);
+					else appendProse(text.text, inheritedHref);
 					break;
 				}
 				case 'strong':
@@ -63,8 +80,10 @@ export function pdfInlineRuns(markdown: string): PdfInlineRun[] {
 					visit((token as Tokens.Strong | Tokens.Em | Tokens.Del).tokens, inheritedHref);
 					break;
 				case 'escape':
+					appendProse((token as Tokens.Escape).text, inheritedHref);
+					break;
 				case 'codespan':
-					append((token as Tokens.Escape | Tokens.Codespan).text, inheritedHref);
+					append((token as Tokens.Codespan).text, inheritedHref);
 					break;
 				case 'br':
 					append('\n', inheritedHref);
@@ -281,7 +300,8 @@ export async function createPdfExport(
 		}
 		for (const [index, run] of runs.entries()) {
 			const linked = Boolean(run.href);
-			pdf.fillColor(linked ? PDF_LINK_COLOR : '#222222');
+			const highlighted = linked || Boolean(run.bibleReference);
+			pdf.fillColor(highlighted ? PDF_LINK_COLOR : '#222222');
 			writeText(
 				run.text,
 				{

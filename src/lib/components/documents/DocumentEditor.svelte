@@ -260,6 +260,16 @@
 		});
 		return result;
 	});
+	const activeHeadingPosition = $derived.by(() => {
+		const cursor = editorState.editor?.state.selection.from;
+		if (cursor === undefined || headings.length === 0) return null;
+		let active: number | null = null;
+		for (const heading of headings) {
+			if (heading.position >= cursor) break;
+			active = heading.position;
+		}
+		return active;
+	});
 
 	// Move the existing editor into the browser's top layer; never recreate its history or autosave.
 	$effect(() => {
@@ -1373,7 +1383,7 @@
 					: t('documents.editor.bibleQuoteError')}
 			</p>
 		{/if}
-		<div class="editor-writing-area">
+		<div class="editor-writing-area" class:outline-visible={outlineOpen}>
 			<div
 				class="editor-host"
 				bind:this={editorHost}
@@ -1387,54 +1397,92 @@
 			></div>
 			{#if outlineOpen}
 				<aside class="document-outline" aria-label={t('documents.editor.sidebar')}>
-					<div class="outline-tabs" role="tablist" aria-label={t('documents.editor.sidebar')}>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={sidePanelTab === 'outline'}
-							class:active={sidePanelTab === 'outline'}
-							onclick={() => (sidePanelTab = 'outline')}>{t('documents.editor.outline')}</button
-						>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={sidePanelTab === 'links'}
-							class:active={sidePanelTab === 'links'}
-							onclick={() => (sidePanelTab = 'links')}>{t('documents.editor.links')}</button
-						>
-					</div>
-					{#if sidePanelTab === 'outline'}
-						<div class="outline-content" role="tabpanel">
+					<button
+						type="button"
+						class="outline-rail"
+						aria-label={t('documents.editor.sidebar')}
+						aria-controls={`document-outline-panel-${document.id}`}
+						onclick={() => (sidePanelTab = 'outline')}
+					>
+						<span class="outline-strokes" aria-hidden="true">
 							{#each headings as heading (heading.position)}
-								<button
-									type="button"
-									style:padding-left={`${0.5 + (heading.level - 1) * 0.6}rem`}
-									onclick={() => jumpToHeading(heading.position)}
-									>{heading.text || t('documents.editor.heading')}</button
-								>
+								<span
+									class:active={heading.position === activeHeadingPosition}
+									style:margin-left={`${Math.min(heading.level - 1, 4) * 0.18}rem`}
+									style:width={`${Math.max(0.65, 1.45 - (heading.level - 1) * 0.11)}rem`}
+								></span>
 							{:else}
-								<small>{t('documents.editor.outlineEmpty')}</small>
+								<span class="empty"></span>
 							{/each}
+						</span>
+					</button>
+					<div class="outline-panel" id={`document-outline-panel-${document.id}`}>
+						<div class="outline-tabs" role="tablist" aria-label={t('documents.editor.sidebar')}>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={sidePanelTab === 'outline'}
+								class:active={sidePanelTab === 'outline'}
+								onclick={() => (sidePanelTab = 'outline')}>{t('documents.editor.outline')}</button
+							>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={sidePanelTab === 'links'}
+								class:active={sidePanelTab === 'links'}
+								onclick={() => (sidePanelTab = 'links')}>{t('documents.editor.links')}</button
+							>
 						</div>
-					{:else}
-						<div class="relations-content" role="tabpanel">
-							{#if relationsState === 'loading'}
-								<small role="status">{t('documents.editor.linksLoading')}</small>
-							{:else if relationsState === 'error'}
-								<small role="alert">{t('documents.editor.linksError')}</small>
-							{:else if relations.outgoing.length === 0 && relations.incoming.length === 0}
-								<small>{t('documents.editor.linksEmpty')}</small>
-							{:else}
-								{#if relations.outgoing.length}
-									<section class="relations-section">
-										<h3>{t('documents.editor.outgoingLinks')}</h3>
-										{#each relations.outgoing as relation (relation.id)}
-											{#if relation.deleted}
-												<span class="relation-link unavailable">
-													<strong>{relation.title}</strong>
-													<small>{t('documents.editor.linkedDeleted')}</small>
-												</span>
-											{:else}
+						{#if sidePanelTab === 'outline'}
+							<div class="outline-content" role="tabpanel">
+								{#each headings as heading (heading.position)}
+									<button
+										type="button"
+										class:active={heading.position === activeHeadingPosition}
+										style:padding-left={`${0.65 + (heading.level - 1) * 0.75}rem`}
+										onclick={() => jumpToHeading(heading.position)}
+										>{heading.text || t('documents.editor.heading')}</button
+									>
+								{:else}
+									<small>{t('documents.editor.outlineEmpty')}</small>
+								{/each}
+							</div>
+						{:else}
+							<div class="relations-content" role="tabpanel">
+								{#if relationsState === 'loading'}
+									<small role="status">{t('documents.editor.linksLoading')}</small>
+								{:else if relationsState === 'error'}
+									<small role="alert">{t('documents.editor.linksError')}</small>
+								{:else if relations.outgoing.length === 0 && relations.incoming.length === 0}
+									<small>{t('documents.editor.linksEmpty')}</small>
+								{:else}
+									{#if relations.outgoing.length}
+										<section class="relations-section">
+											<h3>{t('documents.editor.outgoingLinks')}</h3>
+											{#each relations.outgoing as relation (relation.id)}
+												{#if relation.deleted}
+													<span class="relation-link unavailable">
+														<strong>{relation.title}</strong>
+														<small>{t('documents.editor.linkedDeleted')}</small>
+													</span>
+												{:else}
+													<a
+														href={`/notes/${relation.id}`}
+														class="relation-link"
+														onclick={(event) => openRelatedDocument(event, relation.id)}
+													>
+														<strong>{relation.title}</strong><small
+															>{kindLabel(relation.kind)}</small
+														>
+													</a>
+												{/if}
+											{/each}
+										</section>
+									{/if}
+									{#if relations.incoming.length}
+										<section class="relations-section">
+											<h3>{t('documents.editor.incomingLinks')}</h3>
+											{#each relations.incoming as relation (relation.id)}
 												<a
 													href={`/notes/${relation.id}`}
 													class="relation-link"
@@ -1442,27 +1490,13 @@
 												>
 													<strong>{relation.title}</strong><small>{kindLabel(relation.kind)}</small>
 												</a>
-											{/if}
-										{/each}
-									</section>
+											{/each}
+										</section>
+									{/if}
 								{/if}
-								{#if relations.incoming.length}
-									<section class="relations-section">
-										<h3>{t('documents.editor.incomingLinks')}</h3>
-										{#each relations.incoming as relation (relation.id)}
-											<a
-												href={`/notes/${relation.id}`}
-												class="relation-link"
-												onclick={(event) => openRelatedDocument(event, relation.id)}
-											>
-												<strong>{relation.title}</strong><small>{kindLabel(relation.kind)}</small>
-											</a>
-										{/each}
-									</section>
-								{/if}
-							{/if}
-						</div>
-					{/if}
+							</div>
+						{/if}
+					</div>
 				</aside>
 			{/if}
 		</div>
@@ -1524,10 +1558,11 @@
 		color: var(--color-stone-500);
 	}
 	.document-editor .document-outline {
-		align-self: stretch;
-		position: static;
+		position: absolute;
+		inset: 0;
 		max-height: none;
-		overflow-y: auto;
+		overflow: visible;
+		pointer-events: none;
 	}
 	.document-editor.compact {
 		max-height: 100dvh;
@@ -1664,24 +1699,91 @@
 	.editor-writing-area {
 		display: flex;
 		min-height: 0;
+		position: relative;
 	}
 	.editor-host {
 		flex: 1;
 		min-width: 0;
 	}
+	.editor-writing-area.outline-visible .editor-host {
+		padding-right: 3.75rem;
+	}
 	.document-outline {
-		width: 15rem;
-		flex-shrink: 0;
-		align-self: flex-start;
-		position: sticky;
-		top: calc(var(--header-height) + 4rem);
-		max-height: 65vh;
-		overflow-y: auto;
-		border-left: 1px solid var(--line);
-		background: color-mix(in oklab, var(--surface) 97%, var(--color-stone-100));
-		padding: 0.65rem;
 		color: var(--color-stone-500);
 		font-size: 0.78rem;
+	}
+	.outline-rail {
+		position: absolute;
+		z-index: 4;
+		top: 0;
+		right: 0;
+		display: flex;
+		width: 3rem;
+		height: 100%;
+		align-items: flex-start;
+		justify-content: center;
+		border-left: 1px solid color-mix(in oklab, var(--line) 65%, transparent);
+		background: color-mix(in oklab, var(--surface) 92%, transparent);
+		padding: 1.6rem 0.45rem;
+		pointer-events: auto;
+	}
+	.outline-strokes {
+		display: flex;
+		max-height: calc(100% - 1rem);
+		width: 100%;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.68rem;
+		overflow: hidden;
+	}
+	.outline-strokes > span {
+		display: block;
+		height: 2px;
+		min-height: 2px;
+		border-radius: 999px;
+		background: color-mix(in oklab, var(--color-stone-500) 55%, transparent);
+		transition:
+			background 120ms ease,
+			transform 120ms ease;
+	}
+	.outline-strokes > span.active {
+		background: var(--color-accent-500);
+		transform: scaleX(1.08);
+	}
+	.outline-strokes > span.empty {
+		width: 1.15rem;
+		opacity: 0.45;
+	}
+	.outline-panel {
+		position: absolute;
+		z-index: 5;
+		top: 0.65rem;
+		right: 0.65rem;
+		width: min(22rem, calc(100% - 1.3rem));
+		max-height: calc(100% - 1.3rem);
+		overflow-y: auto;
+		visibility: hidden;
+		border: 1px solid color-mix(in oklab, var(--line) 85%, transparent);
+		border-radius: 1rem;
+		background: color-mix(in oklab, var(--surface) 96%, var(--color-stone-100));
+		padding: 0.8rem;
+		opacity: 0;
+		box-shadow: 0 16px 45px rgb(0 0 0 / 0.2);
+		transform: translateX(0.35rem) scale(0.985);
+		transform-origin: top right;
+		transition:
+			opacity 120ms ease,
+			transform 120ms ease,
+			visibility 120ms;
+		pointer-events: none;
+	}
+	.outline-rail:hover + .outline-panel,
+	.outline-panel:hover,
+	.document-outline:focus-within .outline-panel {
+		visibility: visible;
+		opacity: 1;
+		transform: translateX(0) scale(1);
+		pointer-events: auto;
 	}
 	.outline-tabs {
 		display: grid;
@@ -1714,6 +1816,13 @@
 	.outline-content > button:hover {
 		color: var(--color-accent-600);
 		background: var(--surface-raised);
+	}
+	.outline-content > button.active {
+		border-left-color: var(--color-accent-500);
+		border-radius: 0.4rem;
+		background: color-mix(in oklab, var(--color-accent-500) 11%, transparent);
+		color: var(--color-accent-700);
+		font-weight: 650;
 	}
 	.relations-section + .relations-section {
 		margin-top: 1rem;
@@ -1762,34 +1871,21 @@
 		flex: 1;
 		overflow: hidden;
 	}
-	.document-editor.compact:not(.zen) .editor-writing-area {
-		flex-direction: column-reverse;
-	}
-	.document-editor.compact:not(.zen) .document-outline {
-		position: static;
-		width: 100%;
-		max-height: 9rem;
-		padding: 0.6rem 1rem;
-		border-left: 0;
-		border-bottom: 1px solid var(--line);
-	}
-	.document-editor.zen .document-outline {
-		top: 1rem;
-	}
 	@media (max-width: 700px) {
-		.editor-writing-area {
-			flex-direction: column-reverse;
-		}
-		.document-editor .document-outline {
-			position: static;
-			width: 100%;
-			max-height: 9rem;
-			padding: 0.75rem 1rem;
-			border-left: 0;
-			border-bottom: 1px solid var(--line);
-		}
 		.editor-host {
 			padding: 1rem;
+		}
+		.editor-writing-area.outline-visible .editor-host {
+			padding-right: 3.4rem;
+		}
+		.outline-rail {
+			width: 2.7rem;
+		}
+		.outline-panel {
+			top: 0.4rem;
+			right: 0.4rem;
+			width: calc(100% - 0.8rem);
+			max-height: calc(100% - 0.8rem);
 		}
 	}
 
