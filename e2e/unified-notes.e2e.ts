@@ -515,6 +515,27 @@ test('the note library exposes seeded tags, legacy notes and inclusive passage-o
 	).toBeVisible();
 	await expect(page.getByText('Aus Verskommentar übernommen')).toBeVisible();
 
+	const distribution = page.locator('.book-summary .book-distribution');
+	await expect(distribution).toBeVisible();
+	const genesis = distribution.locator('a.book').filter({ hasText: '1Mo' });
+	await expect(genesis).toHaveAttribute('aria-label', /1Mo: [1-9]\d* Notiz(?:en)?/);
+	await genesis.click();
+	await expect(page).toHaveURL((url) => url.searchParams.get('book') === '1');
+	await expect(page.getByRole('heading', { name: 'Schöpfung und Ruhe' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Gebet und Antwort' })).toHaveCount(0);
+
+	await page.getByRole('link', { name: 'Listenansicht' }).click();
+	await expect(page).toHaveURL(
+		(url) => url.searchParams.get('book') === '1' && url.searchParams.get('view') === 'list'
+	);
+	await expect(page.locator('.document-results')).toHaveClass(/list-view/);
+	await page.getByRole('link', { name: 'Buchfilter aufheben' }).click();
+	await expect(page).toHaveURL(
+		(url) => !url.searchParams.has('book') && url.searchParams.get('view') === 'list'
+	);
+	await page.getByRole('link', { name: 'Kachelansicht' }).click();
+	await expect(page.locator('.document-results')).not.toHaveClass(/list-view/);
+
 	await expect(page.getByRole('link', { name: 'Johannes (1)', exact: true })).toHaveCount(0);
 	await page.getByRole('searchbox', { name: 'Schlagwörter suchen' }).fill('JOHANNES');
 	await expect(page.getByRole('link', { name: /^Bibelstudium \(/ })).toBeVisible();
@@ -1029,7 +1050,7 @@ test('the sermon manager creates from its template and persists workflow metadat
 
 	await page.getByLabel('Titel').fill(title);
 	await page.getByRole('textbox', { name: 'Bibelstelle', exact: true }).fill('Joh 3,16-17');
-	await page.getByLabel('Predigtreihe').fill('E2E-Reihe');
+	await page.getByLabel('Predigtreihe', { exact: true }).fill('E2E-Reihe');
 	await page.getByLabel('Predigttermin').fill('24.12.2026');
 	await page.getByRole('button', { name: 'Erstellen' }).click();
 	await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+\?returnTo=%2Fsermons$/);
@@ -1065,6 +1086,62 @@ test('the sermon manager creates from its template and persists workflow metadat
 
 	await page.goto('/sermons?status=research');
 	await expect(page.getByRole('heading', { name: title })).toBeVisible();
+});
+
+test('the sermon board sorts planned dates and combines series and year filters', async ({
+	page
+}) => {
+	await register(page);
+	const olderTitle = `Predigt 2025 ${RUN_ID}`;
+	const newerTitle = `Predigt 2026 ${RUN_ID}`;
+	const olderSeries = `Alte Reihe ${RUN_ID}`;
+	const newerSeries = `Neue Reihe ${RUN_ID}`;
+
+	async function createSermon(title: string, date: string, series: string): Promise<void> {
+		await page.goto('/sermons');
+		const create = page.locator('[data-tour-target="sermon-create"]');
+		await create.getByLabel('Titel').fill(title);
+		await create.getByLabel('Predigttermin').fill(date);
+		await create.getByLabel('Predigtreihe').fill(series);
+		await create.getByRole('button', { name: 'Erstellen' }).click();
+		await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+\?returnTo=%2Fsermons$/);
+	}
+
+	await createSermon(olderTitle, '02.01.2025', olderSeries);
+	await createSermon(newerTitle, '03.02.2026', newerSeries);
+	await page.goto('/sermons');
+
+	const ideaColumn = page.getByRole('group', { name: 'Idee' });
+	const cards = ideaColumn.getByTestId('sermon-card');
+	await expect(cards).toHaveCount(2);
+	await expect(cards.nth(0)).toContainText(newerTitle);
+	await expect(cards.nth(1)).toContainText(olderTitle);
+
+	let filters = page.getByRole('form', { name: 'Predigten filtern' });
+	const searchField = filters.getByRole('searchbox', { name: 'Dokumente durchsuchen' });
+	const searchIcon = filters.locator('label.relative svg');
+	const [fieldBox, iconBox, paddingLeft] = await Promise.all([
+		searchField.boundingBox(),
+		searchIcon.boundingBox(),
+		searchField.evaluate((element) => Number.parseFloat(getComputedStyle(element).paddingLeft))
+	]);
+	expect(fieldBox).not.toBeNull();
+	expect(iconBox).not.toBeNull();
+	expect(iconBox!.x + iconBox!.width).toBeLessThan(fieldBox!.x + paddingLeft);
+
+	await filters.getByLabel('Nach Predigtreihe filtern').selectOption(newerSeries);
+	await filters.getByRole('button', { name: 'Filtern' }).click();
+	await expect(page).toHaveURL((url) => url.searchParams.get('series') === newerSeries);
+	await expect(page.getByRole('heading', { name: newerTitle })).toBeVisible();
+	await expect(page.getByRole('heading', { name: olderTitle })).toHaveCount(0);
+
+	filters = page.getByRole('form', { name: 'Predigten filtern' });
+	await filters.getByLabel('Nach Predigtreihe filtern').selectOption('');
+	await filters.getByLabel('Nach Jahr filtern').selectOption('2025');
+	await filters.getByRole('button', { name: 'Filtern' }).click();
+	await expect(page).toHaveURL((url) => url.searchParams.get('year') === '2025');
+	await expect(page.getByRole('heading', { name: olderTitle })).toBeVisible();
+	await expect(page.getByRole('heading', { name: newerTitle })).toHaveCount(0);
 });
 
 test('custom sermon templates, delivery history, rich exports and board movement work together', async ({

@@ -702,6 +702,34 @@ export async function listDocumentPassages(
 		.orderBy(documentPassages.position, documentPassages.id);
 }
 
+export type DocumentPassageBookRange = {
+	documentId: string;
+	startBook: number;
+	endBook: number;
+};
+
+/** Owner-scoped book ranges for library facets; one document may contribute several rows. */
+export async function listDocumentPassageBookRanges(
+	db: Database,
+	userId: string,
+	filters: { kind?: DocumentKind; deleted?: 'exclude' | 'only' | 'include' } = {}
+): Promise<DocumentPassageBookRange[]> {
+	const conditions = [eq(documents.userId, userId)];
+	if (filters.kind) conditions.push(eq(documents.kind, filters.kind));
+	if (filters.deleted === 'only') conditions.push(isNotNull(documents.deletedAt));
+	else if (filters.deleted !== 'include') conditions.push(isNull(documents.deletedAt));
+
+	return db
+		.select({
+			documentId: documentPassages.documentId,
+			startBook: documentPassages.startBookId,
+			endBook: documentPassages.endBookId
+		})
+		.from(documentPassages)
+		.innerJoin(documents, eq(documents.id, documentPassages.documentId))
+		.where(and(...conditions));
+}
+
 export type PassageOverlapQuery = {
 	startKey: number;
 	endKey: number;

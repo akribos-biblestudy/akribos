@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	createDocumentMarkdownExport,
+	documentBodyBibleBooks,
 	documentHtmlToMarkdown,
 	documentMarkdownToHtml,
 	DocumentMarkdownError,
@@ -130,6 +131,16 @@ const answer = 42 < 100;
 		const result = documentMarkdownToHtml('Vor ![Diagramm](https://example.com/x.png) nach');
 		expect(result.html).not.toContain('<img');
 		expect(result.html).toContain('<em>Diagramm</em>');
+	});
+});
+
+describe('documentBodyBibleBooks', () => {
+	it('collects distinct books from visible prose and cross-book ranges but skips code', () => {
+		expect(
+			documentBodyBibleBooks(
+				'<p>Joh <strong>3,16</strong> und 1Mo 50,26-2Mo 1,2.</p><code>Mt 5,3</code>'
+			)
+		).toEqual([1, 2, 43]);
 	});
 });
 

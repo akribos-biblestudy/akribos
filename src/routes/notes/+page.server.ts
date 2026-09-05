@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { BOOKS } from '$lib/bible/books';
 import { parsePassage, passageToDbEndpoints } from '$lib/bible/passage';
-import { documentBodyOverlapsPassage } from '$lib/notes/document-markdown';
+import { documentBodyBibleBooks, documentBodyOverlapsPassage } from '$lib/notes/document-markdown';
 import {
 	GERMAN_SERMON_STARTER_TEMPLATE,
 	isDocumentKind,
@@ -26,6 +27,7 @@ import {
 	createDocumentWithPassages,
 	findDocumentsOverlappingPassage,
 	InvalidDocumentInputError,
+	listDocumentPassageBookRanges,
 	listDocuments,
 	restoreDocument,
 	softDeleteDocument
@@ -73,13 +75,23 @@ export async function load({ locals, url, setHeaders }) {
 	const tag = (url.searchParams.get('tag') ?? '').trim();
 	const passageText = (url.searchParams.get('passage') ?? '').trim();
 	const rawResourceId = (url.searchParams.get('resource') ?? '').trim();
+	const rawBook = (url.searchParams.get('book') ?? '').trim();
+	const parsedBook = /^\d{1,2}$/u.test(rawBook) ? Number(rawBook) : undefined;
+	const book =
+		parsedBook && BOOKS.some((candidate) => candidate.id === parsedBook) ? parsedBook : null;
+	const view = url.searchParams.get('view') === 'list' ? 'list' : 'cards';
 	const deleted = url.searchParams.get('deleted') === '1';
-	const filterErrors: Array<'kind' | 'tag' | 'passage' | 'resource'> = [];
+	const filterErrors: Array<'kind' | 'tag' | 'passage' | 'resource' | 'book'> = [];
 	if (rawKind && !kind) filterErrors.push('kind');
+	if (rawBook && !book) filterErrors.push('book');
 
-	const [tagTree, bibles] = await Promise.all([
+	const [tagTree, bibles, passageBookRanges] = await Promise.all([
 		listDocumentTagTreeWithCounts(db, user.id, deleted ? 'only' : 'exclude'),
-		listBibles(db)
+		listBibles(db),
+		listDocumentPassageBookRanges(db, user.id, {
+			kind: 'note',
+			deleted: deleted ? 'only' : 'exclude'
+		})
 	]);
 	const validBibleIds = new Set(bibles.map((bible) => bible.id));
 	let resourceId: string | null | undefined;
@@ -139,6 +151,25 @@ export async function load({ locals, url, setHeaders }) {
 		}
 	}
 	if (filterErrors.length > 0) documents = [];
+
+	// The distribution follows every active library filter except its own book selection. Explicit
+	// ranges and visible prose references contribute each document at most once per covered book.
+	const booksByDocument = new Map(
+		documents.map((document) => [document.id, new Set(documentBodyBibleBooks(document.bodyHtml))])
+	);
+	for (const range of passageBookRanges) {
+		const documentBooks = booksByDocument.get(range.documentId);
+		if (!documentBooks) continue;
+		for (let current = range.startBook; current <= range.endBook; current += 1) {
+			documentBooks.add(current);
+		}
+	}
+	const bookCounts = BOOKS.map(({ id }) => ({
+		book: id,
+		count: Array.from(booksByDocument.values()).filter((books) => books.has(id)).length
+	}));
+	if (book) documents = documents.filter((document) => booksByDocument.get(document.id)?.has(book));
+
 	const pageSize = 24;
 	const total = documents.length;
 	const pageCount = Math.max(1, Math.ceil(total / pageSize));
@@ -162,12 +193,15 @@ export async function load({ locals, url, setHeaders }) {
 		tags: tagTree,
 		tagTree,
 		bibles,
+		bookCounts,
 		filters: {
 			q,
 			kind: kind ?? null,
 			tag,
 			passage: passageText,
 			resourceId: rawResourceId || null,
+			book,
+			view,
 			deleted
 		},
 		filterError: filterErrors[0] ?? null,

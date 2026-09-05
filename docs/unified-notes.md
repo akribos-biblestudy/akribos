@@ -37,7 +37,10 @@ filtering by a parent includes its descendants.
 The library gives the tag tree most of the available viewport height, displays the descendant-inclusive
 document count beside every tag and lets every parent branch collapse independently. The global account
 menu exposes one “Dokumente” entry. Within it, the only area navigation is “Notizen” and “Predigten”;
-import and public notes remain contextual note actions, while templates are contextual to sermons.
+import and public notes remain contextual note actions, while templates are contextual to sermons. A
+66-book distribution combines stored passage anchors with references in visible prose, counts each
+document once per book and filters through the `book` URL parameter without changing the chart totals.
+The `view` parameter switches between card and compact list layouts.
 
 ## Passage anchors
 

@@ -271,7 +271,10 @@ bei Notizen. Das globale Menü heißt „Notizen & Predigten“.
 Die Notizbibliothek liefert höchstens 24 Notizkarten je URL-Seite (`page`), nach allen Filtern
 einschließlich der abgeleiteten Fließtextstellen. Ungültige Seitennummern werden begrenzt; Filterlinks
 setzen die Seite zurück, Seitenlinks erhalten alle Filter. Nur gekürzte Vorschautexte werden an den
-Browser geliefert. Die Schlagworthierarchie startet eingeklappt. Die clientseitige Suche nach Tagpfaden
+Browser geliefert. Die aus gespeicherten Ankern und sichtbaren Fließtextstellen abgeleitete
+Buchverteilung zählt jedes Dokument je Buch höchstens einmal; ihr `book`-Filter lässt die ungefilterte
+Verteilung stehen. `view=cards|list` schaltet URL-stabil zwischen Kachel- und Listenansicht. Die
+Schlagworthierarchie startet eingeklappt. Die clientseitige Suche nach Tagpfaden
 steht als `tagSearch` in der URL und zeigt Treffer samt Vorfahren automatisch; Leeren stellt den manuellen
 Aufklappzustand wieder her. Editorlinks übernehmen die vollständige Bibliotheks-URL als `returnTo`.
 
@@ -441,7 +444,10 @@ veröffentlichte Notizen sind kontextuelle Aktionen, Vorlagen gehören in den Pr
 bleiben normale Dokumente mit den Zuständen `idea`, `research`, `outline`, `ready`, `delivered`;
 `/sermons` ist nur ihre fokussierte Workflow-Ansicht. Karten wechseln den Status revisioniert per
 Drag-and-drop; `Alt` + Pfeil links/rechts ist die barrierearme Tastaturalternative. Ein redundantes
-Status-Select wird auf der Karte nicht gerendert. `sermon_templates` enthält frei editierbare private
+Status-Select wird auf der Karte nicht gerendert. Innerhalb der gesamten Ansicht und jeder Statusspalte
+stehen Karten nach geplantem Predigtdatum absteigend; Predigten ohne Termin folgen zuletzt. Die
+URL-Filter für Arbeitsstand, Volltext, Predigtreihe und Jahr sind kombinierbar. `sermon_templates`
+enthält frei editierbare private
 Markdown-Vorlagen. `sermon_deliveries` speichert mehrere tatsächliche Durchführungen aus Kalenderdatum
 und Ort über einen zusammengesetzten Dokument-/Owner-FK; jede Mutation erhöht die Dokumentrevision.
 Migration `0025_clever_agent_brand.sql` legt beide Tabellen zusammen mit dem übrigen Dokumentmodell
