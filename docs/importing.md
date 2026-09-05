@@ -54,9 +54,12 @@ most eight levels deep; commas and backslashes are rejected inside segments beca
 editor uses those characters as separators/escapes. These bounds apply again on confirmation, not only
 in the browser preview.
 
-The safe round-trip subset is paragraphs, headings through level three, emphasis, strong and strike
+The safe round-trip subset is paragraphs, headings H1–H6, emphasis, strong and strike
 text, lists, block quotes, inline and fenced code, horizontal rules, explicit line breaks and safe
-HTTP(S), mail or relative links. Raw HTML and unsupported tags/attributes are reduced to inert content;
+HTTP(S), mail or relative links. Underline and highlighting use attribute-free `<u>` and `<mark>` tags.
+Links whose entire label is a Bible reference become Akribos links, including the label's complete range.
+Existing imports also receive this interpretation when displayed, without reimporting them.
+Other raw HTML and unsupported tags/attributes are reduced to inert content;
 scripts and other active elements disappear. Obsidian wikilinks become ordinary links or readable
 labels. Images, embeds and attachment links are removed, and binary/NUL input, invalid/unsafe YAML,
 path traversal and invalid UTF-8 fail the preview. The UI reports every lossy conversion it detects.

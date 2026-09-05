@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
-	import { linkBibleReferences } from '$lib/bible/link-references';
+	import { linkBibleReferences, rewriteBibleReferenceLinks } from '$lib/bible/link-references';
 
 	let {
 		html,
@@ -18,7 +18,9 @@
 		testId?: string;
 	} = $props();
 
-	const linkedHtml = $derived(linkBibleReferences(html, { tooltipId }));
+	const linkedHtml = $derived(
+		linkBibleReferences(rewriteBibleReferenceLinks(html, { tooltipId }), { tooltipId })
+	);
 </script>
 
 <div

@@ -355,8 +355,116 @@ test('a private note links inline Bible references and previews real text by hov
 	// The non-persisted ProseMirror decoration is still a real link, not a tooltip-only affordance.
 	await page.getByRole('tab', { name: 'Visuell' }).click();
 	await reference.click();
-	await expect(page).toHaveURL((url) => url.pathname === '/Mt3,12');
-	await expect(page.locator('[data-verse-key="40:3:12"]').first()).toContainText('Worfschaufel');
+	await expect(page).toHaveURL(`/notes/${SEED_PRIVATE_NOTE_ID}`);
+	const opened = page.waitForEvent('popup');
+	await reference.click({ modifiers: ['Control'] });
+	const reader = await opened;
+	await expect(reader).toHaveURL((url) => url.pathname === '/Mt3,12');
+	await expect(reader.locator('[data-verse-key="40:3:12"]').first()).toContainText('Worfschaufel');
+	await reader.close();
+});
+
+test('imported Bible links preview and editor links require Control-click while formatting survives reload', async ({
+	page,
+	context
+}) => {
+	await loginAs(page, SEED_READER);
+	await page.goto('/notes/import');
+	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles({
+		name: 'bibel-links.md',
+		mimeType: 'text/markdown',
+		buffer: Buffer.from(
+			'[Matthäus 3,12](http://strongs.de/mt3,12) und [Web](https://example.com/)\n\nFormatierung\n'
+		)
+	});
+	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+	const preview = page.getByTestId('import-preview');
+	await expect(preview.getByRole('link', { name: 'Matthäus 3,12' })).toHaveAttribute(
+		'href',
+		'/Mt3,12'
+	);
+	await preview.getByRole('button', { name: 'Als privates Dokument importieren' }).click();
+	const url = page.url();
+	const prose = page.locator('.document-prose');
+	const bible = prose.locator('.verse-ref');
+	await bible.hover();
+	await expect(page.getByTestId('bible-reference-preview')).toContainText(MATTHEW_PREVIEW_TEXT);
+	await page.keyboard.press('Escape');
+	await bible.click();
+	await expect(page).toHaveURL(url);
+	const web = prose.locator('a[href^="https://example.com/"]');
+	await expect(web).toHaveCSS('text-decoration-line', 'underline');
+	await expect(web.locator('[title]')).toHaveAttribute('title', 'https://example.com/');
+	await web.click();
+	await expect(page).toHaveURL(url);
+	await page.keyboard.type('X');
+	await expect(web).toContainText('X');
+	await page.getByRole('button', { name: 'Link bearbeiten', exact: true }).click();
+	await expect(page.getByLabel('Linkziel')).toHaveValue('https://example.com/');
+	await page.getByLabel('Linkziel').fill('https://example.com/edited');
+	await page.getByRole('button', { name: 'Übernehmen', exact: true }).click();
+	await expect(web).toHaveAttribute('href', 'https://example.com/edited');
+	await context.route('https://example.com/**', (route) =>
+		route.fulfill({ body: 'Externes Linkziel' })
+	);
+	const opened = page.waitForEvent('popup');
+	await web.click({ modifiers: ['Control'] });
+	const external = await opened;
+	await expect(external).toHaveURL('https://example.com/edited');
+	await external.close();
+	await prose.getByText('Formatierung', { exact: true }).click();
+	await page.getByLabel('Überschrift', { exact: true }).selectOption('6');
+	await expect(prose.locator('h6')).toHaveText('Formatierung');
+	await prose.locator('h6').selectText();
+	await page.getByRole('button', { name: 'Unterstreichen', exact: true }).click();
+	await page.getByRole('button', { name: 'Hervorheben', exact: true }).click();
+	await expect(prose.locator('h6 u')).toHaveText('Formatierung');
+	await expect(prose.locator('h6 mark')).toHaveText('Formatierung');
+	await page.getByRole('tab', { name: 'Markdown' }).click();
+	await expect(page.getByRole('textbox', { name: 'Markdown' })).toHaveValue(
+		/###### .*<u>.*<mark>|###### .*<mark>.*<u>/
+	);
+	await page.getByRole('textbox', { name: 'Markdown' }).press('Control+s');
+	await expect(page.getByTestId('document-editor').locator('.save-status')).toHaveText(
+		'Gespeichert'
+	);
+	await page.reload();
+	await expect(prose.locator('h6 u')).toHaveText('Formatierung');
+	await expect(prose.locator('h6 mark')).toHaveText('Formatierung');
+});
+
+test('import preview names each invalid file and explains an oversized selection', async ({
+	page
+}) => {
+	await loginAs(page, SEED_READER);
+	await page.goto('/notes/import');
+	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles([
+		{ name: 'gut.md', mimeType: 'text/markdown', buffer: Buffer.from('Gültig') },
+		{
+			name: 'defekt.md',
+			mimeType: 'text/markdown',
+			buffer: Buffer.from('---\ntitle: [offen\n---\nText')
+		},
+		{
+			name: 'kaputt.md',
+			mimeType: 'text/markdown',
+			buffer: Buffer.from('---\ntitle: [offen\n---\nText')
+		}
+	]);
+	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+	await expect(page.getByRole('alert')).toContainText('defekt.md');
+	await expect(page.getByRole('alert')).toContainText('kaputt.md');
+	await expect(page.getByRole('alert')).not.toContainText('gut.md');
+	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles(
+		Array.from({ length: 101 }, (_, index) => ({
+			name: `${index}.md`,
+			mimeType: 'text/markdown',
+			buffer: Buffer.from('Text')
+		}))
+	);
+	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+	await expect(page.getByRole('alert')).toContainText('101 Dateien');
+	await expect(page.getByRole('alert')).toContainText('höchstens 100');
 });
 
 test('a published note exposes inline references to keyboard users with public previews', async ({

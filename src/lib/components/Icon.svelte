@@ -21,6 +21,8 @@
 			| 'file-text'
 			| 'globe'
 			| 'heading'
+			| 'underline'
+			| 'highlight'
 			| 'layout'
 			| 'link'
 			| 'lock'
@@ -68,6 +70,10 @@
 		<path d="M5 12h14M13 6l6 6-6 6" />
 	{:else if name === 'bold'}
 		<path d="M7 4h6a4 4 0 0 1 0 8H7Zm0 8h7a4 4 0 0 1 0 8H7Z" />
+	{:else if name === 'underline'}
+		<path d="M6 3v8a6 6 0 0 0 12 0V3M4 21h16" />
+	{:else if name === 'highlight'}
+		<path d="m9 13 7-10 5 4-8 9-4-3ZM9 13l-4 5 4 1 4-3M3 22h18" />
 	{:else if name === 'italic'}
 		<path d="M10 4h7M7 20h7M14 4 10 20" />
 	{:else if name === 'strikethrough'}

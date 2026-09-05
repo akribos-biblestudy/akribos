@@ -249,11 +249,16 @@ export const actions = {
 			throw caught;
 		}
 		const candidates = form.getAll('file');
-		if (
-			candidates.length < 1 ||
-			candidates.length > MAX_OBSIDIAN_IMPORT_FILES ||
-			candidates.some((candidate) => !(candidate instanceof File))
-		) {
+		if (candidates.length > MAX_OBSIDIAN_IMPORT_FILES) {
+			return fail(400, {
+				error: 'too_many_files' as const,
+				message: t('documents.import.error.fileCountExceeded', {
+					count: candidates.length,
+					maximum: MAX_OBSIDIAN_IMPORT_FILES
+				})
+			});
+		}
+		if (candidates.length < 1 || candidates.some((candidate) => !(candidate instanceof File))) {
 			return fail(400, {
 				error: 'fileCount' as const,
 				message: t('documents.import.error.fileCount')
@@ -300,6 +305,7 @@ export const actions = {
 				throw new ObsidianArchiveError('archive_too_large');
 			const validBibleIds = new Set((await listBibles(getDb())).map((bible) => bible.id));
 			const prepared = [];
+			const fileErrors: Array<{ filename: string; error: string; message: string }> = [];
 			for (const { filename, archivePath, bytes } of sources) {
 				try {
 					const preview = previewObsidianMarkdown(filename, bytes);
@@ -311,10 +317,21 @@ export const actions = {
 					});
 				} catch (caught) {
 					if (caught instanceof DocumentMarkdownError) {
-						return markdownFailure(caught, archivePath ?? filename);
+						fileErrors.push({
+							filename: archivePath ?? filename,
+							error: caught.code,
+							message: localizeImportError(caught.code)
+						});
+						continue;
 					}
 					throw caught;
 				}
+			}
+			if (fileErrors.length > 0) {
+				return fail(fileErrors.some((issue) => issue.error === 'file_too_large') ? 413 : 400, {
+					...fileErrors[0],
+					fileErrors
+				});
 			}
 			const packaged = JSON.stringify(
 				prepared.map((item) => ({ filename: item.preview.sourceFilename, source: item.source }))

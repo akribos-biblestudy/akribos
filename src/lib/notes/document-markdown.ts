@@ -2,6 +2,10 @@ import { marked, Renderer, type Tokens } from 'marked';
 import TurndownService from 'turndown';
 import { parseDocument, stringify as stringifyYaml } from 'yaml';
 import {
+	bibleReferenceFromLinkText,
+	rewriteBibleReferenceLinks
+} from '../bible/link-references.ts';
+import {
 	MAX_DOCUMENT_MARKDOWN_BYTES,
 	MAX_DOCUMENT_PASSAGES,
 	MAX_OBSIDIAN_FRONTMATTER_BYTES,
@@ -98,7 +102,6 @@ export class DocumentMarkdownError extends Error {
  */
 export const MARKDOWN_ROUND_TRIP_LIMITATIONS = [
 	'Raw HTML, media, embeds and attributes are removed.',
-	'Heading levels deeper than three are folded into level three.',
 	'Table layout, ordered-list start numbers and link titles are not retained.',
 	'Task checkboxes become ordinary readable text.',
 	'Line endings and trailing whitespace are normalised.'
@@ -108,6 +111,11 @@ const ALLOWED_HTML_TAGS = new Set([
 	'h1',
 	'h2',
 	'h3',
+	'h4',
+	'h5',
+	'h6',
+	'u',
+	'mark',
 	'p',
 	'strong',
 	'em',
@@ -194,13 +202,10 @@ export function documentHtmlToMarkdown(input: string): string {
 	assertSize(input, MAX_DOCUMENT_MARKDOWN_BYTES * 4, 'file_too_large');
 	const service = createTurndownService();
 	const turnedDown = service
-		.turndown(sanitiseDocumentHtml(input))
+		.turndown(sanitiseDocumentHtml(rewriteBibleReferenceLinks(input)))
 		// Turndown's block separator can land immediately after its explicit hard-break marker. Keeping
 		// that empty line would make Marked read the backslash as literal text on the next round trip.
-		.replace(/\\\r?\n(?:[\t ]*\r?\n)+(?=\S)/g, '\\\n')
-		// Entity-escaped text is decoded by the HTML parser Turndown uses. Escape a resulting tag-like
-		// opener so literal "<script>" text does not become active raw Markdown HTML and get discarded.
-		.replace(/<(?=\/?[a-z][^>\n]*>)/giu, '\\<');
+		.replace(/\\\r?\n(?:[\t ]*\r?\n)+(?=\S)/g, '\\\n');
 	const markdown = normalizeDocumentMarkdown(turnedDown);
 	assertSize(markdown, MAX_DOCUMENT_MARKDOWN_BYTES, 'file_too_large');
 	return markdown;
@@ -231,7 +236,7 @@ export function previewObsidianMarkdown(
 
 	return {
 		...parsed,
-		markdown,
+		markdown: rewriteImportedBibleLinks(markdown),
 		html,
 		plainText: documentHtmlToPlainText(html),
 		warnings: warnings.values(),
@@ -241,6 +246,33 @@ export function previewObsidianMarkdown(
 
 /** Alias with a name that reads naturally in upload handlers. */
 export const parseObsidianMarkdownFile = previewObsidianMarkdown;
+
+/** Re-serialise only blocks containing Bible links; unrelated Markdown and large code blocks stay exact. */
+function rewriteImportedBibleLinks(markdown: string): string {
+	const tokens = marked.lexer(markdown, { gfm: true });
+	return normalizeDocumentMarkdown(
+		tokens
+			.map((token) => {
+				let containsBibleLink = false;
+				marked.walkTokens([token], (child) => {
+					if (
+						child.type === 'link' &&
+						bibleReferenceFromLinkText(
+							documentHtmlToPlainText(marked.Parser.parseInline(child.tokens ?? []))
+						)
+					)
+						containsBibleLink = true;
+				});
+				if (!containsBibleLink) return token.raw;
+				return (
+					documentHtmlToMarkdown(
+						marked.parser([token], { renderer: new SafeDocumentRenderer() })
+					).trimEnd() + (token.raw.match(/\n*$/u)?.[0] ?? '')
+				);
+			})
+			.join('')
+	);
+}
 
 /** Export only portable document data; ownership, ids and publication state are not accepted. */
 export function exportDocumentMarkdown(input: DocumentMarkdownExportInput): string {
@@ -415,7 +447,7 @@ class SafeDocumentRenderer extends Renderer {
 	}
 
 	override heading({ tokens, depth }: Tokens.Heading): string {
-		const safeDepth = Math.min(Math.max(depth, 1), 3);
+		const safeDepth = Math.min(Math.max(depth, 1), 6);
 		return `<h${safeDepth}>${this.parser.parseInline(tokens)}</h${safeDepth}>\n`;
 	}
 
@@ -435,6 +467,8 @@ class SafeDocumentRenderer extends Renderer {
 
 	override link({ href, tokens }: Tokens.Link): string {
 		const label = this.parser.parseInline(tokens);
+		const reference = bibleReferenceFromLinkText(documentHtmlToPlainText(label));
+		if (reference) return `<a href="${escapeHtmlAttribute(reference.href)}">${label}</a>`;
 		if (this.stripAttachmentLinks && isAttachmentHref(href)) {
 			this.warnings?.add(
 				'attachment-link',
@@ -455,6 +489,8 @@ class SafeDocumentRenderer extends Renderer {
 	}
 
 	override html({ text }: Tokens.HTML | Tokens.Tag): string {
+		// Markdown has no underline/highlight syntax. Only these attribute-free inline tags survive.
+		if (/^<\/?(?:u|mark)>$/iu.test(text)) return text.toLowerCase();
 		this.warnings?.add('raw-html', 'Raw HTML was removed from the import.');
 		return escapeHtml(rawHtmlToText(text));
 	}
@@ -496,6 +532,15 @@ function createTurndownService(): TurndownService {
 	service.addRule('strikethrough', {
 		filter: ['s', 'del'],
 		replacement: (content) => (content.trim() ? `~~${content}~~` : '')
+	});
+	const escapeText = service.escape.bind(service);
+	service.escape = (text) => escapeText(text).replace(/</g, '\\<');
+	service.addRule('inlineFormatting', {
+		filter: ['u', 'mark'],
+		replacement: (content, node) => {
+			const tag = node.nodeName.toLowerCase();
+			return content.trim() ? `<${tag}>${content}</${tag}>` : '';
+		}
 	});
 	return service;
 }
@@ -856,7 +901,7 @@ function sanitiseDocumentHtml(input: string): string {
 function documentHtmlToPlainText(html: string): string {
 	return decodeHtmlEntities(
 		html
-			.replace(/<\/?(?:h[1-3]|p|li|blockquote|pre|ul|ol)\b[^>]*>/gi, ' ')
+			.replace(/<\/?(?:h[1-6]|p|li|blockquote|pre|ul|ol)\b[^>]*>/gi, ' ')
 			.replace(/<br\s*\/?\s*>/gi, ' ')
 			.replace(/<[^>]*>/g, '')
 	)
@@ -864,7 +909,7 @@ function documentHtmlToPlainText(html: string): string {
 		.trim();
 }
 
-function safeLinkHref(input: string): string | null {
+export function safeLinkHref(input: string): string | null {
 	const decoded = decodeHtmlEntities(input).trim();
 	if (!decoded || containsControlCharacters(decoded) || decoded.includes('\\')) return null;
 	const schemeProbe = decoded.replace(/[\t\n\r ]+/g, '');

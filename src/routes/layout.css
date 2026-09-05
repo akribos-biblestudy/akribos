@@ -87,9 +87,35 @@
 		line-height: 1.67;
 	}
 
-	.prose-like :where(h1, h2, h3) {
+	.prose-like :where(h1, h2, h3, h4, h5, h6) {
 		font-family: var(--font-sans);
 		letter-spacing: -0.02em;
+	}
+
+	[data-bible-reference-prose] a {
+		color: var(--color-accent-700);
+		text-decoration: underline;
+		text-underline-offset: 0.14em;
+	}
+	.dark [data-bible-reference-prose] a {
+		color: var(--color-accent-300);
+	}
+	[data-bible-reference-prose] h4 {
+		font-size: 1.1rem;
+		font-weight: 700;
+	}
+	[data-bible-reference-prose] h5 {
+		font-size: 1rem;
+		font-weight: 700;
+	}
+	[data-bible-reference-prose] h6 {
+		font-size: 0.9rem;
+		font-weight: 700;
+	}
+	.document-prose mark,
+	[data-bible-reference-prose] mark {
+		background: #fef08a;
+		color: #292524;
 	}
 
 	::selection {

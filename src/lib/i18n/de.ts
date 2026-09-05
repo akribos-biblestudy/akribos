@@ -133,6 +133,18 @@ export const de = {
 	'documents.editor.italic': 'Kursiv',
 	'documents.editor.strike': 'Durchgestrichen',
 	'documents.editor.heading': 'Überschrift',
+	'documents.editor.paragraph': 'Absatz',
+	'documents.editor.underline': 'Unterstreichen',
+	'documents.editor.highlight': 'Hervorheben',
+	'documents.editor.link': 'Link bearbeiten',
+	'documents.editor.linkUrl': 'Linkziel',
+	'documents.editor.linkApply': 'Übernehmen',
+	'documents.editor.linkRemove': 'Link entfernen',
+	'documents.editor.linkCancel': 'Abbrechen',
+	'documents.editor.linkInvalid':
+		'Bitte gib eine gültige Webadresse, E-Mail-Verknüpfung oder einen internen Pfad ein.',
+	'documents.editor.linkHint':
+		'Links bearbeiten: klicken. Link öffnen: Strg+Klick (Mac: Cmd+Klick). Linkziel bearbeiten: Strg+K.',
 	'documents.editor.list': 'Aufzählung',
 	'documents.editor.orderedList': 'Nummerierte Liste',
 	'documents.editor.quote': 'Zitat',
@@ -196,13 +208,13 @@ export const de = {
 	'documents.import.safe': 'Noch wurde nichts gespeichert.',
 	'documents.import.limitations':
 		'Anhänge, Einbettungen, unsicheres HTML und unbekannte Metadaten werden nicht importiert.',
-	'documents.import.error': 'Die Datei konnte nicht sicher verarbeitet werden.',
+	'documents.import.error': 'Der Import konnte nicht abgeschlossen werden.',
 	'documents.import.sizeLimit':
 		'Maximal {bodyMiB} MiB Dokumenttext plus {frontmatterKiB} KiB YAML-Frontmatter.',
 	'documents.import.passageLimit':
 		'Pro Dokument werden höchstens {maximum} Bibelstellen verknüpft.',
 	'documents.import.limitation.rawHtml':
-		'Rohes HTML, Medien, Einbettungen und Attribute werden entfernt.',
+		'Rohes HTML außer Unterstreichen und Hervorheben sowie Medien, Einbettungen und Attribute werden entfernt.',
 	'documents.import.limitation.headingDepth':
 		'Überschriften ab Ebene 4 werden auf Ebene 3 zurückgeführt.',
 	'documents.import.limitation.layout':
@@ -273,6 +285,8 @@ export const de = {
 	'documents.import.error.invalidForm': 'Die Importanfrage enthält keine gültigen Formulardaten.',
 	'documents.import.error.fileCount':
 		'Wähle eine oder mehrere Markdown-Dateien oder genau ein ZIP-Archiv aus.',
+	'documents.import.error.fileCountExceeded':
+		'Du hast {count} Dateien ausgewählt. Pro Import sind höchstens {maximum} Dateien erlaubt. Bitte teile die Auswahl auf.',
 	'documents.import.error.mixedArchive':
 		'ZIP-Archive können nicht mit einzelnen Dateien gemischt werden.',
 	'documents.import.error.unsafe_archive':

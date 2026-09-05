@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { findBibleReferences, linkBibleReferences } from './link-references';
+import {
+	findBibleReferences,
+	linkBibleReferences,
+	rewriteBibleReferenceLinks
+} from './link-references';
+
+describe('rewriteBibleReferenceLinks', () => {
+	it('upgrades old formatted links using the entire label and is idempotent', () => {
+		const html = '<p><a href="http://strongs.de/heb8,8"><strong>Hebräer</strong> 8,8-10</a></p>';
+		const result = rewriteBibleReferenceLinks(html);
+		expect(result).toContain('href="/Hebr8,8-10"');
+		expect(result).toContain('data-verse-end="10"');
+		expect(result).toContain('<strong>Hebräer</strong> 8,8-10</a>');
+		expect(rewriteBibleReferenceLinks(result)).toBe(result);
+	});
+	it('preserves other links, prose labels and code', () => {
+		const html =
+			'<a href="https://example.com">Artikel zu Joh 3,16</a><code><a href="/old">Joh 3,16</a></code>';
+		expect(rewriteBibleReferenceLinks(html)).toBe(html);
+	});
+});
 
 describe('linkBibleReferences', () => {
 	it.each([
