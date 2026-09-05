@@ -708,9 +708,8 @@ export const documents = pgTable(
 		check('documents_revision_check', sql`${table.revision} > 0`),
 		check(
 			'documents_sermon_fields_check',
-			sql`(${table.kind} = 'sermon' and ${table.sermonStatus} is not null)
-				or (${table.kind} <> 'sermon' and ${table.sermonStatus} is null
-					and ${table.sermonDate} is null and ${table.sermonSeries} is null)`
+			// Converted notes retain dormant sermon metadata for a lossless round trip.
+			sql`${table.kind} <> 'sermon' or ${table.sermonStatus} is not null`
 		),
 		check(
 			'documents_legacy_source_check',

@@ -1,11 +1,11 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import {
 	formatPassage,
 	parsePassage,
 	passageFromDbEndpoints,
 	passageToDbEndpoints
 } from '$lib/bible/passage';
-import { isDocumentVisibility } from '$lib/notes/documents';
+import { isDocumentKind, isDocumentVisibility } from '$lib/notes/documents';
 import {
 	isUuid,
 	normalizeExcerpt,
@@ -30,6 +30,7 @@ import {
 } from '$lib/server/repositories/document-publications';
 import {
 	getDocument,
+	changeDocumentKind,
 	InvalidDocumentInputError,
 	listDocumentPassages,
 	replaceDocumentPassages,
@@ -116,6 +117,25 @@ export async function load({ params, locals, url, setHeaders }) {
 }
 
 export const actions = {
+	changeKind: async ({ request, params, locals, url }) => {
+		const { user, documentId } = await ownedEditor(locals, params.id, url);
+		const values = await request.formData();
+		const revision = parseRequiredRevision(values.get('revision'));
+		const kind = values.get('kind');
+		if (!revision) return fail(400, { error: 'revision' as const });
+		if (!isDocumentKind(kind)) return fail(400, { error: 'kind' as const });
+		const result = await changeDocumentKind(getDb(), user.id, documentId, revision, kind);
+		if (!result.ok) {
+			if (result.reason === 'published')
+				return fail(400, { error: 'publishedConversion' as const });
+			return revisionFailure(result);
+		}
+		let returnTo = safeReturnTo(url.searchParams.get('returnTo'));
+		if (!returnTo || returnTo.split('?')[0] === '/notes' || returnTo.split('?')[0] === '/sermons') {
+			returnTo = kind === 'sermon' ? '/sermons' : '/notes';
+		}
+		redirect(303, `/notes/${documentId}?returnTo=${encodeURIComponent(returnTo)}`);
+	},
 	syncTags: async ({ request, params, locals, url }) => {
 		const { user, documentId } = await ownedEditor(locals, params.id, url);
 		const form = await request.formData();

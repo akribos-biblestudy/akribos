@@ -5,6 +5,158 @@ import { lastMailLinkTo } from './lib/mail-outbox';
 
 const PASSWORD = 'ein-sicheres-passwort';
 
+test('note pagination limits cards and preserves filters while tag search reveals collapsed groups', async ({
+	page
+}) => {
+	await register(page);
+	await page.goto('/notes/import');
+	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles(
+		Array.from({ length: 25 }, (_, index) => ({
+			name: `seite-${index}.md`,
+			mimeType: 'text/markdown',
+			buffer: Buffer.from(
+				`---\ntitle: Seitennotiz ${index}\ntags: [Sammlung/Untergruppe]\n---\nJoh 3,16 Paginationtext`
+			)
+		}))
+	);
+	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+	await page.getByRole('button', { name: 'Als privates Dokument importieren' }).click();
+	await expect(page).toHaveURL('/notes');
+	await expect(page.getByRole('heading', { name: /^Seitennotiz / })).toHaveCount(24);
+	await expect(page.getByRole('link', { name: /^Untergruppe / })).toHaveCount(0);
+	const search = page.getByRole('searchbox', { name: 'Schlagwörter suchen' });
+	await search.fill('unterGRUPPE');
+	await expect(page.getByRole('link', { name: /^Sammlung / })).toBeVisible();
+	await expect(page.getByRole('link', { name: /^Untergruppe / })).toBeVisible();
+	await search.fill('nichtvorhanden');
+	await expect(page.getByText('Keine passenden Schlagwörter gefunden.')).toBeVisible();
+	await search.fill('');
+	await expect(page.getByRole('link', { name: /^Untergruppe / })).toHaveCount(0);
+	await page.goto('/notes?q=Paginationtext&tag=Sammlung&passage=Joh3,16');
+	await page
+		.getByRole('navigation', { name: 'Notizseiten' })
+		.getByRole('link', { name: 'Weiter' })
+		.click();
+	await expect(page.getByText('Seite 2 von 2', { exact: true })).toBeVisible();
+	await expect(page.getByRole('heading', { name: /^Seitennotiz / })).toHaveCount(1);
+	expect(new URL(page.url()).searchParams.get('tag')).toBe('Sammlung');
+	expect(new URL(page.url()).searchParams.get('q')).toBe('Paginationtext');
+	expect(new URL(page.url()).searchParams.get('passage')).toBe('Joh3,16');
+	await page.reload();
+	await expect(page.getByRole('heading', { name: /^Seitennotiz / })).toHaveCount(1);
+	const secondPageUrl = page.url();
+	await page.getByRole('heading', { name: /^Seitennotiz / }).click();
+	await page.getByRole('link', { name: 'Zur Notizbibliothek' }).click();
+	await expect(page).toHaveURL(secondPageUrl);
+	await page.goBack();
+	await expect(page.getByTestId('document-editor')).toBeVisible();
+	await page.goForward();
+	await expect(page).toHaveURL(secondPageUrl);
+	await page
+		.getByRole('navigation', { name: 'Schlagwörter' })
+		.getByRole('link', { name: 'Alle', exact: true })
+		.click();
+	await expect(page).toHaveURL((url) => !url.searchParams.has('page'));
+	await expect(page.getByRole('heading', { name: /^Seitennotiz / })).toHaveCount(24);
+});
+
+test('notes and sermons convert both ways without losing text or sermon metadata', async ({
+	page
+}) => {
+	await register(page);
+	const id = await createNoteFromLibrary(page);
+	await page.getByRole('button', { name: 'Konto-Menü' }).click();
+	await expect(
+		page.getByRole('menuitem', { name: 'Notizen & Predigten', exact: true })
+	).toBeVisible();
+	await page.keyboard.press('Escape');
+	await page.getByLabel('Titel').fill('Wechselnotiz');
+	await page.getByRole('tab', { name: 'Markdown' }).click();
+	await page.getByRole('textbox', { name: 'Markdown' }).fill('Ungespeicherter Text mit Joh 3,16.');
+	await page.getByRole('button', { name: 'In Predigt umwandeln', exact: true }).click();
+	await expect(page.getByTestId('sermon-workflow')).toBeVisible();
+	const read = async () => (await (await page.request.get(`/api/documents/${id}`)).json()).document;
+	let document = await read();
+	expect(document).toMatchObject({
+		id,
+		kind: 'sermon',
+		title: 'Wechselnotiz',
+		bodyMarkdown: 'Ungespeicherter Text mit Joh 3,16.\n',
+		sermonStatus: 'idea'
+	});
+	const staleRevision = document.revision;
+	const updated = await page.request.patch(`/api/documents/${id}`, {
+		data: {
+			revision: document.revision,
+			title: document.title,
+			markdown: document.bodyMarkdown,
+			sermonStatus: 'ready',
+			sermonDate: '06.09.2026',
+			sermonSeries: 'Erhaltene Serie'
+		}
+	});
+	expect(updated.ok(), await updated.text()).toBe(true);
+	const stale = await page.request.post(`/notes/${id}?/changeKind`, {
+		headers: { origin: new URL(page.url()).origin },
+		form: { revision: String(staleRevision), kind: 'note' }
+	});
+	expect(await stale.json()).toMatchObject({ type: 'failure', status: 409 });
+	await page.reload();
+	await page.getByRole('button', { name: 'In Notiz umwandeln', exact: true }).click();
+	await expect(page.getByTestId('sermon-workflow')).toHaveCount(0);
+	document = await read();
+	expect(document).toMatchObject({
+		id,
+		kind: 'note',
+		sermonStatus: 'ready',
+		sermonSeries: 'Erhaltene Serie'
+	});
+	expect(document.sermonDate).toContain('2026-09-06');
+	await page.goto('/notes');
+	await expect(page.getByRole('heading', { name: 'Wechselnotiz', exact: true })).toBeVisible();
+	await page.goto(`/notes/${id}`);
+	await page.getByRole('button', { name: 'In Predigt umwandeln', exact: true }).click();
+	await expect(page.getByTestId('sermon-workflow')).toBeVisible();
+	expect(await read()).toMatchObject({
+		id,
+		kind: 'sermon',
+		sermonStatus: 'ready',
+		sermonSeries: 'Erhaltene Serie',
+		bodyMarkdown: document.bodyMarkdown
+	});
+	await page.goto('/notes');
+	await expect(page.getByRole('heading', { name: 'Wechselnotiz', exact: true })).toHaveCount(0);
+	await page.goto('/sermons');
+	await expect(page.getByText('Wechselnotiz', { exact: true })).toBeVisible();
+});
+
+test('conversion rejects foreign documents and requires explicit unpublishing', async ({
+	page
+}) => {
+	await loginAs(page, SEED_READER);
+	const foreign = await page.request.post(`/notes/${SEED_ADMIN_PUBLISHED_NOTE_ID}?/changeKind`, {
+		headers: { origin: new URL(page.url()).origin },
+		form: { revision: '1', kind: 'sermon' }
+	});
+	expect(foreign.status()).toBe(404);
+	await page.context().clearCookies();
+	await loginAs(page, SEED_ADMIN);
+	await page.goto(`/notes/${SEED_ADMIN_PUBLISHED_NOTE_ID}`);
+	await expect(
+		page.getByRole('button', { name: 'In Predigt umwandeln', exact: true })
+	).toBeDisabled();
+	const { document } = await (
+		await page.request.get(`/api/documents/${SEED_ADMIN_PUBLISHED_NOTE_ID}`)
+	).json();
+	const rejected = await page.request.post(`/notes/${SEED_ADMIN_PUBLISHED_NOTE_ID}?/changeKind`, {
+		headers: { origin: new URL(page.url()).origin },
+		form: { revision: String(document.revision), kind: 'sermon' }
+	});
+	const rejection = await rejected.json();
+	expect(rejection).toMatchObject({ type: 'failure', status: 400 });
+	expect(JSON.stringify(rejection)).toContain('publishedConversion');
+});
+
 test('the current-passage library finds imported notes and sermons by body references without anchors', async ({
 	page,
 	browser
@@ -349,6 +501,9 @@ test('the note library exposes seeded tags, legacy notes and inclusive passage-o
 	).toBeVisible();
 	await expect(page.getByText('Aus Verskommentar übernommen')).toBeVisible();
 
+	await expect(page.getByRole('link', { name: 'Johannes (1)', exact: true })).toHaveCount(0);
+	await page.getByRole('searchbox', { name: 'Schlagwörter suchen' }).fill('JOHANNES');
+	await expect(page.getByRole('link', { name: /^Bibelstudium \(/ })).toBeVisible();
 	await page.getByRole('link', { name: 'Johannes (1)', exact: true }).click();
 	await expect(page).toHaveURL(/tag=Bibelstudium%2FJohannes/);
 	await expect(page.getByRole('heading', { name: 'Gebet und Antwort' })).toBeVisible();
@@ -671,6 +826,7 @@ test('a note autosaves, switches Markdown modes, adds cross-chapter anchors and 
 	);
 
 	await page.goto('/notes');
+	await page.getByRole('searchbox', { name: 'Schlagwörter suchen' }).fill(nestedTagLeaf);
 	await page
 		.getByRole('navigation', { name: 'Schlagwörter' })
 		.getByRole('link', { name: new RegExp(`^${nestedTagLeaf} \\(1\\)$`) })

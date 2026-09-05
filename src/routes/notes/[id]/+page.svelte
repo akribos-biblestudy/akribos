@@ -50,8 +50,9 @@
 	}
 
 	function backLabel(): string {
-		if (data.returnTo === '/sermons') return t('sermons.back');
-		return data.returnTo && data.returnTo !== '/notes'
+		const returnPath = data.returnTo?.split('?')[0];
+		if (returnPath === '/sermons') return t('sermons.back');
+		return returnPath && returnPath !== '/notes'
 			? t('documents.returnToReader')
 			: t('documents.editor.back');
 	}
@@ -59,6 +60,7 @@
 	function formErrorMessage(value: unknown): string {
 		const error = String(value ?? '');
 		if (error === 'conflict') return t('documents.editor.conflict');
+		if (error === 'publishedConversion') return t('documents.convert.published');
 		if (['tags', 'invalidTag', 'tooManyTags'].includes(error)) return t('documents.tags.error');
 		if (
 			[
@@ -235,6 +237,33 @@
 			data-testid="document-details"
 		>
 			<section class="detail-card">
+				<form
+					method="POST"
+					action={documentAction('changeKind')}
+					onsubmit={flushBeforeSubmit}
+					class="mb-4"
+				>
+					<input type="hidden" name="revision" value={currentRevision} />
+					<input
+						type="hidden"
+						name="kind"
+						value={workingDocument.kind === 'note' ? 'sermon' : 'note'}
+					/>
+					<button
+						type="submit"
+						class="secondary-small disabled:opacity-50"
+						disabled={Boolean(data.publication) || sermonSaving}
+					>
+						{t(
+							workingDocument.kind === 'note'
+								? 'documents.convert.toSermon'
+								: 'documents.convert.toNote'
+						)}
+					</button>
+					<p class="mt-2 text-xs text-stone-500 dark:text-stone-400">
+						{t(data.publication ? 'documents.convert.published' : 'documents.convert.hint')}
+					</p>
+				</form>
 				<h2 class="detail-heading">
 					<Icon name="info" class="size-4" />
 					{t('documents.details.title')}

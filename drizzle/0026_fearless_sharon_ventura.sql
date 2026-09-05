@@ -1,0 +1,2 @@
+ALTER TABLE "documents" DROP CONSTRAINT "documents_sermon_fields_check";--> statement-breakpoint
+ALTER TABLE "documents" ADD CONSTRAINT "documents_sermon_fields_check" CHECK ("documents"."kind" <> 'sermon' or "documents"."sermon_status" is not null);

@@ -51,7 +51,7 @@ export const de = {
 	'nav.notes': 'Notizen',
 	'nav.sermons': 'Predigten',
 	'nav.publishedNotes': 'Veröffentlichte Notizen',
-	'nav.documents': 'Dokumente',
+	'nav.documents': 'Notizen & Predigten',
 
 	// --- reader -------------------------------------------------------------
 	'reader.chooseTranslation': 'Werk wählen',
@@ -113,7 +113,19 @@ export const de = {
 	'documents.views.label': 'Dokumentansichten',
 	'documents.views.all': 'Übersicht',
 	'documents.kind.note': 'Notiz',
+	'documents.tags.search': 'Schlagwörter suchen',
+	'documents.pagination.label': 'Notizseiten',
+	'documents.pagination.previous': 'Zurück',
+	'documents.pagination.next': 'Weiter',
+	'documents.pagination.page': 'Seite {page} von {total}',
+	'documents.tags.noResults': 'Keine passenden Schlagwörter gefunden.',
 	'documents.kind.sermon': 'Predigt',
+	'documents.convert.toSermon': 'In Predigt umwandeln',
+	'documents.convert.toNote': 'In Notiz umwandeln',
+	'documents.convert.hint':
+		'Inhalt, Tags, Bibelstellen und gespeicherte Predigtdaten bleiben erhalten.',
+	'documents.convert.published':
+		'Bitte zuerst die Veröffentlichung zurücknehmen, um diese Notiz in eine Predigt umzuwandeln.',
 	'documents.visibility.private': 'Privat',
 	'documents.visibility.unlisted': 'Nicht gelistet',
 	'documents.visibility.public': 'Öffentlich',
@@ -761,7 +773,7 @@ export const de = {
 		'Ein Symbol steht nur am Anfang oder Ende eines verknüpften Abschnitts; die dezente Punktlinie markiert den gesamten Bereich. Ein Klick öffnet die Notizspalte.',
 	'tour.userMenu.title': 'Dein Konto',
 	'tour.userMenu.body':
-		'Unter „Dokumente“ findest du die zwei Schreibbereiche Notizen und Predigten. „Mein Konto“ enthält Verslisten und Darstellungseinstellungen.',
+		'Unter „Notizen & Predigten“ findest du die beiden Schreibbereiche. „Mein Konto“ enthält Verslisten und Darstellungseinstellungen.',
 	'tour.documentsUnified.title': 'Zwei klare Schreibbereiche',
 	'tour.documentsUnified.body':
 		'Wechsle direkt zwischen Notizen und Predigten. Import und veröffentlichte Notizen bleiben bei den Notizen, Vorlagen beim Predigt-Board.',
