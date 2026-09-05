@@ -3,8 +3,10 @@ import TurndownService from 'turndown';
 import { parseDocument, stringify as stringifyYaml } from 'yaml';
 import {
 	bibleReferenceFromLinkText,
+	findBibleReferences,
 	rewriteBibleReferenceLinks
 } from '../bible/link-references.ts';
+import { MAX_PASSAGE_VERSE, passagePointKey } from '../bible/passage.ts';
 import {
 	MAX_DOCUMENT_MARKDOWN_BYTES,
 	MAX_DOCUMENT_PASSAGES,
@@ -189,6 +191,45 @@ export function documentMarkdownToHtml(markdown: string): { html: string; plainT
 	});
 	const html = sanitiseDocumentHtml(String(rendered));
 	return { html, plainText: documentHtmlToPlainText(html) };
+}
+
+/** Read-time canonical references also cover existing imports, without changing authored anchors. */
+export function documentBodyOverlapsPassage(
+	html: string,
+	query: { startKey: number; endKey: number }
+): boolean {
+	let text = '';
+	let codeDepth = 0;
+	const overlaps = () =>
+		findBibleReferences(decodeHtmlEntities(text)).some((match) => {
+			const start = match.passage?.start ?? {
+				book: match.reference.book,
+				chapter: match.reference.chapter,
+				verse: match.reference.verse ?? 1
+			};
+			const end = match.passage?.end ?? {
+				...start,
+				verse: match.reference.verseEnd ?? match.reference.verse ?? MAX_PASSAGE_VERSE
+			};
+			return passagePointKey(start) <= query.endKey && passagePointKey(end) >= query.startKey;
+		});
+	// Inline formatting belongs to the same text run; blocks and code cannot supply pieces of a reference.
+	for (const part of html.split(/(<[a-zA-Z/][^>]*>)/g)) {
+		if (!part.startsWith('<')) {
+			if (codeDepth === 0) text += part;
+			continue;
+		}
+		const tag = /^<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)\b/.exec(part);
+		const name = tag?.[2]?.toLowerCase();
+		if (name && /^(?:p|h[1-6]|li|blockquote|ul|ol|hr|br|pre|code)$/.test(name)) {
+			if (overlaps()) return true;
+			text = '';
+		}
+		if (name === 'pre' || name === 'code') {
+			codeDepth = Math.max(0, codeDepth + (tag?.[1] ? -1 : 1));
+		}
+	}
+	return overlaps();
 }
 
 /**

@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { parsePassage, passageToDbEndpoints } from '$lib/bible/passage';
+import { documentBodyOverlapsPassage } from '$lib/notes/document-markdown';
 import {
 	GERMAN_SERMON_STARTER_TEMPLATE,
 	isDocumentKind,
@@ -130,7 +131,11 @@ export async function load({ locals, url, setHeaders }) {
 				deleted: deleted ? 'only' : 'exclude'
 			});
 			const overlappingIds = new Set(overlapping.map((document) => document.id));
-			documents = documents.filter((document) => overlappingIds.has(document.id));
+			documents = documents.filter(
+				(document) =>
+					overlappingIds.has(document.id) ||
+					documentBodyOverlapsPassage(document.bodyHtml, endpoints)
+			);
 		}
 	}
 	if (filterErrors.length > 0) documents = [];

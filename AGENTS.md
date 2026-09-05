@@ -284,6 +284,16 @@ Zielkommentar derselben Person und Stelle, werden vor dem Zusammenführen der al
 beide Originale als getrennte Provenienz-Dokumente materialisiert. So verliert auch eine noch nicht
 gelaufene Legacy-Nachmigration keinen der beiden Texte.
 
+Stellenfilter in der Bibliothek und in `/api/documents` berücksichtigen zusätzlich zu gespeicherten
+Ankern die sichtbaren Bibelreferenzen im Dokument-Fließtext. `documentBodyOverlapsPassage()` wertet
+bereinigtes `body_html` aus, einschließlich alter Linkbeschriftungen, inline formatierter Stellen und
+Kapitel-/Versbereiche; Code und Linkziele zählen nicht. Diese abgeleiteten Treffer sind kanonisch und
+werden nur innerhalb bereits eigentümergeprüfter Dokumente ermittelt. Es gibt weder schreibende GETs
+noch einen Backfill: Bestehende Importe funktionieren sofort, und entfernte Textreferenzen erzeugen
+keine bleibenden Anker. Manuelle Anker und Reader-Versindikatoren bleiben ausdrücklich gespeicherte
+Bezüge. Die Reader-Sidecar-Bibliothek zeigt sowohl Notizen als auch Predigten; die eigenständigen
+Bereiche `/notes` und `/sermons` behalten ihre bisherige Trennung.
+
 Tags sind pro Nutzer getrennte Hierarchien in `document_tags`; `/` trennt Pfadsegmente. Der
 zusammengesetzte Eltern-Fremdschlüssel erzwingt denselben Eigentümer, `document_tag_links` enthält nur die
 explizit gewählten Blatt-Tags, und ein Filter auf einen Pfad schließt seine Nachfahren ein.
