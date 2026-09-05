@@ -84,9 +84,11 @@ the global layout. The cookie-free Atom feed and sitemap are public but require 
 ## Markdown and Obsidian interchange
 
 Markdown is the portable representation and sanitised HTML is the rendering/editor representation.
-The supported round-trip subset includes paragraphs, headings, emphasis, strong text, strike-through,
-lists, block quotes, inline/fenced code, horizontal rules and safe links. Underline and other HTML-only
-formatting are intentionally lossy when switching to Markdown.
+The supported round-trip subset includes paragraphs, headings H1–H6, emphasis, strong text, strike-through,
+lists, block quotes, inline/fenced code, horizontal rules and safe links. Underline and highlighting
+round-trip as attribute-free `<u>` and `<mark>` tags; other raw HTML remains unsupported.
+The editor toolbar can add, edit and remove links. All editor links open with Ctrl-click (Cmd-click on
+Mac); an ordinary click positions the caret. Links are underlined and expose their destination on hover.
 
 Import accepts one or more UTF-8 `.md` files, or exactly one ZIP containing Markdown files, and always
 presents one shared side-effect-free preview before creation. Each document has at most 1 MiB of
@@ -103,6 +105,8 @@ Confirmation reparses every original and atomically creates the entire batch, it
 passage anchors per document; one failure rolls the whole batch back. At most 50 tags are linked, tag
 paths have at most eight levels, and comma/backslash are invalid in segments. Tags resembling Bible
 books or chapters deliberately remain tags and do not implicitly create passage anchors.
+Preview reports each invalid Markdown source with its filename (or ZIP entry path). Exceeding the
+loose-file count reports the actual count and limit, rather than suggesting that one file is corrupt.
 
 Exports are owner-only and available as deterministic UTF-8 Markdown, editable Word `.docx` and A4 PDF.
 Markdown carries YAML frontmatter for title, kind, tags, passages, sermon metadata, delivery history and
@@ -119,8 +123,12 @@ timestamps are informational and do not replace database audit timestamps. See
 ## Inline Bible references
 
 References typed directly into prose, such as `Mt 3,12`, `Johannes3:16`, `1. Mose 1,1-3` or
-`Hohes Lied 2,1`, become internal Reader links at presentation time. Existing links and code are left
-untouched. The rich editor uses non-persisted ProseMirror decorations, so automatic links never alter
+`Hohes Lied 2,1`, become internal Reader links at presentation time. Code is left untouched. Authored
+links whose complete label is a Bible reference are rewritten to the corresponding Reader destination,
+using the entire label's range rather than a potentially truncated old URL. Imports persist the rewritten
+links. Existing documents receive the same behavior on display and editor load, without a database
+migration or a writing GET; the next visual save persists their rewritten links in place.
+The rich editor uses non-persisted ProseMirror decorations, so automatically linked plain text never alters
 the author's Markdown or its export. Published notes use the same matcher over the already safe
 snapshot HTML.
 

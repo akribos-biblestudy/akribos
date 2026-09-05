@@ -24,6 +24,38 @@ describe('normalizeDocumentMarkdown', () => {
 });
 
 describe('documentMarkdownToHtml', () => {
+	it('retains all heading levels and attribute-free underline/highlight across repeated round trips', () => {
+		const input =
+			'# Eins\n\n## Zwei\n\n### Drei\n\n#### Vier\n\n##### Fünf\n\n###### Sechs\n\n<u>unterstrichen **fett**</u> und <mark>markiert</mark>\n';
+		let markdown = input;
+		for (let round = 0; round < 3; round++) {
+			const rendered = documentMarkdownToHtml(markdown);
+			for (let level = 1; level <= 6; level++) expect(rendered.html).toContain(`<h${level}>`);
+			expect(rendered.html).toContain('<u>unterstrichen <strong>fett</strong></u>');
+			expect(rendered.html).toContain('<mark>markiert</mark>');
+			markdown = documentHtmlToMarkdown(rendered.html);
+		}
+		expect(
+			documentMarkdownToHtml(documentHtmlToMarkdown('<p>&lt;u&gt;literal&lt;/u&gt;</p>')).plainText
+		).toBe('<u>literal</u>');
+		expect(
+			documentMarkdownToHtml('<u onclick="bad()">Text</u> <mark style="color:red">Text</mark>').html
+		).not.toMatch(/onclick|style=/);
+	});
+
+	it('rewrites imported Bible link labels, including reference-style links and whole ranges', () => {
+		const preview = previewObsidianMarkdown(
+			'alt.md',
+			'[Hebräer 8,8-10](http://strongs.de/heb8,8) (Schlachter 2000).\n\n[Mt 3,12][alt]\n\n[alt]: https://example.com/old\n\n`[Joh 3,16](https://example.com)`\n'
+		);
+		expect(preview.markdown).toContain('[Hebräer 8,8-10](/Hebr8,8-10)');
+		expect(preview.markdown).toContain('[Mt 3,12](/Mt3,12)');
+		expect(preview.markdown).toContain('`[Joh 3,16](https://example.com)`');
+		expect(preview.html).toContain('href="/Hebr8,8-10"');
+		expect(
+			documentHtmlToMarkdown('<p><a href="http://strongs.de/heb8,8">Hebräer 8,8-10</a></p>')
+		).toContain('(/Hebr8,8-10)');
+	});
 	it('renders the bounded formatting subset without incidental attributes', () => {
 		const result = documentMarkdownToHtml(`# Eins
 
@@ -51,7 +83,7 @@ const answer = 42 < 100;
 `);
 
 		expect(result.html).toContain('<h1>Eins</h1>');
-		expect(result.html).toContain('<h3>Tiefer</h3>');
+		expect(result.html).toContain('<h4>Tiefer</h4>');
 		expect(result.html).toContain('<strong>starker</strong>');
 		expect(result.html).toContain('<em>betonter</em>');
 		expect(result.html).toContain('<s>alter</s>');
@@ -141,7 +173,7 @@ describe('documentHtmlToMarkdown', () => {
 
 	it('publishes the intentionally lossy boundary as part of the module contract', () => {
 		expect(MARKDOWN_ROUND_TRIP_LIMITATIONS.join(' ')).toMatch(/Raw HTML/);
-		expect(MARKDOWN_ROUND_TRIP_LIMITATIONS.join(' ')).toMatch(/Heading levels/);
+		expect(MARKDOWN_ROUND_TRIP_LIMITATIONS.join(' ')).not.toMatch(/Heading levels/);
 		expect(MARKDOWN_ROUND_TRIP_LIMITATIONS.join(' ')).toMatch(/trailing whitespace/);
 	});
 });

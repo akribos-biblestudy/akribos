@@ -5,10 +5,10 @@
  * `parseReference`, so comments accept every spelling and separator understood by Reader URLs.
  * Existing links are deliberately skipped, making this safe to call repeatedly.
  */
-import { BOOKS } from './books';
-import { bookShortName, GERMAN_BOOK_NAMES } from './book-names';
-import { formatPassage, parsePassage, type Passage } from './passage';
-import { isReferenceInCanon, parseReference, referencePath, type VerseRef } from './reference';
+import { BOOKS } from './books.ts';
+import { bookShortName, GERMAN_BOOK_NAMES } from './book-names.ts';
+import { formatPassage, parsePassage, type Passage } from './passage.ts';
+import { isReferenceInCanon, parseReference, referencePath, type VerseRef } from './reference.ts';
 
 const TAG_SPLIT = /(<[a-zA-Z/][^>]*>)/g;
 const NO_LINK_TAGS = new Set(['a', 'abbr', 'code', 'pre']);
@@ -187,6 +187,47 @@ export function findBibleReferences(text: string): BibleReferenceMatch[] {
 
 	REFERENCE_PATTERN.lastIndex = 0;
 	return matches.sort((left, right) => left.from - right.from);
+}
+
+/** Only a complete reference label replaces an authored link's destination. */
+export function bibleReferenceFromLinkText(text: string): BibleReferenceMatch | undefined {
+	const label = text.trim();
+	const matches = findBibleReferences(label);
+	return matches.length === 1 && matches[0]?.from === 0 && matches[0].to === label.length
+		? matches[0]
+		: undefined;
+}
+
+/** Upgrade existing document links, including old imports, without nesting anchors or touching code. */
+export function rewriteBibleReferenceLinks(
+	html: string,
+	options: BibleReferenceLinkOptions = {}
+): string {
+	const parts = html.split(TAG_SPLIT);
+	let excludedDepth = 0;
+	for (let index = 0; index < parts.length; index++) {
+		const tag = /^<\s*(\/?)\s*([a-zA-Z]+)\b/.exec(parts[index]!);
+		const name = tag?.[2]?.toLowerCase();
+		if (name && ['code', 'pre', 'abbr'].includes(name)) {
+			excludedDepth = Math.max(0, excludedDepth + (tag?.[1] ? -1 : 1));
+		}
+		if (excludedDepth || name !== 'a' || tag?.[1]) continue;
+		let end = index + 1;
+		while (end < parts.length && !/^<\/a\s*>$/i.test(parts[end]!)) end++;
+		if (end === parts.length) break;
+		const label = parts
+			.slice(index + 1, end)
+			.filter((part) => !part.startsWith('<'))
+			.join('');
+		const match = bibleReferenceFromLinkText(label.replace(/&nbsp;|&#160;|&#x[aA]0;/g, ' '));
+		if (match) {
+			parts[index] = `<a ${Object.entries(bibleReferenceAttributes(match, options))
+				.map(([key, value]) => `${key}="${value}"`)
+				.join(' ')}>`;
+		}
+		index = end;
+	}
+	return parts.join('');
 }
 
 function linkText(text: string, options: BibleReferenceLinkOptions): string {

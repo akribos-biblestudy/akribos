@@ -320,11 +320,19 @@ oder einen API-Key mit `personal`-Scope und geben ausschließlich eigene Arbeits
 `private, no-store` zurück. Schreibzugriffe bleiben vorerst bei der internen, sessiongebundenen
 Autosave-Route und SvelteKit Form Actions.
 
-Bibelstellen im Dokument-Fließtext werden ausschließlich bei der Darstellung automatisch verlinkt:
+Bibelstellen im Dokument-Fließtext werden bei der Darstellung automatisch verlinkt:
 `findBibleReferences()`/`linkBibleReferences()` akzeptieren die gemeinsamen Buchnamen und Schreibweisen,
-überspringen vorhandene Links sowie Code und erzeugen interne `.verse-ref`-Links. Im Tiptap-Editor sind
+überspringen Code und erzeugen interne `.verse-ref`-Links. Dokumente ergänzen
+`rewriteBibleReferenceLinks()`: Ist der vollständige Text eines vorhandenen Links eine Bibelstelle,
+wird dessen Ziel aus diesem Text abgeleitet, einschließlich des ganzen Versbereichs. Neue Importe
+speichern diese Ziele im bereinigten Markdown; bestehende Dokumente werden beim Anzeigen und im Editor
+sofort entsprechend dargestellt und beim nächsten visuellen Speichern normalisiert, ohne Neuimport
+oder schreibenden GET. Andere Links behalten ihre Ziele. Im Tiptap-Editor sind
 dieselben Treffer nicht persistierte ProseMirror-Dekorationen; sie dürfen `body_markdown` und damit einen
-Markdown-Roundtrip nicht verändern. Explizite Verse und kapitelübergreifende Bereiche zeigen über
+Markdown-Roundtrip nicht verändern. Im Editor öffnen interne und externe Links erst mit Strg-/Cmd-Klick;
+ein einfacher Klick positioniert die Schreibmarke. Die Toolbar unterstützt Links und H1–H6.
+Unterstreichen und Hervorheben verwenden ausschließlich attributfreie `<u>`-/`<mark>`-Tags als
+Markdown-Erweiterung; alle sonstigen Roh-HTML-Regeln bleiben erhalten. Explizite Verse und kapitelübergreifende Bereiche zeigen über
 `verseHoverPopover` bei Maus-Hover und Tastaturfokus echten Bibeltext; dafür werden die bestehenden
 öffentlichen Resource-/Kapitel-APIs und ihr kapitelweiser Client-Cache wiederverwendet. Im eigenständigen
 Dokumenteditor und auf öffentlichen Notizseiten stammt der Text aus der ersten sortierten öffentlichen,
@@ -355,7 +363,9 @@ Verszeilen erhalten die dezente gepunktete Unterstreichung.
 
 Der Obsidian-Austausch unter `/notes/import` akzeptiert eine oder mehrere UTF-8-`.md`-Dateien oder genau
 ein ZIP mit Markdown. Pro Datei gelten 1 MiB Markdown plus 64 KiB YAML; pro Stapel höchstens 100 Dateien
-und je 16 MiB Upload sowie relevante entpackte Daten. Das ZIP-Zentralverzeichnis wird vor dem Entpacken
+und je 16 MiB Upload sowie relevante entpackte Daten. Die Vorschau meldet Inhaltsfehler gesammelt mit
+Dateiname beziehungsweise ZIP-Eintragspfad; eine zu große lose Dateiauswahl nennt Anzahl und Grenze
+als Stapelfehler. Das ZIP-Zentralverzeichnis wird vor dem Entpacken
 auf Traversal/absolute Pfade, Backslashes, Symlinks, Verschlüsselung, ZIP64-Größen und unbekannte
 Kompression geprüft; nichts wird auf das Server-Dateisystem geschrieben. ZIP und lose Dateien dürfen
 nicht gemischt werden. Vorschau ist schreibfrei; Bestätigen parst und validiert alle Originaltexte erneut,

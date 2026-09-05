@@ -33,7 +33,7 @@ describe('createBibleReferenceDecorations', () => {
 		expect(document.toJSON()).toEqual(before);
 	});
 
-	it('does not decorate authored links, inline code or fenced code', () => {
+	it('decorates authored Bible links while leaving inline code and fenced code untouched', () => {
 		const document = schema.node('doc', null, [
 			schema.node('paragraph', null, [
 				schema.text('Mt 3,12', [schema.mark('link', { href: '/authored' })]),
@@ -43,6 +43,8 @@ describe('createBibleReferenceDecorations', () => {
 			schema.node('codeBlock', null, [schema.text('Röm 8,1')])
 		]);
 
-		expect(createBibleReferenceDecorations(document).find()).toHaveLength(0);
+		const decorations = createBibleReferenceDecorations(document).find();
+		expect(decorations).toHaveLength(1);
+		expect(decorations[0]).toMatchObject({ from: 1, to: 8 });
 	});
 });

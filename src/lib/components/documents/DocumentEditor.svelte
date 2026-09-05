@@ -6,7 +6,11 @@
 		type BibleQuotation
 	} from '$lib/actions/verse-hover-popover';
 	import { parsePassage } from '$lib/bible/passage';
-	import { documentHtmlToMarkdown, documentMarkdownToHtml } from '$lib/notes/document-markdown';
+	import {
+		documentHtmlToMarkdown,
+		documentMarkdownToHtml,
+		safeLinkHref
+	} from '$lib/notes/document-markdown';
 	import { t } from '$lib/i18n';
 	import { Editor } from '@tiptap/core';
 	import { Placeholder } from '@tiptap/extension-placeholder';
@@ -14,6 +18,7 @@
 	import { onMount, untrack } from 'svelte';
 	import Icon from '../Icon.svelte';
 	import { BibleReferenceDecorations } from './bible-reference-decorations';
+	import { DocumentHighlight } from './document-highlight';
 
 	type EditableDocument = {
 		id: string;
@@ -30,7 +35,7 @@
 		onSaved,
 		onState
 	}: {
-		document: EditableDocument;
+		document: Omit<EditableDocument, 'bodyHtml'>;
 		bibleId?: string | null;
 		/** Fits the same editor and autosave implementation into the Reader's notes column. */
 		compact?: boolean;
@@ -56,6 +61,11 @@
 	let resumingNavigation = false;
 	let pendingNavigation = false;
 	let quotationState = $state<'idle' | 'loading' | 'error'>('idle');
+	let linkEditorOpen = $state(false);
+	let linkUrl = $state('');
+	let linkError = $state(false);
+	let linkInput: HTMLInputElement | undefined = $state();
+	const headingLevels = [1, 2, 3, 4, 5, 6] as const;
 	const bibleReferenceTooltipId = untrack(() => `document-bible-reference-preview-${document.id}`);
 	let lastSavedSignature = untrack(() => signature(title, markdown));
 
@@ -281,6 +291,44 @@
 		quotationState = 'idle';
 	}
 
+	function editLink(): void {
+		if (!editor) return;
+		linkUrl = editor.getAttributes('link').href ?? '';
+		linkError = false;
+		linkEditorOpen = true;
+		requestAnimationFrame(() => linkInput?.focus());
+	}
+
+	function applyLink(): void {
+		if (!editor) return;
+		const href = safeLinkHref(linkUrl);
+		if (!href) {
+			linkError = true;
+			return;
+		}
+		const chain = editor.chain().focus().extendMarkRange('link');
+		if (editor.state.selection.empty && !editor.isActive('link')) {
+			chain
+				.insertContent({ type: 'text', text: href, marks: [{ type: 'link', attrs: { href } }] })
+				.run();
+		} else chain.setLink({ href }).run();
+		linkEditorOpen = false;
+	}
+
+	function onEditorLinkClick(event: MouseEvent): boolean {
+		const target = event.target instanceof Element ? event.target : null;
+		const link = target?.closest('a');
+		if (!link) return false;
+		event.preventDefault();
+		if (event.ctrlKey || event.metaKey) {
+			const reference =
+				target?.closest('[data-reference]') ?? link.querySelector('[data-reference]');
+			const href = safeLinkHref(reference?.getAttribute('href') ?? link.getAttribute('href') ?? '');
+			if (href) window.open(href, '_blank', 'noopener,noreferrer');
+		}
+		return true;
+	}
+
 	async function insertBibleQuotationFromReference(reference: string): Promise<void> {
 		if (!editor || !bibleId || !parsePassage(reference)) {
 			quotationState = 'error';
@@ -299,12 +347,20 @@
 		const instance = new Editor({
 			element: editorHost,
 			extensions: [
-				StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+				StarterKit.configure({
+					heading: { levels: [...headingLevels] },
+					link: { openOnClick: false, isAllowedUri: (url) => safeLinkHref(url) !== null }
+				}),
+				DocumentHighlight,
 				Placeholder.configure({ placeholder: t('documents.editor.bodyPlaceholder') }),
 				BibleReferenceDecorations.configure({ tooltipId: bibleReferenceTooltipId })
 			],
-			content: document.bodyHtml,
+			content: documentMarkdownToHtml(markdown).html,
 			editorProps: {
+				handleDOMEvents: {
+					click: (_view, event) => onEditorLinkClick(event),
+					auxclick: (_view, event) => onEditorLinkClick(event)
+				},
 				attributes: {
 					class: 'document-prose prose-like',
 					role: 'textbox',
@@ -313,6 +369,11 @@
 					...(compact ? { 'data-testid': 'reader-notes-sidecar-body' } : {})
 				},
 				handleKeyDown: (view, event) => {
+					if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+						event.preventDefault();
+						editLink();
+						return true;
+					}
 					if (
 						event.key !== 'Enter' ||
 						event.shiftKey ||
@@ -463,11 +524,43 @@
 				<span class="toolbar-separator"></span>
 				<button
 					type="button"
-					class:active={editor.isActive('heading', { level: 2 })}
-					aria-pressed={editor.isActive('heading', { level: 2 })}
-					onclick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-					aria-label={t('documents.editor.heading')}><Icon name="heading" class="size-4" /></button
+					class:active={editor.isActive('underline')}
+					aria-pressed={editor.isActive('underline')}
+					aria-label={t('documents.editor.underline')}
+					onclick={() => editor.chain().focus().toggleUnderline().run()}
+					><Icon name="underline" class="size-4" /></button
 				>
+				<button
+					type="button"
+					class:active={editor.isActive('highlight')}
+					aria-pressed={editor.isActive('highlight')}
+					aria-label={t('documents.editor.highlight')}
+					onclick={() => editor.chain().focus().toggleMark('highlight').run()}
+					><Icon name="highlight" class="size-4" /></button
+				>
+				<button
+					type="button"
+					class:active={editor.isActive('link')}
+					aria-expanded={linkEditorOpen}
+					aria-label={t('documents.editor.link')}
+					onclick={editLink}><Icon name="link" class="size-4" /></button
+				>
+				<select
+					aria-label={t('documents.editor.heading')}
+					value={editor.isActive('heading') ? editor.getAttributes('heading').level : 'paragraph'}
+					onchange={(event) => {
+						const level = headingLevels.find(
+							(level) => String(level) === event.currentTarget.value
+						);
+						if (level) editor.chain().focus().setHeading({ level }).run();
+						else editor.chain().focus().setParagraph().run();
+					}}
+				>
+					<option value="paragraph">{t('documents.editor.paragraph')}</option>
+					{#each headingLevels as level (level)}<option value={level}
+							>{t('documents.editor.heading')} {level}</option
+						>{/each}
+				</select>
 				<button
 					type="button"
 					class:active={editor.isActive('bulletList')}
@@ -512,6 +605,47 @@
 				>
 			</div>
 		{/if}
+		{#if linkEditorOpen}
+			<form
+				class="link-editor"
+				onsubmit={(event) => {
+					event.preventDefault();
+					applyLink();
+				}}
+			>
+				<label
+					>{t('documents.editor.linkUrl')}
+					<input
+						bind:this={linkInput}
+						bind:value={linkUrl}
+						placeholder="https://… oder /Joh3,16"
+						onkeydown={(event) => {
+							if (event.key === 'Escape') {
+								linkEditorOpen = false;
+								editor?.commands.focus();
+							}
+						}}
+					/>
+				</label>
+				<button type="submit">{t('documents.editor.linkApply')}</button>
+				<button
+					type="button"
+					onclick={() => {
+						editor?.chain().focus().extendMarkRange('link').unsetLink().run();
+						linkEditorOpen = false;
+					}}>{t('documents.editor.linkRemove')}</button
+				>
+				<button
+					type="button"
+					onclick={() => {
+						linkEditorOpen = false;
+						editor?.commands.focus();
+					}}>{t('documents.editor.linkCancel')}</button
+				>
+				{#if linkError}<p role="alert">{t('documents.editor.linkInvalid')}</p>{/if}
+			</form>
+		{/if}
+		<p class="quotation-hint">{t('documents.editor.linkHint')}</p>
 		<p
 			class="quotation-hint"
 			class:error={quotationState === 'error'}
@@ -559,6 +693,45 @@
 </section>
 
 <style>
+	.link-editor {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: end;
+		gap: 0.6rem;
+		padding: 0.75rem 1rem;
+		border-bottom: 1px solid var(--line);
+		font-size: 0.8rem;
+	}
+	.link-editor label {
+		flex: 1;
+	}
+	.link-editor input {
+		display: block;
+		width: 100%;
+		min-width: 12rem;
+		padding: 0.4rem;
+		border: 1px solid var(--line);
+		border-radius: 0.3rem;
+	}
+	.link-editor button,
+	.editor-toolbar select {
+		padding: 0.4rem;
+		border: 1px solid var(--line);
+		border-radius: 0.3rem;
+		font-size: 0.8rem;
+	}
+	.editor-host :global(.document-prose h4) {
+		font-size: 1.1rem;
+		font-weight: 700;
+	}
+	.editor-host :global(.document-prose h5) {
+		font-size: 1rem;
+		font-weight: 700;
+	}
+	.editor-host :global(.document-prose h6) {
+		font-size: 0.9rem;
+		font-weight: 700;
+	}
 	.mode-tab {
 		min-width: 5.2rem;
 		border-radius: 0.38rem;
@@ -685,6 +858,7 @@
 		font-family: ui-monospace, monospace;
 		font-size: 0.88em;
 	}
+	.editor-host :global(.document-prose a),
 	.editor-host :global(.document-prose .bible-reference) {
 		color: var(--color-accent-700);
 		text-decoration: underline;
@@ -715,6 +889,7 @@
 	:global(.dark) .save-status.error {
 		color: var(--color-red-300);
 	}
+	:global(.dark) .editor-host :global(.document-prose a),
 	:global(.dark) .editor-host :global(.document-prose .bible-reference) {
 		color: var(--color-accent-300);
 	}

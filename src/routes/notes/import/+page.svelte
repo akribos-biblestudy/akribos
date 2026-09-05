@@ -10,6 +10,7 @@
 		error?: string;
 		message?: string;
 		filename?: string;
+		fileErrors?: Array<{ filename: string; message: string }>;
 		preview?: ObsidianDocumentPreview;
 		previews?: ObsidianDocumentPreview[];
 		source?: string;
@@ -90,12 +91,20 @@
 					role="alert"
 				>
 					<p class="font-semibold">{t('documents.import.error')}</p>
-					{#if importResult?.filename}
+					{#if importResult?.fileErrors?.length}
+						<ul class="mt-2 space-y-2">
+							{#each importResult.fileErrors as issue, index (index)}
+								<li><strong class="font-mono">{issue.filename}</strong>: {issue.message}</li>
+							{/each}
+						</ul>
+					{:else if importResult?.filename}
 						<p class="mt-1 text-xs">
 							Datei: <strong class="font-mono">{importResult.filename}</strong>
 						</p>
 					{/if}
-					{#if form.message}<p class="mt-1 text-xs">{form.message}</p>{/if}
+					{#if form.message && !importResult?.fileErrors?.length}<p class="mt-1 text-xs">
+							{form.message}
+						</p>{/if}
 				</div>
 			{/if}
 
