@@ -5,6 +5,82 @@ import { lastMailLinkTo } from './lib/mail-outbox';
 
 const PASSWORD = 'ein-sicheres-passwort';
 
+test('the current-passage library finds imported notes and sermons by body references without anchors', async ({
+	page,
+	browser
+}) => {
+	await register(page);
+	const titles = ['Fließtextnotiz', 'Fließtextpredigt', 'Nur Code'] as const;
+	await page.goto('/notes/import');
+	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles([
+		{
+			name: 'notiz.md',
+			mimeType: 'text/markdown',
+			buffer: Buffer.from(
+				`---\ntitle: ${titles[0]}\ntype: note\n---\n[Johannes 3,15-17](http://strongs.de/joh3,15)`
+			)
+		},
+		{
+			name: 'predigt.md',
+			mimeType: 'text/markdown',
+			buffer: Buffer.from(`---\ntitle: ${titles[1]}\ntype: sermon\n---\nJohannes **3,16**`)
+		},
+		{
+			name: 'code.md',
+			mimeType: 'text/markdown',
+			buffer: Buffer.from(`---\ntitle: ${titles[2]}\n---\n\`Joh 3,16\``)
+		}
+	]);
+	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+	await page.getByRole('button', { name: 'Als privates Dokument importieren' }).click();
+	await expect(page).toHaveURL('/notes');
+	await page.goto('/notes?passage=Joh3,16');
+	await expect(page.getByRole('heading', { name: titles[0], exact: true })).toBeVisible();
+	await expect(page.getByRole('heading', { name: titles[2], exact: true })).toHaveCount(0);
+	await page.goto('/Joh3,16');
+	await page.getByTestId('layout-picker').click();
+	await page.getByTestId('reader-notes-sidecar-toggle').click();
+	const sidecar = page.getByTestId('reader-notes-sidecar');
+	await sidecar.getByLabel('Nur Dokumente zur aktuellen Stelle').check();
+	const library = sidecar.getByTestId('reader-notes-library');
+	await expect(library.getByText(titles[0], { exact: true })).toBeVisible();
+	await expect(library.getByText(titles[1], { exact: true })).toBeVisible();
+	await expect(library.getByText(titles[2], { exact: true })).toHaveCount(0);
+	const filtered = await page.request.get(
+		'/api/documents?passage=Joh3,16&resource=SEEDPLAIN&kind=sermon'
+	);
+	expect(filtered.headers()['cache-control']).toBe('private, no-store');
+	expect((await filtered.json()).documents.map((row: { title: string }) => row.title)).toEqual([
+		titles[1]
+	]);
+	const all = await (await page.request.get('/api/documents')).json();
+	const noteId = all.documents.find((row: { title: string }) => row.title === titles[0]).id;
+	const detail = await page.evaluate(async (id) => {
+		const response = await fetch(`/api/v1/documents/${id}`);
+		if (!response.ok) throw new Error(`document detail: ${response.status}`);
+		return response.json();
+	}, noteId);
+	expect(detail.passages).toEqual([]);
+	const stranger = await browser.newContext();
+	const strangerPage = await stranger.newPage();
+	await loginAs(strangerPage, SEED_ADMIN);
+	const strangerRows = await (
+		await strangerPage.request.get('/api/documents?passage=Joh3,16')
+	).json();
+	expect(strangerRows.documents.map((row: { id: string }) => row.id)).not.toContain(noteId);
+	await stranger.close();
+	const changed = await page.request.patch(`/api/documents/${noteId}`, {
+		data: {
+			revision: detail.revision,
+			title: detail.title,
+			markdown: 'Die Referenz wurde entfernt.'
+		}
+	});
+	expect(changed.ok(), await changed.text()).toBe(true);
+	const after = await (await page.request.get('/api/documents?passage=Joh3,16')).json();
+	expect(after.documents.map((row: { title: string }) => row.title)).toEqual([titles[1]]);
+});
+
 function uniqueEmail(): string {
 	return `e2e-reader-note-${Math.random().toString(36).slice(2, 10)}@example.com`;
 }

@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { parsePassage, passageToDbEndpoints } from '$lib/bible/passage';
 import { isDocumentKind } from '$lib/notes/documents';
+import { documentBodyOverlapsPassage } from '$lib/notes/document-markdown';
 import { MAX_DOCUMENT_QUERY_LENGTH, setPrivateNoStore } from '$lib/server/documents/application';
 import { getDb } from '$lib/server/db';
 import {
@@ -71,10 +72,11 @@ export async function GET({ locals, url, setHeaders }) {
 			kind
 		});
 		const overlappingIds = new Set(overlapping.map((document) => document.id));
-		rows = rows.filter((document) => overlappingIds.has(document.id));
+		rows = rows.filter(
+			(document) =>
+				overlappingIds.has(document.id) || documentBodyOverlapsPassage(document.bodyHtml, endpoints)
+		);
 	}
-	// The Reader panel is a notes workspace; sermons live in their dedicated board.
-	rows = rows.filter((document) => document.kind !== 'sermon');
 
 	const truncated = rows.length > READER_LIBRARY_LIMIT;
 	return json({

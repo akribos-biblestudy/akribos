@@ -106,7 +106,13 @@ the reasoning behind it are in [docs/architecture.md](docs/architecture.md).
 
 ## Licences
 
-Application code: CC BY 4.0, as in version 1.
+Application code is licensed under the **GNU Affero General Public License, version 3 only**
+(`AGPL-3.0-only`). See [LICENSE](LICENSE) for the full terms.
+
+You may use, modify and redistribute the application under those terms. Distributed derivative
+versions must remain under the AGPLv3 and provide corresponding source code. If you run a modified
+version as a network service, its users must be offered the corresponding source code as well.
+Previously published versions retain their original licences.
 
 Bible translations and reference works each carry their own licence, recorded per resource and
 displayed in the reader. This repository contains only material believed to be in the public domain;

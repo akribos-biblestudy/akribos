@@ -122,6 +122,14 @@ timestamps are informational and do not replace database audit timestamps. See
 
 ## Inline Bible references
 
+The library passage filter and the Reader's “Nur Dokumente zur aktuellen Stelle” filter match either
+explicit anchors or Bible references in the visible document body. Body references count canonically
+across translations, including old imported links, formatted labels and chapter/verse ranges. Code
+and URL destinations do not count. Matching happens only within owner-scoped query results and does
+not write anchors or require a backfill; deleting a body reference removes its derived match immediately.
+The Reader library includes both notes and sermons. Explicit translation-specific anchors and the
+Reader's per-verse document indicators retain their existing behavior.
+
 References typed directly into prose, such as `Mt 3,12`, `Johannes3:16`, `1. Mose 1,1-3` or
 `Hohes Lied 2,1`, become internal Reader links at presentation time. Code is left untouched. Authored
 links whose complete label is a Bible reference are rewritten to the corresponding Reader destination,
