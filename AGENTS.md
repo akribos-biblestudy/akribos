@@ -260,6 +260,21 @@ sind davon unberührt und verwenden weiterhin `NoteEditor.svelte`.
 
 ## Einheitliche Notizen und Predigten
 
+Der explizite Typwechsel im Dokumenteditor (`changeKind`) speichert zuerst ausstehende Textänderungen,
+prüft Eigentümer und Revision und sperrt dieselbe Dokumentzeile wie die Veröffentlichung. Veröffentlichte
+Notizen müssen vor dem Wechsel explizit zurückgezogen werden. ID, Inhalt, Tags und Stellen bleiben
+unverändert; Predigtstatus, Datum, Serie und Durchführungshistorie bleiben bei Notizen als ruhende
+Metadaten erhalten und werden beim Rückwechsel wiederverwendet. Autosave darf den Typ weiterhin nicht
+ändern. Die Datenbank verlangt nur bei aktiven Predigten einen Status, nicht mehr leere Predigtfelder
+bei Notizen. Das globale Menü heißt „Notizen & Predigten“.
+
+Die Notizbibliothek liefert höchstens 24 Notizkarten je URL-Seite (`page`), nach allen Filtern
+einschließlich der abgeleiteten Fließtextstellen. Ungültige Seitennummern werden begrenzt; Filterlinks
+setzen die Seite zurück, Seitenlinks erhalten alle Filter. Nur gekürzte Vorschautexte werden an den
+Browser geliefert. Die Schlagworthierarchie startet eingeklappt. Die clientseitige Suche nach Tagpfaden
+steht als `tagSearch` in der URL und zeigt Treffer samt Vorfahren automatisch; Leeren stellt den manuellen
+Aufklappzustand wieder her. Editorlinks übernehmen die vollständige Bibliotheks-URL als `returnTo`.
+
 Die Oberfläche kennt zwei Schreibbereiche: veröffentlichbare Notizen und Predigten. Beide sind private
 Arbeitskopien in `documents`; `kind` ist genau `note` oder `sermon`. Eine Veröffentlichung ist ein
 Schnappschuss einer Notiz und kein eigener Dokumenttyp.

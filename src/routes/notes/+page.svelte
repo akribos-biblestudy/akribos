@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import Icon from '$lib/components/Icon.svelte';
 	import DocumentAreaNav from '$lib/components/documents/DocumentAreaNav.svelte';
 	import { t, type MessageKey } from '$lib/i18n';
@@ -6,7 +8,26 @@
 	import { SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity';
 
 	let { data, form } = $props();
-	const collapsedTags = new SvelteSet<string>();
+	const expandedTags = new SvelteSet<string>();
+	const tagSearch = $derived(page.url.searchParams.get('tagSearch') ?? '');
+	function searchTags(value: string): void {
+		const url = new URL(page.url);
+		if (value) url.searchParams.set('tagSearch', value);
+		else url.searchParams.delete('tagSearch');
+		void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+	}
+	const tagQuery = $derived(tagSearch.trim().toLocaleLowerCase('de'));
+	const matchingTagPaths = $derived.by(() => {
+		const paths = new SvelteSet<string>();
+		if (!tagQuery) return paths;
+		for (const tag of data.tagTree) {
+			if (!tag.path.toLocaleLowerCase('de').includes(tagQuery)) continue;
+			const segments = tag.path.split('/');
+			for (let length = 1; length <= segments.length; length++)
+				paths.add(segments.slice(0, length).join('/'));
+		}
+		return paths;
+	});
 
 	const dateFormat = new Intl.DateTimeFormat('de-DE', {
 		dateStyle: 'medium',
@@ -32,11 +53,12 @@
 	}
 
 	function documentUrl(id: string): string {
-		return `/notes/${encodeURIComponent(id)}?returnTo=${encodeURIComponent('/notes')}`;
+		return `/notes/${encodeURIComponent(id)}?returnTo=${encodeURIComponent(page.url.pathname + page.url.search)}`;
 	}
 
 	function filterUrl(overrides: Record<string, string | null>): string {
 		const params = new SvelteURLSearchParams();
+		if (tagSearch) params.set('tagSearch', tagSearch);
 		if (data.filters.q) params.set('q', data.filters.q);
 		if (data.filters.kind) params.set('kind', data.filters.kind);
 		if (data.filters.tag) params.set('tag', data.filters.tag);
@@ -56,16 +78,17 @@
 	}
 
 	function tagIsVisible(path: string): boolean {
+		if (tagQuery) return matchingTagPaths.has(path);
 		const segments = path.split('/');
 		for (let length = 1; length < segments.length; length += 1) {
-			if (collapsedTags.has(segments.slice(0, length).join('/'))) return false;
+			if (!expandedTags.has(segments.slice(0, length).join('/'))) return false;
 		}
 		return true;
 	}
 
 	function toggleTag(path: string): void {
-		if (collapsedTags.has(path)) collapsedTags.delete(path);
-		else collapsedTags.add(path);
+		if (expandedTags.has(path)) expandedTags.delete(path);
+		else expandedTags.add(path);
 	}
 </script>
 
@@ -142,6 +165,17 @@
 				data-tour-target="documents-tags"
 			>
 				<h2 class="text-sm font-semibold">{t('documents.tags.title')}</h2>
+				<input
+					type="search"
+					value={tagSearch}
+					oninput={(event) => searchTags(event.currentTarget.value)}
+					aria-label={t('documents.tags.search')}
+					placeholder={t('documents.tags.search')}
+					class="mt-2 w-full rounded-lg border border-stone-200 bg-transparent px-3 py-2 text-sm dark:border-white/15"
+				/>
+				{#if tagQuery && matchingTagPaths.size === 0}
+					<p class="mt-2 text-xs text-stone-500" role="status">{t('documents.tags.noResults')}</p>
+				{/if}
 				<nav
 					class="tag-tree mt-2 space-y-0.5 overflow-y-auto"
 					aria-label={t('documents.tags.title')}
@@ -160,10 +194,11 @@
 									<button
 										type="button"
 										class="tag-toggle"
-										aria-label={collapsedTags.has(tag.path)
+										aria-label={!tagQuery && !expandedTags.has(tag.path)
 											? t('documents.tags.expand')
 											: t('documents.tags.collapse')}
-										aria-expanded={!collapsedTags.has(tag.path)}
+										aria-expanded={Boolean(tagQuery) || expandedTags.has(tag.path)}
+										disabled={Boolean(tagQuery)}
 										onclick={() => toggleTag(tag.path)}
 									>
 										<Icon name="chevron-down" class="size-3.5" />
@@ -244,6 +279,7 @@
 					</label>
 
 					<input type="hidden" name="tag" value={data.filters.tag} />
+					{#if tagSearch}<input type="hidden" name="tagSearch" value={tagSearch} />{/if}
 					{#if data.filters.deleted}<input type="hidden" name="deleted" value="1" />{/if}
 					<button
 						type="submit"
@@ -268,8 +304,31 @@
 				<h2 class="text-sm font-semibold text-stone-600 dark:text-stone-300">
 					{data.filters.deleted ? t('documents.library.trash') : t('documents.library.active')}
 				</h2>
-				<span class="text-xs text-stone-400">{data.documents.length}</span>
+				<span class="text-xs text-stone-400">{data.pagination.total}</span>
 			</div>
+			{#if data.pagination.pageCount > 1}
+				<nav
+					aria-label={t('documents.pagination.label')}
+					class="mt-3 flex items-center justify-between gap-3 text-sm"
+				>
+					{#if data.pagination.page > 1}
+						<a class="tag-filter" href={filterUrl({ page: String(data.pagination.page - 1) })}
+							>{t('documents.pagination.previous')}</a
+						>
+					{:else}<span></span>{/if}
+					<span aria-current="page"
+						>{t('documents.pagination.page', {
+							page: data.pagination.page,
+							total: data.pagination.pageCount
+						})}</span
+					>
+					{#if data.pagination.page < data.pagination.pageCount}
+						<a class="tag-filter" href={filterUrl({ page: String(data.pagination.page + 1) })}
+							>{t('documents.pagination.next')}</a
+						>
+					{:else}<span></span>{/if}
+				</nav>
+			{/if}
 
 			{#if data.documents.length === 0}
 				<div

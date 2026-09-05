@@ -139,14 +139,21 @@ export async function load({ locals, url, setHeaders }) {
 		}
 	}
 	if (filterErrors.length > 0) documents = [];
+	const pageSize = 24;
+	const total = documents.length;
+	const pageCount = Math.max(1, Math.ceil(total / pageSize));
+	const rawPage = Number(url.searchParams.get('page') ?? 1);
+	const page = Math.min(pageCount, Number.isSafeInteger(rawPage) ? Math.max(1, rawPage) : 1);
+	documents = documents.slice((page - 1) * pageSize, page * pageSize);
 
 	return {
+		pagination: { page, pageSize, pageCount, total },
 		// The library needs searchable excerpts, never complete private bodies in its SSR payload.
 		documents: documents.map((document) => ({
 			id: document.id,
 			kind: document.kind,
 			title: document.title,
-			plainText: document.plainText,
+			plainText: document.plainText.replace(/\s+/gu, ' ').trim().slice(0, 181),
 			visibility: document.visibility,
 			revision: document.revision,
 			source: document.source,

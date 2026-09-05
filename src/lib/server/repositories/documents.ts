@@ -368,6 +368,54 @@ export async function updateDocument(
 		: { ok: false, reason: 'notFound' };
 }
 
+/** Explicit type conversion, serialized with publishing and all revisioned mutations. */
+export async function changeDocumentKind(
+	db: Database,
+	userId: string,
+	documentId: string,
+	expectedRevision: number,
+	kind: DocumentKind
+): Promise<DocumentMutationResult | { ok: false; reason: 'published' }> {
+	if (!isDocumentKind(kind)) throw new InvalidDocumentInputError('kind', 'unknown document kind');
+	return db.transaction(async (tx) => {
+		const [current] = await tx
+			.select()
+			.from(documents)
+			.where(
+				and(eq(documents.id, documentId), eq(documents.userId, userId), isNull(documents.deletedAt))
+			)
+			.for('update');
+		if (!current) return { ok: false, reason: 'notFound' };
+		if (current.revision !== expectedRevision) {
+			return { ok: false, reason: 'conflict', currentRevision: current.revision };
+		}
+		if (current.kind === kind) return { ok: true, document: current };
+		const [publication] = await tx
+			.select({ id: documentPublications.documentId })
+			.from(documentPublications)
+			.where(eq(documentPublications.documentId, documentId));
+		if (publication) return { ok: false, reason: 'published' };
+		const [document] = await tx
+			.update(documents)
+			.set({
+				kind,
+				sermonStatus: kind === 'sermon' ? (current.sermonStatus ?? 'idea') : current.sermonStatus,
+				updatedAt: new Date(),
+				revision: current.revision + 1
+			})
+			.where(
+				and(
+					eq(documents.id, documentId),
+					eq(documents.userId, userId),
+					eq(documents.revision, expectedRevision)
+				)
+			)
+			.returning();
+		if (!document) throw new Error('Locked document disappeared during conversion');
+		return { ok: true, document };
+	});
+}
+
 async function currentOwnedRevision(
 	db: Pick<Database, 'select'>,
 	userId: string,
