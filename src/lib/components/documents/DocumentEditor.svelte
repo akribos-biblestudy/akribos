@@ -64,6 +64,9 @@
 	let assistantMenu = $state<EditorAssistantTrigger | null>(null);
 	let assistantPosition = $state({ left: 8, top: 8 });
 	let assistantIndex = $state(0);
+	let writingArea: HTMLDivElement | undefined = $state();
+	let outlinePanelElement: HTMLDivElement | undefined = $state();
+	let outlinePanelPosition = $state({ top: 10, maxHeight: 320 });
 	let mentionDocuments = $state<MentionDocument[]>([]);
 	let mentionState = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
 	let mentionRequest: AbortController | undefined;
@@ -309,6 +312,7 @@
 		placementFrame = requestAnimationFrame(() => {
 			void placeFloatingMenu();
 			void placeAssistantMenu();
+			void placeOutlinePanel();
 		});
 	}
 
@@ -367,6 +371,26 @@
 				caret.bottom + box.height + 8 <= visibleBottom
 					? caret.bottom + 6
 					: Math.max(visibleTop, caret.top - box.height - 6)
+		};
+	}
+
+	async function placeOutlinePanel(): Promise<void> {
+		if (!outlineOpen) return;
+		await tick();
+		if (!writingArea || !outlinePanelElement) return;
+		const area = writingArea.getBoundingClientRect();
+		const stickyHeader = Array.from(window.document.querySelectorAll<HTMLElement>('header')).find(
+			(element) => window.getComputedStyle(element).position === 'sticky'
+		);
+		const visibleTop = Math.max(
+			8,
+			zen ? 8 : (stickyHeader?.getBoundingClientRect().bottom ?? 0) + 8
+		);
+		const visibleBottom = Math.min(window.innerHeight - 8, area.bottom - 8);
+		const top = Math.max(8, visibleTop - area.top);
+		outlinePanelPosition = {
+			top,
+			maxHeight: Math.max(96, visibleBottom - area.top - top)
 		};
 	}
 
@@ -1383,7 +1407,7 @@
 					: t('documents.editor.bibleQuoteError')}
 			</p>
 		{/if}
-		<div class="editor-writing-area" class:outline-visible={outlineOpen}>
+		<div class="editor-writing-area" class:outline-visible={outlineOpen} bind:this={writingArea}>
 			<div
 				class="editor-host"
 				bind:this={editorHost}
@@ -1402,6 +1426,8 @@
 						class="outline-rail"
 						aria-label={t('documents.editor.sidebar')}
 						aria-controls={`document-outline-panel-${document.id}`}
+						onpointerenter={queuePlacement}
+						onfocus={queuePlacement}
 						onclick={() => (sidePanelTab = 'outline')}
 					>
 						<span class="outline-strokes" aria-hidden="true">
@@ -1416,7 +1442,13 @@
 							{/each}
 						</span>
 					</button>
-					<div class="outline-panel" id={`document-outline-panel-${document.id}`}>
+					<div
+						class="outline-panel"
+						id={`document-outline-panel-${document.id}`}
+						bind:this={outlinePanelElement}
+						style:top={`${outlinePanelPosition.top}px`}
+						style:max-height={`${outlinePanelPosition.maxHeight}px`}
+					>
 						<div class="outline-tabs" role="tablist" aria-label={t('documents.editor.sidebar')}>
 							<button
 								type="button"

@@ -1536,7 +1536,8 @@ test('slash commands create blocks and mentions add owner-private backlinks', as
 	);
 
 	const sidePanel = page.getByRole('complementary', { name: 'Inhalt und Verknüpfungen' });
-	await sidePanel.locator('.outline-rail').hover();
+	await sidePanel.locator('.outline-rail').focus();
+	await expect(sidePanel.getByRole('tab', { name: 'Verknüpfungen' })).toBeVisible();
 	await sidePanel.getByRole('tab', { name: 'Verknüpfungen' }).click();
 	const outgoing = sidePanel.getByRole('heading', { name: 'Verweist auf' }).locator('..');
 	await expect(outgoing.getByRole('link', { name: /Zielbeitrag/ })).toBeVisible();
@@ -1544,7 +1545,8 @@ test('slash commands create blocks and mentions add owner-private backlinks', as
 	await expect(page).toHaveURL(`/notes/${targetId}`);
 
 	const targetPanel = page.getByRole('complementary', { name: 'Inhalt und Verknüpfungen' });
-	await targetPanel.locator('.outline-rail').hover();
+	await targetPanel.locator('.outline-rail').focus();
+	await expect(targetPanel.getByRole('tab', { name: 'Verknüpfungen' })).toBeVisible();
 	await targetPanel.getByRole('tab', { name: 'Verknüpfungen' }).click();
 	const incoming = targetPanel.getByRole('heading', { name: 'Hier erwähnt' }).locator('..');
 	await expect(incoming.getByRole('link', { name: /Quellbeitrag/ })).toHaveAttribute(
