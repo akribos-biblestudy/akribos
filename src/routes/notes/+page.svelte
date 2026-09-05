@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { bookShortName } from '$lib/bible/book-names';
+	import BookDistribution from '$lib/components/BookDistribution.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import DocumentAreaNav from '$lib/components/documents/DocumentAreaNav.svelte';
 	import { t, type MessageKey } from '$lib/i18n';
@@ -64,6 +66,8 @@
 		if (data.filters.tag) params.set('tag', data.filters.tag);
 		if (data.filters.passage) params.set('passage', data.filters.passage);
 		if (data.filters.resourceId) params.set('resource', data.filters.resourceId);
+		if (data.filters.book) params.set('book', String(data.filters.book));
+		if (data.filters.view === 'list') params.set('view', 'list');
 		if (data.filters.deleted) params.set('deleted', '1');
 		for (const [key, value] of Object.entries(overrides)) {
 			if (value) params.set(key, value);
@@ -71,6 +75,17 @@
 		}
 		const query = params.toString();
 		return query ? `/notes?${query}` : '/notes';
+	}
+
+	function bookFilterHref(book: number): string {
+		return filterUrl({
+			book: data.filters.book === book ? null : String(book),
+			page: null
+		});
+	}
+
+	function bookFilterLabel(book: number): string {
+		return t('documents.library.filterBook', { book: bookShortName(book) });
 	}
 
 	function hasTagChildren(id: string): boolean {
@@ -280,6 +295,8 @@
 
 					<input type="hidden" name="tag" value={data.filters.tag} />
 					{#if tagSearch}<input type="hidden" name="tagSearch" value={tagSearch} />{/if}
+					{#if data.filters.book}<input type="hidden" name="book" value={data.filters.book} />{/if}
+					{#if data.filters.view === 'list'}<input type="hidden" name="view" value="list" />{/if}
 					{#if data.filters.deleted}<input type="hidden" name="deleted" value="1" />{/if}
 					<button
 						type="submit"
@@ -300,11 +317,52 @@
 				</p>
 			{/if}
 
+			{#if data.bookCounts.some((entry) => entry.count > 0) || data.filters.book}
+				<div
+					class="book-summary mt-4 overflow-x-auto rounded-2xl border border-stone-200/80 bg-[color:var(--surface)] p-4 shadow-[var(--shadow-soft)] dark:border-white/8"
+				>
+					<BookDistribution
+						counts={data.bookCounts}
+						label={t('documents.library.byBook')}
+						countLabel={(count) =>
+							count === 1 ? t('documents.library.oneNote') : t('documents.library.notesCount')}
+						hrefForBook={bookFilterHref}
+						filterLabel={bookFilterLabel}
+						activeBook={data.filters.book}
+					/>
+					{#if data.filters.book}
+						<a class="clear-book-filter" href={filterUrl({ book: null, page: null })}>
+							{t('documents.library.clearBookFilter')}
+						</a>
+					{/if}
+				</div>
+			{/if}
+
 			<div class="mt-4 flex items-center justify-between gap-3">
 				<h2 class="text-sm font-semibold text-stone-600 dark:text-stone-300">
 					{data.filters.deleted ? t('documents.library.trash') : t('documents.library.active')}
 				</h2>
-				<span class="text-xs text-stone-400">{data.pagination.total}</span>
+				<div class="flex items-center gap-2">
+					<span class="text-xs text-stone-400">{data.pagination.total}</span>
+					<nav class="view-switch" aria-label={t('documents.library.view')}>
+						<a
+							href={filterUrl({ view: null, page: null })}
+							aria-current={data.filters.view === 'cards' ? 'page' : undefined}
+							aria-label={t('documents.library.cards')}
+							title={t('documents.library.cards')}
+						>
+							<Icon name="layout" class="size-4" />
+						</a>
+						<a
+							href={filterUrl({ view: 'list', page: null })}
+							aria-current={data.filters.view === 'list' ? 'page' : undefined}
+							aria-label={t('documents.library.list')}
+							title={t('documents.library.list')}
+						>
+							<Icon name="list" class="size-4" />
+						</a>
+					</nav>
+				</div>
 			</div>
 			{#if data.pagination.pageCount > 1}
 				<nav
@@ -336,56 +394,67 @@
 				>
 					<Icon name="file-text" class="mx-auto size-9 text-stone-300 dark:text-stone-600" />
 					<p class="mt-4 font-semibold">
-						{data.filters.q || data.filters.kind || data.filters.tag || data.filters.passage
+						{data.filters.q ||
+						data.filters.kind ||
+						data.filters.tag ||
+						data.filters.passage ||
+						data.filters.book
 							? t('documents.library.noResults')
 							: t('documents.library.empty')}
 					</p>
-					{#if !(data.filters.q || data.filters.kind || data.filters.tag || data.filters.passage)}
+					{#if !(data.filters.q || data.filters.kind || data.filters.tag || data.filters.passage || data.filters.book)}
 						<p class="mx-auto mt-1 max-w-sm text-sm text-stone-500 dark:text-stone-400">
 							{t('documents.library.emptyHint')}
 						</p>
 					{/if}
 				</div>
 			{:else}
-				<ul class="mt-3 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+				<ul class="document-results mt-3" class:list-view={data.filters.view === 'list'}>
 					{#each data.documents as document (document.id)}
 						<li
-							class="group relative flex min-h-48 flex-col rounded-2xl border border-stone-200/80 bg-[color:var(--surface)] shadow-[var(--shadow-soft)] transition hover:-translate-y-0.5 hover:border-accent-300 hover:shadow-md dark:border-white/8"
+							class="document-card group relative flex min-h-48 flex-col rounded-2xl border border-stone-200/80 bg-[color:var(--surface)] shadow-[var(--shadow-soft)] transition hover:-translate-y-0.5 hover:border-accent-300 hover:shadow-md dark:border-white/8"
 						>
-							<a href={documentUrl(document.id)} class="flex min-h-0 flex-1 flex-col p-5">
-								<div class="flex items-center justify-between gap-2">
-									<span
-										class="inline-flex items-center gap-1.5 text-xs font-semibold text-accent-700 dark:text-accent-300"
-									>
-										<Icon name={kindIcon(document.kind)} class="size-3.5" />
-										{kindLabel(document.kind)}
-									</span>
-									<span
-										class="rounded-full bg-stone-100 px-2 py-0.5 text-[0.68rem] text-stone-500 dark:bg-white/6 dark:text-stone-400"
-									>
-										{visibilityLabel(document.visibility)}
-									</span>
+							<a
+								href={documentUrl(document.id)}
+								class="document-card-link flex min-h-0 flex-1 flex-col p-5"
+							>
+								<div class="document-title-block">
+									<div class="flex items-center justify-between gap-2">
+										<span
+											class="inline-flex items-center gap-1.5 text-xs font-semibold text-accent-700 dark:text-accent-300"
+										>
+											<Icon name={kindIcon(document.kind)} class="size-3.5" />
+											{kindLabel(document.kind)}
+										</span>
+										<span
+											class="rounded-full bg-stone-100 px-2 py-0.5 text-[0.68rem] text-stone-500 dark:bg-white/6 dark:text-stone-400"
+										>
+											{visibilityLabel(document.visibility)}
+										</span>
+									</div>
+									<h3 class="mt-3 line-clamp-2 font-serif text-lg leading-snug font-semibold">
+										{document.title}
+									</h3>
 								</div>
-								<h3 class="mt-3 line-clamp-2 font-serif text-lg leading-snug font-semibold">
-									{document.title}
-								</h3>
 								{#if document.plainText}
 									<p
-										class="mt-2 line-clamp-3 text-sm leading-relaxed text-stone-500 dark:text-stone-400"
+										class="document-excerpt mt-2 line-clamp-3 text-sm leading-relaxed text-stone-500 dark:text-stone-400"
 									>
 										{excerpt(document.plainText)}
 									</p>
 								{/if}
-								<span class="mt-auto pt-4 text-xs text-stone-400">
-									{t('documents.library.updated', {
-										date: dateFormat.format(new Date(document.updatedAt))
-									})}
-								</span>
-								{#if document.source === 'legacy-verse-comment'}
-									<span class="mt-1 text-[0.68rem] text-stone-400">
-										{t('documents.library.sourceLegacy')}
+								<div class="document-timestamp mt-auto pt-4 text-xs text-stone-400">
+									<span>
+										{t('documents.library.updated', {
+											date: dateFormat.format(new Date(document.updatedAt))
+										})}
 									</span>
-								{/if}
+									{#if document.source === 'legacy-verse-comment'}
+										<span class="mt-1 block text-[0.68rem] text-stone-400">
+											{t('documents.library.sourceLegacy')}
+										</span>
+									{/if}
+								</div>
 							</a>
 
 							<form
@@ -435,6 +504,80 @@
 	.search-control {
 		padding-left: 2.25rem;
 	}
+	.clear-book-filter {
+		display: inline-flex;
+		margin-top: 0.25rem;
+		border-radius: 0.6rem;
+		padding: 0.4rem 0.65rem;
+		color: var(--color-accent-700);
+		font-size: 0.75rem;
+		font-weight: 650;
+	}
+	.clear-book-filter:hover,
+	.clear-book-filter:focus-visible {
+		background: var(--color-accent-50);
+	}
+	.view-switch {
+		display: inline-flex;
+		border: 1px solid var(--color-stone-200);
+		border-radius: 0.6rem;
+		background: var(--surface-raised);
+		padding: 0.15rem;
+	}
+	.view-switch a {
+		display: inline-flex;
+		width: 1.9rem;
+		height: 1.9rem;
+		align-items: center;
+		justify-content: center;
+		border-radius: 0.45rem;
+		color: var(--color-stone-400);
+	}
+	.view-switch a:hover,
+	.view-switch a:focus-visible,
+	.view-switch a[aria-current='page'] {
+		background: var(--color-stone-100);
+		color: var(--color-accent-700);
+	}
+	.document-results {
+		display: grid;
+		gap: 0.75rem;
+	}
+	.document-results.list-view .document-card {
+		min-height: 0;
+	}
+	@media (min-width: 640px) {
+		.document-results:not(.list-view) {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+	@media (min-width: 768px) {
+		.document-results.list-view .document-card-link {
+			display: grid;
+			grid-template-columns: minmax(12rem, 0.8fr) minmax(0, 1.2fr) minmax(9rem, auto);
+			align-items: center;
+			gap: 1.25rem;
+		}
+		.document-results.list-view .document-title-block h3 {
+			margin-top: 0.35rem;
+			font-size: 1rem;
+		}
+		.document-results.list-view .document-excerpt {
+			margin-top: 0;
+			line-clamp: 2;
+			-webkit-line-clamp: 2;
+		}
+		.document-results.list-view .document-timestamp {
+			margin-top: 0;
+			padding: 0 2.5rem 0 0;
+			text-align: right;
+		}
+	}
+	@media (min-width: 1536px) {
+		.document-results:not(.list-view) {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
 	.tag-tree {
 		max-height: min(34rem, calc(100dvh - 18rem));
 		min-height: min(18rem, 40dvh);
@@ -479,6 +622,17 @@
 	:global(.dark) .filter-control {
 		border-color: var(--color-stone-700);
 		background: color-mix(in oklab, white 4%, transparent);
+	}
+	:global(.dark) .clear-book-filter:hover,
+	:global(.dark) .clear-book-filter:focus-visible,
+	:global(.dark) .view-switch a:hover,
+	:global(.dark) .view-switch a:focus-visible,
+	:global(.dark) .view-switch a[aria-current='page'] {
+		background: color-mix(in oklab, white 7%, transparent);
+		color: var(--color-accent-300);
+	}
+	:global(.dark) .view-switch {
+		border-color: var(--color-stone-700);
 	}
 	:global(.dark) .tag-filter {
 		color: var(--color-stone-400);

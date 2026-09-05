@@ -22,6 +22,8 @@
 	function filterUrl(status: string | null): string {
 		const params = new SvelteURLSearchParams();
 		if (data.filters.q) params.set('q', data.filters.q);
+		if (data.filters.series) params.set('series', data.filters.series);
+		if (data.filters.year) params.set('year', String(data.filters.year));
 		if (status) params.set('status', status);
 		return params.size ? `/sermons?${params}` : '/sermons';
 	}
@@ -214,7 +216,7 @@
 		{/if}
 	</section>
 
-	<div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+	<div class="mt-6 flex flex-wrap items-start justify-between gap-3">
 		<nav class="flex max-w-full gap-1 overflow-x-auto pb-1" aria-label={t('sermons.status')}>
 			<a href={filterUrl(null)} class:active={!data.filters.status} class="status-filter">
 				{t('documents.library.all')}
@@ -229,25 +231,56 @@
 				</a>
 			{/each}
 		</nav>
-		<form method="GET" class="relative w-full sm:w-72">
+		<form
+			method="GET"
+			class="grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-[minmax(15rem,1fr)_minmax(10rem,0.7fr)_7rem_auto]"
+			aria-label={t('sermons.filters')}
+		>
 			{#if data.filters.status}<input
 					type="hidden"
 					name="status"
 					value={data.filters.status}
 				/>{/if}
-			<label class="sr-only" for="sermon-search">{t('documents.library.search')}</label>
-			<Icon
-				name="search"
-				class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-stone-400"
-			/>
-			<input
-				id="sermon-search"
-				type="search"
-				name="q"
-				value={data.filters.q}
-				placeholder={t('documents.library.search')}
-				class="field-control pl-9"
-			/>
+			<label class="relative block sm:col-span-2 lg:col-span-1">
+				<span class="sr-only">{t('documents.library.search')}</span>
+				<Icon
+					name="search"
+					class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-stone-400"
+				/>
+				<input
+					id="sermon-search"
+					type="search"
+					name="q"
+					value={data.filters.q}
+					placeholder={t('documents.library.search')}
+					class="field-control search-control"
+				/>
+			</label>
+			<label>
+				<span class="sr-only">{t('sermons.filterSeries')}</span>
+				<select name="series" class="field-control" value={data.filters.series ?? ''}>
+					<option value="">{t('sermons.allSeries')}</option>
+					{#each data.seriesOptions as series (series)}
+						<option value={series}>{series}</option>
+					{/each}
+				</select>
+			</label>
+			<label>
+				<span class="sr-only">{t('sermons.filterYear')}</span>
+				<select name="year" class="field-control" value={data.filters.year ?? ''}>
+					<option value="">{t('sermons.allYears')}</option>
+					{#each data.yearOptions as year (year)}
+						<option value={year}>{year}</option>
+					{/each}
+				</select>
+			</label>
+			<button
+				type="submit"
+				class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-accent-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-accent-700"
+			>
+				<Icon name="search" class="size-4" />
+				{t('sermons.applyFilters')}
+			</button>
 		</form>
 	</div>
 
@@ -373,6 +406,9 @@
 	.field-control:focus {
 		border-color: var(--color-accent-500);
 		box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent-500) 12%, transparent);
+	}
+	.search-control {
+		padding-left: 2.35rem;
 	}
 	.status-filter {
 		flex: 0 0 auto;

@@ -5,15 +5,19 @@
 	let {
 		counts,
 		label = t('statistics.byBook'),
+		countLabel = t('strong.occurrences'),
 		hrefForBook,
 		onBook,
+		filterLabel,
 		activeBook = null,
 		compact = false
 	}: {
 		counts: { book: number; count: number }[];
 		label?: string;
+		countLabel?: string | ((count: number) => string);
 		hrefForBook?: (book: number) => string;
 		onBook?: (book: number) => void;
+		filterLabel?: (book: number) => string;
 		activeBook?: number | null;
 		compact?: boolean;
 	} = $props();
@@ -40,12 +44,17 @@
 		return entries.reduce((sum, entry) => sum + entry.count, 0);
 	}
 
+	function labelForCount(count: number): string {
+		return typeof countLabel === 'function' ? countLabel(count) : countLabel;
+	}
+
 	function bookTooltip(entry: { book: number; count: number }): string {
-		const occurrenceLabel = `${formatNumber(entry.count)} ${t('strong.occurrences')}`;
+		const occurrenceLabel = `${formatNumber(entry.count)} ${labelForCount(entry.count)}`;
 		return hrefForBook || onBook
-			? `${bookShortName(entry.book)}: ${occurrenceLabel}. ${t('statistics.filterBook', {
-					book: bookShortName(entry.book)
-				})}`
+			? `${bookShortName(entry.book)}: ${occurrenceLabel}. ${
+					filterLabel?.(entry.book) ??
+					t('statistics.filterBook', { book: bookShortName(entry.book) })
+				}`
 			: `${bookShortName(entry.book)}: ${occurrenceLabel}`;
 	}
 </script>
@@ -61,7 +70,8 @@
 				<div class="testament-summary">
 					<span>{testament.label}</span>
 					<strong
-						>{formatNumber(occurrenceTotal(testament.entries))} {t('strong.occurrences')}</strong
+						>{formatNumber(occurrenceTotal(testament.entries))}
+						{labelForCount(occurrenceTotal(testament.entries))}</strong
 					>
 				</div>
 				{#if !compact || hasOccurrences(testament.entries)}
