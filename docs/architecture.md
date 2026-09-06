@@ -131,7 +131,10 @@ slug, so unlisted is not an authorisation mechanism.
 The private library and editor live at `/notes`; its two-area navigation links only “Notizen” and
 “Predigten”. Import and public notes are contextual note actions, while templates are contextual to the
 sermon area. The note library derives an owner-scoped 66-book facet from both passage rows and visible
-body references; its book filter and card/list view remain in the URL. `/sermons` is a status-oriented view over sermon
+body references; its book filter and card/list view remain in the URL. Visible-body ranges are indexed
+atomically on document writes in `document_body_reference_indexes`, with an idempotent startup backfill
+for older rows; restoring an older backup runs the same backfill after its migrations. Library reads fetch the compact index for matching ids and load title/excerpt fields only
+for the current 24-row page. `/sermons` is a status-oriented view over sermon
 documents, not separate storage. `/notes/published` and `/notes/published/[slug]` render snapshots. The reader receives
 only compact owner-scoped anchor summaries, not document bodies, and marks inclusive overlaps in active
 Bible tabs. Its single notes panel opens matching documents or creates a canonical or

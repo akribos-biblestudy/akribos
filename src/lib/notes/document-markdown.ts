@@ -222,12 +222,26 @@ function documentBodyBibleReferences(html: string): BibleReferenceMatch[] {
 	return references;
 }
 
-/** Read-time canonical references also cover existing imports, without changing authored anchors. */
-export function documentBodyOverlapsPassage(
-	html: string,
-	query: { startKey: number; endKey: number }
-): boolean {
-	return documentBodyBibleReferences(html).some((match) => {
+export type DocumentBodyBibleReferenceRange = {
+	startBook: number;
+	endBook: number;
+	startKey: number;
+	endKey: number;
+};
+
+export type DocumentBodyBibleReferenceIndex = {
+	books: number[];
+	ranges: DocumentBodyBibleReferenceRange[];
+};
+
+/**
+ * Compact derivative stored outside the working copy. Building it when the body changes keeps
+ * library facets and passage filters from reparsing every complete document on each request.
+ */
+export function documentBodyBibleReferenceIndex(html: string): DocumentBodyBibleReferenceIndex {
+	const books = new Set<number>();
+	const ranges: DocumentBodyBibleReferenceRange[] = [];
+	for (const match of documentBodyBibleReferences(html)) {
 		const start = match.passage?.start ?? {
 			book: match.reference.book,
 			chapter: match.reference.chapter,
@@ -237,19 +251,30 @@ export function documentBodyOverlapsPassage(
 			...start,
 			verse: match.reference.verseEnd ?? match.reference.verse ?? MAX_PASSAGE_VERSE
 		};
-		return passagePointKey(start) <= query.endKey && passagePointKey(end) >= query.startKey;
-	});
+		for (let book = start.book; book <= end.book; book += 1) books.add(book);
+		ranges.push({
+			startBook: start.book,
+			endBook: end.book,
+			startKey: passagePointKey(start),
+			endKey: passagePointKey(end)
+		});
+	}
+	return { books: [...books].sort((left, right) => left - right), ranges };
+}
+
+/** Read-time canonical references also cover existing imports, without changing authored anchors. */
+export function documentBodyOverlapsPassage(
+	html: string,
+	query: { startKey: number; endKey: number }
+): boolean {
+	return documentBodyBibleReferenceIndex(html).ranges.some(
+		(range) => range.startKey <= query.endKey && range.endKey >= query.startKey
+	);
 }
 
 /** Distinct canonical books named by visible body references, including every book in a range. */
 export function documentBodyBibleBooks(html: string): number[] {
-	const books = new Set<number>();
-	for (const match of documentBodyBibleReferences(html)) {
-		const startBook = match.passage?.start.book ?? match.reference.book;
-		const endBook = match.passage?.end.book ?? match.reference.book;
-		for (let book = startBook; book <= endBook; book += 1) books.add(book);
-	}
-	return [...books].sort((left, right) => left - right);
+	return documentBodyBibleReferenceIndex(html).books;
 }
 
 /**

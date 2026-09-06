@@ -49,6 +49,7 @@ import {
 	type DocumentPassage
 } from '../db/schema.ts';
 import { syncDocumentLinks } from './document-links.ts';
+import { syncDocumentBodyReferenceIndex } from './document-reference-index.ts';
 
 export type { DocumentKind, DocumentSource, DocumentVisibility, SermonWorkflowState };
 
@@ -211,6 +212,7 @@ export async function createDocument(
 			})
 			.returning();
 		await syncDocumentLinks(transactionDb, userId, document!.id, input.bodyMarkdown);
+		await syncDocumentBodyReferenceIndex(transactionDb, userId, document!.id, input.bodyHtml);
 		return document!;
 	});
 }
@@ -400,12 +402,9 @@ export async function updateDocument(
 			)
 			.returning();
 		if (updated && input.body) {
-			await syncDocumentLinks(
-				transaction as unknown as Database,
-				userId,
-				documentId,
-				input.body.bodyMarkdown
-			);
+			const transactionDb = transaction as unknown as Database;
+			await syncDocumentLinks(transactionDb, userId, documentId, input.body.bodyMarkdown);
+			await syncDocumentBodyReferenceIndex(transactionDb, userId, documentId, input.body.bodyHtml);
 		}
 		return updated;
 	});
@@ -964,6 +963,12 @@ export async function createDocumentFromLegacyVerseComment(
 			.returning();
 
 		if (created) {
+			await syncDocumentBodyReferenceIndex(
+				tx as unknown as Database,
+				input.userId,
+				created.id,
+				input.bodyHtml
+			);
 			await tx.insert(documentPassages).values({
 				documentId: created.id,
 				resourceId: input.resourceId,

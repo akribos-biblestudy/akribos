@@ -5,7 +5,13 @@ import { passageToDbEndpoints } from '../../bible/passage.ts';
 import { MAX_DOCUMENT_PASSAGES } from '../../notes/documents.ts';
 import { prepareDocumentBody } from '../documents/application.ts';
 import { closeDb, getDb } from '../db/index.ts';
-import { documents, resources, users, verseComments } from '../db/schema.ts';
+import {
+	documentBodyReferenceIndexes,
+	documents,
+	resources,
+	users,
+	verseComments
+} from '../db/schema.ts';
 import {
 	getOwnedDocumentPublication,
 	getPublishedDocumentBySlug,
@@ -22,6 +28,11 @@ import {
 	syncDocumentTags
 } from './document-tags.ts';
 import { listDocumentRelations } from './document-links.ts';
+import {
+	backfillDocumentBodyReferenceIndexes,
+	listDocumentLibraryIndex,
+	listDocumentLibrarySummaries
+} from './document-reference-index.ts';
 import {
 	createDocument,
 	createDocumentFromLegacyVerseComment,
@@ -158,6 +169,57 @@ describe.sequential('unified document repositories', () => {
 		});
 		expect(removed.ok).toBe(true);
 		expect((await listDocumentRelations(db, ownerId, target.id)).incoming).toEqual([]);
+	});
+
+	it('keeps a compact Bible-reference index with an idempotent legacy backfill', async () => {
+		const body = prepareDocumentBody('Joh 3,16 und 1Mo 50,26-2Mo 1,2.');
+		const indexed = await createDocument(db, ownerId, {
+			kind: 'note',
+			title: 'Indexed references',
+			...body
+		});
+		const indexedRow = (await listDocumentLibraryIndex(db, ownerId)).find(
+			(row) => row.id === indexed.id
+		);
+		expect(indexedRow?.books).toEqual([1, 2, 43]);
+		expect(indexedRow?.ranges).toHaveLength(2);
+
+		const summaries = await listDocumentLibrarySummaries(db, ownerId, [indexed.id]);
+		expect(summaries).toEqual([
+			expect.objectContaining({ id: indexed.id, title: 'Indexed references' })
+		]);
+		expect(await listDocumentLibrarySummaries(db, adminId, [indexed.id])).toEqual([]);
+
+		const replacement = prepareDocumentBody('Röm 8,1');
+		const updated = await updateDocument(db, ownerId, indexed.id, indexed.revision, {
+			body: replacement
+		});
+		expect(updated.ok).toBe(true);
+		expect(
+			(await listDocumentLibraryIndex(db, ownerId)).find((row) => row.id === indexed.id)?.books
+		).toEqual([45]);
+
+		const [legacy] = await db
+			.insert(documents)
+			.values({
+				userId: ownerId,
+				kind: 'note',
+				title: 'Unindexed legacy body',
+				...prepareDocumentBody('Mt 5,3')
+			})
+			.returning({ id: documents.id });
+		expect(
+			(await listDocumentLibraryIndex(db, ownerId)).find((row) => row.id === legacy!.id)?.books
+		).toEqual([40]);
+		await backfillDocumentBodyReferenceIndexes(db);
+		const storedLegacyIndex = () =>
+			db
+				.select({ books: documentBodyReferenceIndexes.books })
+				.from(documentBodyReferenceIndexes)
+				.where(eq(documentBodyReferenceIndexes.documentId, legacy!.id));
+		expect(await storedLegacyIndex()).toEqual([{ books: [40] }]);
+		await backfillDocumentBodyReferenceIndexes(db);
+		expect(await storedLegacyIndex()).toEqual([{ books: [40] }]);
 	});
 
 	it('atomically creates a working copy with its initial passage', async () => {

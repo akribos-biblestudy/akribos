@@ -35,6 +35,7 @@ import {
 	uuid
 } from 'drizzle-orm/pg-core';
 import type { VerseSegment } from '../../bible/segments.ts';
+import type { DocumentBodyBibleReferenceRange } from '../../notes/document-markdown.ts';
 import {
 	DOCUMENT_KINDS,
 	DOCUMENT_SOURCES,
@@ -720,6 +721,31 @@ export const documents = pgTable(
 );
 
 export type Document = typeof documents.$inferSelect;
+
+/**
+ * Compact, owner-scoped projection of Bible references found in visible document prose. Keeping it
+ * separate prevents internal index data from leaking through APIs that return a complete working
+ * copy. A row also records the valid empty result for documents without a Bible reference.
+ */
+export const documentBodyReferenceIndexes = pgTable(
+	'document_body_reference_indexes',
+	{
+		documentId: uuid('document_id').primaryKey(),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		books: integer('books').array().notNull(),
+		ranges: jsonb('ranges').$type<DocumentBodyBibleReferenceRange[]>().notNull()
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.documentId, table.userId],
+			foreignColumns: [documents.id, documents.userId],
+			name: 'document_body_reference_indexes_owner_fk'
+		}).onDelete('cascade'),
+		index('document_body_reference_indexes_user_idx').on(table.userId)
+	]
+);
 
 /**
  * Owner-private directed links extracted from ordinary Markdown links to `/notes/<uuid>`.

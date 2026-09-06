@@ -19,6 +19,7 @@ import { logger } from '../logger.ts';
 import type { Database } from '../db/client.ts';
 import { backupJobs, type BackupJob } from '../db/schema.ts';
 import { refreshStrongStatisticsBlocking } from '../db/statistics.ts';
+import { backfillDocumentBodyReferenceIndexes } from '../repositories/document-reference-index.ts';
 import { invalidateResourceCache } from '../repositories/resources.ts';
 import { pruneExpiredSessions } from '../auth/session.ts';
 import { dumpToFile, isCustomFormatDump, restoreFromFile } from './pg.ts';
@@ -460,6 +461,7 @@ async function executeRestore(
 			// A dump taken before a schema change restores the old schema plus the old migration
 			// history table, so pending migrations must be re-applied for the running code to match.
 			await migrate(db, { migrationsFolder: './drizzle' });
+			await backfillDocumentBodyReferenceIndexes(db);
 			// Materialized view *data* is not part of a dump; without this, search and Strong's
 			// statistics come back empty.
 			await refreshStrongStatisticsBlocking(db);
