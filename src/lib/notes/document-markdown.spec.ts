@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	createDocumentMarkdownExport,
 	documentBodyBibleBooks,
+	documentBodyBibleReferenceIndex,
 	documentHtmlToMarkdown,
 	documentMarkdownToHtml,
 	DocumentMarkdownError,
@@ -136,11 +137,12 @@ const answer = 42 < 100;
 
 describe('documentBodyBibleBooks', () => {
 	it('collects distinct books from visible prose and cross-book ranges but skips code', () => {
-		expect(
-			documentBodyBibleBooks(
-				'<p>Joh <strong>3,16</strong> und 1Mo 50,26-2Mo 1,2.</p><code>Mt 5,3</code>'
-			)
-		).toEqual([1, 2, 43]);
+		const html = '<p>Joh <strong>3,16</strong> und 1Mo 50,26-2Mo 1,2.</p><code>Mt 5,3</code>';
+		expect(documentBodyBibleBooks(html)).toEqual([1, 2, 43]);
+		expect(documentBodyBibleReferenceIndex(html).ranges).toEqual([
+			expect.objectContaining({ startBook: 43, endBook: 43 }),
+			expect.objectContaining({ startBook: 1, endBook: 2 })
+		]);
 	});
 });
 

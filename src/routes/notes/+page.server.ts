@@ -1,7 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { BOOKS } from '$lib/bible/books';
 import { parsePassage, passageToDbEndpoints } from '$lib/bible/passage';
-import { documentBodyBibleBooks, documentBodyOverlapsPassage } from '$lib/notes/document-markdown';
 import {
 	GERMAN_SERMON_STARTER_TEMPLATE,
 	isDocumentKind,
@@ -19,16 +18,17 @@ import {
 import { getDb } from '$lib/server/db';
 import {
 	InvalidTagPathError,
-	listDocumentsByTag,
 	listDocumentTagTreeWithCounts,
 	normalizeTagPath
 } from '$lib/server/repositories/document-tags';
 import {
+	listDocumentAnchorReferenceIndex,
+	listDocumentLibraryIndex,
+	listDocumentLibrarySummaries
+} from '$lib/server/repositories/document-reference-index';
+import {
 	createDocumentWithPassages,
-	findDocumentsOverlappingPassage,
 	InvalidDocumentInputError,
-	listDocumentPassageBookRanges,
-	listDocuments,
 	restoreDocument,
 	softDeleteDocument
 } from '$lib/server/repositories/documents';
@@ -84,13 +84,29 @@ export async function load({ locals, url, setHeaders }) {
 	const filterErrors: Array<'kind' | 'tag' | 'passage' | 'resource' | 'book'> = [];
 	if (rawKind && !kind) filterErrors.push('kind');
 	if (rawBook && !book) filterErrors.push('book');
+	let normalizedTagPath: string | undefined;
+	if (tag) {
+		try {
+			normalizedTagPath = normalizeTagPath(tag).normalizedPath;
+		} catch (caught) {
+			if (!(caught instanceof InvalidTagPathError)) throw caught;
+			filterErrors.push('tag');
+		}
+	}
 
-	const [tagTree, bibles, passageBookRanges] = await Promise.all([
+	const deletedMode = deleted ? 'only' : 'exclude';
+	const [tagTree, bibles, referenceIndex, anchorIndex] = await Promise.all([
 		listDocumentTagTreeWithCounts(db, user.id, deleted ? 'only' : 'exclude'),
 		listBibles(db),
-		listDocumentPassageBookRanges(db, user.id, {
+		listDocumentLibraryIndex(db, user.id, {
 			kind: 'note',
-			deleted: deleted ? 'only' : 'exclude'
+			query: q || undefined,
+			normalizedTagPath,
+			deleted: deletedMode
+		}),
+		listDocumentAnchorReferenceIndex(db, user.id, {
+			kind: 'note',
+			deleted: deletedMode
 		})
 	]);
 	const validBibleIds = new Set(bibles.map((bible) => bible.id));
@@ -101,33 +117,8 @@ export async function load({ locals, url, setHeaders }) {
 		else filterErrors.push('resource');
 	}
 
-	let documents: Awaited<ReturnType<typeof listDocuments>>;
-	if (tag) {
-		try {
-			normalizeTagPath(tag);
-			documents = await listDocumentsByTag(db, user.id, tag, {
-				kind,
-				query: q || undefined,
-				deleted: deleted ? 'only' : 'exclude'
-			});
-		} catch (caught) {
-			if (!(caught instanceof InvalidTagPathError)) throw caught;
-			filterErrors.push('tag');
-			documents = await listDocuments(db, user.id, {
-				kind,
-				query: q || undefined,
-				deleted: 'exclude'
-			});
-		}
-	} else {
-		documents = await listDocuments(db, user.id, {
-			kind,
-			query: q || undefined,
-			deleted: deleted ? 'only' : 'exclude'
-		});
-	}
-	// Notes form one product area. Sermons have their own board.
-	documents = documents.filter((document) => document.kind !== 'sermon');
+	// Notes form one product area. A still-valid legacy `kind=sermon` filter remains an empty result.
+	let documents = kind === 'sermon' ? [] : referenceIndex;
 
 	if (passageText) {
 		const passage = parsePassage(passageText);
@@ -135,18 +126,24 @@ export async function load({ locals, url, setHeaders }) {
 		if (!endpoints) {
 			filterErrors.push('passage');
 		} else if (!rawResourceId || rawResourceId === 'canonical' || resourceId !== undefined) {
-			const overlapping = await findDocumentsOverlappingPassage(db, user.id, {
-				startKey: endpoints.startKey,
-				endKey: endpoints.endKey,
-				resourceId,
-				kind,
-				deleted: deleted ? 'only' : 'exclude'
-			});
-			const overlappingIds = new Set(overlapping.map((document) => document.id));
+			const overlappingAnchorIds = new Set(
+				anchorIndex
+					.filter(
+						(anchor) =>
+							anchor.startKey <= endpoints.endKey &&
+							anchor.endKey >= endpoints.startKey &&
+							(resourceId === undefined ||
+								(resourceId === null
+									? anchor.resourceId === null
+									: anchor.resourceId === null || anchor.resourceId === resourceId))
+					)
+					.map((anchor) => anchor.documentId)
+			);
 			documents = documents.filter(
 				(document) =>
-					overlappingIds.has(document.id) ||
-					documentBodyOverlapsPassage(document.bodyHtml, endpoints)
+					document.ranges.some(
+						(range) => range.startKey <= endpoints.endKey && range.endKey >= endpoints.startKey
+					) || overlappingAnchorIds.has(document.id)
 			);
 		}
 	}
@@ -155,9 +152,9 @@ export async function load({ locals, url, setHeaders }) {
 	// The distribution follows every active library filter except its own book selection. Explicit
 	// ranges and visible prose references contribute each document at most once per covered book.
 	const booksByDocument = new Map(
-		documents.map((document) => [document.id, new Set(documentBodyBibleBooks(document.bodyHtml))])
+		documents.map((document) => [document.id, new Set(document.books)])
 	);
-	for (const range of passageBookRanges) {
+	for (const range of anchorIndex) {
 		const documentBooks = booksByDocument.get(range.documentId);
 		if (!documentBooks) continue;
 		for (let current = range.startBook; current <= range.endBook; current += 1) {
@@ -175,12 +172,24 @@ export async function load({ locals, url, setHeaders }) {
 	const pageCount = Math.max(1, Math.ceil(total / pageSize));
 	const rawPage = Number(url.searchParams.get('page') ?? 1);
 	const page = Math.min(pageCount, Number.isSafeInteger(rawPage) ? Math.max(1, rawPage) : 1);
-	documents = documents.slice((page - 1) * pageSize, page * pageSize);
+	const pageIds = documents
+		.slice((page - 1) * pageSize, page * pageSize)
+		.map((document) => document.id);
+	const summariesById = new Map(
+		(await listDocumentLibrarySummaries(db, user.id, pageIds)).map((document) => [
+			document.id,
+			document
+		])
+	);
+	const pageDocuments = pageIds.flatMap((id) => {
+		const document = summariesById.get(id);
+		return document ? [document] : [];
+	});
 
 	return {
 		pagination: { page, pageSize, pageCount, total },
 		// The library needs searchable excerpts, never complete private bodies in its SSR payload.
-		documents: documents.map((document) => ({
+		documents: pageDocuments.map((document) => ({
 			id: document.id,
 			kind: document.kind,
 			title: document.title,

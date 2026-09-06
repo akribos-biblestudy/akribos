@@ -40,7 +40,10 @@ menu exposes one “Dokumente” entry. Within it, the only area navigation is �
 import and public notes remain contextual note actions, while templates are contextual to sermons. A
 66-book distribution combines stored passage anchors with references in visible prose, counts each
 document once per book and filters through the `book` URL parameter without changing the chart totals.
-The `view` parameter switches between card and compact list layouts.
+Visible-prose ranges are stored in the owner-scoped `document_body_reference_indexes` projection when a
+body changes; startup and post-restore migration backfill only missing legacy rows. Library requests read compact index rows first
+and fetch excerpt text only for the current 24-item page. The `view` parameter switches between card and
+compact list layouts.
 
 ## Passage anchors
 

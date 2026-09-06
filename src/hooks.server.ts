@@ -9,6 +9,7 @@ import { checkApiRateLimit, KEYED_LIMIT, TRUSTED_LIMIT } from '$lib/server/api/r
 import { apiError } from '$lib/server/api/errors';
 import { cleanStaleStagedFiles, failInterruptedBackupJobs } from '$lib/server/backup/jobs';
 import { startBackupScheduler } from '$lib/server/backup/scheduler';
+import { backfillDocumentBodyReferenceIndexes } from '$lib/server/repositories/document-reference-index';
 
 /**
  * Runs once when the server starts.
@@ -27,6 +28,16 @@ export const init: ServerInit = async () => {
 		// A database that is not up yet must not stop the server from booting: the healthcheck will
 		// report unhealthy until it is, which is the signal the deployment watches.
 		logger.warn({ err: error }, 'startup housekeeping skipped');
+	}
+	try {
+		const indexedDocuments = await backfillDocumentBodyReferenceIndexes(db);
+		if (indexedDocuments > 0) {
+			logger.info({ indexedDocuments }, 'document Bible-reference index backfilled');
+		}
+	} catch (error) {
+		// Missing index rows still have a read-only parsing fallback, so an unexpected legacy body must
+		// not prevent the server from starting or the unrelated housekeeping above from completing.
+		logger.warn({ err: error }, 'document Bible-reference index backfill skipped');
 	}
 
 	// Outside the try/catch above: a database that is briefly unreachable at boot must not permanently

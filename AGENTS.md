@@ -273,7 +273,11 @@ einschließlich der abgeleiteten Fließtextstellen. Ungültige Seitennummern wer
 setzen die Seite zurück, Seitenlinks erhalten alle Filter. Nur gekürzte Vorschautexte werden an den
 Browser geliefert. Die aus gespeicherten Ankern und sichtbaren Fließtextstellen abgeleitete
 Buchverteilung zählt jedes Dokument je Buch höchstens einmal; ihr `book`-Filter lässt die ungefilterte
-Verteilung stehen. `view=cards|list` schaltet URL-stabil zwischen Kachel- und Listenansicht. Die
+Verteilung stehen. Sichtbare Fließtextstellen werden beim Schreiben kompakt in
+`document_body_reference_indexes` fortgeschrieben; ein idempotenter Startup-Backfill erfasst ältere
+Dokumente und läuft ebenso nach der Migration eines wiederhergestellten älteren Backups. Bibliotheks-GETs schreiben weiterhin nicht und laden zunächst nur sortierte IDs und diesen
+Index, anschließend vollständige Vorschaufelder ausschließlich für die höchstens 24 Einträge der
+aktuellen Seite. `view=cards|list` schaltet URL-stabil zwischen Kachel- und Listenansicht. Die
 Schlagworthierarchie startet eingeklappt. Die clientseitige Suche nach Tagpfaden
 steht als `tagSearch` in der URL und zeigt Treffer samt Vorfahren automatisch; Leeren stellt den manuellen
 Aufklappzustand wieder her. Editorlinks übernehmen die vollständige Bibliotheks-URL als `returnTo`.
