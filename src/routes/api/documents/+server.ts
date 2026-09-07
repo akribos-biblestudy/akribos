@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
-import { parsePassage, passageToDbEndpoints } from '$lib/bible/passage';
+import { parseReference } from '$lib/bible/reference';
+import { MAX_PASSAGE_VERSE, parsePassage, passageToDbEndpoints } from '$lib/bible/passage';
 import { isDocumentKind } from '$lib/notes/documents';
 import { documentBodyOverlapsPassage } from '$lib/notes/document-markdown';
 import { MAX_DOCUMENT_QUERY_LENGTH, setPrivateNoStore } from '$lib/server/documents/application';
@@ -62,7 +63,15 @@ export async function GET({ locals, url, setHeaders }) {
 	}
 
 	if (passageText) {
-		const passage = parsePassage(passageText);
+		const reference = parseReference(passageText);
+		const passage =
+			parsePassage(passageText) ??
+			(reference && reference.verse === undefined
+				? {
+						start: { ...reference, verse: 1 },
+						end: { ...reference, verse: MAX_PASSAGE_VERSE }
+					}
+				: null);
 		const endpoints = passage && passageToDbEndpoints(passage);
 		if (!endpoints) return responseError(400, 'passage');
 		const overlapping = await findDocumentsOverlappingPassage(db, locals.user.id, {

@@ -417,7 +417,8 @@ Stellenfilter zur Verfügung. Am Desktop ist die Sidecar-Breite über einen hori
 änderbar. Der Sidecar-Filter „Nur Notizen zum aktuellen Kapitel“ findet eigene Notizen und Ausarbeitungen
 über das gesamte sichtbare Kapitel, unabhängig vom Übersetzungsbezug. Sein stabiler Lade-Schlüssel
 besteht aus Kapitel und Tabgruppe sowie den Such-/Tagfiltern: Scrollen innerhalb desselben Kapitels
-löst keinen erneuten Bibliotheksabruf aus. Die Erstellung einer Notiz behält den konkreten sichtbaren
+löst keinen erneuten Bibliotheksabruf aus. `/api/documents` akzeptiert dafür auch reine Kapitelangaben
+und prüft sie als vollständiges kanonisches Versintervall. Die Erstellung einer Notiz behält den konkreten sichtbaren
 Vers und die gewählte Übersetzung als Kontext. Suchbegriff, Schlagwort und Stellenfilter des Sidecars stehen als `notesQuery`, `notesTag` und
 `notesFilter=current` in der Reader-URL und werden bei jeder Reader-Aktion mitgeführt. Flache
 URL-Änderungen halten diese Filter zusätzlich in `page.state.readerNotesFilters`, weil SvelteKits
