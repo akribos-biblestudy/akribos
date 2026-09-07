@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { formatReference } from '$lib/bible/reference';
+	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
 	import { SERMON_FORMATS, sermonFormatLabel } from '$lib/notes/documents';
 	import { tick, untrack } from 'svelte';
 	import DocumentEditor from '$lib/components/documents/DocumentEditor.svelte';
@@ -66,6 +68,7 @@
 
 	function formErrorMessage(value: unknown): string {
 		const error = String(value ?? '');
+		if (error === 'invalidCollection') return 'Die Stellensammlung konnte nicht verknüpft werden.';
 		if (error === 'conflict') return t('documents.editor.conflict');
 		if (error === 'publishedConversion') return t('documents.convert.published');
 		if (['tags', 'invalidTag', 'tooManyTags'].includes(error)) return t('documents.tags.error');
@@ -304,6 +307,105 @@
 			</section>
 
 			{#if workingDocument.kind === 'sermon'}
+				<section
+					class="detail-card"
+					data-testid="preparation-collections"
+					use:verseHoverPopover={{ bibleId: data.bibles[0]?.id ?? null }}
+				>
+					<h2 class="detail-heading"><Icon name="list" class="size-4" />Stellensammlungen</h2>
+					<p class="mt-2 text-xs text-stone-500">
+						Sammle Bibelstellen für deine Vorbereitung und behalte sie beim Schreiben im Blick.
+					</p>
+					{#each data.collections as collection (collection.id)}
+						<div
+							class="mt-3 border-t border-stone-200 pt-3 dark:border-stone-700"
+							data-testid="preparation-collection"
+						>
+							<div class="flex items-center justify-between gap-2">
+								<a
+									class="text-sm font-semibold text-accent-700 dark:text-accent-300"
+									href={`/lists/${collection.id}`}>{collection.title}</a
+								>
+								<form
+									method="POST"
+									action={documentAction('collection')}
+									onsubmit={flushBeforeSubmit}
+								>
+									<input type="hidden" name="revision" value={currentRevision} /><input
+										type="hidden"
+										name="collectionAction"
+										value="remove"
+									/><input type="hidden" name="listId" value={collection.id} />
+									<button
+										class="secondary-small"
+										aria-label={`${collection.title} lösen`}
+										title="Verknüpfung lösen"><Icon name="x" class="size-3.5" /></button
+									>
+								</form>
+							</div>
+							<div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+								{#each collection.verses as reference (`${reference.book}:${reference.chapter}:${reference.verse}`)}
+									<a
+										class="verse-ref text-accent-700 dark:text-accent-300"
+										href={`/${formatReference(reference)}`}>{formatReference(reference)}</a
+									>
+								{:else}<span class="text-stone-500"
+										>Noch keine Bibelstellen. Öffne die Sammlung, um Stellen hinzuzufügen.</span
+									>{/each}
+							</div>
+						</div>
+					{/each}
+					<form
+						class="mt-4 space-y-2"
+						method="POST"
+						action={documentAction('collection')}
+						onsubmit={flushBeforeSubmit}
+					>
+						<input type="hidden" name="revision" value={currentRevision} /><input
+							type="hidden"
+							name="collectionAction"
+							value="add"
+						/>
+						<label class="field-label"
+							><span>Vorhandene Stellensammlung</span><select
+								class="field-control"
+								name="listId"
+								required
+								><option value="">Sammlung auswählen</option>
+								{#each data.availableCollections.filter((candidate) => !data.collections.some((collection) => collection.id === candidate.id)) as candidate (candidate.id)}<option
+										value={candidate.id}>{candidate.title}</option
+									>{/each}
+							</select></label
+						>
+						<button class="secondary-small">Stellensammlung verknüpfen</button>
+					</form>
+					<details class="mt-3">
+						<summary class="cursor-pointer text-xs font-semibold text-stone-600 dark:text-stone-300"
+							>Neue Stellensammlung anlegen</summary
+						>
+						<form
+							class="mt-2 space-y-2"
+							method="POST"
+							action={documentAction('collection')}
+							onsubmit={flushBeforeSubmit}
+						>
+							<input type="hidden" name="revision" value={currentRevision} /><input
+								type="hidden"
+								name="collectionAction"
+								value="create"
+							/>
+							<label class="field-label"
+								><span>Name der Stellensammlung</span><input
+									class="field-control"
+									name="title"
+									required
+									maxlength="200"
+								/></label
+							>
+							<button class="secondary-small">Anlegen und verknüpfen</button>
+						</form>
+					</details>
+				</section>
 				<section class="detail-card" data-testid="sermon-workflow">
 					<h2 class="detail-heading">
 						<Icon name="calendar" class="size-4" />
@@ -311,7 +413,8 @@
 					</h2>
 					<form class="mt-3 space-y-3" onsubmit={saveSermonWorkflow}>
 						<label class="field-label"
-							><span>Format</span><select
+							><span id="document-format-label">Format</span><select
+								aria-labelledby="document-format-label"
 								name="sermonFormat"
 								class="field-control"
 								value={workingDocument.sermonFormat}
