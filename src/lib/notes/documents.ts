@@ -208,3 +208,6 @@ export function normalizeSermonWorkflowState(
 ): SermonWorkflowState {
 	return isSermonWorkflowState(value) ? value : fallback;
 }
+
+/** Calendar years and timestamps in the German note library share one stable time zone. */
+export const NOTE_LIBRARY_TIME_ZONE = 'Europe/Berlin';

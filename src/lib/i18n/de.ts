@@ -97,6 +97,8 @@ export const de = {
 	'documents.library.title': 'Notizen',
 	'documents.library.subtitle':
 		'Gedanken mit Bibelstellen und verschachtelten Schlagwörtern schreiben, ordnen und veröffentlichen.',
+	'documents.library.yearFilter': 'Erstellungsjahr',
+	'documents.library.allYears': 'Alle Jahre',
 	'documents.library.search': 'Dokumente durchsuchen …',
 	'documents.library.all': 'Alle',
 	'documents.library.empty': 'Noch keine Dokumente',
