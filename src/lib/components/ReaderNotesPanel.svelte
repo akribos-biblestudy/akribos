@@ -265,8 +265,6 @@
 							</li>
 						{/each}
 					</ul>
-				{:else}
-					<p class="empty">{t('documents.reader.empty')}</p>
 				{/if}
 			</div>
 
@@ -468,20 +466,6 @@
 
 	:global(.dark) .create-error {
 		color: var(--color-red-300);
-	}
-
-	.empty {
-		margin: 0;
-		padding: 1rem;
-		border-radius: 0.65rem;
-		background: var(--color-stone-100);
-		color: var(--color-stone-500);
-		font-size: 0.85rem;
-	}
-
-	:global(.dark) .empty {
-		background: rgb(255 255 255 / 0.05);
-		color: var(--color-stone-400);
 	}
 
 	.create-form {

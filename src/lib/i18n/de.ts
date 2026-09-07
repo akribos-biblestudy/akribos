@@ -388,7 +388,6 @@ export const de = {
 	'documents.reader.title': 'Notizen zu dieser Stelle',
 	'documents.reader.open': 'Notizen zu {reference} öffnen',
 	'documents.reader.create': 'Notiz zu {reference} erstellen',
-	'documents.reader.empty': 'Zu dieser Stelle gibt es noch keine Notiz.',
 	'documents.reader.panelClose': 'Notizenleiste schließen',
 	'documents.reader.count': '{count} Notizen',
 	'documents.reader.translationSpecific': 'Nur für dieses Werk',

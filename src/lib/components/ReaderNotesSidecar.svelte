@@ -366,8 +366,6 @@
 								</li>
 							{/each}
 						</ul>
-					{:else}
-						<p class="context-empty">Für diese Stelle ist noch keine Notiz verknüpft.</p>
 					{/if}
 
 					<form
@@ -593,7 +591,6 @@
 	.context-heading p,
 	.context-heading h2,
 	.context-count,
-	.context-empty,
 	.create-error {
 		margin: 0;
 	}
@@ -610,8 +607,7 @@
 		font-family: var(--font-serif);
 		font-size: 1.15rem;
 	}
-	.context-count,
-	.context-empty {
+	.context-count {
 		margin-top: 0.8rem;
 		color: var(--color-stone-500);
 		font-size: 0.78rem;
