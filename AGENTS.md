@@ -307,7 +307,9 @@ zusätzlich genau eines von `sermon`, `home-group`, `bible-study`, `youth`, `chi
 „Format“ zeigt Predigt, Hauskreis, Bibelstunde, Jugendstunde, Kinderstunde oder Sonstiges. Alte und neue
 Dokumente starten mit `sermon`. Formatänderungen sind eigentümergeprüft und revisioniert; beim Wechsel
 in eine Notiz bleibt das Format als ruhende Metadaten erhalten. Markdown/YAML führt es als
-`sermon.format` mit; alte Importe ohne dieses Feld bleiben gültig.
+`sermon.format` mit; alte Importe ohne dieses Feld bleiben gültig. Das Kanban-Board filtert mit
+`format` zusätzlich nach diesen sechs Formaten. Der URL-Filter kombiniert sich mit Suche, Arbeitsstand,
+Reihe und Jahr und bleibt beim Wechsel des Arbeitsstands erhalten; unbekannte Formate werden ignoriert.
 
 Der explizite Typwechsel im Dokumenteditor (`changeKind`) speichert zuerst ausstehende Textänderungen,
 prüft Eigentümer und Revision und sperrt dieselbe Dokumentzeile wie die Veröffentlichung. Veröffentlichte
