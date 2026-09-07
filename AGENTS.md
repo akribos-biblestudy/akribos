@@ -379,8 +379,8 @@ Unterstreichen und Hervorheben verwenden ausschließlich attributfreie `<u>`-/`<
 Markdown-Erweiterung; alle sonstigen Roh-HTML-Regeln bleiben erhalten. Explizite Verse und kapitelübergreifende Bereiche zeigen über
 `verseHoverPopover` bei Maus-Hover und Tastaturfokus echten Bibeltext; dafür werden die bestehenden
 öffentlichen Resource-/Kapitel-APIs und ihr kapitelweiser Client-Cache wiederverwendet. Im eigenständigen
-Dokumenteditor und auf öffentlichen Notizseiten stammt der Text aus der ersten sortierten öffentlichen,
-fertigen Bibel. Der Reader-Sidecar verwendet bewusst die erste gerade sichtbare Bibelressource, damit
+Dokumenteditor und auf öffentlichen Notizseiten stammt der Text ohne persönliche Standardübersetzung
+aus der ersten sortierten öffentlichen, fertigen Bibel. Ohne persönliche Standardübersetzung verwendet der Reader-Sidecar die erste gerade sichtbare Bibelressource, damit
 die Vorschau mit dem unmittelbar daneben gelesenen Text übereinstimmt. Escape schließt die zugängliche
 Vorschau. Mehrkapitelabrufe sind auf 50 Kapitel begrenzt; reine Kapitelangaben bleiben navigierbare
 Links ohne Textvorschau; im Editor erhalten sie nur das explizite Öffnen-Angebot.
@@ -633,3 +633,11 @@ Anlegen mit Verknüpfung sperren die eigene aktive Ausarbeitung und verlangen di
 Die Sammlung bleibt ein lebender Bezug; ihre Stellen werden nicht als Dokumentanker kopiert.
 Typwechsel zu Notizen lassen die Verknüpfungen ruhen, gelöschte Sammlungen entfernen sie per Cascade.
 Die Vorbereitung zeigt alle verknüpften Sammlungen samt Stellen direkt neben dem Editor.
+
+`users.default_bible_id` speichert die persönliche Standardübersetzung für alle Bibelvorschauen und
+„Bibeltext einfügen“ (auch im Reader-Sidecar). Nur öffentliche, fertige Bibeln sind auswählbar; der
+globale Server-Load validiert die gespeicherte Auswahl erneut gegen die verfügbaren Bibeln. Ohne
+explizite gültige Auswahl gilt im Reader dessen erste sichtbare Bibel und außerhalb die erste
+sortierte Bibel. Eine Ressourcenlöschung setzt die Präferenz per Fremdschlüssel auf NULL. Die
+Einstellung ist unabhängig von den offenen Reader-Ressourcen und wird über die Session auf allen
+Geräten angewendet.

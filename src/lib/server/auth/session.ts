@@ -28,6 +28,7 @@ export type SessionUser = Pick<
 	| 'readerColumns'
 	| 'readerWorkspace'
 	| 'readerFontScale'
+	| 'defaultBibleId'
 	| 'theme'
 	| 'tourCompletedAt'
 >;
@@ -94,6 +95,7 @@ export async function resolveSession(
 			readerColumns: users.readerColumns,
 			readerWorkspace: users.readerWorkspace,
 			readerFontScale: users.readerFontScale,
+			defaultBibleId: users.defaultBibleId,
 			theme: users.theme,
 			tourCompletedAt: users.tourCompletedAt,
 			disabledAt: users.disabledAt
@@ -127,6 +129,7 @@ export async function resolveSession(
 			readerColumns: row.readerColumns,
 			readerWorkspace: row.readerWorkspace,
 			readerFontScale: row.readerFontScale,
+			defaultBibleId: row.defaultBibleId,
 			theme: row.theme,
 			tourCompletedAt: row.tourCompletedAt
 		}

@@ -10,7 +10,8 @@ import {
 	findUserByEmail,
 	updatePassword,
 	updateProfile,
-	updateReaderFontScale
+	updateReaderFontScale,
+	updateDefaultBible
 } from '$lib/server/repositories/users';
 import {
 	countApiKeys,
@@ -52,6 +53,15 @@ export async function load({ locals, url }) {
 }
 
 export const actions = {
+	defaultBible: async ({ request, locals }) => {
+		if (!locals.user) redirect(303, '/login');
+		const form = await request.formData();
+		const bibleId = String(form.get('defaultBibleId') ?? '').trim() || null;
+		if (!(await updateDefaultBible(getDb(), locals.user.id, bibleId)))
+			return fail(400, { defaultBibleError: true });
+		locals.user.defaultBibleId = bibleId;
+		return { defaultBibleSaved: true };
+	},
 	profile: async ({ request, locals }) => {
 		if (!locals.user) redirect(303, '/login');
 		const form = await request.formData();

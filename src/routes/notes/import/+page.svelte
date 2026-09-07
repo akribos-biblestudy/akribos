@@ -163,7 +163,7 @@
 
 							<BibleReferenceProse
 								html={preview.html}
-								bibleId={data.bibles[0]?.id ?? null}
+								bibleId={data.previewBibleId}
 								tooltipId="import-bible-reference-preview"
 								class="imported-prose prose-like mt-7 border-t border-stone-200 pt-6 dark:border-white/8"
 							/>

@@ -29,6 +29,7 @@ declare global {
 				| 'readerColumns'
 				| 'readerWorkspace'
 				| 'readerFontScale'
+				| 'defaultBibleId'
 				| 'theme'
 				| 'tourCompletedAt'
 			> | null;

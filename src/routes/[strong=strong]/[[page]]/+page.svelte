@@ -71,7 +71,10 @@
 						<h2 class="mb-1 text-xs font-semibold tracking-wide text-stone-500 uppercase">
 							{t('strong.definition')}
 						</h2>
-						<div class="lexicon" use:verseHoverPopover={{ bibleId: data.primaryBibleId }}>
+						<div
+							class="lexicon"
+							use:verseHoverPopover={{ bibleId: data.defaultBibleId ?? data.primaryBibleId }}
+						>
 							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 							{@html data.entry.definitionHtml}
 						</div>
@@ -82,7 +85,10 @@
 						<h2 class="mb-1 text-xs font-semibold tracking-wide text-stone-500 uppercase">
 							{t('strong.derivation')}
 						</h2>
-						<div class="lexicon" use:verseHoverPopover={{ bibleId: data.primaryBibleId }}>
+						<div
+							class="lexicon"
+							use:verseHoverPopover={{ bibleId: data.defaultBibleId ?? data.primaryBibleId }}
+						>
 							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 							{@html data.entry.derivationHtml}
 						</div>
@@ -119,7 +125,7 @@
 						</summary>
 						<div
 							class="lexicon mt-2 text-stone-500 dark:text-stone-400"
-							use:verseHoverPopover={{ bibleId: data.primaryBibleId }}
+							use:verseHoverPopover={{ bibleId: data.defaultBibleId ?? data.primaryBibleId }}
 						>
 							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 							{@html data.entry.usageNotesHtml}
@@ -302,7 +308,10 @@
 					</h2>
 					<!-- Built by our own parser with every source string escaped; see
 					     src/lib/bible/parse/strongs-xml.ts. -->
-					<div class="lexicon" use:verseHoverPopover={{ bibleId: data.primaryBibleId }}>
+					<div
+						class="lexicon"
+						use:verseHoverPopover={{ bibleId: data.defaultBibleId ?? data.primaryBibleId }}
+					>
 						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 						{@html data.entry.definitionHtml}
 					</div>
@@ -314,7 +323,10 @@
 					<h2 class="mb-1 text-xs font-semibold tracking-wide text-stone-500 uppercase">
 						{t('strong.derivation')}
 					</h2>
-					<div class="lexicon" use:verseHoverPopover={{ bibleId: data.primaryBibleId }}>
+					<div
+						class="lexicon"
+						use:verseHoverPopover={{ bibleId: data.defaultBibleId ?? data.primaryBibleId }}
+					>
 						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 						{@html data.entry.derivationHtml}
 					</div>
@@ -383,7 +395,7 @@
 					</summary>
 					<div
 						class="lexicon mt-2 text-xs text-stone-500 dark:text-stone-400"
-						use:verseHoverPopover={{ bibleId: data.primaryBibleId }}
+						use:verseHoverPopover={{ bibleId: data.defaultBibleId ?? data.primaryBibleId }}
 					>
 						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 						{@html data.entry.usageNotesHtml}

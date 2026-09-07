@@ -25,15 +25,13 @@ async function collection(userId = ownerId) {
 
 describe.sequential('preparation collection access and revisions', () => {
 	beforeAll(async () => {
-		await db
-			.insert(users)
-			.values(
-				[ownerId, strangerId].map((id) => ({
-					id,
-					email: `${id}@example.com`,
-					passwordHash: 'unused'
-				}))
-			);
+		await db.insert(users).values(
+			[ownerId, strangerId].map((id) => ({
+				id,
+				email: `${id}@example.com`,
+				passwordHash: 'unused'
+			}))
+		);
 	});
 	afterAll(async () => {
 		await db.delete(users).where(inArray(users.id, [ownerId, strangerId]));
@@ -49,16 +47,14 @@ describe.sequential('preparation collection access and revisions', () => {
 		expect(
 			await changeDocumentCollection(db, ownerId, doc.id, 2, { action: 'add', listId: second.id })
 		).toEqual({ ok: true, revision: 3 });
-		await db
-			.insert(verseListItems)
-			.values({
-				listId: first.id,
-				addedByUserId: ownerId,
-				bookId: 43,
-				chapter: 3,
-				verse: 16,
-				position: 0
-			});
+		await db.insert(verseListItems).values({
+			listId: first.id,
+			addedByUserId: ownerId,
+			bookId: 43,
+			chapter: 3,
+			verse: 16,
+			position: 0
+		});
 		const linked = await listDocumentCollections(db, ownerId, doc.id);
 		expect(linked).toHaveLength(2);
 		expect(linked.find((row) => row.id === first.id)?.verses).toEqual([

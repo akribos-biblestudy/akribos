@@ -1,14 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import { closeDb, getDb } from '../db/index.ts';
-import { emailVerifications, users } from '../db/schema.ts';
+import { emailVerifications, resources, users } from '../db/schema.ts';
 import {
 	consumeEmailVerification,
 	createEmailVerification,
 	createUser,
 	markEmailVerified,
-	peekEmailVerification
+	peekEmailVerification,
+	updateDefaultBible
 } from './users.ts';
 
 /**
@@ -36,6 +37,40 @@ describe('email verification tokens', () => {
 			await db.delete(users).where(eq(users.id, id));
 		}
 		await closeDb();
+	});
+
+	it('restricts the default translation to public ready Bibles and clears deleted choices', async () => {
+		const userId = await makeUser();
+		const otherId = await makeUser();
+		const prefix = `DEFAULT-${randomUUID()}`;
+		const ids = ['public', 'private', 'draft', 'lexicon'].map((suffix) => `${prefix}-${suffix}`);
+		await db.insert(resources).values(
+			ids.map((id, index) => ({
+				id,
+				name: id,
+				abbrev: id,
+				language: 'de',
+				kind: index === 3 ? ('lexicon' as const) : ('bible' as const),
+				status: index === 2 ? ('draft' as const) : ('ready' as const),
+				isPublic: index !== 1
+			}))
+		);
+		try {
+			expect(await updateDefaultBible(db, userId, ids[0]!)).toBe(true);
+			for (const id of [...ids.slice(1), `${prefix}-missing`])
+				expect(await updateDefaultBible(db, userId, id)).toBe(false);
+			const read = async (id: string) =>
+				(await db.select().from(users).where(eq(users.id, id)))[0]!.defaultBibleId;
+			expect(await read(userId)).toBe(ids[0]);
+			expect(await read(otherId)).toBeNull();
+			expect(await updateDefaultBible(db, userId, null)).toBe(true);
+			expect(await read(userId)).toBeNull();
+			await updateDefaultBible(db, userId, ids[0]!);
+			await db.delete(resources).where(eq(resources.id, ids[0]!));
+			expect(await read(userId)).toBeNull();
+		} finally {
+			await db.delete(resources).where(inArray(resources.id, ids));
+		}
 	});
 
 	it('round-trips: a freshly issued token is valid, consuming it returns the owning user', async () => {

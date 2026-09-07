@@ -112,11 +112,11 @@
 	let mobileReaderView = $state<'reading' | 'notes'>('reading');
 	let translationDialog = $state<TranslationDialog | undefined>();
 
-	/** The translation the commentary auto-link popover fetches verse text from: whichever Bible
-	 *  translation is actually showing in a column right now, so hovering a reference in a commentary
-	 *  shows the same text the reader is already reading, not some other fixed pick. */
+	/** An explicit account preference also applies in the reader; otherwise use its visible Bible. */
 	const primaryBibleId = $derived(
-		data.columns.find((column) => column.resource.kind === 'bible')?.resource.id ?? null
+		data.defaultBibleId ??
+			data.columns.find((column) => column.resource.kind === 'bible')?.resource.id ??
+			data.previewBibleId
 	);
 
 	function currentReaderUrl(reference?: VerseRef): string {

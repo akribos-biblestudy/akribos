@@ -6,7 +6,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { config } from '../config.ts';
 import type { Database } from '../db/client.ts';
-import { emailVerifications, passwordResets, users, type User } from '../db/schema.ts';
+import { emailVerifications, passwordResets, resources, users, type User } from '../db/schema.ts';
 import { hashPassword } from '../auth/password.ts';
 import { normalizeFontScale } from '../reader-preferences.ts';
 import type { ReaderWorkspace } from '../../reader/workspace.ts';
@@ -322,4 +322,33 @@ export async function setUserDisabled(
 		.update(users)
 		.set({ disabledAt: disabled ? new Date() : null, updatedAt: new Date() })
 		.where(eq(users.id, userId));
+}
+
+/** Only a public, ready Bible can become an account's preview/quotation preference. */
+export async function updateDefaultBible(
+	db: Database,
+	userId: string,
+	bibleId: string | null
+): Promise<boolean> {
+	if (bibleId !== null) {
+		const [bible] = await db
+			.select({ id: resources.id })
+			.from(resources)
+			.where(
+				and(
+					eq(resources.id, bibleId),
+					eq(resources.kind, 'bible'),
+					eq(resources.status, 'ready'),
+					eq(resources.isPublic, true)
+				)
+			)
+			.limit(1);
+		if (!bible) return false;
+	}
+	const [updated] = await db
+		.update(users)
+		.set({ defaultBibleId: bibleId, updatedAt: new Date() })
+		.where(eq(users.id, userId))
+		.returning({ id: users.id });
+	return Boolean(updated);
 }

@@ -1765,7 +1765,7 @@ test('preparations keep multiple live collections beside the editor', async ({ p
 	const collections = page.getByTestId('preparation-collections');
 	await collections.getByLabel('Vorhandene Stellensammlung').selectOption(firstListId);
 	await collections.getByRole('button', { name: 'Stellensammlung verknüpfen' }).click();
-	await expect(collections.getByRole('link', { name: 'Joh3,16' })).toBeVisible();
+	await expect(collections.getByRole('link', { name: 'Joh 3,16' })).toBeVisible();
 	await collections.getByText('Neue Stellensammlung anlegen', { exact: true }).click();
 	await collections.getByLabel('Name der Stellensammlung').fill('Weitere Gedanken');
 	await collections.getByRole('button', { name: 'Anlegen und verknüpfen' }).click();
@@ -1775,11 +1775,70 @@ test('preparations keep multiple live collections beside the editor', async ({ p
 	await page.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
 	await expect(page.getByRole('link', { name: 'Johannes 1,1' })).toBeVisible();
 	await page.goto(preparationUrl);
-	await expect(collections.getByRole('link', { name: 'Joh1,1' })).toBeVisible();
-	await expect(collections.getByRole('link', { name: 'Joh3,16' })).toBeVisible();
+	await expect(collections.getByRole('link', { name: 'Joh 1,1' })).toBeVisible();
+	await expect(collections.getByRole('link', { name: 'Joh 3,16' })).toBeVisible();
 	await collections.getByRole('button', { name: 'Gesammelte Hoffnung lösen' }).click();
 	await expect(collections.getByTestId('preparation-collection')).toHaveCount(1);
 	await page.reload();
 	await expect(collections.getByRole('link', { name: 'Weitere Gedanken' })).toBeVisible();
 	await expect(collections.getByRole('link', { name: 'Gesammelte Hoffnung' })).toHaveCount(0);
+});
+
+test('the account default Bible controls preview and inserted quotations inside and outside the reader', async ({
+	page
+}) => {
+	await register(page);
+	await page.goto('/account?tab=appearance');
+	const settings = page.getByTestId('default-bible-settings');
+	await settings.getByLabel('Standardübersetzung', { exact: true }).selectOption('SEEDPLAIN');
+	await settings.getByRole('button', { name: 'Standardübersetzung speichern' }).click();
+	await expect(settings.getByRole('status')).toBeVisible();
+	await page.reload();
+	await expect(settings.getByLabel('Standardübersetzung', { exact: true })).toHaveValue(
+		'SEEDPLAIN'
+	);
+	const invalid = await page.request.post('/account?/defaultBible', {
+		headers: { origin: new URL(page.url()).origin },
+		form: { defaultBibleId: 'SEEDLEX' }
+	});
+	expect(await invalid.json()).toMatchObject({ type: 'failure', status: 400 });
+	const id = await createNoteFromLibrary(page);
+	await page.getByLabel('Titel', { exact: true }).fill('Bevorzugte Übersetzung');
+	await page.getByRole('tab', { name: 'Markdown', exact: true }).click();
+	await page.getByRole('textbox', { name: 'Markdown', exact: true }).fill('Joh 3,16');
+	await page.getByRole('tab', { name: 'Visuell', exact: true }).click();
+	const reference = page.getByTestId('document-editor').locator('a.verse-ref').first();
+	const loaded = page.waitForResponse(
+		(response) => new URL(response.url()).pathname === '/api/v1/bibles/SEEDPLAIN/43/3'
+	);
+	await reference.hover();
+	expect((await loaded).ok()).toBe(true);
+	const preview = page.getByTestId('bible-reference-preview');
+	await expect(preview).toContainText('Schlicht');
+	await preview.getByRole('button', { name: 'Bibeltext einfügen' }).click();
+	await expect(page.getByTestId('document-editor').locator('blockquote')).toContainText('Schlicht');
+	await expect
+		.poll(
+			async () =>
+				(await (await page.request.get(`/api/documents/${id}`)).json()).document.bodyMarkdown
+		)
+		.toContain('Schlicht');
+	await page.goto('/Joh1');
+	await page.getByTestId('layout-picker').click();
+	await page.getByTestId('reader-notes-sidecar-toggle').click();
+	const sidecar = page.getByTestId('reader-notes-sidecar');
+	await sidecar
+		.getByTestId('reader-notes-open-document')
+		.filter({ hasText: 'Bevorzugte Übersetzung' })
+		.click();
+	await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(
+		'Bevorzugte Übersetzung'
+	);
+	await sidecar.getByRole('tab', { name: 'Visuell', exact: true }).click();
+	const sidecarLoad = page.waitForResponse(
+		(response) => new URL(response.url()).pathname === '/api/v1/bibles/SEEDPLAIN/43/3'
+	);
+	await sidecar.locator('a.verse-ref').first().hover();
+	expect((await sidecarLoad).ok()).toBe(true);
+	await expect(preview).toContainText('Schlicht');
 });
