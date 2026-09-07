@@ -4,6 +4,8 @@
 	export type ReaderNotesContext = {
 		reference: string;
 		passage: string;
+		chapterPassage: string;
+		linkGroup: string;
 		returnTo: string;
 		resource: { id: string; title: string };
 		documents: ReaderDocumentSummary[];
