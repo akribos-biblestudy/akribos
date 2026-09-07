@@ -505,8 +505,8 @@ unsichere Links/YAML-Felder, Embeds, Bilder und Anhänge werden abgewiesen oder 
 entfernt. Pro Dokument gelten höchstens 100 Stellenanker und 50 ausgewählte Tags; Komma und Backslash
 sind in Tagsegmenten nicht zulässig. Tags werden nie implizit als Bibelstellen interpretiert. Exporte
 stehen owner-only als Markdown/YAML, Word `.docx` und PDF bereit, enthalten aber keine E-Mail,
-Eigentümer-ID oder Veröffentlichungsberechtigung. Anhänge und automatisches Zusammenführen sind nicht
-implementiert. Der PDF-Export löst relative Linkziele gegen den Request-Ursprung auf, bewahrt Links als
+Eigentümer-ID oder Veröffentlichungsberechtigung. Import/Export von Anlagen und automatisches
+Zusammenführen sind nicht implementiert. Der PDF-Export löst relative Linkziele gegen den Request-Ursprung auf, bewahrt Links als
 klickbare grüne Annotationen und färbt auch freie, vom gemeinsamen Parser erkannte Bibelstellen grün;
 Inline-Code bleibt davon ausgenommen. Auf jeder gepufferten A4-Seite setzt er eine Akribos-Kopfzeile
 sowie eine Fußzeile mit Seitenzahl. Die Bereichsnavigation besteht aus „Notizen“, „Ausarbeitungen“ und „Stellensammlungen“; Import und
@@ -545,6 +545,21 @@ Migration `0025_clever_agent_brand.sql` legt beide Tabellen zusammen mit dem üb
 und dem nötigen eindeutigen Dokument-/Owner-Index an.
 Migration `0027_thankful_vin_gonzales.sql` ergänzt `document_links` und baut den abgeleiteten Index für
 bestehende echte HTML-Links owner-sicher auf; Codebeispiele und bloßer URL-Text werden nicht erfasst.
+
+Ausarbeitungen verwalten private Anlagen über `document_attachments` und
+`/api/documents/[id]/attachments[/attachmentId]`. Die Binärdaten liegen als PostgreSQL-`bytea` in
+derselben Datenbank und sind dadurch Teil bestehender Backups/Wiederherstellungen; Metadatenabfragen
+laden niemals den Dateiinhalt. Pro Datei gelten 50 MiB, pro Dokument insgesamt 200 MiB und 50 Dateien.
+Uploads werden vor `formData()` begrenzt gestreamt; die gemeinsame Dokumentzeilensperre schützt
+Eigentümer, aktiven Ausarbeitungstyp, Revision und Quotenprüfung atomar. Der zusammengesetzte
+Owner-Fremdschlüssel und Download-Join verhindern fremden Zugriff auch für Administratoren.
+Downloads erzwingen `attachment`, `nosniff`, CSP-Sandbox und `private, no-store`.
+Papierkorb und Wechsel zu Notizen lassen Anlagen ruhen; Wiederherstellung beziehungsweise Rückwechsel
+machen sie erneut zugänglich. Physisches Dokument-/Kontolöschen löscht die Dateien per Cascade.
+Anlagen sind weder Bestandteil öffentlicher Notizen noch der Markdown-/Word-/PDF-Exporte.
+`DocumentEditor.withRevision()` hält für Upload/Löschen dieselbe serielle Queue wie Autosave:
+ausstehender Text wird vorher gespeichert, während des Uploads eingegebener Text danach mit der neuen
+Revision. Weitere Uploads, Metadatenformulare und Navigations-Flushes warten auf diese Queue.
 
 ### Zusammenarbeit an Stellensammlungen (issue #129)
 

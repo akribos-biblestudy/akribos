@@ -4,6 +4,7 @@
 	import { SERMON_FORMATS, sermonFormatLabel } from '$lib/notes/documents';
 	import { tick, untrack } from 'svelte';
 	import DocumentEditor from '$lib/components/documents/DocumentEditor.svelte';
+	import DocumentAttachments from '$lib/components/documents/DocumentAttachments.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { t, type MessageKey } from '$lib/i18n';
 	import { formatGermanCalendarDate } from '$lib/notes/calendar-date';
@@ -11,7 +12,10 @@
 	let { data, form } = $props();
 
 	type EditorSaveState = 'saved' | 'dirty' | 'saving' | 'error' | 'conflict';
-	type EditorHandle = { flush: () => Promise<boolean> };
+	type EditorHandle = {
+		flush: () => Promise<boolean>;
+		withRevision: (operation: (revision: number) => Promise<number>) => Promise<boolean>;
+	};
 
 	let editor: EditorHandle | undefined = $state();
 	let workingDocument = $state(untrack(() => data.document));
@@ -313,6 +317,11 @@
 			</section>
 
 			{#if workingDocument.kind === 'sermon'}
+				<DocumentAttachments
+					documentId={workingDocument.id}
+					attachments={data.attachments}
+					mutate={async (operation) => (await editor?.withRevision(operation)) ?? false}
+				/>
 				<section
 					class="detail-card"
 					data-testid="preparation-collections"

@@ -49,7 +49,7 @@ import {
 import { COMMENT_REACTION_EMOJIS } from '../../notes/reactions.ts';
 import type { ReaderWorkspace } from '../../reader/workspace.ts';
 import { DEFAULT_SERMON_COLUMNS, type SermonColumn } from '../../notes/sermon-board.ts';
-import { tsvector } from './types.ts';
+import { bytea, tsvector } from './types.ts';
 
 const timestamps = {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -771,6 +771,37 @@ export const documents = pgTable(
 );
 
 export type Document = typeof documents.$inferSelect;
+
+/** Private files are part of the database backup and follow the document's owner/lifecycle. */
+export const documentAttachments = pgTable(
+	'document_attachments',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		documentId: uuid('document_id').notNull(),
+		userId: uuid('user_id').notNull(),
+		filename: text('filename').notNull(),
+		mediaType: text('media_type').notNull(),
+		sizeBytes: integer('size_bytes').notNull(),
+		content: bytea('content').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.documentId, table.userId],
+			foreignColumns: [documents.id, documents.userId],
+			name: 'document_attachments_owner_fk'
+		}).onDelete('cascade'),
+		index('document_attachments_document_owner_idx').on(table.documentId, table.userId),
+		check(
+			'document_attachments_size_check',
+			sql`${table.sizeBytes} > 0 and ${table.sizeBytes} <= 52428800 and octet_length(${table.content}) = ${table.sizeBytes}`
+		),
+		check(
+			'document_attachments_filename_check',
+			sql`length(btrim(${table.filename})) > 0 and octet_length(${table.filename}) <= 255`
+		)
+	]
+);
 
 /** Live collection links retain the document owner and survive conversion to a note. */
 export const documentVerseLists = pgTable(

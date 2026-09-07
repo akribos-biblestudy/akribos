@@ -1,5 +1,12 @@
 import { customType } from 'drizzle-orm/pg-core';
 
+/** postgres.js reads and writes bytea as Buffer, without Base64 expansion. */
+export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+	dataType() {
+		return 'bytea';
+	}
+});
+
 /**
  * PostgreSQL `tsvector`.
  *

@@ -778,6 +778,25 @@
 		return saveState === 'saved';
 	}
 
+	/** Reserve the autosave queue for file mutations, including time spent uploading the bytes. */
+	export function withRevision(operation: (revision: number) => Promise<number>): Promise<boolean> {
+		const run = async () => {
+			await persistLatest();
+			if (destroyed || saveState !== 'saved') return false;
+			revision = await operation(revision);
+			// Typing may continue during an upload. Persist that text with the new revision before
+			// releasing the queue to another upload, a metadata form or a navigation flush.
+			await persistLatest();
+			return true;
+		};
+		const pending = saveQueue.then(run, run);
+		saveQueue = pending.then(
+			() => undefined,
+			() => undefined
+		);
+		return pending;
+	}
+
 	function updateFromVisual(): void {
 		if (!editor || applyingContent) return;
 		markdown = documentHtmlToMarkdown(editor.isEmpty ? '' : editor.getHTML());

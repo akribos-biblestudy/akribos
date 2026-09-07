@@ -48,7 +48,7 @@ import {
 	InvalidFormBodyError,
 	readBoundedFormData,
 	RequestBodyTooLargeError
-} from './bounded-form-data';
+} from '$lib/server/http/bounded-form-data';
 import { localizeImportError, localizeImportMessage } from './import-messages';
 
 const MAX_IMPORT_MULTIPART_OVERHEAD_BYTES = 64 * 1024;

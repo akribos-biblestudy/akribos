@@ -8,6 +8,26 @@
  * `{placeholder}` markers are substituted by `t()`.
  */
 export const de = {
+	'documents.attachments.title': 'Anlagen',
+	'documents.attachments.hint':
+		'PDFs, Präsentationen, Bilder und weitere Dateien. Bis 50 MiB je Datei, insgesamt 200 MiB und 50 Anlagen je Ausarbeitung.',
+	'documents.attachments.empty': 'Noch keine Anlagen.',
+	'documents.attachments.add': 'Dateien hinzufügen',
+	'documents.attachments.select': 'Anlagen auswählen',
+	'documents.attachments.download': '{filename} herunterladen',
+	'documents.attachments.remove': '{filename} löschen',
+	'documents.attachments.confirmRemove': 'Löschen bestätigen',
+	'documents.attachments.uploading': 'Wird hochgeladen: {filename}',
+	'documents.attachments.uploaded': 'Anlagen gespeichert.',
+	'documents.attachments.removed': 'Anlage gelöscht.',
+	'documents.attachments.tooLarge': 'Eine Datei darf höchstens 50 MiB groß sein.',
+	'documents.attachments.limit':
+		'Je Ausarbeitung sind höchstens 50 Anlagen mit insgesamt 200 MiB möglich.',
+	'documents.attachments.invalid':
+		'Die Datei ist leer oder ihr Dateiname ist ungültig bzw. zu lang.',
+	'documents.attachments.error':
+		'Die Anlage konnte nicht verarbeitet werden. Bitte erneut versuchen.',
+	'documents.attachments.saveFirst': 'Bitte zuerst den Speicherfehler im Dokument beheben.',
 	// --- generic ------------------------------------------------------------
 	'app.name': 'Akribos',
 	'app.tagline': 'Die Bibel im Urtext studieren',
