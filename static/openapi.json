@@ -539,7 +539,7 @@
 						"in": "query",
 						"required": false,
 						"description": "Restrict results to one working-copy visibility setting.",
-						"schema": { "type": "string", "enum": ["private", "unlisted", "public"] }
+						"schema": { "type": "string", "enum": ["private", "unlisted"] }
 					},
 					{
 						"name": "deleted",
@@ -1311,7 +1311,7 @@
 					},
 					"visibility": {
 						"type": "string",
-						"enum": ["private", "unlisted", "public"],
+						"enum": ["private", "unlisted"],
 						"description": "The working copy's publication setting. Public pages still use only an explicit publication snapshot."
 					},
 					"revision": { "type": "integer", "minimum": 1 },

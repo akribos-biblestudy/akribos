@@ -138,9 +138,6 @@
 					{/if}
 					<hr />
 				{/if}
-				{#if !user}<a href="/notes/published" role="menuitem" data-sveltekit-preload-data="hover"
-						>{t('nav.publishedNotes')}</a
-					>{/if}
 				{#if tourStepsForRoute(page.url.pathname, !!user, !!readerPreferences).length > 0}
 					<button type="button" role="menuitem" onclick={restartTour}>{t('nav.tour')}</button>
 				{/if}

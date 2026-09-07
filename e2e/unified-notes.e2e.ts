@@ -1525,8 +1525,10 @@ test('a normal account cannot publish a note through either the UI or a forged a
 	});
 
 	const controls = page.getByTestId('publication-controls');
-	await expect(controls).toContainText('Nur Administratoren können Notizen veröffentlichen.');
-	await expect(controls.getByRole('button', { name: /veröffentlichen/i })).toHaveCount(0);
+	await expect(controls).toContainText(
+		'Nur Administratoren können eigene Notizen per Link freigeben.'
+	);
+	await expect(controls.getByRole('button', { name: /freigeben/i })).toHaveCount(0);
 
 	const forged = await page.evaluate(async (documentId) => {
 		const current = await fetch(`/api/documents/${documentId}`).then((response) => response.json());
@@ -1548,7 +1550,7 @@ test('a normal account cannot publish a note through either the UI or a forged a
 	expect(JSON.stringify(forged.body)).toContain('forbidden');
 });
 
-test('admin publication snapshots stay immutable until republish and discovery omits unlisted work', async ({
+test('note sharing permits only unlisted immutable snapshots and retires public discovery', async ({
 	page,
 	request
 }) => {
@@ -1576,15 +1578,28 @@ test('admin publication snapshots stay immutable until republish and discovery o
 	});
 
 	let controls = page.getByTestId('publication-controls');
-	await controls.getByLabel('Sichtbarkeit der Arbeitskopie').selectOption('public');
+	await expect(controls.locator('select[name="visibility"]')).toHaveCount(0);
+	await expect(controls).toContainText('Jeder mit dem Link');
+	const forgedPublic = await page.evaluate(async () => {
+		const id = location.pathname.split('/').at(-1);
+		const { document } = await fetch(`/api/documents/${id}`).then((r) => r.json());
+		const body = new FormData();
+		body.set('revision', String(document.revision));
+		body.set('visibility', 'public');
+		body.set('slug', `forged-public-${id}`);
+		return fetch(`${location.pathname}?/publish`, { method: 'POST', body }).then((r) => r.json());
+	});
+	expect(forgedPublic).toMatchObject({ type: 'failure', status: 400 });
+	expect(JSON.stringify(forgedPublic)).toContain('visibility');
 	await controls.getByLabel('Webadresse').fill(slug);
 	await controls.getByLabel('Kurzbeschreibung').fill(`Snapshot-Test ${RUN_ID}`);
-	await controls.getByRole('button', { name: 'Schnappschuss veröffentlichen' }).click();
-	await expect(controls.getByRole('link', { name: 'Öffentliche Seite öffnen' })).toBeVisible();
+	await controls.getByRole('button', { name: 'Schnappschuss freigeben' }).click();
+	await expect(controls.getByRole('link', { name: 'Freigegebenen Link öffnen' })).toBeVisible();
 
 	const publicPage = await page.context().newPage();
 	const publicResponse = await publicPage.goto(`/notes/published/${slug}`);
 	expect(publicResponse?.status()).toBe(200);
+	expect(publicResponse?.headers()['x-robots-tag']).toBe('noindex, nofollow');
 	await expect(publicPage.getByText(oldMarker)).toBeVisible();
 
 	await page.getByRole('tab', { name: 'Markdown' }).click();
@@ -1603,8 +1618,8 @@ test('admin publication snapshots stay immutable until republish and discovery o
 	await expect(publicPage.getByText(oldMarker)).toBeVisible();
 	await expect(publicPage.getByText(newMarker)).toHaveCount(0);
 
-	await controls.getByRole('button', { name: 'Veröffentlichung aktualisieren' }).click();
-	await expect(controls).toContainText('Die Veröffentlichung entspricht der Arbeitskopie.');
+	await controls.getByRole('button', { name: 'Freigabe aktualisieren' }).click();
+	await expect(controls).toContainText('Die Freigabe entspricht der Arbeitskopie.');
 	await publicPage.reload();
 	await expect(publicPage.getByText(newMarker)).toBeVisible();
 	await expect(publicPage.getByText(oldMarker)).toHaveCount(0);
@@ -1619,10 +1634,10 @@ test('admin publication snapshots stay immutable until republish and discovery o
 		requestMarker: `unlisted-marker-${RUN_ID}`
 	});
 	controls = page.getByTestId('publication-controls');
-	await controls.getByLabel('Sichtbarkeit der Arbeitskopie').selectOption('unlisted');
+
 	await controls.getByLabel('Webadresse').fill(unlistedSlug);
-	await controls.getByRole('button', { name: 'Schnappschuss veröffentlichen' }).click();
-	await expect(controls.getByRole('link', { name: 'Öffentliche Seite öffnen' })).toBeVisible();
+	await controls.getByRole('button', { name: 'Schnappschuss freigeben' }).click();
+	await expect(controls.getByRole('link', { name: 'Freigegebenen Link öffnen' })).toBeVisible();
 
 	const directUnlisted = await request.get(`/notes/published/${unlistedSlug}`);
 	expect(directUnlisted.status()).toBe(200);
@@ -1634,15 +1649,19 @@ test('admin publication snapshots stay immutable until republish and discovery o
 
 	for (const path of ['/notes/published', '/notes/published/feed.xml', '/sitemap.xml']) {
 		const response = await request.get(path);
-		expect(response.status()).toBe(200);
-		expect(response.headers()['cache-control']).toContain(
-			path === '/notes/published' ? 'private' : 'public'
-		);
+		expect(response.status()).toBe(path === '/sitemap.xml' ? 200 : 410);
+		if (path !== '/sitemap.xml')
+			expect(response.headers()['x-robots-tag']).toBe('noindex, nofollow');
 		const body = await response.text();
-		expect(body).toContain(slug);
+		expect(body).not.toContain(slug);
 		expect(body).not.toContain(unlistedSlug);
 		expect(body).not.toContain(NORMAL_PRIVATE_NOTE_TITLE);
 	}
+	await controls.getByRole('button', { name: 'Freigabe zurückziehen' }).click();
+	await expect(controls.getByRole('link', { name: 'Freigegebenen Link öffnen' })).toHaveCount(0);
+	expect((await request.get(`/notes/published/${unlistedSlug}`)).status()).toBe(404);
+	await page.goto('/notes');
+	await expect(page.locator('a[href="/notes/published"]')).toHaveCount(0);
 	const signedInIndex = await page.goto('/notes/published');
 	expect(signedInIndex?.headers()['cache-control']).toBe('private, no-store');
 

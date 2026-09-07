@@ -17,9 +17,7 @@
 
 <svelte:head>
 	<meta name="description" content={data.publication.excerpt} />
-	{#if data.publication.visibility === 'unlisted'}
-		<meta name="robots" content="noindex, nofollow" />
-	{/if}
+	<meta name="robots" content="noindex, nofollow" />
 	<meta property="og:type" content="article" />
 	<meta property="og:title" content={data.publication.title} />
 	<meta property="og:description" content={data.publication.excerpt} />
@@ -27,11 +25,11 @@
 
 <main class="mx-auto w-full max-w-4xl px-4 py-7 sm:px-6 sm:py-12" data-testid="published-note">
 	<a
-		href="/notes/published"
+		href="/"
 		class="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-500 hover:text-accent-700 dark:text-stone-400 dark:hover:text-accent-300"
 	>
 		<Icon name="chevron-left" class="size-4" />
-		{t('publishedNotes.title')}
+		{t('documents.returnToReader')}
 	</a>
 
 	<article

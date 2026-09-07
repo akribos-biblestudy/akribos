@@ -15,9 +15,6 @@ import {
 import {
 	getOwnedDocumentPublication,
 	getPublishedDocumentBySlug,
-	listPublishedDocumentSlugs,
-	listPublishedDocumentSummaries,
-	listPublishedDocuments,
 	publishDocument
 } from './document-publications.ts';
 import {
@@ -493,21 +490,21 @@ describe.sequential('unified document repositories', () => {
 		const ownerNote = await createDocument(db, ownerId, {
 			kind: 'note',
 			title: 'Owner note',
-			visibility: 'public',
+			visibility: 'unlisted',
 			...EMPTY_BODY
 		});
 		expect(
 			await publishDocument(db, ownerId, ownerNote.id, {
 				slug: `owner-${randomUUID()}`,
 				excerpt: '',
-				visibility: 'public'
+				visibility: 'unlisted'
 			})
 		).toMatchObject({ ok: false, reason: 'forbidden' });
 		expect(
 			await publishDocument(db, adminId, ownerNote.id, {
 				slug: `foreign-${randomUUID()}`,
 				excerpt: '',
-				visibility: 'public'
+				visibility: 'unlisted'
 			})
 		).toMatchObject({ ok: false, reason: 'notFound' });
 		const sermon = await createDocument(db, adminId, {
@@ -520,7 +517,7 @@ describe.sequential('unified document repositories', () => {
 			await publishDocument(db, adminId, sermon.id, {
 				slug: `sermon-${randomUUID()}`,
 				excerpt: '',
-				visibility: 'public'
+				visibility: 'unlisted'
 			})
 		).toMatchObject({ ok: false, reason: 'notPublishable' });
 
@@ -532,22 +529,28 @@ describe.sequential('unified document repositories', () => {
 			bodyHtml: '<p>Version one</p>',
 			plainText: 'Version one'
 		});
+		expect(
+			await publishDocument(db, adminId, note.id, {
+				slug: `rejected-public-${randomUUID()}`,
+				excerpt: '',
+				visibility: 'public' as never,
+				expectedRevision: note.revision
+			})
+		).toMatchObject({ ok: false, reason: 'private' });
+		expect(await getOwnedDocumentPublication(db, adminId, note.id)).toBeUndefined();
+		expect((await getDocument(db, adminId, note.id))?.revision).toBe(note.revision);
 		const slug = `snapshot-${randomUUID()}`;
 		const first = await publishDocument(db, adminId, note.id, {
 			slug,
 			excerpt: 'First excerpt',
-			visibility: 'public',
+			visibility: 'unlisted',
 			expectedRevision: note.revision
 		});
 		expect(first.ok && first.publication.bodyMarkdown).toBe('Version one');
 		expect(first.ok && first.publication.publicationRevision).toBe(note.revision + 1);
-		expect((await getDocument(db, adminId, note.id))?.visibility).toBe('public');
+		expect((await getDocument(db, adminId, note.id))?.visibility).toBe('unlisted');
 		expect(await getOwnedDocumentPublication(db, ownerId, note.id)).toBeUndefined();
 		expect((await getOwnedDocumentPublication(db, adminId, note.id))?.slug).toBe(slug);
-		const summary = (await listPublishedDocumentSummaries(db)).find((row) => row.slug === slug);
-		expect(summary).toMatchObject({ title: 'Snapshot note', excerpt: 'First excerpt' });
-		expect(summary).not.toHaveProperty('bodyHtml');
-		expect(await listPublishedDocumentSlugs(db)).toContain(slug);
 		const conflictingNote = await createDocument(db, adminId, {
 			kind: 'note',
 			title: 'Conflicting slug note',
@@ -575,10 +578,9 @@ describe.sequential('unified document repositories', () => {
 			expectedRevision: conflictingNote.revision
 		});
 		expect(unlisted.ok && unlisted.publication.visibility).toBe('unlisted');
-		expect((await listPublishedDocumentSummaries(db)).map((row) => row.slug)).not.toContain(
-			unlistedSlug
+		expect((await getPublishedDocumentBySlug(db, unlistedSlug))?.documentId).toBe(
+			conflictingNote.id
 		);
-		expect(await listPublishedDocumentSlugs(db)).not.toContain(unlistedSlug);
 
 		const publishedRevision = first.ok ? first.publication.publicationRevision : 0;
 		const changed = await updateDocument(db, adminId, note.id, publishedRevision, {
@@ -590,13 +592,12 @@ describe.sequential('unified document repositories', () => {
 		});
 		expect(changed.ok).toBe(true);
 		expect((await getPublishedDocumentBySlug(db, slug))?.bodyMarkdown).toBe('Version one');
-		expect((await listPublishedDocuments(db)).map((row) => row.documentId)).toContain(note.id);
 
 		if (!changed.ok) throw new Error('working-copy update failed');
 		const second = await publishDocument(db, adminId, note.id, {
 			slug,
 			excerpt: 'Second excerpt',
-			visibility: 'public',
+			visibility: 'unlisted',
 			expectedRevision: changed.document.revision
 		});
 		expect(second.ok && second.publication.bodyMarkdown).toBe('Version two');
@@ -608,7 +609,7 @@ describe.sequential('unified document repositories', () => {
 		const note = await createDocument(db, adminId, {
 			kind: 'note',
 			title: 'Locking note',
-			visibility: 'public',
+			visibility: 'unlisted',
 			...EMPTY_BODY
 		});
 		const slug = `locking-${randomUUID()}`;
@@ -624,7 +625,7 @@ describe.sequential('unified document repositories', () => {
 			publicationPromise = publishDocument(db, adminId, note.id, {
 				slug,
 				excerpt: '',
-				visibility: 'public',
+				visibility: 'unlisted',
 				expectedRevision: note.revision
 			});
 			void publicationPromise.then(

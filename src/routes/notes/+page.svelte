@@ -119,7 +119,6 @@
 <main class="mx-auto w-full max-w-[96rem] px-4 py-7 sm:px-6 sm:py-10" data-testid="notes-library">
 	<DocumentAreaHeader active="notes">
 		{#snippet actions()}
-			<a href="/notes/published"><Icon name="globe" class="size-4" />Veröffentlichte Notizen</a>
 			<a href="/notes/import"><Icon name="upload" class="size-4" />{t('action.import')}</a>
 		{/snippet}
 	</DocumentAreaHeader>

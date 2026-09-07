@@ -34,13 +34,14 @@ import {
 describe('document vocabulary', () => {
 	it('keeps the persisted enum values explicit and type-guarded', () => {
 		expect(DOCUMENT_KINDS).toEqual(['note', 'sermon']);
-		expect(DOCUMENT_VISIBILITIES).toEqual(['private', 'unlisted', 'public']);
+		expect(DOCUMENT_VISIBILITIES).toEqual(['private', 'unlisted']);
 		expect(SERMON_WORKFLOW_STATES).toEqual(['idea', 'research', 'outline', 'ready', 'delivered']);
 		expect(DOCUMENT_SOURCES).toEqual(['native', 'obsidian', 'legacy-verse-comment']);
 
 		expect(isDocumentKind('sermon')).toBe(true);
 		expect(isDocumentKind('blog')).toBe(false);
 		expect(isDocumentVisibility('unlisted')).toBe(true);
+		expect(isDocumentVisibility('public')).toBe(false);
 		expect(isDocumentVisibility('draft')).toBe(false);
 		expect(isSermonWorkflowState('research')).toBe(true);
 		expect(isSermonWorkflowState('published')).toBe(false);

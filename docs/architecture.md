@@ -124,12 +124,15 @@ The publication repository checks that the caller is an admin, owns an active no
 an author fallback. Publishing copies title, excerpt, safe body, author label, tags, passages,
 visibility and source revision into the single current snapshot. Autosaving the draft therefore cannot
 change an already published page; an explicit republish replaces it, while unpublish or soft deletion
-removes it. Public routes query only snapshot rows. `public` snapshots enter the published-note index, Atom
-feed and sitemap; `unlisted` snapshots are omitted from discovery but remain anonymously readable by
-slug, so unlisted is not an authorisation mechanism.
+removes it. Direct-link routes query only snapshot rows. Only `unlisted` sharing is allowed;
+form/repository validation and database checks reject `public`. Migration 0037 converts existing public
+snapshots and working copies without changing direct links, content or authors. The note index and Atom
+feed return 410; no note enters the sitemap. All direct links carry HTTP/HTML `noindex, nofollow` but
+remain anonymously readable by slug, so unlisted is not an authorisation mechanism. Crawlers may still
+request these URLs to read noindex/410 and remove old index entries.
 
 The private library and editor live at `/notes`; its two-area navigation links only “Notizen” and
-“Ausarbeitungen”. Import and public notes are contextual note actions, while templates are contextual to the
+“Ausarbeitungen”. Import is a contextual note action, while templates are contextual to the
 sermon area. The note library derives an owner-scoped 66-book facet from both passage rows and visible
 body references; its book filter and card/list view remain in the URL. Visible-body ranges are indexed
 atomically on document writes in `document_body_reference_indexes`, with an idempotent startup backfill
@@ -288,11 +291,10 @@ infrastructure while providing no capability the current stack lacks.
 
 ## Caching
 
-Cookie-free public endpoints such as the published-note feed and sitemap are public but currently send
-`max-age=0, must-revalidate`; every reuse is revalidated so publish and unpublish cannot leave a stale
-discovery entry. Published-note index/detail HTML renders only publication snapshots, but still inherits the global
-layout's cookie-based guest reader preferences; those HTML responses therefore deliberately send
-`private, no-store`. Only public rows appear on discovery endpoints. Private document HTML, the
+The cookie-free sitemap is public with `max-age=0, must-revalidate` and contains no note links.
+Retired note index/feed endpoints return 410 with `private, no-store` and `noindex, nofollow`.
+Shared-note detail HTML renders only snapshots but inherits the global layout's cookie-based guest
+reader preferences; those responses therefore deliberately send `private, no-store`. Private document HTML, the
 internal autosave endpoint, exports, and both personal v1 document endpoints also send
 `private, no-store`.
 

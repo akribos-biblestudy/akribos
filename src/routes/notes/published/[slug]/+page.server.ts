@@ -3,14 +3,11 @@ import { getDb } from '$lib/server/db';
 import { getPublishedDocumentBySlug } from '$lib/server/repositories/document-publications';
 import { listBibles } from '$lib/server/repositories/resources';
 
-/**
- * A visitor-facing publication snapshot. Direct links intentionally resolve both public and
- * unlisted snapshots; neither kind is ever hydrated from its mutable document working copy.
- */
+/** Direct-link snapshot, independent of the mutable working copy. */
 export async function load({ params, setHeaders }) {
 	// The snapshot is public, but the shared root layout embeds cookie-based guest preferences.
-	// Avoid caching the resulting HTML across visitors; feed and sitemap have no such layout data.
-	setHeaders({ 'cache-control': 'private, no-store' });
+	// Avoid caching the resulting HTML across visitors.
+	setHeaders({ 'cache-control': 'private, no-store', 'x-robots-tag': 'noindex, nofollow' });
 
 	const db = getDb();
 	const [publication, bibles] = await Promise.all([
@@ -18,9 +15,6 @@ export async function load({ params, setHeaders }) {
 		listBibles(db)
 	]);
 	if (!publication) error(404, 'Diese Notiz ist nicht veröffentlicht.');
-	if (publication.visibility === 'unlisted') {
-		setHeaders({ 'x-robots-tag': 'noindex, nofollow' });
-	}
 
 	return {
 		title: publication.title,
@@ -31,7 +25,7 @@ export async function load({ params, setHeaders }) {
 			excerpt: publication.excerpt,
 			bodyHtml: publication.bodyHtml,
 			authorName: publication.authorName,
-			visibility: publication.visibility,
+			visibility: 'unlisted' as const,
 			passages: publication.passages,
 			tags: publication.tags,
 			firstPublishedAt: publication.firstPublishedAt,

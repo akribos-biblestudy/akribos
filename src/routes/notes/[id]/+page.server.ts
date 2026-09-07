@@ -12,7 +12,7 @@ import {
 	passageFromDbEndpoints,
 	passageToDbEndpoints
 } from '$lib/bible/passage';
-import { isDocumentKind, isDocumentVisibility } from '$lib/notes/documents';
+import { isDocumentKind } from '$lib/notes/documents';
 import {
 	isUuid,
 	normalizeExcerpt,
@@ -319,8 +319,8 @@ export const actions = {
 		const form = await request.formData();
 		const revision = parseRequiredRevision(form.get('revision'));
 		if (revision === null) return fail(400, { error: 'revision' as const });
-		const visibility = String(form.get('visibility') ?? 'public');
-		if (!isDocumentVisibility(visibility) || visibility === 'private') {
+		const visibility = String(form.get('visibility') ?? 'unlisted');
+		if (visibility !== 'unlisted') {
 			return fail(400, { error: 'visibility' as const });
 		}
 
