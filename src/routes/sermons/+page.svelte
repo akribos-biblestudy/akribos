@@ -17,6 +17,7 @@
 		if (data.filters.q) params.set('q', data.filters.q);
 		if (data.filters.series) params.set('series', data.filters.series);
 		if (data.filters.year) params.set('year', String(data.filters.year));
+		if (data.filters.format) params.set('format', data.filters.format);
 		if (status) params.set('status', status);
 		return params.size ? `/sermons?${params}` : '/sermons';
 	}
@@ -150,7 +151,7 @@
 		</nav>
 		<form
 			method="GET"
-			class="grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-[minmax(15rem,1fr)_minmax(10rem,0.7fr)_7rem_auto]"
+			class="grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-[minmax(12rem,1fr)_minmax(9rem,0.7fr)_minmax(9rem,0.7fr)_7rem_auto]"
 			aria-label={t('sermons.filters')}
 		>
 			{#if data.filters.status}<input
@@ -172,6 +173,15 @@
 					placeholder={t('documents.library.search')}
 					class="field-control search-control"
 				/>
+			</label>
+			<label>
+				<span class="sr-only">{t('sermons.filterFormat')}</span>
+				<select name="format" class="field-control" value={data.filters.format ?? ''}>
+					<option value="">{t('sermons.allFormats')}</option>
+					{#each SERMON_FORMATS as format (format)}
+						<option value={format}>{sermonFormatLabel(format)}</option>
+					{/each}
+				</select>
 			</label>
 			<label>
 				<span class="sr-only">{t('sermons.filterSeries')}</span>

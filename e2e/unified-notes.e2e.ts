@@ -1283,7 +1283,7 @@ test('the sermon manager creates from its template and persists workflow metadat
 	await expect(page.getByRole('heading', { name: title })).toBeVisible();
 });
 
-test('the sermon board sorts planned dates and combines series and year filters', async ({
+test('the sermon board sorts planned dates and combines format, series and year filters', async ({
 	page
 }) => {
 	await register(page);
@@ -1292,18 +1292,24 @@ test('the sermon board sorts planned dates and combines series and year filters'
 	const olderSeries = `Alte Reihe ${RUN_ID}`;
 	const newerSeries = `Neue Reihe ${RUN_ID}`;
 
-	async function createSermon(title: string, date: string, series: string): Promise<void> {
+	async function createSermon(
+		title: string,
+		date: string,
+		series: string,
+		format = 'sermon'
+	): Promise<void> {
 		await page.goto('/sermons');
 		const create = page.locator('[data-tour-target="sermon-create"]');
 		await create.getByLabel('Titel').fill(title);
 		await create.getByLabel('Geplanter Termin').fill(date);
 		await create.getByLabel('Reihe').fill(series);
+		await create.getByLabel('Format', { exact: true }).selectOption(format);
 		await create.getByRole('button', { name: 'Erstellen' }).click();
 		await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+\?returnTo=%2Fsermons$/);
 	}
 
 	await createSermon(olderTitle, '02.01.2025', olderSeries);
-	await createSermon(newerTitle, '03.02.2026', newerSeries);
+	await createSermon(newerTitle, '03.02.2026', newerSeries, 'home-group');
 	await page.goto('/sermons');
 
 	const ideaColumn = page.getByRole('group', { name: 'Idee' });
@@ -1337,6 +1343,43 @@ test('the sermon board sorts planned dates and combines series and year filters'
 	await expect(page).toHaveURL((url) => url.searchParams.get('year') === '2025');
 	await expect(page.getByRole('heading', { name: olderTitle })).toBeVisible();
 	await expect(page.getByRole('heading', { name: newerTitle })).toHaveCount(0);
+
+	await filters.getByLabel('Nach Format filtern').selectOption('home-group');
+	await filters.getByRole('button', { name: 'Filtern' }).click();
+	await expect(page).toHaveURL(
+		(url) =>
+			url.searchParams.get('format') === 'home-group' && url.searchParams.get('year') === '2025'
+	);
+	await expect(page.getByTestId('sermon-card')).toHaveCount(0);
+	await filters.getByLabel('Nach Jahr filtern').selectOption('2026');
+	await filters.getByLabel('Nach Reihe filtern').selectOption(newerSeries);
+	await filters.getByRole('searchbox').fill('2026');
+	await filters.getByRole('button', { name: 'Filtern' }).click();
+	await expect(cards).toHaveCount(1);
+	await expect(cards.first()).toContainText(newerTitle);
+	await page.reload();
+	await expect(filters.getByLabel('Nach Format filtern')).toHaveValue('home-group');
+	await expect(filters.getByLabel('Nach Format filtern').getByRole('option')).toHaveCount(7);
+	const statuses = page.getByRole('navigation', { name: 'Arbeitsstand', exact: true });
+	await statuses.getByRole('link', { name: 'Recherche', exact: true }).click();
+	await expect(page).toHaveURL(
+		(url) =>
+			url.searchParams.get('format') === 'home-group' &&
+			url.searchParams.get('status') === 'research'
+	);
+	await expect(page.getByTestId('sermon-card')).toHaveCount(0);
+	await statuses.getByRole('link', { name: 'Alle', exact: true }).click();
+	await expect(cards).toHaveCount(1);
+	await expect(filters.getByLabel('Nach Format filtern')).toHaveValue('home-group');
+	await filters.getByLabel('Nach Format filtern').selectOption('bible-study');
+	await filters.getByRole('button', { name: 'Filtern' }).click();
+	await expect(page.getByTestId('sermon-card')).toHaveCount(0);
+	await page.goto('/sermons?format=unsupported');
+	await expect(filters.getByLabel('Nach Format filtern')).toHaveValue('');
+	await expect(cards).toHaveCount(2);
+	await page.setViewportSize({ width: 375, height: 812 });
+	await expect(filters.getByLabel('Nach Format filtern')).toBeVisible();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test('custom sermon templates, delivery history, rich exports and board movement work together', async ({

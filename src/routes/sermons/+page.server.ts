@@ -59,6 +59,8 @@ export async function load({ locals, url, setHeaders }) {
 		rawStatus && board.columns.some((column) => column.id === rawStatus) ? rawStatus : undefined;
 	const rawSeries = (url.searchParams.get('series') ?? '').trim();
 	const rawYear = (url.searchParams.get('year') ?? '').trim();
+	const rawFormat = (url.searchParams.get('format') ?? '').trim();
+	const format = isSermonFormat(rawFormat) ? rawFormat : undefined;
 	const allSermonsPromise = listDocuments(db, user.id, { kind: 'sermon' });
 	const matchingSermonsPromise = q
 		? listDocuments(db, user.id, { kind: 'sermon', query: q })
@@ -88,6 +90,7 @@ export async function load({ locals, url, setHeaders }) {
 	const parsedYear = /^\d{4}$/u.test(rawYear) ? Number(rawYear) : undefined;
 	const year = parsedYear && yearOptions.includes(parsedYear) ? parsedYear : undefined;
 	const sermons = matchingSermons
+		.filter((sermon) => !format || sermon.sermonFormat === format)
 		.filter((sermon) => !status || sermon.sermonStatus === status)
 		.filter((sermon) => !series || sermon.sermonSeries === series)
 		.filter((sermon) => !year || sermon.sermonDate?.getUTCFullYear() === year)
@@ -110,7 +113,13 @@ export async function load({ locals, url, setHeaders }) {
 		board,
 		seriesOptions,
 		yearOptions,
-		filters: { q, status: status ?? null, series: series ?? null, year: year ?? null },
+		filters: {
+			q,
+			status: status ?? null,
+			series: series ?? null,
+			year: year ?? null,
+			format: format ?? null
+		},
 		filterError:
 			rawStatus && !status
 				? ('status' as const)
@@ -118,7 +127,9 @@ export async function load({ locals, url, setHeaders }) {
 					? ('series' as const)
 					: rawYear && !year
 						? ('year' as const)
-						: null
+						: rawFormat && !format
+							? ('format' as const)
+							: null
 	};
 }
 

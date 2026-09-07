@@ -410,6 +410,8 @@ export const de = {
 	'sermons.series': 'Reihe',
 	'sermons.seriesPlaceholder': 'Optionaler Name der Reihe',
 	'sermons.filters': 'Ausarbeitungen filtern',
+	'sermons.filterFormat': 'Nach Format filtern',
+	'sermons.allFormats': 'Alle Formate',
 	'sermons.filterSeries': 'Nach Reihe filtern',
 	'sermons.allSeries': 'Alle Reihen',
 	'sermons.filterYear': 'Nach Jahr filtern',
