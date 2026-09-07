@@ -346,7 +346,7 @@
 	article {
 		width: min(100%, 58rem);
 		padding: 1rem clamp(0.85rem, 3vw, 1.5rem) 4rem;
-		font-size: var(--reader-text-size, 1.08rem);
+		font-size: 0.82rem;
 		line-height: 1.6;
 	}
 	.headword {
@@ -356,12 +356,12 @@
 	.headword strong {
 		color: var(--color-accent-700);
 		font-family: ui-sans-serif, system-ui, sans-serif;
-		font-size: 0.72em;
+		font-size: 0.72rem;
 		letter-spacing: 0.07em;
 	}
 	h2 {
 		margin-top: 0.08rem;
-		font-size: 1.75em;
+		font-size: calc(1.45 * var(--reader-text-size, 1.08rem));
 		font-weight: 500;
 		line-height: 1.25;
 	}
@@ -370,7 +370,7 @@
 		margin-top: 0.2rem;
 		color: var(--color-stone-500);
 		font-family: ui-sans-serif, system-ui, sans-serif;
-		font-size: 0.75em;
+		font-size: 0.78rem;
 	}
 	article > section {
 		margin-top: 1.15rem;
@@ -379,22 +379,24 @@
 		margin-bottom: 0.3rem;
 		color: var(--color-stone-500);
 		font-family: ui-sans-serif, system-ui, sans-serif;
-		font-size: 0.68em;
+		font-size: 0.7rem;
 		font-weight: 700;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 	}
 	.lexicon-body {
+		font-size: calc(0.95rem * var(--reader-font-scale, 1));
+		line-height: 1.6;
 		font-family: var(--reader-font-family, ui-serif, Georgia, serif);
 	}
 	.original-word {
 		margin-bottom: 0.25rem;
 		font-family: var(--font-greek), var(--font-hebrew), serif;
-		font-size: 1em;
+		font-size: var(--reader-text-size, 1.08rem);
 	}
 	.grammar-details {
 		font-family: ui-sans-serif, system-ui, sans-serif;
-		font-size: 0.82em;
+		font-size: 0.82rem;
 		line-height: 1.45;
 	}
 	.see-also {
@@ -410,7 +412,7 @@
 		border-radius: 999px;
 		color: var(--color-accent-700);
 		font-family: ui-sans-serif, system-ui, sans-serif;
-		font-size: 0.75em;
+		font-size: 0.78rem;
 	}
 	.study-section {
 		padding-top: 1rem;
@@ -428,12 +430,12 @@
 	}
 	.study-heading > div p {
 		color: var(--color-stone-500);
-		font-size: 0.72em;
+		font-size: 0.72rem;
 	}
 	.study-total {
 		margin: 0;
 		color: var(--color-stone-600);
-		font-size: 0.74em;
+		font-size: 0.74rem;
 		font-weight: 500;
 		white-space: nowrap;
 	}
@@ -473,7 +475,7 @@
 		margin-bottom: 0.15rem;
 		color: var(--color-accent-700);
 		font-family: ui-sans-serif, system-ui, sans-serif;
-		font-size: 0.67em;
+		font-size: 0.72rem;
 		font-weight: 700;
 	}
 	.occurrence p {
@@ -486,7 +488,7 @@
 		gap: 0.65rem;
 		margin-top: 0.9rem;
 		font-family: ui-sans-serif, system-ui, sans-serif;
-		font-size: 0.72em;
+		font-size: 0.72rem;
 	}
 	.pagination button:disabled {
 		opacity: 0.4;
@@ -498,7 +500,7 @@
 	.empty {
 		color: var(--color-stone-500);
 		font-family: ui-sans-serif, system-ui, sans-serif;
-		font-size: calc(0.78rem * var(--reader-font-scale));
+		font-size: 0.78rem;
 		line-height: 1.5;
 	}
 	.status {

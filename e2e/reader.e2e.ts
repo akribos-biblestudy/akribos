@@ -900,8 +900,21 @@ test('a Strong click opens and then reuses the lexicon tab in its link group', a
 		.locator('.flow-verse')
 		.first()
 		.evaluate((element) => getComputedStyle(element).fontSize);
-	await expect(study.locator('.lexicon-body').first()).toHaveCSS('font-size', readerFontSize);
+	const definition = study.locator('.lexicon-body').first();
+	const definitionSize = await definition.evaluate((element) =>
+		parseFloat(getComputedStyle(element).fontSize)
+	);
+	expect(definitionSize).toBeLessThan(parseFloat(readerFontSize));
+	const labelSize = await study
+		.locator('h3')
+		.first()
+		.evaluate((element) => getComputedStyle(element).fontSize);
 	await expect(study.locator('.occurrence p').first()).toHaveCSS('font-size', readerFontSize);
+	await page.getByRole('button', { name: 'Bibeltext vergrößern' }).click();
+	await expect
+		.poll(() => definition.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)))
+		.toBeGreaterThan(definitionSize);
+	await expect(study.locator('h3').first()).toHaveCSS('font-size', labelSize);
 	await expect(
 		lexiconLookup(page)
 			.locator('..')
