@@ -81,20 +81,32 @@ Workspace nach dessen erster Migration nicht wieder überschreiben. Eine bestehe
 verlustfrei migriert: höchstens vier Spalten werden Kacheln, eine alte fünfte Spalte wird ein weiterer
 Tab in der vierten Kachel.
 
-Benannte Arbeitsbereiche liegen als persönliche Momentaufnahmen in `saved_reader_workspaces`:
-kanonischer Reader-URL-Zustand einschließlich Suchen/Notizfiltern plus separate Trennergrößen. Das
-Menü „Arbeitsbereiche“ im globalen Header lädt nur eigene Namen, IDs und Revisionen. Die aktuelle
-Reader-Ansicht wird beim Speichern über einen pro Root-Layout erzeugten Svelte-Kontext direkt aus den
-sichtbaren Referenzen und Suchen erfasst, auch vor dem URL-Debounce; beim Zusammenführen der Referenzen
-gewinnt die tatsächlich fokussierte Quellkachel. Spätere Reader-Aktionen ändern nie die benannte
-Momentaufnahme. Nur explizites Ersetzen aktualisiert sie; Umbenennen und Löschen verlangen ebenfalls
-die aktuelle Revision. Alle Zugriffe sind eigentümergeprüft, konkurrierende Änderungen werden pro
-Konto serialisiert. Namen sind pro Konto eindeutig; höchstens 100 Momentaufnahmen sind erlaubt.
+Benannte Arbeitsbereiche liegen in `saved_reader_workspaces`: kanonischer Reader-URL-Zustand
+inklusive Suchen/Notizfiltern plus Trennergrößen. Genau ein Eintrag je Konto ist aktiv (`is_active`,
+partieller eindeutiger Index); bei der ersten Nutzung wird der bisherige Konto-/Gerätestand unter
+„Standard“ übernommen, niemals eine fremde URL-Ansicht. Das Header-Menü liefert nur eigene Namen, IDs,
+Verwaltungsrevisionen und Aktivstatus und hebt den aktiven Eintrag hervor. Neue Arbeitsbereiche kopieren
+die aktuelle Ansicht und werden anschließend geöffnet. Die aktuelle Ansicht wird über einen pro
+Root-Layout erzeugten Svelte-Kontext aus sichtbaren Referenzen und Suchen erfasst; bei verzögertem
+Scrollen gewinnt die tatsächlich fokussierte Quellkachel.
+
+Reader-Mutationen schreiben `users.reader_workspace` und den aktiven benannten Stand atomar unter
+Sperre der Nutzerzeile. Die Action trägt `workspaceId` nur in ihrer Anfrage, nicht in geteilten URLs;
+Aktiv-ID und vorheriger semantischer Zustand werden vor dem Schreiben erneut geprüft. So kann eine
+verspätete Anfrage den inzwischen geöffneten anderen Arbeitsbereich nicht überschreiben. Suchen und
+Sidecar-Filter speichern über den gleichfalls geschützten `/api/reader/workspaces/[id]/view`-Endpunkt.
+Der aktuelle flache URL-Zustand steht zusätzlich in `page.state.readerState`, damit nachfolgende
+Aktionen auch vor einer Servernavigation aktuelle Suchen und Referenzen übernehmen. Vor dem Wechsel
+werden ausstehende Lese-/Suchänderungen abgewartet. Fremde URL-Zweige bleiben unabhängig und dürfen den
+aktiven Stand weiterhin nicht überschreiben. Autosave ändert nicht die Verwaltungsrevision; Umbenennen
+und Löschen verlangen diese weiterhin. Der aktive Arbeitsbereich lässt sich erst nach dem Wechsel zu
+einem anderen löschen. Namen sind pro Konto eindeutig; höchstens 100 Einträge sind erlaubt.
+
 `/workspaces/[id]` ist ein schreibfreier Öffnungs-GET. Erst nach dieser Navigation (und damit nach dem
-Flush ausstehender Dokumentänderungen) übernimmt eine Form Action die Momentaufnahme als aktuellen
-Konto-Arbeitsbereich und leitet zur kanonischen Reader-URL weiter. Vorladen verändert keine Präferenz.
-Beim Speichern und Öffnen werden Ressourcen erneut gegen die öffentlichen, fertigen Werke geprüft;
-weggefallene Tabs und Such-/Lexikon-Kontexte verschwinden nur aus der geöffneten Kopie.
+Flush ausstehender Dokumentänderungen) aktiviert eine Form Action den Eintrag und übernimmt dessen
+Stand atomar als Konto-Arbeitsbereich. Vorladen verändert keine Präferenz. Speichern und Öffnen prüfen
+Ressourcen erneut gegen die öffentlichen, fertigen Werke; weggefallene Tabs und Kontexte werden beim
+Öffnen bereinigt und bei der nächsten Änderung fortgeschrieben.
 Das Wiederherstellen offener Tab-Suchen lädt nur deren Ergebnisse und schreibt die bereits
 kanonisierte URL nicht erneut: Vor der Initialisierung der Kapitelstreams wären Fokus und sichtbare
 Referenzen sonst noch unvollständig und könnten die gerade geöffnete Momentaufnahme verändern.

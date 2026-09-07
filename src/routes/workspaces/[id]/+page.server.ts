@@ -3,10 +3,12 @@ import { formatReference } from '$lib/bible/reference';
 import { restoreSavedWorkspace } from '$lib/reader/saved-workspaces';
 import { getDb } from '$lib/server/db';
 import { isUuid } from '$lib/server/documents/application';
-import { getSavedReaderWorkspace } from '$lib/server/repositories/saved-reader-workspaces';
+import {
+	activateSavedReaderWorkspace,
+	getSavedReaderWorkspace
+} from '$lib/server/repositories/saved-reader-workspaces';
 import { listReaderResources } from '$lib/server/repositories/resources';
-import { updateReaderWorkspace } from '$lib/server/repositories/users';
-import { workspaceColumns, writeWorkspaceCompatibilityCookies } from '$lib/server/reader-workspace';
+import { writeWorkspaceCompatibilityCookies } from '$lib/server/reader-workspace';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params, url, setHeaders }) => {
@@ -34,12 +36,13 @@ export const actions: Actions = {
 			resources.map((resource) => resource.id)
 		);
 		if (!restored) error(400, 'Dieser Arbeitsbereich kann nicht geöffnet werden.');
-		await updateReaderWorkspace(
+		const activated = await activateSavedReaderWorkspace(
 			db,
 			locals.user.id,
-			restored.workspace,
-			workspaceColumns(restored.workspace)
+			params.id,
+			restored.workspace
 		);
+		if (!activated) error(404, 'Arbeitsbereich nicht gefunden.');
 		writeWorkspaceCompatibilityCookies(cookies, restored.workspace);
 		cookies.set('location', formatReference(restored.reference), {
 			path: '/',

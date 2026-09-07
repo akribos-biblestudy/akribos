@@ -57,7 +57,11 @@
 	};
 
 	function actionUrl(): string {
-		return readerActionUrl('setLayout', readerStateFromPage(page));
+		return readerActionUrl(
+			'setLayout',
+			readerStateFromPage(page),
+			page.data.activeSavedWorkspaceId
+		);
 	}
 </script>
 

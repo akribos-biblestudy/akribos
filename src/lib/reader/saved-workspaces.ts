@@ -17,11 +17,19 @@ export type SavedWorkspaceSnapshot = {
 	layoutSizes: ReaderWorkspace['layoutSizes'];
 };
 
-export type SavedWorkspaceSummary = { id: string; name: string; revision: number };
+export type SavedWorkspaceSummary = {
+	id: string;
+	name: string;
+	revision: number;
+	isActive: boolean;
+};
 
 /** Provided by the root layout per render, never shared between server requests. */
 export const READER_WORKSPACE_CONTEXT = Symbol('reader-workspace-capture');
-export type ReaderWorkspaceCapture = { capture: (() => SavedWorkspaceSnapshot) | null };
+export type ReaderWorkspaceCapture = {
+	capture: (() => SavedWorkspaceSnapshot) | null;
+	flush?: () => Promise<void>;
+};
 
 export function cleanWorkspaceName(value: string): string | null {
 	const name = value.replace(/\s+/gu, ' ').trim();

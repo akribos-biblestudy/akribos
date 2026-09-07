@@ -50,9 +50,9 @@ export function withReaderNotesFilters(state: string, filters: ReaderNotesFilter
 /** SvelteKit's shallow replaceState changes page.state, but leaves page.url at its loaded URL. */
 export function readerStateFromPage(page: {
 	url: URL;
-	state: { readerNotesFilters?: ReaderNotesFilters };
+	state: { readerState?: string; readerNotesFilters?: ReaderNotesFilters };
 }): string | null {
-	const state = readerStateFromUrl(page.url);
+	const state = page.state.readerState ?? readerStateFromUrl(page.url);
 	return state
 		? withReaderNotesFilters(
 				state,
@@ -261,8 +261,13 @@ export function sameReaderUrlWorkspace(left: ReaderWorkspace, right: ReaderWorks
 	);
 }
 
-export function readerActionUrl(action: string, state: string | null | undefined): string {
-	return state ? `?${state}&/${action}` : `?/${action}`;
+export function readerActionUrl(
+	action: string,
+	state: string | null | undefined,
+	workspaceId?: string | null
+): string {
+	const owner = workspaceId ? `workspaceId=${encodeURIComponent(workspaceId)}&` : '';
+	return state ? `?${state}&${owner}/${action}` : `?${owner}/${action}`;
 }
 
 export function readerUrl(path: string, state: string): string {

@@ -358,6 +358,7 @@ export const savedReaderWorkspaces = pgTable(
 			.references(() => users.id, { onDelete: 'cascade' }),
 		name: text('name').notNull(),
 		snapshot: jsonb('snapshot').$type<SavedWorkspaceSnapshot>().notNull(),
+		isActive: boolean('is_active').notNull().default(false),
 		revision: integer('revision').notNull().default(1),
 		...timestamps
 	},
@@ -366,6 +367,9 @@ export const savedReaderWorkspaces = pgTable(
 			table.userId,
 			sql`lower(${table.name})`
 		),
+		uniqueIndex('saved_reader_workspaces_active_owner_idx')
+			.on(table.userId)
+			.where(sql`${table.isActive} = true`),
 		check(
 			'saved_reader_workspaces_name_check',
 			sql`char_length(btrim(${table.name})) between 1 and 80`

@@ -41,11 +41,20 @@ async function openMenu(page: Page) {
 
 async function saveWorkspace(page: Page, name: string) {
 	const menu = await openMenu(page);
-	await menu.getByRole('menuitem', { name: 'Aktuellen Arbeitsbereich speichern …' }).click();
-	const dialog = page.getByRole('dialog', { name: 'Arbeitsbereich speichern', exact: true });
+	await menu.getByRole('menuitem', { name: 'Neuer Arbeitsbereich …' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Neuer Arbeitsbereich', exact: true });
 	await dialog.getByLabel('Name', { exact: true }).fill(name);
-	await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
+	await dialog.getByRole('button', { name: 'Anlegen', exact: true }).click();
 	await expect(dialog).not.toBeVisible();
+	await expect
+		.poll(
+			async () =>
+				(await (await page.request.get('/api/reader/workspaces')).json()).workspaces.find(
+					(entry: { name: string }) => entry.name === name
+				)?.isActive
+		)
+		.toBe(true);
+	await expect(page.locator('.reader-tile').first()).toBeVisible();
 }
 
 async function manageWorkspace(page: Page, name: string) {
@@ -57,10 +66,16 @@ async function manageWorkspace(page: Page, name: string) {
 const state =
 	'layout=grid-4&tab=1.1:SEEDDE:A:Joh3,16&tab=1.2:SEEDPLAIN:A:Joh3,16&tab=2.1:STRONGS_GREEK:A:Joh3,16&tab=3.1:SEEDDE:B:Joh1,1&active=1.1&active=2.1&active=3.1&focus=1&lookup=2.1:G25&source=2.1:SEEDDE&sourceRef=2.1:Joh3,16&word=2.1:geliebt&search=3.1:Wort';
 
-test('saves, opens from another page, renames, explicitly replaces and deletes a named workspace', async ({
+test('starts with an active default, copies the current view and autosaves changes independently', async ({
 	page
 }) => {
 	await loginReader(page);
+	let menu = await openMenu(page);
+	await expect(menu.getByRole('menuitem', { name: 'Standard', exact: true })).toHaveAttribute(
+		'aria-current',
+		'true'
+	);
+	await page.keyboard.press('Escape');
 	await page.goto(`/Joh3,16?${state}`);
 	await expect(page.locator('.reader-tile')).toHaveCount(4);
 	await expect(page.locator('.reader-tile').nth(2).getByRole('searchbox')).toHaveValue('Wort');
@@ -72,57 +87,71 @@ test('saves, opens from another page, renames, explicitly replaces and deletes a
 	const response = await page.request.get('/api/reader/workspaces');
 	expect(response.headers()['cache-control']).toBe('private, no-store');
 	const { workspaces } = await response.json();
-	expect(workspaces).toHaveLength(1);
-	expect(Object.keys(workspaces[0]).sort()).toEqual(['id', 'name', 'revision']);
-
-	await page.goto('/Joh1?layout=single&tab=1.1:SEEDPLAIN:A:Joh1&active=1.1&focus=1');
-	await page.goto('/notes');
-	let menu = await openMenu(page);
-	await menu.getByRole('menuitem', { name: 'Johannes-Studium', exact: true }).click();
-	await expect(page).toHaveURL(
-		(url) => url.pathname === '/Joh3,16' && url.searchParams.get('layout') === 'grid-4'
-	);
+	expect(workspaces).toHaveLength(2);
+	expect(Object.keys(workspaces[0]).sort()).toEqual(['id', 'isActive', 'name', 'revision']);
+	menu = await openMenu(page);
+	await expect(
+		menu.getByRole('menuitem', { name: 'Johannes-Studium', exact: true })
+	).toHaveAttribute('aria-current', 'true');
+	await page.keyboard.press('Escape');
 	await expect(page.locator('.reader-tile')).toHaveCount(4);
-	await expect(page.locator('.reader-tile').first().locator('.resource-tab')).toHaveCount(2);
-	await expect(page.locator('.reader-tile').nth(2).getByRole('searchbox')).toHaveValue('Wort');
-	await expect(page.locator('.reader-tile').nth(1).getByRole('searchbox')).toHaveValue('G25');
 	await expect(splitter).toHaveAttribute('aria-valuenow', savedWidth!);
+	await expect(page.locator('.reader-tile').nth(1).getByRole('searchbox')).toHaveValue('G25');
 	await page.reload();
 	await expect(page).toHaveURL(
 		(url) =>
 			url.searchParams.get('focus') === '1' && url.searchParams.get('source') === '2.1:SEEDDE'
 	);
-
 	expect(new URL(page.url()).searchParams.getAll('tab')).toContain('3.1:SEEDDE:B:Joh1,1');
 	let dialog = await manageWorkspace(page, 'Johannes-Studium');
+	await expect(dialog.getByRole('checkbox')).toHaveCount(0);
+	await expect(dialog.getByRole('button', { name: 'Löschen …' })).toBeDisabled();
 	await dialog.getByLabel('Name', { exact: true }).fill('Meine Wortstudie');
 	await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
 	await expect(dialog).not.toBeVisible();
-	await page.goto('/Joh1?layout=single&tab=1.1:SEEDPLAIN:A:Joh1&active=1.1&focus=1');
-	dialog = await manageWorkspace(page, 'Meine Wortstudie');
-	await dialog.getByRole('checkbox').check();
-	await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
-	await expect(dialog).not.toBeVisible();
+	const search = page.locator('.reader-tile').first().getByRole('searchbox');
+	await search.fill('Liebe');
+	await search.press('Enter');
+	await expect(page).toHaveURL((url) => url.searchParams.getAll('search').includes('1.1:Liebe'));
+	// Switching immediately flushes client-only searches before opening the other workspace.
+	menu = await openMenu(page);
+	await menu.getByRole('menuitem', { name: 'Standard', exact: true }).click();
+	await expect(page.locator('.reader-tile')).toHaveCount(2);
+	await expect(page.locator('.reader-tile').first().getByRole('searchbox')).not.toHaveValue(
+		'Liebe'
+	);
 	await page.goto('/notes');
 	menu = await openMenu(page);
 	await menu.getByRole('menuitem', { name: 'Meine Wortstudie', exact: true }).click();
+	await expect(page.locator('.reader-tile')).toHaveCount(4);
+	await expect(search).toHaveValue('Liebe');
+	await expect(page.locator('.reader-tile').nth(2).getByRole('searchbox')).toHaveValue('Wort');
+	// Layout mutations also write the active named workspace, without any explicit save control.
+	await page.getByRole('button', { name: 'Kachelanordnung wählen' }).click();
+	await page.getByRole('menuitemradio', { name: /Eine Kachel/ }).click();
 	await expect(page.locator('.reader-tile')).toHaveCount(1);
-	await expect(page.locator('.flow-column')).toHaveAttribute('data-resource-id', 'SEEDPLAIN');
-	// Opening makes it the account default as well, while the named snapshot remains unchanged.
+	await saveWorkspace(page, 'Zweite Studie');
+	await expect(search).toHaveValue('Liebe');
+	await page.getByRole('button', { name: 'Kachelanordnung wählen' }).click();
+	await page.getByRole('menuitemradio', { name: /Zwei Spalten/ }).click();
+	await expect(page.locator('.reader-tile')).toHaveCount(2);
+	menu = await openMenu(page);
+	await menu.getByRole('menuitem', { name: 'Meine Wortstudie', exact: true }).click();
+	await expect(page.locator('.reader-tile')).toHaveCount(1);
+	await expect(search).toHaveValue('Liebe');
 	await page.goto('/notes');
 	await page.getByRole('link', { name: 'Akribos – Startseite' }).click();
 	await expect(page.locator('.reader-tile')).toHaveCount(1);
-	dialog = await manageWorkspace(page, 'Meine Wortstudie');
+	await expect(search).toHaveValue('Liebe');
+	dialog = await manageWorkspace(page, 'Zweite Studie');
 	await dialog.getByRole('button', { name: 'Löschen …' }).click();
 	await page
 		.getByRole('dialog', { name: 'Arbeitsbereich löschen' })
 		.getByRole('button', { name: 'Löschen', exact: true })
 		.click();
 	await expect(page.getByRole('dialog')).not.toBeVisible();
-	await expect(page.locator('.reader-tile')).toHaveCount(1);
-	await page.reload();
 	menu = await openMenu(page);
-	await expect(menu.getByText('Noch keine Arbeitsbereiche gespeichert.')).toBeVisible();
+	await expect(menu.getByRole('menuitem', { name: 'Zweite Studie', exact: true })).toHaveCount(0);
 	await page.setViewportSize({ width: 375, height: 812 });
 	await expect(menu).toBeInViewport();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -184,9 +213,9 @@ test('prefetch is read-only and foreign accounts cannot open or modify saved wor
 		expect((await context.request.get('/api/reader/workspaces')).headers()['cache-control']).toBe(
 			'private, no-store'
 		);
-		expect(await (await context.request.get('/api/reader/workspaces')).json()).toEqual({
-			workspaces: []
-		});
+		expect((await (await context.request.get('/api/reader/workspaces')).json()).workspaces).toEqual(
+			[expect.objectContaining({ name: 'Standard', isActive: true })]
+		);
 		expect((await context.request.get(`/workspaces/${id}`)).status()).toBe(404);
 		expect(
 			(
@@ -269,9 +298,7 @@ test('opening a workspace waits for pending note changes before switching the ac
 	}
 });
 
-test('saving captures the visible passage while its account persistence is still pending', async ({
-	page
-}) => {
+test('creating a workspace flushes the visible passage before copying it', async ({ page }) => {
 	await loginReader(page);
 	await page.setViewportSize({ width: 900, height: 400 });
 	await page.goto(
@@ -301,8 +328,14 @@ test('saving captures the visible passage while its account persistence is still
 		);
 		const field = page.locator('.reader-tile').first().getByRole('searchbox');
 		await expect(field).toHaveValue('1Mo 2,1');
-		await saveWorkspace(page, 'Aktuelle Lesestelle');
+		const creating = saveWorkspace(page, 'Aktuelle Lesestelle');
+		await expect(
+			page
+				.getByRole('dialog', { name: 'Neuer Arbeitsbereich', exact: true })
+				.getByRole('button', { name: 'Wird gespeichert …' })
+		).toBeVisible();
 		releaseReference();
+		await creating;
 		const menu = await openMenu(page);
 		await menu.getByRole('menuitem', { name: 'Aktuelle Lesestelle', exact: true }).click();
 		await expect(page).toHaveURL(

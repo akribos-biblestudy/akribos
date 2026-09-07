@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getContext, tick } from 'svelte';
+	import { goto } from '$app/navigation';
 	import {
 		MAX_WORKSPACE_NAME_LENGTH,
 		READER_WORKSPACE_CONTEXT,
@@ -19,7 +20,6 @@
 	let editing = $state(false);
 	let selected = $state<SavedWorkspaceSummary | null>(null);
 	let name = $state('');
-	let replaceSnapshot = $state(false);
 	let deleting = $state(false);
 	let busy = $state(false);
 	let message = $state('');
@@ -29,7 +29,7 @@
 			? 'Arbeitsbereich löschen'
 			: selected
 				? 'Arbeitsbereich bearbeiten'
-				: 'Arbeitsbereich speichern'
+				: 'Neuer Arbeitsbereich'
 	);
 
 	async function refreshEntries(): Promise<void> {
@@ -49,7 +49,6 @@
 		menu?.close();
 		selected = entry;
 		name = entry?.name ?? '';
-		replaceSnapshot = false;
 		deleting = false;
 		message = '';
 		editing = true;
@@ -66,9 +65,9 @@
 		entriesGeneration += 1;
 		message = '';
 		try {
-			const snapshot =
-				!deleting && (!selected || replaceSnapshot) ? capture.capture?.() : undefined;
-			if (!deleting && (!selected || replaceSnapshot) && !snapshot) {
+			await capture.flush?.();
+			const snapshot = !deleting && !selected ? capture.capture?.() : undefined;
+			if (!deleting && !selected && !snapshot) {
 				throw new Error('Bitte öffne zuerst einen Arbeitsbereich im Reader.');
 			}
 			const response = await fetch(`/api/reader/workspaces${selected ? `/${selected.id}` : ''}`, {
@@ -86,6 +85,8 @@
 				? 'Arbeitsbereich gelöscht.'
 				: `Arbeitsbereich „${result.workspace.name}“ gespeichert.`;
 			dialog?.close();
+			if (!selected && !deleting)
+				await goto(`/workspaces/${result.workspace.id}`, { invalidateAll: true });
 		} catch (caught) {
 			message = caught instanceof Error ? caught.message : 'Bitte versuche es erneut.';
 		} finally {
@@ -109,20 +110,33 @@
 </button>
 
 <Menu bind:this={menu} label="Arbeitsbereiche" minWidth="19rem">
-	<p class="menu-caption">Gespeicherte Arbeitsbereiche</p>
+	<p class="menu-caption">Arbeitsbereiche · automatisch gespeichert</p>
 	{#if entries.length === 0}
 		<p class="empty-hint">Noch keine Arbeitsbereiche gespeichert.</p>
 	{:else}
 		{#each entries as entry (entry.id)}
-			<div class="workspace-row" role="none">
+			<div class="workspace-row" class:active={entry.isActive} role="none">
 				<a
 					href={`/workspaces/${entry.id}`}
 					role="menuitem"
 					title={entry.name}
-					onclick={() => menu?.close()}
+					aria-current={entry.isActive ? 'true' : undefined}
+					onclick={async (event) => {
+						if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+						event.preventDefault();
+						menu?.close();
+						try {
+							await capture.flush?.();
+							await goto(`/workspaces/${entry.id}`, { invalidateAll: true });
+						} catch {
+							notice =
+								'Der Arbeitsbereich konnte nicht gespeichert werden. Bitte versuche es erneut.';
+						}
+					}}
 					data-sveltekit-preload-data="off"
 				>
 					<span class="truncate">{entry.name}</span>
+					{#if entry.isActive}<Icon name="check" class="size-4" />{/if}
 				</a>
 				<button
 					type="button"
@@ -140,7 +154,7 @@
 	<hr />
 	{#if reader}
 		<button type="button" role="menuitem" onclick={() => edit(null)}
-			><Icon name="plus" class="size-4" />Aktuellen Arbeitsbereich speichern …</button
+			><Icon name="plus" class="size-4" />Neuer Arbeitsbereich …</button
 		>
 	{:else}
 		<p class="empty-hint">Neue Arbeitsbereiche kannst du im Reader speichern.</p>
@@ -174,12 +188,11 @@
 			</div>
 			{#if deleting}
 				<p>
-					Gespeicherten Arbeitsbereich „{selected?.name}“ löschen? Deine geöffneten Tabs bleiben
-					erhalten.
+					Arbeitsbereich „{selected?.name}“ löschen?
 				</p>
 			{:else}
 				{#if !selected}<p>
-						Speichert Kacheln, Tabs, Bibelstellen und offene Suchen in deinem Konto.
+						Beginnt mit deiner aktuellen Ansicht. Änderungen werden automatisch gespeichert.
 					</p>{/if}
 				<label class="name-label" for="workspace-name">Name</label>
 				<input
@@ -192,19 +205,16 @@
 					placeholder="z. B. Studium zum Römerbrief"
 					disabled={busy}
 				/>
-				{#if selected && reader}
-					<label class="replace-option"
-						><input type="checkbox" bind:checked={replaceSnapshot} disabled={busy} />Gespeicherte
-						Ansicht durch den aktuellen Arbeitsbereich ersetzen</label
-					>
-				{/if}
 			{/if}
 			{#if message}<p role="alert" class="error-message">{message}</p>{/if}
 			<div class="dialog-actions">
 				{#if selected && !deleting}<button
 						type="button"
 						class="delete-action"
-						disabled={busy}
+						disabled={busy || selected.isActive}
+						title={selected.isActive
+							? 'Öffne zum Löschen zuerst einen anderen Arbeitsbereich.'
+							: undefined}
 						onclick={() => {
 							deleting = true;
 							message = '';
@@ -220,7 +230,13 @@
 					}}>Abbrechen</button
 				>
 				<button class:danger={deleting} class="primary-action" disabled={busy}
-					>{busy ? 'Wird gespeichert …' : deleting ? 'Löschen' : 'Speichern'}</button
+					>{busy
+						? 'Wird gespeichert …'
+						: deleting
+							? 'Löschen'
+							: selected
+								? 'Speichern'
+								: 'Anlegen'}</button
 				>
 			</div>
 		</form>
@@ -257,6 +273,12 @@
 	.workspace-row {
 		display: flex;
 		align-items: center;
+	}
+	.workspace-row.active {
+		background: color-mix(in oklab, var(--color-accent-500) 11%, transparent);
+		color: var(--color-accent-700);
+		border-radius: 0.4rem;
+		font-weight: 600;
 	}
 	.workspace-row a {
 		min-width: 0;
@@ -316,19 +338,6 @@
 		background: var(--surface);
 		font-size: 0.9rem;
 	}
-	.replace-option {
-		display: flex;
-		align-items: start;
-		gap: 0.65rem;
-		margin-top: 1rem;
-		font-size: 0.8rem;
-		line-height: 1.5;
-	}
-	.replace-option input {
-		margin-top: 0.2rem;
-		flex-shrink: 0;
-		accent-color: var(--color-accent-600);
-	}
 	.dialog-actions {
 		display: flex;
 		flex-wrap: wrap;
@@ -367,6 +376,12 @@
 	button:disabled {
 		cursor: wait;
 		opacity: 0.55;
+	}
+	.delete-action:disabled {
+		cursor: not-allowed;
+	}
+	:global(.dark) .workspace-row.active {
+		color: var(--color-accent-300);
 	}
 	:global(.dark) .workspace-trigger {
 		color: var(--color-stone-300);

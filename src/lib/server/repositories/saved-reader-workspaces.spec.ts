@@ -3,12 +3,17 @@ import { eq, inArray } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import { closeDb, getDb } from '$lib/server/db';
 import { savedReaderWorkspaces, users } from '$lib/server/db/schema';
-import { MAX_SAVED_WORKSPACES } from '$lib/reader/saved-workspaces';
+import { MAX_SAVED_WORKSPACES, restoreSavedWorkspace } from '$lib/reader/saved-workspaces';
 import { createUser } from './users';
 import {
 	changeSavedReaderWorkspace,
 	getSavedReaderWorkspace,
-	listSavedReaderWorkspaces
+	listSavedReaderWorkspaces,
+	ensureDefaultReaderWorkspace,
+	getActiveReaderWorkspace,
+	activateSavedReaderWorkspace,
+	persistReaderWorkspace,
+	saveActiveWorkspaceView
 } from './saved-reader-workspaces';
 
 const db = getDb();
@@ -32,7 +37,79 @@ afterAll(async () => {
 });
 
 describe('personal saved Reader workspaces', () => {
-	it('isolates reads, renames, replacements and deletions by owner; rejects stale revisions', async () => {
+	it('adopts the previous account view once, autosaves only the active workspace and keeps copies independent', async () => {
+		const owner = await account();
+		const original = restoreSavedWorkspace(snapshot, ['SEEDDE'])!.workspace;
+		await db.update(users).set({ readerWorkspace: original }).where(eq(users.id, owner));
+		await Promise.all([
+			ensureDefaultReaderWorkspace(db, owner, original),
+			ensureDefaultReaderWorkspace(db, owner, original)
+		]);
+		const standard = (await getActiveReaderWorkspace(db, owner))!;
+		expect(await listSavedReaderWorkspaces(db, owner)).toHaveLength(1);
+		expect(standard).toMatchObject({ name: 'Standard', isActive: true });
+		const created = await changeSavedReaderWorkspace(db, owner, {
+			action: 'create',
+			name: 'Kopie',
+			snapshot: standard.snapshot
+		});
+		if (!created.ok) throw new Error('create failed');
+		await activateSavedReaderWorkspace(db, owner, created.workspace.id, original);
+		const changedSnapshot = {
+			...snapshot,
+			readerState:
+				snapshot.readerState.replace('Joh3,16', 'Röm8,1') + '&search=1.1:Liebe&notesQuery=Gedanke',
+			layoutSizes: { single: { columns: [1], rows: [1] } }
+		};
+		const changed = restoreSavedWorkspace(changedSnapshot, ['SEEDDE'])!;
+		expect(
+			await persistReaderWorkspace(db, owner, changed.workspace, {
+				guard: { activeId: created.workspace.id, previous: original },
+				readerState: changed.snapshot.readerState
+			})
+		).toBe(true);
+		expect((await getSavedReaderWorkspace(db, owner, created.workspace.id))!.snapshot).toEqual(
+			changed.snapshot
+		);
+		expect((await getSavedReaderWorkspace(db, owner, standard.id))!.snapshot).toEqual(
+			standard.snapshot
+		);
+		// Autosave changes no name/revision, so renaming remains usable while reading.
+		expect((await getSavedReaderWorkspace(db, owner, created.workspace.id))!.revision).toBe(1);
+		await activateSavedReaderWorkspace(db, owner, standard.id, original);
+		expect(
+			await persistReaderWorkspace(db, owner, changed.workspace, {
+				guard: { activeId: created.workspace.id, previous: original }
+			})
+		).toBe(false);
+		expect(await saveActiveWorkspaceView(db, owner, standard.id, changed.snapshot)).toBe(false);
+		expect(await saveActiveWorkspaceView(db, owner, created.workspace.id, standard.snapshot)).toBe(
+			false
+		);
+		expect(
+			await saveActiveWorkspaceView(db, owner, standard.id, {
+				...standard.snapshot,
+				readerState: standard.snapshot.readerState + '&search=1.1:Wort'
+			})
+		).toBe(true);
+		expect((await getSavedReaderWorkspace(db, owner, standard.id))!.snapshot.readerState).toContain(
+			'search=1.1:Wort'
+		);
+		expect(
+			await changeSavedReaderWorkspace(db, owner, {
+				action: 'delete',
+				id: standard.id,
+				revision: 1
+			})
+		).toEqual({ ok: false, reason: 'active' });
+		await ensureDefaultReaderWorkspace(db, owner, changed.workspace);
+		expect(await listSavedReaderWorkspaces(db, owner)).toHaveLength(2);
+		expect(await activateSavedReaderWorkspace(db, await account(), standard.id, original)).toBe(
+			false
+		);
+	});
+
+	it('isolates reads, renames and deletions by owner; rejects stale revisions', async () => {
 		const owner = await account();
 		const other = await account();
 		const created = await changeSavedReaderWorkspace(db, owner, {
@@ -70,15 +147,13 @@ describe('personal saved Reader workspaces', () => {
 				ok: false,
 				reason: 'conflict'
 			});
-		const next = { ...snapshot, readerState: snapshot.readerState.replace('Joh3,16', 'Röm8,1') };
 		await changeSavedReaderWorkspace(db, owner, {
 			action: 'update',
 			id,
 			revision: 2,
-			name: 'Römerbrief',
-			snapshot: next
+			name: 'Römerbrief'
 		});
-		expect((await getSavedReaderWorkspace(db, owner, id))!.snapshot).toEqual(next);
+		expect((await getSavedReaderWorkspace(db, owner, id))!.snapshot).toEqual(snapshot);
 		expect(
 			await changeSavedReaderWorkspace(db, owner, { action: 'delete', id, revision: 3 })
 		).toMatchObject({ ok: true });

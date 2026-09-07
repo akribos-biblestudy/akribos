@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { deserialize, enhance } from '$app/forms';
-	import { beforeNavigate, goto, replaceState } from '$app/navigation';
+	import { beforeNavigate, onNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { getContext, onDestroy, onMount, tick, untrack } from 'svelte';
 	import {
@@ -45,6 +45,7 @@
 		type ReaderWorkspace
 	} from '$lib/reader/workspace';
 	import {
+		decodeReaderUrlState,
 		encodeReaderUrlState,
 		readReaderNotesFilters,
 		withReaderNotesFilters,
@@ -88,10 +89,69 @@
 				[data.workspace.layout]: { columns: [...layoutColumns], rows: [...layoutRows] }
 			}
 		});
+		workspaceCapture.flush = flushWorkspace;
 		return () => {
 			workspaceCapture.capture = null;
+			workspaceCapture.flush = undefined;
 		};
 	});
+	let workspaceSaveError = $state('');
+	let viewSaveTimer: ReturnType<typeof setTimeout> | undefined;
+	let viewDirty = false;
+	let pendingViewSave = Promise.resolve();
+	let pendingReferenceSave = Promise.resolve();
+	let referenceWriteState: string | undefined;
+	let referenceWriteDataState: string | undefined;
+	let flushReference: (() => void) | undefined;
+	let readerNavigationInProgress = false;
+	let readerNavigationGeneration = 0;
+
+	function scheduleWorkspaceViewSave(): void {
+		if (!data.activeSavedWorkspaceId) return;
+		viewDirty = true;
+		if (viewSaveTimer) clearTimeout(viewSaveTimer);
+		viewSaveTimer = setTimeout(() => {
+			void flushWorkspace().catch(() => {});
+		}, 250);
+	}
+
+	async function flushWorkspace(): Promise<void> {
+		if (viewSaveTimer) clearTimeout(viewSaveTimer);
+		viewSaveTimer = undefined;
+		flushReference?.();
+		await pendingReferenceSave;
+		if (!viewDirty || !data.activeSavedWorkspaceId) return pendingViewSave;
+		viewDirty = false;
+		const id = data.activeSavedWorkspaceId;
+		// The URL contains the canonical focus; capture only the client-only searches/filters here.
+		const snapshot = {
+			readerState: readerNavigationInProgress
+				? (workspaceCapture.capture?.().readerState ?? currentReaderState())
+				: currentReaderState(),
+			layoutSizes: workspaceCapture.capture?.().layoutSizes ?? data.workspace.layoutSizes
+		};
+		pendingViewSave = pendingViewSave
+			.catch(() => {})
+			.then(async () => {
+				try {
+					const response = await fetch(`/api/reader/workspaces/${id}/view`, {
+						method: 'PUT',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ snapshot }),
+						keepalive: true
+					});
+					if (!response.ok)
+						throw new Error('Änderungen am Arbeitsbereich konnten nicht gespeichert werden.');
+					workspaceSaveError = '';
+				} catch (caught) {
+					viewDirty = true;
+					workspaceSaveError = 'Änderungen am Arbeitsbereich konnten nicht gespeichert werden.';
+					throw caught;
+				}
+			});
+		return pendingViewSave;
+	}
+	onNavigate(() => flushWorkspace());
 	const notesFilters = $derived(
 		page.state.readerNotesFilters ?? readReaderNotesFilters(page.url.searchParams)
 	);
@@ -103,8 +163,10 @@
 		);
 		replaceState(readerUrl(window.location.pathname, state), {
 			...page.state,
+			readerState: state,
 			readerNotesFilters: filters
 		});
+		scheduleWorkspaceViewSave();
 	}
 
 	/**
@@ -150,7 +212,7 @@
 	}
 
 	function actionUrl(action: string): string {
-		return readerActionUrl(action, currentReaderState());
+		return readerActionUrl(action, currentReaderState(), data.activeSavedWorkspaceId);
 	}
 
 	function openResourceDialog(tileId: string, anchor: HTMLElement) {
@@ -982,19 +1044,19 @@
 			const reference = toolbarReference(column);
 			workspace = setReaderTabReference(workspace, column.tileId, column.activeTab.id, reference);
 		}
-		return workspace;
+		return source ? workspace : { ...workspace, focusedTileId: data.workspace.focusedTileId };
 	}
 
-	function syncReaderUrl(path = window.location.pathname): void {
+	function syncReaderUrl(path = window.location.pathname, sourceIndex?: number): void {
 		try {
 			const state = encodeReaderUrlState(
-				workspaceAtVisibleReferences(),
+				workspaceAtVisibleReferences(sourceIndex),
 				currentSearchQueries(),
 				notesFilters
 			);
 			const next = readerUrl(path, state);
 			if (`${window.location.pathname}${window.location.search}` !== next) {
-				replaceState(next, page.state);
+				replaceState(next, { ...page.state, readerState: state });
 			}
 		} catch (error) {
 			console.error(error);
@@ -1014,6 +1076,7 @@
 		delete next[tabId];
 		tabSearches = next;
 		syncReaderUrl();
+		scheduleWorkspaceViewSave();
 	}
 
 	async function runTabSearch(
@@ -1047,7 +1110,10 @@
 				error: null
 			}
 		};
-		if (updateUrl) syncReaderUrl();
+		if (updateUrl) {
+			syncReaderUrl();
+			scheduleWorkspaceViewSave();
+		}
 
 		try {
 			const params = new SvelteURLSearchParams({
@@ -1492,7 +1558,7 @@
 	 * debounced, avoiding needless churn and `history` rate limits while scrolling continues.
 	 */
 	function scheduleAddressBarUpdate(columnIndex: number, verseKey: string | undefined) {
-		if (!verseKey) return;
+		if (!verseKey || readerNavigationInProgress) return;
 		const [book, chapter, verse] = verseKey.split(':').map(Number);
 		if (!book || !chapter || !verse) return;
 
@@ -1508,30 +1574,65 @@
 		const generation = ++addressBarGeneration;
 
 		if (addressBarTimer) clearTimeout(addressBarTimer);
-		addressBarTimer = setTimeout(() => {
+		const writeReference = () => {
+			if (addressBarTimer) clearTimeout(addressBarTimer);
 			addressBarTimer = undefined;
+			flushReference = undefined;
 			const column = data.columns[columnIndex];
 			if (!column) return;
 			const form = new FormData();
 			form.set('tileId', column.tileId);
 			form.set('tabId', column.activeTab.id);
 			form.set('reference', formatReference(reference));
-			const request = fetch(actionUrl('setTabReference'), {
-				method: 'POST',
-				body: form,
-				headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
-			});
+			const requestState = currentReaderState();
+			const requestDataState = data.readerState;
+			const requestPath = referencePath(data.reference);
+			const workspaceId = data.activeSavedWorkspaceId;
 			const path = referencePath(reference);
-			syncReaderUrl(path);
-			void request.then(async (response) => {
-				if (!response.ok) return;
-				const result = deserialize(await response.text());
-				if (generation !== addressBarGeneration || result.type !== 'success') return;
-				const state = readerStateFromActionData(result.data);
-				if (state)
-					replaceState(readerUrl(path, withReaderNotesFilters(state, notesFilters)), page.state);
+			if (!readerNavigationInProgress) syncReaderUrl(path, columnIndex);
+			pendingReferenceSave = pendingReferenceSave
+				.catch(() => {})
+				.then(async () => {
+					if (referenceWriteDataState !== requestDataState) {
+						referenceWriteDataState = requestDataState;
+						referenceWriteState = requestState;
+					}
+					const response = await fetch(
+						`${requestPath}${readerActionUrl('setTabReference', referenceWriteState, workspaceId)}`,
+						{
+							method: 'POST',
+							body: form,
+							headers: { accept: 'application/json', 'x-sveltekit-action': 'true' },
+							keepalive: true
+						}
+					);
+					if (!response.ok) throw new Error('Die Lesestelle konnte nicht gespeichert werden.');
+					const result = deserialize(await response.text());
+					if (result.type !== 'success')
+						throw new Error('Die Lesestelle konnte nicht gespeichert werden.');
+					const state = readerStateFromActionData(result.data);
+					if (state) referenceWriteState = state;
+					if (generation !== addressBarGeneration || readerNavigationInProgress) return;
+					if (state) {
+						const decoded = decodeReaderUrlState(new URLSearchParams(state));
+						const nextState = decoded
+							? encodeReaderUrlState(
+									decoded.workspace as ReaderWorkspace,
+									currentSearchQueries(),
+									notesFilters
+								)
+							: withReaderNotesFilters(state, notesFilters);
+						replaceState(readerUrl(path, nextState), { ...page.state, readerState: nextState });
+					}
+					workspaceSaveError = '';
+				});
+			void pendingReferenceSave.catch(() => {
+				workspaceSaveError = 'Die Lesestelle konnte nicht gespeichert werden.';
+				if (generation === addressBarGeneration) flushReference = writeReference;
 			});
-		}, 200);
+		};
+		flushReference = writeReference;
+		addressBarTimer = setTimeout(flushReference, 200);
 	}
 
 	/** Cancels delayed work before it can apply an old chapter's position to a new navigation. */
@@ -1541,6 +1642,7 @@
 		flowSyncTimer = undefined;
 		if (addressBarTimer) clearTimeout(addressBarTimer);
 		addressBarTimer = undefined;
+		flushReference = undefined;
 		for (const timer of suppressFlowTimers) {
 			if (timer) clearTimeout(timer);
 		}
@@ -1548,7 +1650,14 @@
 		suppressedFlowColumns.clear();
 	}
 
-	beforeNavigate(() => {
+	beforeNavigate((navigation) => {
+		readerNavigationInProgress = true;
+		const generation = ++readerNavigationGeneration;
+		const reset = () => {
+			if (generation === readerNavigationGeneration) readerNavigationInProgress = false;
+		};
+		void navigation.complete.then(reset, reset);
+		flushReference?.();
 		for (const stream of columnStreams) {
 			stream.generation += 1;
 			stream.loadingPrevious = false;
@@ -1558,6 +1667,9 @@
 	});
 
 	onDestroy(cancelScheduledReaderWork);
+	onDestroy(() => {
+		if (viewSaveTimer) clearTimeout(viewSaveTimer);
+	});
 	onDestroy(() => {
 		for (const request of tabSearchRequests.values()) request.abort();
 		tabSearchRequests.clear();
@@ -1787,6 +1899,9 @@
 	onpointermove={onReaderPointerMove}
 	onpointerup={onReaderPointerEnd}
 	onpointercancel={onReaderPointerEnd}
+	onpagehide={() => {
+		void flushWorkspace().catch(() => {});
+	}}
 />
 
 <svelte:head>
@@ -1804,6 +1919,18 @@
 	class:sidecar-open={readerNotesSidecarOpen}
 	style:--reader-notes-sidecar-width={`${readerNotesSidecarWidth}px`}
 >
+	{#if workspaceSaveError}
+		<p role="alert" class="mx-3 mt-2 text-sm text-red-700 dark:text-red-400">
+			{workspaceSaveError}
+			<button
+				type="button"
+				class="cursor-pointer underline"
+				onclick={() => {
+					void flushWorkspace().catch(() => {});
+				}}>Erneut versuchen</button
+			>
+		</p>
+	{/if}
 	{#if data.user}
 		<div
 			class="mobile-reader-view-switch"

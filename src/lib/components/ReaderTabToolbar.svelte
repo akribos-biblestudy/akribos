@@ -126,7 +126,7 @@
 	}
 
 	function actionUrl(action: string): string {
-		return readerActionUrl(action, readerStateFromPage(page));
+		return readerActionUrl(action, readerStateFromPage(page), page.data.activeSavedWorkspaceId);
 	}
 </script>
 

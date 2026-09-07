@@ -59,6 +59,10 @@ import {
 import { findLexiconEntry } from '$lib/server/repositories/strong';
 import { updateReaderFontScale, updateReaderWorkspace } from '$lib/server/repositories/users';
 import {
+	getActiveReaderWorkspace,
+	type WorkspaceWriteGuard
+} from '$lib/server/repositories/saved-reader-workspaces';
+import {
 	MAX_FONT_SCALE,
 	MIN_FONT_SCALE,
 	readFontScale,
@@ -139,6 +143,7 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 		reference
 	);
 	const decodedUrlState = decodeReaderUrlState(url);
+	const activeSaved = locals.user ? await getActiveReaderWorkspace(db, locals.user.id) : null;
 	let workspace = decodedUrlState
 		? normalizeReaderWorkspace(
 				decodedUrlState.workspace,
@@ -149,7 +154,13 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 		: persistedWorkspace;
 	// Divider ratios are a personal device preference, not part of a copied or duplicated URL.
 	workspace.layoutSizes = structuredClone(persistedWorkspace.layoutSizes);
-	const searchQueries = decodedUrlState?.searchQueries ?? {};
+	const storedView = activeSaved
+		? decodeReaderUrlState(new URLSearchParams(activeSaved.snapshot.readerState))
+		: null;
+	const searchQueries = decodedUrlState?.searchQueries ?? storedView?.searchQueries ?? {};
+	const notesFilters = readReaderNotesFilters(
+		decodedUrlState ? url.searchParams : new URLSearchParams(activeSaved?.snapshot.readerState)
+	);
 	const byId = new Map(readerResources.map((resource) => [resource.id, resource]));
 	const activeIds = activeResourceIds(workspace);
 	const selectedBibles = activeIds.filter((id) => byId.get(id)?.kind === 'bible');
@@ -182,15 +193,12 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 		workspace = setReaderTabReference(workspace, focusedTile.id, focusedTab.id, reference);
 	}
 
-	const readerState = encodeReaderUrlState(
-		workspace,
-		searchQueries,
-		readReaderNotesFilters(url.searchParams)
-	);
+	const readerState = encodeReaderUrlState(workspace, searchQueries, notesFilters);
 	if (readerStateFromUrl(url) !== readerState) {
 		// A plain passage URL starts a personal branch and may safely become the account/device default.
 		// A valid URL snapshot is never persisted by this GET: it may have come from somebody else.
-		if (!decodedUrlState) await commitWorkspace(cookies, locals.user, workspace, true);
+		if (!decodedUrlState)
+			await commitWorkspace(cookies, locals.user, workspace, true, undefined, readerState);
 		redirect(302, readerUrl(canonical, readerState));
 	}
 
@@ -638,7 +646,9 @@ export const actions = {
 			cookies,
 			locals.user,
 			setReaderLayoutSize(current.persistedWorkspace, layout, columns, rows),
-			true
+			!url.searchParams.has('workspaceId') ||
+				url.searchParams.get('workspaceId') === current.guard?.activeId,
+			current.guard
 		);
 		return {
 			success: true,
@@ -871,6 +881,7 @@ type CurrentWorkspace = {
 	searchQueries: ReaderSearchQueries;
 	notesFilters: ReaderNotesFilters;
 	persist: boolean;
+	guard?: WorkspaceWriteGuard;
 };
 
 async function currentWorkspace(
@@ -898,9 +909,14 @@ async function currentWorkspace(
 			)
 		: persistedWorkspace;
 	workspace.layoutSizes = structuredClone(persistedWorkspace.layoutSizes);
-	const persist = !decoded || sameReaderUrlWorkspace(workspace, persistedWorkspace);
+	const active = user ? await getActiveReaderWorkspace(getDb(), user.id) : null;
+	const guard = user ? { activeId: active?.id ?? null, previous: persistedWorkspace } : undefined;
+	const persist =
+		(!url.searchParams.has('workspaceId') || url.searchParams.get('workspaceId') === active?.id) &&
+		(!decoded || sameReaderUrlWorkspace(workspace, persistedWorkspace));
 	if (!reference) {
 		return {
+			guard,
 			workspace,
 			persistedWorkspace,
 			searchQueries: decoded?.searchQueries ?? {},
@@ -920,6 +936,7 @@ async function currentWorkspace(
 		workspace = setReaderTabReference(workspace, focusedTile.id, focusedTab.id, reference);
 	}
 	return {
+		guard,
 		workspace,
 		persistedWorkspace,
 		searchQueries: decoded?.searchQueries ?? {},
@@ -940,16 +957,25 @@ async function commitWorkspace(
 	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
 	user: App.Locals['user'],
 	workspace: ReaderWorkspace,
-	persist = true
+	persist = true,
+	guard?: WorkspaceWriteGuard,
+	readerState?: string
 ): Promise<void> {
 	if (!persist) return;
+	if (
+		user &&
+		!(await updateReaderWorkspace(getDb(), user.id, workspace, {
+			guard,
+			readerState
+		}))
+	)
+		return;
 	const written = writeWorkspaceCompatibilityCookies(cookies, workspace);
 	if (!written && !user) {
 		// A browser cookie is the only persistence available to a guest. Do not pretend a mutation was
 		// saved once the exceptionally large workspace no longer fits in it.
 		error(409, 'Der Arbeitsbereich ist für die lokale Speicherung zu groß.');
 	}
-	if (user) await updateReaderWorkspace(getDb(), user.id, workspace, workspaceColumns(workspace));
 }
 
 async function finishWorkspaceMutation<T extends Record<string, unknown>>(
@@ -959,7 +985,14 @@ async function finishWorkspaceMutation<T extends Record<string, unknown>>(
 	next: ReaderWorkspace,
 	extra?: T
 ): Promise<{ success: true; readerState: string } & T> {
-	await commitWorkspace(cookies, user, next, current.persist);
+	await commitWorkspace(
+		cookies,
+		user,
+		next,
+		current.persist,
+		current.guard,
+		encodeReaderUrlState(next, current.searchQueries, current.notesFilters)
+	);
 	return {
 		success: true,
 		readerState: encodeReaderUrlState(next, current.searchQueries, current.notesFilters),

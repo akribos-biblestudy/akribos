@@ -187,19 +187,29 @@ shape; those collaborative threads are not unified documents. See
 
 ## Reader workspace
 
-Named snapshots are stored separately in `saved_reader_workspaces`, scoped to their owning account.
-Each snapshot combines the canonical Reader URL state (including tab searches and note filters) with
-the divider sizes omitted from shared links. The header lists only IDs, names and revisions. Saving
-captures the Reader's live references through a context created per root layout, so it also includes
-scrolling newer than the URL debounce. Normal reading never updates a named snapshot; replacing its
-contents is explicit. Rename, replacement and deletion check the revision, and an owner row lock
-serializes changes to enforce unique names and the 100-entry limit.
+Named workspaces are stored in `saved_reader_workspaces`, scoped to their owner. Each entry combines
+the canonical Reader URL state (including searches and note filters) with divider sizes. A partial
+unique index permits one active entry per account. Initial use adopts the existing account/device
+workspace as “Standard”; a shared URL is never the source of that initialization. The header exposes
+only IDs, names, management revisions and active flags, highlighting the active entry. Creating a
+workspace copies the current view and then opens that independent copy.
+
+Reader actions atomically update the active entry and `users.reader_workspace` under the owner's row
+lock. Requests identify their active workspace separately from the shareable URL and compare both that
+ID and the previous semantic workspace inside the transaction, preventing late writes from replacing
+a newly activated workspace. Client-only searches and note filters use the same checks through
+`PUT /api/reader/workspaces/[id]/view`. Shallow URL changes also update `page.state.readerState`, so later
+actions retain the latest searches and references. Pending reference/search writes flush before a
+workspace switch. Foreign URL branches retain their existing protection against overwriting account
+preferences. Autosave leaves the management revision unchanged; rename/deletion require it. Active
+entries cannot be deleted until another is opened. Names are unique per account and new entries are
+limited to 100 per account.
 
 Opening uses `/workspaces/[id]`: its GET only reads the owned entry. After navigation has allowed any
-document editor to flush pending changes, the page submits a form action which validates available
-resources, replaces the current account workspace and redirects to the restored Reader URL. Prefetch
-therefore never changes account preferences. Missing resources are removed from the opened copy while
-the original snapshot stays intact. The generated migration is `0033_flowery_umar.sql`.
+document editor to flush pending changes, a form action validates available resources, activates the
+entry together with its account projection, and redirects to the restored Reader URL. Prefetch never
+changes account preferences. Removed resources are pruned on opening and persisted on subsequent
+changes. Schema migrations are `0033_flowery_umar.sql` and `0034_certain_susan_delgado.sql`.
 
 The reader uses a small, pure workspace domain model in `src/lib/reader/workspace.ts`. It supports the
 same eight tile arrangements as Logos Web: one tile, two/three/four columns, two rows, a 2×2 grid, and

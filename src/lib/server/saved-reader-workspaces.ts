@@ -58,6 +58,7 @@ export async function validateWorkspaceSnapshot(input: {
 export function workspaceMutationResponse(result: SavedWorkspaceMutationResult, status = 200) {
 	if (result.ok) return json({ workspace: result.workspace }, { status });
 	const messages = {
+		active: 'Bitte öffne zuerst einen anderen Arbeitsbereich, bevor du diesen löschst.',
 		notFound: 'Dieser Arbeitsbereich wurde nicht gefunden.',
 		conflict: 'Der Arbeitsbereich wurde inzwischen geändert. Bitte lade die Seite neu.',
 		name: 'Bitte verwende einen Namen mit 1 bis 80 Zeichen.',

@@ -1893,7 +1893,8 @@ test('the chapter-filtered sidecar reloads on chapter or link-group changes, not
 }) => {
 	await register(page);
 	await page.setViewportSize({ width: 1280, height: 300 });
-	await page.route('**/api/reader/**', (route) => route.abort());
+	// Freeze chapter streams while allowing the sidecar's workspace filters to autosave.
+	await page.route(/\/api\/reader\/\d+\/\d+(?:\?|$)/, (route) => route.abort());
 	await page.goto('/Joh3');
 	await page.getByTestId('layout-picker').click();
 	await page.getByTestId('reader-notes-sidecar-toggle').click();

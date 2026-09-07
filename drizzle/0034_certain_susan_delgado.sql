@@ -1,0 +1,2 @@
+ALTER TABLE "saved_reader_workspaces" ADD COLUMN "is_active" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "saved_reader_workspaces_active_owner_idx" ON "saved_reader_workspaces" USING btree ("user_id") WHERE "saved_reader_workspaces"."is_active" = true;
