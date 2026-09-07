@@ -994,10 +994,12 @@ test('the same dictionary can stay open in multiple independent tabs', async ({ 
 	await addResourceTab(page, 0, 'STRONGS_GREEK', 'Wörterbuch');
 	await lexiconLookup(page, 0).fill('G25');
 	await lexiconLookup(page, 0).press('Enter');
+	await expect(firstTile.locator('.lexicon-tab .headword strong')).toHaveText('G25');
 
 	await addResourceTab(page, 0, 'STRONGS_GREEK', 'Wörterbuch');
 	await lexiconLookup(page, 0).fill('G2316');
 	await lexiconLookup(page, 0).press('Enter');
+	await expect(firstTile.locator('.lexicon-tab .headword strong')).toHaveText('G2316');
 
 	const dictionaryTabs = firstTile.getByRole('tab', { name: /^Strong Griechisch/ });
 	await expect(dictionaryTabs).toHaveCount(2);

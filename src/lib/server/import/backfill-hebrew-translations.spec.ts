@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import { getDb, closeDb } from '../db/index.ts';
-import { lexiconEntries, resources } from '../db/schema.ts';
+import { resources } from '../db/schema.ts';
 import { findLexiconEntry } from '../repositories/strong.ts';
 import { parseHebrewLexiconXml } from '../../bible/parse/hebrew-lexicon-xml.ts';
 import { ingestLexicon } from './ingest-lexicon.ts';
