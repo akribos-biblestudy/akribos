@@ -327,16 +327,12 @@ test('a reader verse creates and reopens a translation-specific unified note', a
 		passages: [expect.objectContaining({ resourceId: 'SEEDDE' })]
 	});
 
-	// Creating from the Reader updates the current chapter immediately; no reload is needed before
-	// the contextual indicator can reopen the new working copy.
+	// Notes remain accessible through the sidecar without markers or underlines in Bible text.
 	await sidecar.getByRole('button', { name: 'Notizbereich schließen' }).click();
 	await expect(sidecar).toBeHidden();
-	const indicator = page
-		.locator('.flow-column[data-resource-id]')
-		.first()
-		.getByRole('button', { name: /Notizen zu Joh 3,16 öffnen/ });
-	await expect(indicator).toBeVisible();
-	await indicator.click();
+	await expect(page.locator('.reader-note-indicator, .has-document-notes')).toHaveCount(0);
+	await page.getByTestId('layout-picker').click();
+	await page.getByTestId('reader-notes-sidecar-toggle').click();
 	await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(title);
 	const resizeHandle = page.getByTestId('reader-notes-sidecar-resize');
 	const widthBeforeKeyboardResize = await sidecar.evaluate(
@@ -376,8 +372,8 @@ test('a reader verse creates and reopens a translation-specific unified note', a
 
 	await sidecar.getByRole('button', { name: 'Notizbereich schließen' }).click();
 	await expect(sidecar).toBeHidden();
-	await expect(indicator).toBeVisible();
-	await indicator.click();
+	await page.getByTestId('layout-picker').click();
+	await page.getByTestId('reader-notes-sidecar-toggle').click();
 	await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(title);
 
 	// On phones the notes workspace is a dedicated peer view rather than a squeezed desktop column.

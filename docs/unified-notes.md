@@ -144,7 +144,7 @@ across translations, including old imported links, formatted labels and chapter/
 and URL destinations do not count. Matching happens only within owner-scoped query results and does
 not write anchors or require a backfill; deleting a body reference removes its derived match immediately.
 The Reader library includes both notes and sermons. Explicit translation-specific anchors and the
-Reader's per-verse document indicators retain their existing behavior.
+Reader's manually stored passage anchors retain their existing behavior.
 
 References typed directly into prose, such as `Mt 3,12`, `Johannes3:16`, `1. Mose 1,1-3` or
 `Hohes Lied 2,1`, become internal Reader links at presentation time. Code is left untouched. Authored
@@ -212,8 +212,7 @@ Verse-list comments are collaborative conversations and are not copied into priv
   compact editor as a right-hand desktop sidecar or a separate mobile „Notiz“ view. Without an open
   document, its context follows the currently visible verse while reading. Desktop width is horizontally
   resizable; only harmless width and open/closed preferences are stored locally. Private document ids
-  never enter Reader URLs, history or local storage. Covered verse text is dotted-underlined, while
-  indicator icons render only at an anchor's start/end boundary. Closing waits for autosave to finish.
+  never enter Reader URLs, history or local storage. Notes do not add icons or underlines to Bible text. Closing waits for autosave to finish.
 - `/notes/published` and `/notes/published/feed.xml` expose published-note snapshots;
   `/notes/published/[slug]` renders a public or unlisted snapshot and never hydrates fields from the
   working copy. There are intentionally no parallel legacy publication routes.

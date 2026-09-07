@@ -312,8 +312,7 @@ bereinigtes `body_html` aus, einschließlich alter Linkbeschriftungen, inline fo
 Kapitel-/Versbereiche; Code und Linkziele zählen nicht. Diese abgeleiteten Treffer sind kanonisch und
 werden nur innerhalb bereits eigentümergeprüfter Dokumente ermittelt. Es gibt weder schreibende GETs
 noch einen Backfill: Bestehende Importe funktionieren sofort, und entfernte Textreferenzen erzeugen
-keine bleibenden Anker. Manuelle Anker und Reader-Versindikatoren bleiben ausdrücklich gespeicherte
-Bezüge. Die Reader-Sidecar-Bibliothek zeigt sowohl Notizen als auch Predigten; die eigenständigen
+keine bleibenden Anker. Manuelle Anker bleiben ausdrücklich gespeicherte Bezüge. Die Reader-Sidecar-Bibliothek zeigt sowohl Notizen als auch Predigten; die eigenständigen
 Bereiche `/notes` und `/sermons` behalten ihre bisherige Trennung.
 
 Tags sind pro Nutzer getrennte Hierarchien in `document_tags`; `/` trennt Pfadsegmente. Der
@@ -415,14 +414,13 @@ Stellenfilter zur Verfügung. Am Desktop ist die Sidecar-Breite über einen hori
 änderbar. Der Schalter speichert ausschließlich Sichtbarkeit und harmlose Breite
 (`reader-notes-sidecar-open`, `reader-notes-sidecar-width`); eine private Dokument-ID gelangt weder in Reader-URL/History noch in
 `localStorage`. Beim Öffnen wird der aktuelle Vers der zuletzt aktiven Bibelspalte als Kontext verwendet;
-Versindikatoren können ein passendes Dokument direkt in denselben `compact`-Modus von
-`DocumentEditor.svelte` laden. Laden und Autosave verwenden unverändert das eigentümergeprüfte interne
+Die Sidecar-Bibliothek öffnet Dokumente im `compact`-Modus von `DocumentEditor.svelte`. Laden und Autosave verwenden unverändert das eigentümergeprüfte interne
 `GET`/`PATCH /api/documents/[id]`. Wechsel, Ausblenden und Schließen warten auf `flush()`; ein
 Speicherfehler oder Revisionskonflikt lässt den Editor sichtbar. `ReaderNotesPanel` bleibt der eine
 kontextuelle Dialog aus dem Versmenü und übergibt neu angelegte oder ausgewählte Dokumente an das
 Sidecar, wenn JavaScript aktiv ist; der normale Form-Redirect bleibt der funktionsfähige No-JS-Pfad.
-Für einen Dokumentbereich wird das Icon nur an Start und/oder Ende gerendert; alle überdeckten
-Verszeilen erhalten die dezente gepunktete Unterstreichung.
+Notizen erzeugen keine Icons oder Unterstreichungen im Bibeltext; der Sidecar und das Versmenü
+bleiben die Zugänge zu persönlichen Dokumenten.
 
 Der Obsidian-Austausch unter `/notes/import` akzeptiert eine oder mehrere UTF-8-`.md`-Dateien oder genau
 ein ZIP mit Markdown. Pro Datei gelten 1 MiB Markdown plus 64 KiB YAML; pro Stapel höchstens 100 Dateien

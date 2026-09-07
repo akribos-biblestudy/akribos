@@ -50,7 +50,6 @@
 	} from '$lib/reader/url-state';
 	import type { ReaderTabSearchResponse } from '$lib/reader/tab-search';
 	import {
-		readerDocumentBoundariesAt,
 		readerDocumentsAt,
 		type ReaderCreatedDocument,
 		type ReaderDocumentAnchor,
@@ -478,46 +477,6 @@
 		);
 		readerNotesContext = context;
 		void readerNotesPanel?.openForVerse(anchor, context);
-	}
-
-	async function showReaderNotesContext(
-		context: ReaderNotesContext,
-		openSingleDocument = false
-	): Promise<void> {
-		readerNotesContext = context;
-		readerNotesSidecarOpen = true;
-		if (isMobileViewport) mobileReaderView = 'notes';
-		setReaderNotesSidecarOpen(true);
-		await tick();
-		if (!(await readerNotesSidecar?.showContext())) return;
-		if (openSingleDocument && context.documents.length === 1) {
-			await readerNotesSidecar?.openDocument(context.documents[0]!.id);
-		}
-	}
-
-	function openReaderNotesSidecar(
-		book: number,
-		chapter: number,
-		verse: number,
-		verseEnd: number | null,
-		resource: { id: string; name: string; kind: 'bible' },
-		documents: ReaderDocumentSummary[],
-		tileId: string,
-		tabId: string
-	): void {
-		void showReaderNotesContext(
-			readerNotesContextForVerse(
-				book,
-				chapter,
-				verse,
-				verseEnd,
-				resource,
-				documents,
-				tileId,
-				tabId
-			),
-			documents.length === 1
-		);
 	}
 
 	async function openReaderSidecarDocument(id: string): Promise<void> {
@@ -2110,18 +2069,8 @@
 														verse: cell.verse,
 														verseEnd: cell.verseEnd
 													})}
-													{@const boundaryDocuments = readerDocumentBoundariesAt(
-														stream.documentAnchors,
-														{
-															book: stream.reference.book,
-															chapter: stream.reference.chapter,
-															verse: cell.verse,
-															verseEnd: cell.verseEnd
-														}
-													)}
 													<p
 														class="flow-verse"
-														class:has-document-notes={attachedDocuments.length > 0}
 														data-verse-key={`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}`}
 														data-verse-end={cell.verseEnd ?? cell.verse}
 														id={columnIndex === 0
@@ -2269,50 +2218,6 @@
 																onStrongHover={(strong) => (hoverStrong = strong)}
 															/>
 														</span>
-														{#if data.user && boundaryDocuments.length > 0}
-															<button
-																type="button"
-																class="reader-note-indicator"
-																title={t('documents.reader.open', {
-																	reference: formatReference({
-																		book: stream.reference.book,
-																		chapter: stream.reference.chapter,
-																		verse: cell.verse,
-																		...(cell.verseEnd && cell.verseEnd > cell.verse
-																			? { verseEnd: cell.verseEnd }
-																			: {})
-																	})
-																})}
-																aria-label={t('documents.reader.open', {
-																	reference: formatReference({
-																		book: stream.reference.book,
-																		chapter: stream.reference.chapter,
-																		verse: cell.verse,
-																		...(cell.verseEnd && cell.verseEnd > cell.verse
-																			? { verseEnd: cell.verseEnd }
-																			: {})
-																	})
-																})}
-																onclick={() =>
-																	openReaderNotesSidecar(
-																		stream.reference.book,
-																		stream.reference.chapter,
-																		cell.verse,
-																		cell.verseEnd,
-																		{
-																			id: column.resource.id,
-																			name: column.resource.tabTitle,
-																			kind: 'bible'
-																		},
-																		attachedDocuments,
-																		column.tileId,
-																		column.activeTab.id
-																	)}
-															>
-																<Icon name="file-text" class="size-3.5" />
-																<span>{boundaryDocuments.length}</span>
-															</button>
-														{/if}
 													</p>
 												{:else if column.resource.kind === 'commentary'}
 													{@const entries = commentaryAt(
@@ -2474,7 +2379,7 @@
 	highlightStyles={data.highlightStyles}
 />
 
-<!-- One owner-only panel for all contextual document indicators and verse-menu actions. -->
+<!-- One owner-only panel for all contextual verse-menu actions. -->
 <ReaderNotesPanel
 	bind:this={readerNotesPanel}
 	onOpenDocument={data.user ? openReaderSidecarDocument : undefined}
@@ -2867,14 +2772,6 @@
 		word-break: normal;
 	}
 
-	.flow-verse.has-document-notes .verse-text {
-		text-decoration-line: underline;
-		text-decoration-style: dotted;
-		text-decoration-color: color-mix(in oklab, var(--color-accent-500) 52%, transparent);
-		text-decoration-thickness: 0.07em;
-		text-underline-offset: 0.2em;
-	}
-
 	.flow-verse::after {
 		content: ' ';
 	}
@@ -2885,34 +2782,6 @@
 		font-size: 0.72em;
 		font-weight: 750;
 		color: var(--color-accent-700);
-	}
-
-	.reader-note-indicator {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.12rem;
-		margin-inline-start: 0.28em;
-		padding: 0.08em 0.28em;
-		border: 1px solid color-mix(in oklab, var(--color-accent-500) 36%, transparent);
-		border-radius: 999px;
-		background: color-mix(in oklab, var(--color-accent-100) 62%, transparent);
-		color: var(--color-accent-700);
-		font-family: var(--font-sans);
-		font-size: 0.62em;
-		font-weight: 750;
-		line-height: 1.25;
-		vertical-align: 0.12em;
-	}
-
-	.reader-note-indicator:hover,
-	.reader-note-indicator:focus-visible {
-		border-color: var(--color-accent-500);
-		background: var(--color-accent-100);
-	}
-
-	:global(.dark) .reader-note-indicator {
-		background: color-mix(in oklab, var(--color-accent-900) 55%, transparent);
-		color: var(--color-accent-300);
 	}
 
 	:global(.dark) .flow-verse .verse-number {
