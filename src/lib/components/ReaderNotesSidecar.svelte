@@ -111,21 +111,20 @@
 		if (filters.query.trim()) url.searchParams.set('q', filters.query.trim());
 		if (filters.tag) url.searchParams.set('tag', filters.tag);
 		if (filters.onlyCurrentPassage && context) {
-			url.searchParams.set('passage', context.passage);
-			url.searchParams.set('resource', context.resource.id);
+			url.searchParams.set('passage', context.chapterPassage);
 		}
 		return url;
 	}
 
-	function libraryFilterSignature(): string {
-		return JSON.stringify([
+	const libraryFilterSignature = $derived(
+		JSON.stringify([
 			filters.query,
 			filters.tag,
 			filters.onlyCurrentPassage,
-			filters.onlyCurrentPassage ? context?.passage : null,
-			filters.onlyCurrentPassage ? context?.resource.id : null
-		]);
-	}
+			filters.onlyCurrentPassage ? context?.chapterPassage : null,
+			filters.onlyCurrentPassage ? context?.linkGroup : null
+		])
+	);
 
 	async function loadLibrary(): Promise<void> {
 		libraryRequest?.abort();
@@ -171,12 +170,12 @@
 
 	$effect(() => {
 		if (loadState !== 'empty') return;
-		const signature = libraryFilterSignature();
+		const signature = libraryFilterSignature;
 
 		if (libraryTimer) clearTimeout(libraryTimer);
 		libraryTimer = setTimeout(
 			() => {
-				if (signature === libraryFilterSignature()) void loadLibrary();
+				if (signature === libraryFilterSignature) void loadLibrary();
 			},
 			filters.onlyCurrentPassage ? 180 : filters.query.trim() ? 250 : 0
 		);
@@ -441,7 +440,7 @@
 						type="checkbox"
 						disabled={!context}
 					/>
-					<span>Nur Dokumente zur aktuellen Stelle</span>
+					<span>Nur Notizen zum aktuellen Kapitel</span>
 				</label>
 
 				{#if libraryState === 'loading' || libraryState === 'idle'}

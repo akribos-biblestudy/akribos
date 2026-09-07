@@ -162,7 +162,7 @@ test('the current-passage library finds imported notes and sermons by body refer
 	browser
 }) => {
 	await register(page);
-	const titles = ['Fließtextnotiz', 'Fließtextpredigt', 'Nur Code'] as const;
+	const titles = ['Fließtextnotiz', 'Fließtextpredigt', 'Nur Code', 'Anderer Vers'] as const;
 	await page.goto('/notes/import');
 	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles([
 		{
@@ -176,6 +176,11 @@ test('the current-passage library finds imported notes and sermons by body refer
 			name: 'predigt.md',
 			mimeType: 'text/markdown',
 			buffer: Buffer.from(`---\ntitle: ${titles[1]}\ntype: sermon\n---\nJohannes **3,16**`)
+		},
+		{
+			name: 'anderer-vers.md',
+			mimeType: 'text/markdown',
+			buffer: Buffer.from(`---\ntitle: ${titles[3]}\n---\nJohannes 3,1`)
 		},
 		{
 			name: 'code.md',
@@ -193,11 +198,12 @@ test('the current-passage library finds imported notes and sermons by body refer
 	await page.getByTestId('layout-picker').click();
 	await page.getByTestId('reader-notes-sidecar-toggle').click();
 	const sidecar = page.getByTestId('reader-notes-sidecar');
-	await sidecar.getByLabel('Nur Dokumente zur aktuellen Stelle').check();
+	await sidecar.getByLabel('Nur Notizen zum aktuellen Kapitel').check();
 	const library = sidecar.getByTestId('reader-notes-library');
 	await expect(library.getByText(titles[0], { exact: true })).toBeVisible();
 	await expect(library.getByText(titles[1], { exact: true })).toBeVisible();
 	await expect(library.getByText(titles[2], { exact: true })).toHaveCount(0);
+	await expect(library.getByText(titles[3], { exact: true })).toBeVisible();
 	const filtered = await page.request.get(
 		'/api/documents?passage=Joh3,16&resource=SEEDPLAIN&kind=sermon'
 	);
@@ -1638,7 +1644,7 @@ test('sidecar search and passage filters survive reload and reader navigation', 
 	await page.getByTestId('reader-notes-sidecar-toggle').click();
 	const sidecar = page.getByTestId('reader-notes-sidecar');
 	const search = sidecar.getByRole('searchbox', { name: 'Dokumente durchsuchen' });
-	const filter = sidecar.getByLabel('Nur Dokumente zur aktuellen Stelle');
+	const filter = sidecar.getByLabel('Nur Notizen zum aktuellen Kapitel');
 	await search.fill('Gnade: Glaube & Liebe');
 	await filter.check();
 	await expect(page).toHaveURL(
@@ -1653,10 +1659,10 @@ test('sidecar search and passage filters survive reload and reader navigation', 
 		.locator('.reader-tile')
 		.first()
 		.getByRole('searchbox', { name: /Bibelstelle oder Suche in/ });
-	await field.fill('Joh 4');
+	await field.fill('Joh 1');
 	await field.press('Enter');
 	await expect(page).toHaveURL(
-		(url) => url.pathname === '/Joh4' && url.searchParams.get('notesFilter') === 'current'
+		(url) => url.pathname === '/Joh1' && url.searchParams.get('notesFilter') === 'current'
 	);
 	await expect(search).toHaveValue('Gnade: Glaube & Liebe');
 	await expect(filter).toBeChecked();
@@ -1668,4 +1674,55 @@ test('sidecar search and passage filters survive reload and reader navigation', 
 	await page.reload();
 	await expect(search).toHaveValue('');
 	await expect(filter).not.toBeChecked();
+});
+
+test('the chapter-filtered sidecar reloads on chapter or link-group changes, not verse scrolling', async ({
+	page
+}) => {
+	await register(page);
+	await page.setViewportSize({ width: 1280, height: 300 });
+	await page.route('**/api/reader/**', (route) => route.abort());
+	await page.goto('/Joh3');
+	await page.getByTestId('layout-picker').click();
+	await page.getByTestId('reader-notes-sidecar-toggle').click();
+	const sidecar = page.getByTestId('reader-notes-sidecar');
+	const requests: URL[] = [];
+	page.on('request', (request) => {
+		const url = new URL(request.url());
+		if (url.pathname === '/api/documents') requests.push(url);
+	});
+	await sidecar.getByLabel('Nur Notizen zum aktuellen Kapitel').check();
+	await expect
+		.poll(() => requests.some((url) => url.searchParams.get('passage') === 'Joh 3'))
+		.toBe(true);
+	await expect(sidecar.getByText('Keine passenden Dokumente gefunden.')).toBeVisible();
+	const beforeScroll = requests.length;
+	await page
+		.locator('.flow-column')
+		.first()
+		.evaluate((element) => {
+			element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+			element.scrollTop = element.scrollHeight;
+			element.dispatchEvent(new Event('scroll'));
+		});
+	await expect(
+		page
+			.locator('.reader-tile')
+			.first()
+			.getByRole('searchbox', { name: /Bibelstelle oder Suche in/ })
+	).toHaveValue(/Joh 3,\d+/);
+	// Longer than both reader and library debounce; no verse-level request may appear afterwards.
+	await page.waitForTimeout(700);
+	expect(requests.length).toBe(beforeScroll);
+	const tile = page.locator('.reader-tile').first();
+	await tile.getByRole('button', { name: /Tabgruppe für/ }).click();
+	await page.getByRole('menuitemradio', { name: 'B', exact: true }).click();
+	await expect.poll(() => requests.length).toBeGreaterThan(beforeScroll);
+	const field = tile.getByRole('searchbox', { name: /Bibelstelle oder Suche in/ });
+	await field.fill('Joh 1');
+	await field.press('Enter');
+	await expect
+		.poll(() => requests.some((url) => url.searchParams.get('passage') === 'Joh 1'))
+		.toBe(true);
+	expect(requests.every((url) => !url.searchParams.has('resource'))).toBe(true);
 });

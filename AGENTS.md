@@ -414,7 +414,11 @@ Kachelanordnung ein. Mobil sind „Lesen“ und „Notiz“ zwei tastaturbedienb
 Bibeltext nicht zusammengedrückt wird. Ohne geöffnetes Dokument folgt die Sidecar-Erstellung der
 sichtbaren Stelle des fokussierten Bibel-Tabs; daneben stehen owner-geprüfte Suche sowie Typ-, Tag- und
 Stellenfilter zur Verfügung. Am Desktop ist die Sidecar-Breite über einen horizontal bewegten Trenner
-änderbar. Suchbegriff, Schlagwort und Stellenfilter des Sidecars stehen als `notesQuery`, `notesTag` und
+änderbar. Der Sidecar-Filter „Nur Notizen zum aktuellen Kapitel“ findet eigene Notizen und Ausarbeitungen
+über das gesamte sichtbare Kapitel, unabhängig vom Übersetzungsbezug. Sein stabiler Lade-Schlüssel
+besteht aus Kapitel und Tabgruppe sowie den Such-/Tagfiltern: Scrollen innerhalb desselben Kapitels
+löst keinen erneuten Bibliotheksabruf aus. Die Erstellung einer Notiz behält den konkreten sichtbaren
+Vers und die gewählte Übersetzung als Kontext. Suchbegriff, Schlagwort und Stellenfilter des Sidecars stehen als `notesQuery`, `notesTag` und
 `notesFilter=current` in der Reader-URL und werden bei jeder Reader-Aktion mitgeführt. Flache
 URL-Änderungen halten diese Filter zusätzlich in `page.state.readerNotesFilters`, weil SvelteKits
 `replaceState` die geladene `page.url` nicht aktualisiert. Diese Filter gehören nicht zum gespeicherten

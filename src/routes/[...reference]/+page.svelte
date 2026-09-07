@@ -465,6 +465,9 @@
 		return {
 			reference: formatReference(reference, { style: 'full' }),
 			passage: formatReference(reference),
+			chapterPassage: formatReference({ book, chapter }),
+			linkGroup:
+				data.columns.find((column) => column.activeTab.id === tabId)?.activeTab.linkSet ?? tabId,
 			returnTo,
 			resource: { id: resource.id, title: resource.name },
 			documents
