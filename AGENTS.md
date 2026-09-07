@@ -83,7 +83,7 @@ Tab in der vierten Kachel.
 
 Die aktuelle Reader-Adresse trägt zusätzlich eine lesbare Momentaufnahme aus wiederholbaren Parametern
 von `src/lib/reader/url-state.ts`: `layout`, `tab`, `active`, `focus`, `lookup`, `source`, `sourceRef`,
-`word` und `search`. Tab-Koordinaten verwenden die Form `Kachel.Tab`, beispielsweise
+`word`, `search`, `notesQuery`, `notesTag` und `notesFilter`. Tab-Koordinaten verwenden die Form `Kachel.Tab`, beispielsweise
 `tab=1.2:SEEDDE:A:Joh3,16`. Die Parameter enthalten Layout, Kachel-/Tabreihenfolge, aktiven und
 fokussierten Tab, die Stelle jedes Tabs, Tabgruppen, Lexikon-Kontext und die gerade sichtbare Tab-Suche.
 Nur persönliche Trennergrößen und interne UUIDs bleiben außen vor. Damit stellen Reload,
@@ -414,7 +414,11 @@ Kachelanordnung ein. Mobil sind „Lesen“ und „Notiz“ zwei tastaturbedienb
 Bibeltext nicht zusammengedrückt wird. Ohne geöffnetes Dokument folgt die Sidecar-Erstellung der
 sichtbaren Stelle des fokussierten Bibel-Tabs; daneben stehen owner-geprüfte Suche sowie Typ-, Tag- und
 Stellenfilter zur Verfügung. Am Desktop ist die Sidecar-Breite über einen horizontal bewegten Trenner
-änderbar. Der Schalter speichert ausschließlich Sichtbarkeit und harmlose Breite
+änderbar. Suchbegriff, Schlagwort und Stellenfilter des Sidecars stehen als `notesQuery`, `notesTag` und
+`notesFilter=current` in der Reader-URL und werden bei jeder Reader-Aktion mitgeführt. Flache
+URL-Änderungen halten diese Filter zusätzlich in `page.state.readerNotesFilters`, weil SvelteKits
+`replaceState` die geladene `page.url` nicht aktualisiert. Diese Filter gehören nicht zum gespeicherten
+Konto-Workspace und enthalten keine private Dokument-ID. Der Schalter speichert ausschließlich Sichtbarkeit und harmlose Breite
 (`reader-notes-sidecar-open`, `reader-notes-sidecar-width`); eine private Dokument-ID gelangt weder in Reader-URL/History noch in
 `localStorage`. Beim Öffnen wird der aktuelle Vers der zuletzt aktiven Bibelspalte als Kontext verwendet;
 Die Sidecar-Bibliothek öffnet Dokumente im `compact`-Modus von `DocumentEditor.svelte`. Laden und Autosave verwenden unverändert das eigentümergeprüfte interne

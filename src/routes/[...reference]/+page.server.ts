@@ -36,6 +36,8 @@ import {
 import {
 	decodeReaderUrlState,
 	encodeReaderUrlState,
+	readReaderNotesFilters,
+	type ReaderNotesFilters,
 	readerStateFromUrl,
 	readerUrl,
 	sameReaderUrlWorkspace,
@@ -180,7 +182,11 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 		workspace = setReaderTabReference(workspace, focusedTile.id, focusedTab.id, reference);
 	}
 
-	const readerState = encodeReaderUrlState(workspace, searchQueries);
+	const readerState = encodeReaderUrlState(
+		workspace,
+		searchQueries,
+		readReaderNotesFilters(url.searchParams)
+	);
 	if (readerStateFromUrl(url) !== readerState) {
 		// A plain passage URL starts a personal branch and may safely become the account/device default.
 		// A valid URL snapshot is never persisted by this GET: it may have come from somebody else.
@@ -636,7 +642,7 @@ export const actions = {
 		);
 		return {
 			success: true,
-			readerState: encodeReaderUrlState(next, current.searchQueries)
+			readerState: encodeReaderUrlState(next, current.searchQueries, current.notesFilters)
 		};
 	},
 
@@ -863,6 +869,7 @@ type CurrentWorkspace = {
 	workspace: ReaderWorkspace;
 	persistedWorkspace: ReaderWorkspace;
 	searchQueries: ReaderSearchQueries;
+	notesFilters: ReaderNotesFilters;
 	persist: boolean;
 };
 
@@ -893,7 +900,13 @@ async function currentWorkspace(
 	workspace.layoutSizes = structuredClone(persistedWorkspace.layoutSizes);
 	const persist = !decoded || sameReaderUrlWorkspace(workspace, persistedWorkspace);
 	if (!reference) {
-		return { workspace, persistedWorkspace, searchQueries: decoded?.searchQueries ?? {}, persist };
+		return {
+			workspace,
+			persistedWorkspace,
+			searchQueries: decoded?.searchQueries ?? {},
+			notesFilters: readReaderNotesFilters(url.searchParams),
+			persist
+		};
 	}
 
 	// A GET aligns the focused tab with the canonical route in memory. Reconcile that same state before
@@ -906,7 +919,13 @@ async function currentWorkspace(
 	if (focusedTile && focusedTab) {
 		workspace = setReaderTabReference(workspace, focusedTile.id, focusedTab.id, reference);
 	}
-	return { workspace, persistedWorkspace, searchQueries: decoded?.searchQueries ?? {}, persist };
+	return {
+		workspace,
+		persistedWorkspace,
+		searchQueries: decoded?.searchQueries ?? {},
+		notesFilters: readReaderNotesFilters(url.searchParams),
+		persist
+	};
 }
 
 function actionReference(params: {
@@ -943,7 +962,7 @@ async function finishWorkspaceMutation<T extends Record<string, unknown>>(
 	await commitWorkspace(cookies, user, next, current.persist);
 	return {
 		success: true,
-		readerState: encodeReaderUrlState(next, current.searchQueries),
+		readerState: encodeReaderUrlState(next, current.searchQueries, current.notesFilters),
 		...(extra ?? ({} as T))
 	};
 }

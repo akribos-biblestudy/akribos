@@ -7,7 +7,7 @@
 	import {
 		readerActionUrl,
 		readerStateFromActionData,
-		readerStateFromUrl,
+		readerStateFromPage,
 		readerUrl
 	} from '$lib/reader/url-state';
 	import { READER_LAYOUT_DEFINITIONS, type ReaderLayout } from '$lib/reader/workspace';
@@ -57,7 +57,7 @@
 	};
 
 	function actionUrl(): string {
-		return readerActionUrl('setLayout', readerStateFromUrl(page.url));
+		return readerActionUrl('setLayout', readerStateFromPage(page));
 	}
 </script>
 

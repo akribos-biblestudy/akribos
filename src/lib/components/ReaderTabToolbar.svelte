@@ -14,7 +14,7 @@
 	import {
 		readerActionUrl,
 		readerStateFromActionData,
-		readerStateFromUrl,
+		readerStateFromPage,
 		readerUrl
 	} from '$lib/reader/url-state';
 	import type { ReadableResource } from '$lib/server/repositories/resources';
@@ -126,7 +126,7 @@
 	}
 
 	function actionUrl(action: string): string {
-		return readerActionUrl(action, readerStateFromUrl(page.url));
+		return readerActionUrl(action, readerStateFromPage(page));
 	}
 </script>
 

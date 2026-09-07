@@ -3,6 +3,9 @@ import {
 	decodeReaderUrlState,
 	encodeReaderUrlState,
 	readerStateFromUrl,
+	readReaderNotesFilters,
+	readerStateFromPage,
+	withReaderNotesFilters,
 	sameReaderUrlWorkspace
 } from './url-state';
 import { workspaceFromColumns } from './workspace';
@@ -92,5 +95,31 @@ describe('reader URL state', () => {
 		expect(decodeReaderUrlState(new URLSearchParams('layout=unknown'))).toBeNull();
 		expect(decodeReaderUrlState(new URLSearchParams('layout=single&tab=broken'))).toBeNull();
 		expect(decodeReaderUrlState(new URLSearchParams())).toBeNull();
+	});
+});
+
+describe('sidecar URL filters', () => {
+	it('round-trips readable search punctuation and tag paths independently of the workspace', () => {
+		const workspace = workspaceFromColumns(['bible'], { book: 43, chapter: 3 });
+		const filters = {
+			query: 'Gnade: Glaube & Liebe',
+			tag: 'Theologie/Gnade',
+			onlyCurrentPassage: true
+		};
+		const state = encodeReaderUrlState(workspace, {}, filters);
+		const url = new URL(`https://example.com/Joh3?${state}`);
+		expect(readerStateFromUrl(url)).toBe(state);
+		expect(readReaderNotesFilters(url.searchParams)).toEqual(filters);
+		expect(withReaderNotesFilters(state, { query: '', tag: '', onlyCurrentPassage: false })).toBe(
+			encodeReaderUrlState(workspace)
+		);
+	});
+	it('uses shallow page state for subsequent reader forms', () => {
+		const workspace = workspaceFromColumns(['bible'], { book: 43, chapter: 3 });
+		const url = new URL(`https://example.com/Joh3?${encodeReaderUrlState(workspace)}`);
+		const filters = { query: 'Neu', tag: '', onlyCurrentPassage: true };
+		expect(readerStateFromPage({ url, state: { readerNotesFilters: filters } })).toBe(
+			encodeReaderUrlState(workspace, {}, filters)
+		);
 	});
 });

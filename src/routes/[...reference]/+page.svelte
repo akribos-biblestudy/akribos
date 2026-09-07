@@ -42,9 +42,12 @@
 	} from '$lib/reader/workspace';
 	import {
 		encodeReaderUrlState,
+		readReaderNotesFilters,
+		withReaderNotesFilters,
+		type ReaderNotesFilters,
 		readerActionUrl,
 		readerStateFromActionData,
-		readerStateFromUrl,
+		readerStateFromPage,
 		readerUrl,
 		type ReaderSearchQueries
 	} from '$lib/reader/url-state';
@@ -68,6 +71,20 @@
 	} from '$lib/reader/notes-sidecar';
 
 	let { data } = $props();
+	const notesFilters = $derived(
+		page.state.readerNotesFilters ?? readReaderNotesFilters(page.url.searchParams)
+	);
+	function updateNotesFilters(filters: ReaderNotesFilters): void {
+		const state = encodeReaderUrlState(
+			workspaceAtVisibleReferences(),
+			currentSearchQueries(),
+			filters
+		);
+		replaceState(readerUrl(window.location.pathname, state), {
+			...page.state,
+			readerNotesFilters: filters
+		});
+	}
 
 	/**
 	 * The verse grid.
@@ -108,7 +125,7 @@
 	}
 
 	function currentReaderState(): string {
-		return readerStateFromUrl(page.url) ?? data.readerState;
+		return readerStateFromPage(page) ?? data.readerState;
 	}
 
 	function actionUrl(action: string): string {
@@ -439,7 +456,7 @@
 			);
 			returnTo = readerUrl(
 				referencePath(reference),
-				encodeReaderUrlState(workspace, currentSearchQueries())
+				encodeReaderUrlState(workspace, currentSearchQueries(), notesFilters)
 			);
 		} catch {
 			// `currentReaderUrl` is already a valid canonical fallback when a pathological workspace is
@@ -940,7 +957,11 @@
 
 	function syncReaderUrl(path = window.location.pathname): void {
 		try {
-			const state = encodeReaderUrlState(workspaceAtVisibleReferences(), currentSearchQueries());
+			const state = encodeReaderUrlState(
+				workspaceAtVisibleReferences(),
+				currentSearchQueries(),
+				notesFilters
+			);
 			const next = readerUrl(path, state);
 			if (`${window.location.pathname}${window.location.search}` !== next) {
 				replaceState(next, page.state);
@@ -1078,7 +1099,7 @@
 		);
 		return readerUrl(
 			referencePath(reference),
-			encodeReaderUrlState(workspace, currentSearchQueries())
+			encodeReaderUrlState(workspace, currentSearchQueries(), notesFilters)
 		);
 	}
 
@@ -1093,7 +1114,7 @@
 		);
 		return readerUrl(
 			window.location.pathname,
-			encodeReaderUrlState(workspace, currentSearchQueries())
+			encodeReaderUrlState(workspace, currentSearchQueries(), notesFilters)
 		);
 	}
 
@@ -1474,7 +1495,8 @@
 				const result = deserialize(await response.text());
 				if (generation !== addressBarGeneration || result.type !== 'success') return;
 				const state = readerStateFromActionData(result.data);
-				if (state) replaceState(readerUrl(path, state), page.state);
+				if (state)
+					replaceState(readerUrl(path, withReaderNotesFilters(state, notesFilters)), page.state);
 			});
 		}, 200);
 	}
@@ -2368,6 +2390,8 @@
 				bind:this={readerNotesSidecar}
 				bibleId={primaryBibleId}
 				context={readerNotesContext}
+				filters={notesFilters}
+				onFiltersChange={updateNotesFilters}
 				onDocumentCreated={recordCreatedReaderDocument}
 				onClose={finishReaderNotesSidecarClose}
 			/>

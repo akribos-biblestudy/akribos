@@ -15,12 +15,51 @@ const READER_URL_STATE_PARAMS = new Set([
 	'source',
 	'sourceRef',
 	'word',
-	'search'
+	'search',
+	'notesQuery',
+	'notesTag',
+	'notesFilter'
 ]);
 
 export const MAX_READER_URL_STATE_LENGTH = 12_000;
 
 export type ReaderSearchQueries = Record<string, string>;
+
+export type ReaderNotesFilters = { query: string; tag: string; onlyCurrentPassage: boolean };
+
+export function readReaderNotesFilters(params: URLSearchParams): ReaderNotesFilters {
+	return {
+		query: (params.get('notesQuery') ?? '').slice(0, 200),
+		tag: (params.get('notesTag') ?? '').slice(0, 1600),
+		onlyCurrentPassage: params.get('notesFilter') === 'current'
+	};
+}
+
+/** Sidecar filters are URL state, separate from the account's saved workspace. */
+export function withReaderNotesFilters(state: string, filters: ReaderNotesFilters): string {
+	const parts = state
+		.split('&')
+		.filter((part) => !/^(notesQuery|notesTag|notesFilter)=/.test(part));
+	if (filters.query)
+		parts.push(`notesQuery=${encodeReadableQueryValue(filters.query.slice(0, 200))}`);
+	if (filters.tag) parts.push(`notesTag=${encodeReadableQueryValue(filters.tag.slice(0, 1600))}`);
+	if (filters.onlyCurrentPassage) parts.push('notesFilter=current');
+	return parts.filter(Boolean).join('&');
+}
+
+/** SvelteKit's shallow replaceState changes page.state, but leaves page.url at its loaded URL. */
+export function readerStateFromPage(page: {
+	url: URL;
+	state: { readerNotesFilters?: ReaderNotesFilters };
+}): string | null {
+	const state = readerStateFromUrl(page.url);
+	return state
+		? withReaderNotesFilters(
+				state,
+				page.state.readerNotesFilters ?? readReaderNotesFilters(page.url.searchParams)
+			)
+		: null;
+}
 
 type CompactTab = [
 	resourceId: string,
@@ -80,7 +119,8 @@ export type DecodedReaderUrlState = {
  */
 export function encodeReaderUrlState(
 	workspace: ReaderWorkspace,
-	searchQueries: ReaderSearchQueries = {}
+	searchQueries: ReaderSearchQueries = {},
+	notesFilters: ReaderNotesFilters = { query: '', tag: '', onlyCurrentPassage: false }
 ): string {
 	const parts = [`layout=${encodePart(workspace.layout)}`];
 
@@ -113,7 +153,7 @@ export function encodeReaderUrlState(
 	const focusedIndex = workspace.tiles.findIndex((tile) => tile.id === workspace.focusedTileId);
 	if (focusedIndex >= 0) parts.push(`focus=${focusedIndex + 1}`);
 
-	const encoded = parts.join('&');
+	const encoded = withReaderNotesFilters(parts.join('&'), notesFilters);
 	if (encoded.length > MAX_READER_URL_STATE_LENGTH) {
 		throw new Error('Der Reader-Zustand ist zu groß für eine zuverlässige URL.');
 	}
