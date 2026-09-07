@@ -32,7 +32,6 @@ export const de = {
 
 	// --- navigation ---------------------------------------------------------
 	'nav.home': 'Startseite',
-	'nav.search.placeholder': 'Bibelstelle, Wort oder Strong-Nummer',
 	'nav.previousChapter': 'Vorheriges Kapitel',
 	'nav.nextChapter': 'Nächstes Kapitel',
 	'nav.help': 'Hilfe',
@@ -494,15 +493,8 @@ export const de = {
 	'search.hint.phrase':
 		'Setze mehrere Wörter in Anführungszeichen, um genau diese Folge zu suchen.',
 	'search.hint.strong': 'Urtextsuche: Gib zum Beispiel G26 oder H430 ein.',
-	'search.help.title': 'Bibelstelle wählen',
-	'search.help.subtitle': 'Wähle ein Buch und danach ein Kapitel oder gib die Stelle direkt ein.',
 	'search.help.oldTestament': 'Altes Testament',
 	'search.help.newTestament': 'Neues Testament',
-	'search.help.chooseChapter': 'Wähle ein Kapitel.',
-	'search.help.chaptersFor': 'Kapitel in {book}',
-	'search.help.backToBooks': 'Zurück zur Buchauswahl',
-	'search.help.strong': 'Nach einem Urtextwort suchen',
-	'search.help.phrase': 'Nach einer genauen Wortfolge suchen',
 
 	// --- account ------------------------------------------------------------
 	'auth.email': 'E-Mail-Adresse',
@@ -518,13 +510,10 @@ export const de = {
 	'account.security': 'Passwort ändern',
 	'account.securityHint': 'Nach dem Ändern werden alle anderen Geräte abgemeldet.',
 	'account.appearance': 'Darstellung',
-	'account.appearanceHint': 'Wird auf diesem Gerät gespeichert.',
+	'account.appearanceHint': 'Lesedarstellung und persönliche Voreinstellungen.',
 	'account.theme': 'Zwischen hellem und dunklem Design wechseln',
 	'account.readerFontSize': 'Textgröße im Bibeltext',
 	'account.readerFontPreview': 'Im Anfang schuf Gott Himmel und Erde.',
-	'account.readerTranslations': 'Ressourcen im Arbeitsbereich',
-	'account.readerTranslationsHint':
-		'Kachelanordnung, Tabs, aktive Ressourcen, Tabgruppen und Größen werden im Bibelleser automatisch gespeichert.',
 	'account.saved': 'Gespeichert.',
 	'account.emailHint': 'Die E-Mail-Adresse kann nicht geändert werden.',
 	'account.apiKeys': 'API-Schlüssel',

@@ -313,6 +313,10 @@ export const users = pgTable(
 		readerWorkspace: jsonb('reader_workspace').$type<ReaderWorkspace>(),
 		/** Scripture font size as an integer percentage. */
 		readerFontScale: integer('reader_font_scale').notNull().default(100),
+		/** Preferred public Bible for previews and quotations; null uses the contextual default. */
+		defaultBibleId: text('default_bible_id').references(() => resources.id, {
+			onDelete: 'set null'
+		}),
 		/**
 		 * Account-level fallback for colour scheme, used only to seed a device that has not set its own
 		 * cookie yet — a device's own choice always wins afterwards. Null means "this account has never

@@ -13,7 +13,7 @@
 	} from '$lib/bible/passage';
 	import { countVerseWords, segmentsToText, splitVerseLead } from '$lib/bible/segments';
 	import { spanRangeForVerse } from '$lib/bible/highlight-span';
-	import { readerLocation, setJumpToVerse } from '$lib/reader-location.svelte';
+	import { readerLocation } from '$lib/reader-location.svelte';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
 	import { readerContentLinks } from '$lib/actions/reader-content-links';
 	import { t } from '$lib/i18n';
@@ -112,11 +112,11 @@
 	let mobileReaderView = $state<'reading' | 'notes'>('reading');
 	let translationDialog = $state<TranslationDialog | undefined>();
 
-	/** The translation the commentary auto-link popover fetches verse text from: whichever Bible
-	 *  translation is actually showing in a column right now, so hovering a reference in a commentary
-	 *  shows the same text the reader is already reading, not some other fixed pick. */
+	/** An explicit account preference also applies in the reader; otherwise use its visible Bible. */
 	const primaryBibleId = $derived(
-		data.columns.find((column) => column.resource.kind === 'bible')?.resource.id ?? null
+		data.defaultBibleId ??
+			data.columns.find((column) => column.resource.kind === 'bible')?.resource.id ??
+			data.previewBibleId
 	);
 
 	function currentReaderUrl(reference?: VerseRef): string {
@@ -1566,15 +1566,7 @@
 		);
 	}
 
-	/**
-	 * Scrolls straight to a reference already in the loaded stream, without a navigation — used both to
-	 * land on a deep-linked verse after a real navigation and, via `jumpToVerse`, to let the header's
-	 * search field re-centre on a reference that a plain `goto` would treat as a no-op because the URL
-	 * would not change (the reader may have scrolled away from it since).
-	 *
-	 * Returns whether the reference was actually found, so a caller like the header can fall back to a
-	 * real navigation for anything not already loaded.
-	 */
+	/** Aligns a loaded verse after navigation; false lets the caller handle a missing verse. */
 	function scrollColumnToVerse(
 		columnIndex: number,
 		book: number,
@@ -1601,19 +1593,6 @@
 		visibleReferences[columnIndex] = { book, chapter, verse };
 		return true;
 	}
-
-	function scrollToVerse(book: number, chapter: number, verse: number): boolean {
-		const found = scrollColumnToVerse(activeFlowSource, book, chapter, verse);
-		if (found) scheduleAddressBarUpdate(activeFlowSource, `${book}:${chapter}:${verse}`);
-		return found;
-	}
-
-	$effect(() => {
-		setJumpToVerse((reference: VerseRef) =>
-			scrollToVerse(reference.book, reference.chapter, reference.verse ?? 1)
-		);
-		return () => setJumpToVerse(null);
-	});
 
 	/**
 	 * `trackAddress` is only set from a real scroll event (via `scheduleFlowSync`) — the other callers

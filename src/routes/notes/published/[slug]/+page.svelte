@@ -85,7 +85,7 @@
 
 		<BibleReferenceProse
 			html={data.publication.bodyHtml}
-			bibleId={data.bibles[0]?.id ?? null}
+			bibleId={data.previewBibleId}
 			tooltipId="published-note-bible-reference-preview"
 			class="publication-prose prose-like px-6 py-9 sm:px-12 sm:py-12"
 		/>

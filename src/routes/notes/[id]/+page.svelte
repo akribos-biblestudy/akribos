@@ -239,7 +239,7 @@
 			<DocumentEditor
 				bind:this={editor}
 				document={workingDocument}
-				bibleId={data.bibles[0]?.id ?? null}
+				bibleId={data.previewBibleId}
 				onSaved={onEditorSaved}
 				onState={onEditorState}
 			/>
@@ -310,7 +310,7 @@
 				<section
 					class="detail-card"
 					data-testid="preparation-collections"
-					use:verseHoverPopover={{ bibleId: data.bibles[0]?.id ?? null }}
+					use:verseHoverPopover={{ bibleId: data.previewBibleId }}
 				>
 					<h2 class="detail-heading"><Icon name="list" class="size-4" />Stellensammlungen</h2>
 					<p class="mt-2 text-xs text-stone-500">

@@ -30,10 +30,13 @@
 	 */
 	let {
 		label,
+		minWidth = '12rem',
 		children
 	}: {
 		/** Accessible name for the menu itself. */
 		label: string;
+		/** Preferred minimum width, clamped to the viewport. */
+		minWidth?: string;
 		children: Snippet;
 	} = $props();
 
@@ -226,6 +229,7 @@
 	aria-label={label}
 	tabindex="-1"
 	class="menu"
+	style:--menu-min-width={minWidth}
 	class:open
 	ontoggle={onToggle}
 	onkeydown={onKeydown}
@@ -244,7 +248,7 @@
 		inset: auto;
 		margin: 0;
 		z-index: 50;
-		min-width: 12rem;
+		min-width: min(var(--menu-min-width), calc(100vw - 1rem));
 		max-width: min(20rem, calc(100vw - 1rem));
 		max-height: calc(100dvh - 1rem);
 		overflow-y: auto;

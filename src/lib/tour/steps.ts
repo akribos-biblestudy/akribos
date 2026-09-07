@@ -7,15 +7,13 @@ export type TourStep = {
 	/**
 	 * CSS selector for the element the tooltip attaches to. `ProductTour` uses the first match that is
 	 * actually visible (`offsetParent !== null`); a step whose target cannot be found — a narrow
-	 * viewport that hides the search helper, a chapter without a single Strong's word — is skipped
+	 * viewport that hides a control, a chapter without a single Strong's word — is skipped
 	 * rather than shown pointing at nothing.
 	 */
 	selector: string;
 	titleKey: MessageKey;
 	bodyKey: MessageKey;
 	placement: TourPlacement;
-	/** Focuses the global site search before a step is measured when a future tour needs it. */
-	focusSearch?: boolean;
 };
 
 /**
