@@ -629,3 +629,12 @@ Navigation, Formulare und responsive Zustände gehören in Playwright. Die E2E-F
 bei neuen Reader-Fällen zuerst prüfen, welche Bücher/Verse `scripts/seed.ts` tatsächlich enthält.
 Regressionstests sollen das beobachtbare Verhalten prüfen (sichtbarer Anker, Menürolle, URL), nicht nur
 interne Variablennamen.
+
+Ausarbeitungen können mehrere Stellensammlungen über `document_verse_lists` verknüpfen. Der
+zusammengesetzte Dokument-Fremdschlüssel erzwingt denselben Eigentümer; beim Lesen werden zusätzlich
+die aktuelle Eigentümerschaft beziehungsweise akzeptierte Mitgliedschaft der Sammlung geprüft.
+Verlorene Mitgliedschaft darf weder Sammlungstitel noch Stellen offenlegen. Verknüpfen, Lösen und
+Anlegen mit Verknüpfung sperren die eigene aktive Ausarbeitung und verlangen die aktuelle Revision.
+Die Sammlung bleibt ein lebender Bezug; ihre Stellen werden nicht als Dokumentanker kopiert.
+Typwechsel zu Notizen lassen die Verknüpfungen ruhen, gelöschte Sammlungen entfernen sie per Cascade.
+Die Vorbereitung zeigt alle verknüpften Sammlungen samt Stellen direkt neben dem Editor.

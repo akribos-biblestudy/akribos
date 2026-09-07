@@ -158,7 +158,13 @@ test('a reader gets a default highlight palette, can rename a colour and add one
 	]);
 
 	await rows.first().getByRole('textbox').fill('Verheißungen');
+	const renamed = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'POST' &&
+			new URL(response.url()).searchParams.has('/renameHighlightStyle')
+	);
 	await rows.first().getByRole('button', { name: 'Speichern' }).click();
+	expect((await renamed).ok()).toBe(true);
 
 	// The name survives a reload — the whole point of naming a colour is to keep the label.
 	await page.reload();
@@ -287,7 +293,13 @@ test('a signed-in reader can highlight a verse with a colour and clear it', asyn
 
 	const swatches = page.locator('.swatches .swatch');
 	await expect(swatches).toHaveCount(10);
+	const highlighted = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'POST' &&
+			new URL(response.url()).searchParams.has('/setHighlight')
+	);
 	await swatches.first().click();
+	expect((await highlighted).ok()).toBe(true);
 
 	const verse = page.locator('[data-verse-key="43:3:16"]').first();
 	await expect(verse).toHaveCSS('background-color', 'rgb(255, 241, 198)');
@@ -319,7 +331,13 @@ test('a signed-in reader can highlight a verse with a colour and clear it', asyn
 	await page.goto('/Joh3');
 	await page.locator('#Joh3_16 a.verse-number').click();
 	await expect(swatches.first()).toHaveAttribute('aria-pressed', 'true');
+	const cleared = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'POST' &&
+			new URL(response.url()).searchParams.has('/removeHighlight')
+	);
 	await swatches.first().click();
+	expect((await cleared).ok()).toBe(true);
 	await expect(verse).not.toHaveCSS('background-color', 'rgb(255, 241, 198)');
 
 	await page.reload();

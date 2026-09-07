@@ -1,3 +1,8 @@
+import { listVerseLists } from '$lib/server/repositories/verse-lists';
+import {
+	listDocumentCollections,
+	changeDocumentCollection
+} from '$lib/server/repositories/document-verse-lists';
 import { error, fail, redirect } from '@sveltejs/kit';
 import {
 	formatPassage,
@@ -91,13 +96,24 @@ export async function load({ params, locals, url, setHeaders }) {
 	setPrivateNoStore(setHeaders);
 	const { user, documentId, document } = await ownedEditor(locals, params.id, url);
 	const db = getDb();
-	const [passageRows, tags, tagTree, bibles, publication, sermonDeliveries] = await Promise.all([
+	const [
+		passageRows,
+		tags,
+		tagTree,
+		bibles,
+		publication,
+		sermonDeliveries,
+		collections,
+		availableCollections
+	] = await Promise.all([
 		listDocumentPassages(db, user.id, documentId),
 		listDocumentTags(db, user.id, documentId),
 		listDocumentTagTree(db, user.id),
 		listBibles(db),
 		getOwnedDocumentPublication(db, user.id, documentId),
-		document.kind === 'sermon' ? listSermonDeliveries(db, user.id, documentId) : []
+		document.kind === 'sermon' ? listSermonDeliveries(db, user.id, documentId) : [],
+		document.kind === 'sermon' ? listDocumentCollections(db, user.id, documentId) : [],
+		document.kind === 'sermon' ? listVerseLists(db, user.id) : []
 	]);
 
 	return {
@@ -111,12 +127,35 @@ export async function load({ params, locals, url, setHeaders }) {
 		bibles,
 		publication: publication ?? null,
 		sermonDeliveries,
+		collections,
+		availableCollections: availableCollections.map(({ id, title }) => ({ id, title })),
 		isAdmin: user.role === 'admin',
 		returnTo: safeReturnTo(url.searchParams.get('returnTo'))
 	};
 }
 
 export const actions = {
+	collection: async ({ request, params, locals, url }) => {
+		const { user, documentId } = await ownedEditor(locals, params.id, url);
+		const values = await request.formData();
+		const revision = parseRequiredRevision(values.get('revision'));
+		if (!revision) return fail(400, { error: 'revision' as const });
+		const action = values.get('collectionAction');
+		const listId = String(values.get('listId') ?? '');
+		if (action !== 'create' && ((action !== 'add' && action !== 'remove') || !isUuid(listId)))
+			return fail(400, { error: 'invalidCollection' as const });
+		const change =
+			action === 'create'
+				? ({ action, title: String(values.get('title') ?? '') } as const)
+				: ({ action, listId } as const);
+		const result = await changeDocumentCollection(getDb(), user.id, documentId, revision, change);
+		if (!result.ok) {
+			if (result.reason === 'invalidCollection')
+				return fail(400, { error: 'invalidCollection' as const });
+			return revisionFailure(result);
+		}
+		return { saved: true, revision: result.revision };
+	},
 	changeKind: async ({ request, params, locals, url }) => {
 		const { user, documentId } = await ownedEditor(locals, params.id, url);
 		const values = await request.formData();

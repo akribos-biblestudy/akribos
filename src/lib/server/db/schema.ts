@@ -728,6 +728,28 @@ export const documents = pgTable(
 
 export type Document = typeof documents.$inferSelect;
 
+/** Live collection links retain the document owner and survive conversion to a note. */
+export const documentVerseLists = pgTable(
+	'document_verse_lists',
+	{
+		documentId: uuid('document_id').notNull(),
+		userId: uuid('user_id').notNull(),
+		listId: uuid('list_id')
+			.notNull()
+			.references(() => verseLists.id, { onDelete: 'cascade' }),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => [
+		primaryKey({ columns: [table.documentId, table.listId] }),
+		foreignKey({
+			columns: [table.documentId, table.userId],
+			foreignColumns: [documents.id, documents.userId],
+			name: 'document_verse_lists_owner_fk'
+		}).onDelete('cascade'),
+		index('document_verse_lists_list_idx').on(table.listId)
+	]
+);
+
 /**
  * Compact, owner-scoped projection of Bible references found in visible document prose. Keeping it
  * separate prevents internal index data from leaking through APIs that return a complete working
