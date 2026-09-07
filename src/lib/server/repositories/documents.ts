@@ -50,6 +50,7 @@ import {
 	type Document,
 	type DocumentPassage
 } from '../db/schema.ts';
+import { getSermonBoard } from './sermon-board.ts';
 import { syncDocumentLinks } from './document-links.ts';
 import { syncDocumentBodyReferenceIndex } from './document-reference-index.ts';
 
@@ -205,6 +206,12 @@ export async function createDocument(
 	validateCreateInput(input);
 	return db.transaction(async (transaction) => {
 		const transactionDb = transaction as unknown as Database;
+		const board =
+			input.kind === 'sermon' ? await getSermonBoard(transactionDb, userId, true) : null;
+		const sermonStatus =
+			input.kind === 'sermon' ? (input.sermonStatus ?? board!.columns[0]!.id) : null;
+		if (board && !board.columns.some((column) => column.id === sermonStatus))
+			throw new InvalidDocumentInputError('sermonFields', 'unknown account column');
 		const [document] = await transactionDb
 			.insert(documents)
 			.values({
@@ -218,7 +225,7 @@ export async function createDocument(
 				source: input.source ?? 'native',
 				sourceFilename: cleanSourceFilename(input.sourceFilename),
 				legacyVerseCommentId: input.legacyVerseCommentId ?? null,
-				sermonStatus: input.kind === 'sermon' ? (input.sermonStatus ?? 'idea') : null,
+				sermonStatus,
 				sermonDate: input.kind === 'sermon' ? (input.sermonDate ?? null) : null,
 				sermonSeries: input.kind === 'sermon' ? cleanOptionalText(input.sermonSeries) : null,
 				sermonFormat: input.sermonFormat ?? 'sermon'
@@ -407,6 +414,11 @@ export async function updateDocument(
 	}
 
 	const document = await db.transaction(async (transaction) => {
+		if (input.sermonStatus !== undefined) {
+			const board = await getSermonBoard(transaction as unknown as Database, userId, true);
+			if (!board.columns.some((column) => column.id === input.sermonStatus))
+				throw new InvalidDocumentInputError('sermonFields', 'unknown account column');
+		}
 		const [updated] = await transaction
 			.update(documents)
 			.set(changes)
@@ -444,6 +456,8 @@ export async function changeDocumentKind(
 ): Promise<DocumentMutationResult | { ok: false; reason: 'published' }> {
 	if (!isDocumentKind(kind)) throw new InvalidDocumentInputError('kind', 'unknown document kind');
 	return db.transaction(async (tx) => {
+		// Board lock always precedes document locks, including conversion back from a note.
+		const board = await getSermonBoard(tx as unknown as Database, userId, true);
 		const [current] = await tx
 			.select()
 			.from(documents)
@@ -465,7 +479,8 @@ export async function changeDocumentKind(
 			.update(documents)
 			.set({
 				kind,
-				sermonStatus: kind === 'sermon' ? (current.sermonStatus ?? 'idea') : current.sermonStatus,
+				sermonStatus:
+					kind === 'sermon' ? (current.sermonStatus ?? board.columns[0]!.id) : current.sermonStatus,
 				updatedAt: new Date(),
 				revision: current.revision + 1
 			})

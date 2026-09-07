@@ -4,7 +4,7 @@
 	import { bookShortName } from '$lib/bible/book-names';
 	import BookDistribution from '$lib/components/BookDistribution.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import DocumentAreaNav from '$lib/components/documents/DocumentAreaNav.svelte';
+	import DocumentAreaHeader from '$lib/components/documents/DocumentAreaHeader.svelte';
 	import { t, type MessageKey } from '$lib/i18n';
 	import type { DocumentKind } from '$lib/notes/documents';
 	import { SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity';
@@ -114,39 +114,13 @@
 	/>
 </svelte:head>
 
-<main class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-9" data-testid="notes-library">
-	<header class="flex flex-wrap items-start justify-between gap-4">
-		<div>
-			<p class="text-xs font-bold tracking-[0.16em] text-accent-700 uppercase dark:text-accent-300">
-				{t('app.name')}
-			</p>
-			<h1 class="mt-1 font-serif text-3xl font-semibold tracking-tight sm:text-4xl">
-				{t('documents.library.title')}
-			</h1>
-			<p class="mt-2 max-w-2xl text-sm text-stone-500 dark:text-stone-400">
-				{t('documents.library.subtitle')}
-			</p>
-		</div>
-
-		<div class="flex flex-wrap gap-2">
-			<a
-				href="/notes/published"
-				class="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-[color:var(--surface-raised)] px-3 py-2 text-sm font-semibold shadow-sm hover:border-accent-400 dark:border-white/12"
-			>
-				<Icon name="globe" class="size-4" />
-				Veröffentlichte Notizen
-			</a>
-			<a
-				href="/notes/import"
-				class="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-[color:var(--surface-raised)] px-3 py-2 text-sm font-semibold shadow-sm hover:border-accent-400 dark:border-white/12"
-			>
-				<Icon name="upload" class="size-4" />
-				{t('action.import')}
-			</a>
-		</div>
-	</header>
-
-	<DocumentAreaNav active="notes" />
+<main class="mx-auto w-full max-w-[96rem] px-4 py-7 sm:px-6 sm:py-10" data-testid="notes-library">
+	<DocumentAreaHeader active="notes">
+		{#snippet actions()}
+			<a href="/notes/published"><Icon name="globe" class="size-4" />Veröffentlichte Notizen</a>
+			<a href="/notes/import"><Icon name="upload" class="size-4" />{t('action.import')}</a>
+		{/snippet}
+	</DocumentAreaHeader>
 
 	{#if form?.error}
 		<p
@@ -444,7 +418,12 @@
 									</p>
 								{/if}
 								<div class="document-timestamp mt-auto pt-4 text-xs text-stone-400">
-									<span>
+									<time datetime={new Date(document.createdAt).toISOString()}>
+										{t('documents.library.created', {
+											date: dateFormat.format(new Date(document.createdAt))
+										})}
+									</time>
+									<span class="mt-1 block">
 										{t('documents.library.updated', {
 											date: dateFormat.format(new Date(document.updatedAt))
 										})}

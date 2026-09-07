@@ -5,6 +5,178 @@ import { lastMailLinkTo } from './lib/mail-outbox';
 
 const PASSWORD = 'ein-sicheres-passwort';
 
+test('personal board columns can be managed, used in the editor, exported and deleted without losing cards', async ({
+	page,
+	browser
+}) => {
+	await register(page);
+	await page.goto('/sermons');
+	await expect(page.locator('.board-column')).toHaveCount(5);
+
+	await expect(page.getByRole('button', { name: 'Spalten bearbeiten' })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Spalte hinzufügen', exact: true }).click();
+	await page.getByRole('textbox', { name: 'Neue Spalte', exact: true }).fill('Teamprüfung');
+	await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
+	let customColumn = page.getByRole('group', { name: 'Teamprüfung', exact: true });
+	await expect(customColumn).toBeVisible();
+	const columnId = (await customColumn.getAttribute('data-column-id'))!;
+	await customColumn
+		.getByRole('button', { name: 'Spalte Teamprüfung umbenennen', exact: true })
+		.click();
+	await customColumn.getByRole('textbox', { name: 'Spaltenname' }).fill('Verwerfen');
+	await customColumn.getByRole('textbox', { name: 'Spaltenname' }).press('Escape');
+	await expect(
+		customColumn.getByRole('button', { name: 'Spalte Teamprüfung umbenennen', exact: true })
+	).toBeVisible();
+	await customColumn
+		.getByRole('button', { name: 'Spalte Teamprüfung umbenennen', exact: true })
+		.press('Enter');
+	await customColumn.getByRole('textbox', { name: 'Spaltenname' }).fill('Feedback');
+	await customColumn.getByRole('textbox', { name: 'Spaltenname' }).press('Enter');
+	customColumn = page.getByRole('group', { name: 'Feedback', exact: true });
+	await expect(customColumn).toBeVisible();
+	const create = page.locator('[data-tour-target="sermon-create"]');
+	await create.getByLabel('Titel').fill('Meine Team-Ausarbeitung');
+	await create.getByRole('button', { name: 'Erstellen', exact: true }).click();
+	await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+/u);
+	const id = new URL(page.url()).pathname.split('/').at(-1)!;
+	const workflow = page.getByTestId('sermon-workflow');
+	await workflow.getByLabel('Arbeitsstand').selectOption(columnId);
+	await workflow.getByRole('button', { name: 'Arbeitsstand speichern' }).click();
+	await expect(workflow.getByText('Gespeichert', { exact: true })).toBeVisible();
+	const exported = await (await page.request.get(`/notes/${id}/export.md`)).text();
+	expect(exported).toContain('statusName: Feedback');
+	await page.goto('/sermons');
+	// Reorder by dragging the column title, using the same gesture as a card drag below.
+	const header = customColumn.locator('.column-title span');
+	await header.scrollIntoViewIfNeeded();
+	const source = await header.boundingBox();
+	const target = await page
+		.getByRole('group', { name: 'Gehalten', exact: true })
+		.locator('.column-header')
+		.boundingBox();
+	const sorted = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/columns')
+	);
+	await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(target!.x + 20, target!.y + target!.height / 2, { steps: 25 });
+	await page.mouse.up();
+	expect((await sorted).ok()).toBe(true);
+	await expect(page.locator('.board-column').nth(4)).toHaveAttribute('aria-label', 'Feedback');
+	await page.reload();
+	await expect(page.locator('.board-column').nth(4)).toHaveAttribute('aria-label', 'Feedback');
+	await expect(
+		customColumn.getByRole('heading', { name: 'Meine Team-Ausarbeitung' })
+	).toBeVisible();
+	await page.goto(`/sermons?status=${columnId}`);
+	await expect(
+		page.getByRole('heading', { name: 'Meine Team-Ausarbeitung', exact: true })
+	).toBeVisible();
+
+	const otherContext = await browser.newContext();
+	try {
+		const other = await otherContext.newPage();
+		await register(other);
+		await other.goto('/sermons');
+		await expect(other.locator('.board-column')).toHaveCount(5);
+		const foreignMove = await other.request.post('/sermons?/columns', {
+			headers: { origin: new URL(other.url()).origin, accept: 'application/json' },
+			form: { boardRevision: '1', columnAction: 'rename', columnId, name: 'Fremd' }
+		});
+		expect(await foreignMove.json()).toMatchObject({ type: 'failure', status: 400 });
+		await other.goto('/notes/import');
+		await other
+			.getByLabel('Markdown-Dateien oder ZIP-Archiv')
+			.setInputFiles({ name: 'team.md', mimeType: 'text/markdown', buffer: Buffer.from(exported) });
+		await other.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+		await other.getByRole('button', { name: 'Als privates Dokument importieren' }).click();
+		await other.goto('/sermons');
+		await expect(
+			other
+				.getByRole('group', { name: 'Feedback', exact: true })
+				.getByRole('heading', { name: 'Meine Team-Ausarbeitung', exact: true })
+		).toBeVisible();
+	} finally {
+		await otherContext.close();
+	}
+
+	await page.goto('/sermons');
+	await page.getByRole('button', { name: 'Spaltenaktionen für Feedback', exact: true }).click();
+	await page.getByRole('menuitem', { name: 'Spalte löschen', exact: true }).click();
+	const deletion = page.getByRole('dialog');
+	await deletion.getByRole('combobox', { name: 'Zielspalte' }).selectOption('research');
+	await deletion.getByRole('button', { name: 'Verschieben und löschen' }).click();
+	await expect(page.locator('.board-column')).toHaveCount(5);
+	await expect(
+		page
+			.getByRole('group', { name: 'Recherche', exact: true })
+			.getByRole('heading', { name: 'Meine Team-Ausarbeitung', exact: true })
+	).toBeVisible();
+	await page.reload();
+	await expect(page.getByRole('group', { name: 'Feedback', exact: true })).toHaveCount(0);
+	await page.setViewportSize({ width: 390, height: 844 });
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+		true
+	);
+});
+
+test('a whole sermon card can be dragged by touch without moving its column', async ({
+	browser
+}) => {
+	const context = await browser.newContext({
+		viewport: { width: 390, height: 844 },
+		hasTouch: true,
+		isMobile: true
+	});
+	try {
+		const page = await context.newPage();
+		await register(page);
+		await page.goto('/sermons');
+		const create = page.locator('[data-tour-target="sermon-create"]');
+		await create.getByLabel('Titel').fill('Ausarbeitung per Touch verschieben');
+		await create.getByRole('button', { name: 'Erstellen', exact: true }).click();
+		await expect(page.getByTestId('document-editor')).toBeVisible();
+		await page.goto('/sermons');
+		const card = page.getByTestId('sermon-card');
+		await card.scrollIntoViewIfNeeded();
+		const source = await card.getByRole('heading').boundingBox();
+		const target = await page
+			.getByRole('group', { name: 'Recherche', exact: true })
+			.locator('.card-list')
+			.boundingBox();
+		const startX = source!.x + source!.width / 2;
+		const endX = Math.min(target!.x + 35, 370);
+		const y = source!.y + source!.height / 2;
+		const cdp = await context.newCDPSession(page);
+		const moved = page.waitForResponse(
+			(response) => response.request().method() === 'POST' && response.url().includes('?/move')
+		);
+		await cdp.send('Input.dispatchTouchEvent', {
+			type: 'touchStart',
+			touchPoints: [{ x: startX, y }]
+		});
+		// Hold through the library's delay so ordinary swiping remains available for scrolling.
+		await page.waitForTimeout(250);
+		for (let step = 1; step <= 15; step++) {
+			await cdp.send('Input.dispatchTouchEvent', {
+				type: 'touchMove',
+				touchPoints: [{ x: startX + ((endX - startX) * step) / 15, y }]
+			});
+			await page.waitForTimeout(25);
+		}
+		await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+		expect((await moved).ok()).toBe(true);
+		await expect(card).toHaveAttribute('data-sermon-status', 'research');
+		await expect(page).toHaveURL('/sermons');
+		await page.reload();
+		await expect(card).toHaveAttribute('data-sermon-status', 'research');
+		await expect(page.locator('.board-column').first()).toHaveAttribute('data-column-id', 'idea');
+	} finally {
+		await context.close();
+	}
+});
+
 test('note pagination limits cards and preserves filters while tag search reveals collapsed groups', async ({
 	page
 }) => {
@@ -1227,20 +1399,22 @@ test('custom sermon templates, delivery history, rich exports and board movement
 	await page.goto('/sermons');
 	let card = page.getByTestId('sermon-card').filter({ hasText: sermonTitle });
 	const outlineColumn = page.getByRole('group', { name: 'Gliederung' });
-	await expect(card).toHaveAttribute('draggable', 'true');
-	// Chromium's coordinate-based `dragTo` can miss a horizontally scrolling Kanban target when the
-	// complete suite runs under load. Dispatch the same native drag events with one shared transfer so
-	// this assertion remains about the application's DnD contract, not browser autoscroll timing.
-	const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+	// Exercise the headless library using a real mouse drag between visible column drop zones.
+	await page.setViewportSize({ width: 1600, height: 1000 });
+	const cardBody = card.locator('p').first();
+	await cardBody.scrollIntoViewIfNeeded();
+	const sourceBox = await cardBody.boundingBox();
+	const targetBox = await outlineColumn.locator('ul').boundingBox();
+	expect(sourceBox).not.toBeNull();
+	expect(targetBox).not.toBeNull();
 	const dragMove = page.waitForResponse(
 		(response) => response.request().method() === 'POST' && response.url().includes('?/move')
 	);
-	await card.dispatchEvent('pointerdown', { pointerType: 'mouse' });
-	await card.dispatchEvent('dragstart', { dataTransfer });
-	await outlineColumn.dispatchEvent('dragover', { dataTransfer });
-	await outlineColumn.dispatchEvent('drop', { dataTransfer });
+	await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(targetBox!.x + targetBox!.width / 2, targetBox!.y + 50, { steps: 20 });
+	await page.mouse.up();
 	expect((await dragMove).ok()).toBe(true);
-	await dataTransfer.dispose();
 	card = page.getByTestId('sermon-card').filter({ hasText: sermonTitle });
 	await expect(
 		outlineColumn.getByTestId('sermon-card').filter({ hasText: sermonTitle })
@@ -1257,6 +1431,24 @@ test('custom sermon templates, delivery history, rich exports and board movement
 			.getByTestId('sermon-card')
 			.filter({ hasText: sermonTitle })
 	).toBeVisible();
+	// The library's own keyboard path works independently of the retained Alt+Arrow shortcut.
+	const readyCard = page.getByTestId('sermon-card').filter({ hasText: sermonTitle });
+	await readyCard.focus();
+	await readyCard.press('Space');
+	const libraryMove = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/move')
+	);
+	await page.keyboard.press('Tab');
+	expect((await libraryMove).ok()).toBe(true);
+	await page.keyboard.press('Escape');
+	await expect(
+		page
+			.getByRole('group', { name: 'Gehalten' })
+			.getByRole('heading', { name: sermonTitle, exact: true })
+	).toBeVisible();
+	await expect(page).toHaveURL('/sermons');
+	await page.getByRole('link', { name: sermonTitle, exact: true }).click();
+	await expect(page.getByTestId('document-editor')).toBeVisible();
 });
 
 test('a normal account cannot publish a note through either the UI or a forged action', async ({

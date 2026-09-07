@@ -171,6 +171,40 @@ describe.sequential('unified document repositories', () => {
 		expect((await listDocumentRelations(db, ownerId, target.id)).incoming).toEqual([]);
 	});
 
+	it('keeps the note library ordered by creation date when an older note is edited', async () => {
+		const query = `Creation order ${randomUUID()}`;
+		const older = await createDocument(db, ownerId, {
+			kind: 'note',
+			title: `${query} older`,
+			...EMPTY_BODY
+		});
+		const newer = await createDocument(db, ownerId, {
+			kind: 'note',
+			title: `${query} newer`,
+			...EMPTY_BODY
+		});
+		const oldCreatedAt = new Date('2025-01-01T12:00:00Z');
+		const newCreatedAt = new Date('2025-02-01T12:00:00Z');
+		await db
+			.update(documents)
+			.set({ createdAt: oldCreatedAt, updatedAt: oldCreatedAt })
+			.where(eq(documents.id, older.id));
+		await db
+			.update(documents)
+			.set({ createdAt: newCreatedAt, updatedAt: newCreatedAt })
+			.where(eq(documents.id, newer.id));
+		const ids = async () =>
+			(await listDocumentLibraryIndex(db, ownerId, { kind: 'note', query })).map((row) => row.id);
+		expect(await ids()).toEqual([newer.id, older.id]);
+		expect(
+			(await updateDocument(db, ownerId, older.id, older.revision, { title: `${query} edited` })).ok
+		).toBe(true);
+		expect(await ids()).toEqual([newer.id, older.id]);
+		const [summary] = await listDocumentLibrarySummaries(db, ownerId, [older.id]);
+		expect(summary?.createdAt).toEqual(oldCreatedAt);
+		expect(summary!.updatedAt.getTime()).toBeGreaterThan(newCreatedAt.getTime());
+	});
+
 	it('keeps a compact Bible-reference index with an idempotent legacy backfill', async () => {
 		const body = prepareDocumentBody('Joh 3,16 und 1Mo 50,26-2Mo 1,2.');
 		const indexed = await createDocument(db, ownerId, {

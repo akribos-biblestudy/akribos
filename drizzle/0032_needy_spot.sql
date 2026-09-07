@@ -1,0 +1,2 @@
+ALTER TABLE "users" ADD COLUMN "sermon_columns" jsonb DEFAULT '[{"id":"idea","name":"Idee"},{"id":"research","name":"Recherche"},{"id":"outline","name":"Gliederung"},{"id":"ready","name":"Bereit"},{"id":"delivered","name":"Gehalten"}]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "users" ADD COLUMN "sermon_board_revision" integer DEFAULT 1 NOT NULL;

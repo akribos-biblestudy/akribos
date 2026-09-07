@@ -13,7 +13,8 @@ export const SERMON_WORKFLOW_STATES = [
 	'ready',
 	'delivered'
 ] as const;
-export type SermonWorkflowState = (typeof SERMON_WORKFLOW_STATES)[number];
+/** Legacy keys remain stable; new account-owned columns use UUIDs. */
+export type SermonWorkflowState = string;
 
 export const SERMON_FORMATS = [
 	'sermon',
@@ -108,8 +109,13 @@ export function isDocumentVisibility(value: unknown): value is DocumentVisibilit
 	return isOneOf(DOCUMENT_VISIBILITIES, value);
 }
 
+/** Syntax only. Repositories must also validate membership in the current owner's board. */
 export function isSermonWorkflowState(value: unknown): value is SermonWorkflowState {
-	return isOneOf(SERMON_WORKFLOW_STATES, value);
+	return (
+		isOneOf(SERMON_WORKFLOW_STATES, value) ||
+		(typeof value === 'string' &&
+			/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(value))
+	);
 }
 
 export function isDocumentSource(value: unknown): value is DocumentSource {

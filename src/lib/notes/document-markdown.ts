@@ -1,3 +1,4 @@
+import { isSermonWorkflowState } from './documents.ts';
 import { marked, Renderer, type Tokens } from 'marked';
 import TurndownService from 'turndown';
 import { parseDocument, stringify as stringifyYaml } from 'yaml';
@@ -35,7 +36,7 @@ export const SERMON_MARKDOWN_STATUSES = [
 	'ready',
 	'delivered'
 ] as const;
-export type SermonMarkdownStatus = (typeof SERMON_MARKDOWN_STATUSES)[number];
+export type SermonMarkdownStatus = string;
 
 export type DocumentMarkdownPassage = {
 	reference: string;
@@ -46,6 +47,7 @@ export type DocumentMarkdownPassage = {
 export type DocumentMarkdownSermon = {
 	format?: SermonFormat;
 	status: SermonMarkdownStatus;
+	statusName?: string;
 	date?: string;
 	series?: string;
 	deliveries?: Array<{ date: string; location: string }>;
@@ -397,6 +399,8 @@ export function exportDocumentMarkdown(input: DocumentMarkdownExportInput): stri
 			throw new DocumentMarkdownError('invalid_export', 'The sermon status is not exportable.');
 		}
 		const sermon: Record<string, unknown> = { status };
+		if (input.sermon?.statusName)
+			sermon.statusName = normaliseShortText(input.sermon.statusName, 80);
 		if (input.sermon?.format !== undefined) {
 			if (!isSermonFormat(input.sermon.format))
 				throw new DocumentMarkdownError('invalid_export', 'The preparation format is invalid.');
@@ -979,6 +983,9 @@ function readSermon(
 
 	return {
 		status,
+		...(normaliseShortText(nested.statusName, 80)
+			? { statusName: normaliseShortText(nested.statusName, 80) }
+			: {}),
 		...(date ? { date } : {}),
 		...(series ? { series } : {}),
 		...(format ? { format } : {}),
@@ -1322,8 +1329,8 @@ function isDocumentKind(input: string): input is DocumentMarkdownKind {
 	return (DOCUMENT_MARKDOWN_KINDS as readonly string[]).includes(input);
 }
 
-function isSermonStatus(input: string): input is SermonMarkdownStatus {
-	return (SERMON_MARKDOWN_STATUSES as readonly string[]).includes(input);
+function isSermonStatus(value: string): value is SermonMarkdownStatus {
+	return isSermonWorkflowState(value);
 }
 
 function isDangerousMetadataKey(key: string): boolean {

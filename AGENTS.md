@@ -288,7 +288,10 @@ Metadaten erhalten und werden beim Rückwechsel wiederverwendet. Autosave darf d
 bei Notizen. Das globale Menü heißt „Notizen & Ausarbeitungen“.
 
 Die Notizbibliothek liefert höchstens 24 Notizkarten je URL-Seite (`page`), nach allen Filtern
-einschließlich der abgeleiteten Fließtextstellen. Ungültige Seitennummern werden begrenzt; Filterlinks
+einschließlich der abgeleiteten Fließtextstellen. Die Reihenfolge folgt `created_at` absteigend, bei
+gleichem Zeitpunkt der stabilen ID absteigend, bereits vor der Seitenauswahl. Bearbeiten ändert die
+Position nicht. Karten, Listenansicht und Dokumentdetails zeigen das Erstellungsdatum zusätzlich zum
+Änderungsdatum. Ungültige Seitennummern werden begrenzt; Filterlinks
 setzen die Seite zurück, Seitenlinks erhalten alle Filter. Nur gekürzte Vorschautexte werden an den
 Browser geliefert. Die aus gespeicherten Ankern und sichtbaren Fließtextstellen abgeleitete
 Buchverteilung zählt jedes Dokument je Buch höchstens einmal; ihr `book`-Filter lässt die ungefilterte
@@ -471,12 +474,33 @@ klickbare grüne Annotationen und färbt auch freie, vom gemeinsamen Parser erka
 Inline-Code bleibt davon ausgenommen. Auf jeder gepufferten A4-Seite setzt er eine Akribos-Kopfzeile
 sowie eine Fußzeile mit Seitenzahl. Die Bereichsnavigation besteht aus „Notizen“, „Ausarbeitungen“ und „Stellensammlungen“; Import und
 veröffentlichte Notizen sind kontextuelle Aktionen, Vorlagen gehören in den Ausarbeitungsbereich. Ausarbeitungen
-bleiben normale Dokumente mit den Zuständen `idea`, `research`, `outline`, `ready`, `delivered`;
-`/sermons` ist nur ihre fokussierte Workflow-Ansicht. Karten wechseln den Status revisioniert per
-Drag-and-drop; `Alt` + Pfeil links/rechts ist die barrierearme Tastaturalternative. Ein redundantes
-Status-Select wird auf der Karte nicht gerendert. Innerhalb der gesamten Ansicht und jeder Statusspalte
-stehen Karten nach geplantem Geplanter Termin absteigend; Ausarbeitungen ohne Termin folgen zuletzt. Die
-URL-Filter für Arbeitsstand, Volltext, Reihe und Jahr sind kombinierbar. `sermon_templates`
+bleiben normale Dokumente (`kind = sermon`); `/sermons` zeigt sie in kontoeigenen Spalten.
+`users.sermon_columns` speichert eine geordnete JSON-Liste aus stabiler ID und frei wählbarem Namen;
+`sermon_board_revision` verhindert das Überschreiben gleichzeitiger Konfigurationsänderungen.
+Migration `0032_needy_spot.sql` liefert bestehenden und neuen Konten die bisherigen fünf Spalten
+`idea`, `research`, `outline`, `ready`, `delivered` als Default. Neue Spalten erhalten UUIDs;
+`documents.sermon_status` referenziert immer eine Spalte des Eigentümers. Board-GETs schreiben nie.
+Spaltenänderungen, Dokumenterstellung, Statuswechsel und Typwechsel sperren zuerst dieselbe Nutzerzeile,
+erst danach Dokumentzeilen. Löschen verlangt eine andere eigene Zielspalte, verschiebt im selben
+Transaktionsblock auch ruhende Notizmetadaten und Papierkorb-Dokumente und erhöht deren Revisionen.
+Mindestens eine Spalte bleibt erhalten; neue Ausarbeitungen starten in der ersten Spalte. Namen sind
+auf 80 Zeichen und die Konfiguration auf 30 Spalten begrenzt; doppelte Namen werden ignorierend auf
+Groß-/Kleinschreibung abgewiesen. Editor und URL-Statusfilter verwenden dieselben eigenen Spalten.
+Markdown exportiert neben `sermon.status` auch `sermon.statusName`; Import verwendet eine vorhandene
+eigene ID beziehungsweise denselben Namen oder legt atomar eine eigene Spalte an.
+Karten sind auf ihrer gesamten Fläche über `svelte-dnd-action` ziehbar; ein normaler Titelklick öffnet
+weiterhin das Dokument. Die Spalten verwenden eine äußere `dndzone` mit eigenem Typ. Karten-Events
+stoppen die Weitergabe, damit sie nie die Spaltenreihenfolge überschreiben. Sortieren überträgt eine
+vollständige ID-Permutation samt Boardrevision; der Server weist fehlende, doppelte und fremde IDs ab.
+Ein Plus-Button nach der letzten Spalte (außerhalb der `dndzone`) legt Spalten an. Ein Titelklick öffnet
+die Inline-Bearbeitung (Enter/Blur speichert, Escape verwirft); der Spaltenkopf lässt sich ziehen.
+Das Drei-Punkte-Menü bietet Löschen mit Zielspalten-Dialog und Links-/Rechts-Aktionen als Tastaturalternative.
+Leertaste/Tab und `Alt` + Pfeil links/rechts am Dokumentlink bleiben erhalten. Eine separate
+Spalten-Verwaltungsansicht existiert nicht.
+Die Bibliotheksauswahl ist in `docs/sermon-board.md` begründet. Ein redundantes Status-Select wird auf
+der Karte nicht gerendert. Auch nach Drag-and-drop bleiben Karten nach geplantem Termin absteigend
+sortiert; Ausarbeitungen ohne Termin folgen zuletzt. URL-Filter für Arbeitsstand, Volltext, Reihe und
+Jahr sind kombinierbar. `sermon_templates`
 enthält frei editierbare private
 Markdown-Vorlagen. `sermon_deliveries` speichert mehrere tatsächliche Durchführungen aus Kalenderdatum
 und Ort über einen zusammengesetzten Dokument-/Owner-FK; jede Mutation erhöht die Dokumentrevision.
@@ -598,6 +622,9 @@ Stellensammlungen sind der dritte Reiter im Dokumentbereich und liegen unter `/l
 eigene und geteilte Sammlungen geöffnet und neue angelegt werden. Alte `/account?tab=lists`-Links
 leiten zur neuen Übersicht weiter. Konto-GETs laden weder Sammlungen noch die Legacy-Kommentarliste.
 Die bestehenden `/lists/[id]`-, `/l/[slug]`- und API-Adressen sowie Zusammenarbeit bleiben erhalten.
+Die drei Übersichten `/notes`, `/sermons` und `/lists` verwenden dieselbe Seitenbreite und denselben
+`DocumentAreaHeader`. Titel, Beschreibung, Aktionszeile und Bereichsreiter behalten dadurch beim
+Wechsel ihre Position; auch ohne Seitenaktionen bleibt deren Platz auf schmalen Bildschirmen reserviert.
 
 ## Daten, Suche und Sicherheit
 

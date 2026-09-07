@@ -197,6 +197,7 @@ export async function load({ locals, url, setHeaders }) {
 			visibility: document.visibility,
 			revision: document.revision,
 			source: document.source,
+			createdAt: document.createdAt,
 			updatedAt: document.updatedAt
 		})),
 		tags: tagTree,
@@ -251,7 +252,6 @@ export const actions = {
 					title,
 					visibility: 'private',
 					source: 'native',
-					sermonStatus: rawKind === 'sermon' ? 'idea' : undefined,
 					...prepareDocumentBody(markdown)
 				},
 				endpoints ? [{ ...endpoints, resourceId, position: 0 }] : []

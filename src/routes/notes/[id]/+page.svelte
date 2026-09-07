@@ -45,10 +45,6 @@
 		return t('documents.details.native');
 	}
 
-	function sermonStatusLabel(status: string): string {
-		return t(`sermons.status.${status}` as MessageKey);
-	}
-
 	function displayedKindLabel(kind: string): string {
 		return t(`documents.kind.${kind}` as MessageKey);
 	}
@@ -299,6 +295,16 @@
 					{/if}
 					<div class="flex justify-between gap-3">
 						<dt class="text-stone-500 dark:text-stone-400">
+							{t('documents.library.created', { date: '' }).trimEnd()}
+						</dt>
+						<dd class="text-right">
+							<time datetime={new Date(workingDocument.createdAt).toISOString()}>
+								{dateFormat.format(new Date(workingDocument.createdAt))}
+							</time>
+						</dd>
+					</div>
+					<div class="flex justify-between gap-3">
+						<dt class="text-stone-500 dark:text-stone-400">
 							{t('documents.library.updated', { date: '' }).replace(/\s+$/u, '')}
 						</dt>
 						<dd class="text-right">{dateFormat.format(new Date(workingDocument.updatedAt))}</dd>
@@ -431,8 +437,8 @@
 								class="field-control"
 								value={workingDocument.sermonStatus}
 							>
-								{#each ['idea', 'research', 'outline', 'ready', 'delivered'] as status (status)}
-									<option value={status}>{sermonStatusLabel(status)}</option>
+								{#each data.sermonBoard.columns as column (column.id)}
+									<option value={column.id}>{column.name}</option>
 								{/each}
 							</select>
 						</label>
