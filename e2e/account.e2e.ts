@@ -293,7 +293,13 @@ test('a signed-in reader can highlight a verse with a colour and clear it', asyn
 
 	const swatches = page.locator('.swatches .swatch');
 	await expect(swatches).toHaveCount(10);
+	const highlighted = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'POST' &&
+			new URL(response.url()).searchParams.has('/setHighlight')
+	);
 	await swatches.first().click();
+	expect((await highlighted).ok()).toBe(true);
 
 	const verse = page.locator('[data-verse-key="43:3:16"]').first();
 	await expect(verse).toHaveCSS('background-color', 'rgb(255, 241, 198)');
@@ -325,7 +331,13 @@ test('a signed-in reader can highlight a verse with a colour and clear it', asyn
 	await page.goto('/Joh3');
 	await page.locator('#Joh3_16 a.verse-number').click();
 	await expect(swatches.first()).toHaveAttribute('aria-pressed', 'true');
+	const cleared = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'POST' &&
+			new URL(response.url()).searchParams.has('/removeHighlight')
+	);
 	await swatches.first().click();
+	expect((await cleared).ok()).toBe(true);
 	await expect(verse).not.toHaveCSS('background-color', 'rgb(255, 241, 198)');
 
 	await page.reload();
