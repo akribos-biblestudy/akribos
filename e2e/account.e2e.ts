@@ -217,11 +217,11 @@ test('a verse list keeps its verses and comments', async ({ page }) => {
 	await commentForm.getByRole('button', { name: 'Speichern' }).click();
 	// The enhanced form action completes asynchronously; wait for the comment to render before
 	// reloading.
-	await expect(page.getByText('Der bekannteste Vers')).toBeVisible();
+	await expect(page.locator('.comment-body', { hasText: 'Der bekannteste Vers' })).toBeVisible();
 
 	// The comment survives a reload, with its author's name attached.
 	await page.reload();
-	await expect(page.getByText('Der bekannteste Vers')).toBeVisible();
+	await expect(page.locator('.comment-body', { hasText: 'Der bekannteste Vers' })).toBeVisible();
 	await expect(page.getByText('E2E').first()).toBeVisible();
 
 	// Its author can delete it; only the author or the list's owner may (see AGENTS.md).

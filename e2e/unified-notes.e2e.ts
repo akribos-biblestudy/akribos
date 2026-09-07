@@ -1,7 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { strToU8, zipSync } from 'fflate';
-import { lastMailLinkTo } from './lib/mail-outbox';
+import { createDb } from '../src/lib/server/db/client.ts';
+import { users } from '../src/lib/server/db/schema.ts';
+import { hashPassword } from '../src/lib/server/auth/password.ts';
+import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
 
 const PASSWORD = 'ein-sicheres-passwort';
 
@@ -9,7 +12,7 @@ test('personal board columns can be managed, used in the editor, exported and de
 	page,
 	browser
 }) => {
-	await register(page);
+	await loginNewReader(page);
 	await page.goto('/sermons');
 	await expect(page.locator('.board-column')).toHaveCount(5);
 
@@ -77,7 +80,7 @@ test('personal board columns can be managed, used in the editor, exported and de
 	const otherContext = await browser.newContext();
 	try {
 		const other = await otherContext.newPage();
-		await register(other);
+		await loginNewReader(other);
 		await other.goto('/sermons');
 		await expect(other.locator('.board-column')).toHaveCount(5);
 		const foreignMove = await other.request.post('/sermons?/columns', {
@@ -131,7 +134,7 @@ test('a whole sermon card can be dragged by touch without moving its column', as
 	});
 	try {
 		const page = await context.newPage();
-		await register(page);
+		await loginNewReader(page);
 		await page.goto('/sermons');
 		const create = page.locator('[data-tour-target="sermon-create"]');
 		await create.getByLabel('Titel').fill('Ausarbeitung per Touch verschieben');
@@ -180,7 +183,7 @@ test('a whole sermon card can be dragged by touch without moving its column', as
 test('note pagination limits cards and preserves filters while tag search reveals collapsed groups', async ({
 	page
 }) => {
-	await register(page);
+	await loginNewReader(page);
 	await page.goto('/notes/import');
 	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles(
 		Array.from({ length: 25 }, (_, index) => ({
@@ -235,7 +238,7 @@ test('note pagination limits cards and preserves filters while tag search reveal
 test('notes and sermons convert both ways without losing text or sermon metadata', async ({
 	page
 }) => {
-	await register(page);
+	await loginNewReader(page);
 	const id = await createNoteFromLibrary(page);
 	await page.getByRole('button', { name: 'Konto-Menü' }).click();
 	await expect(
@@ -336,7 +339,7 @@ test('the current-passage library finds imported notes and sermons by body refer
 	page,
 	browser
 }) => {
-	await register(page);
+	await loginNewReader(page);
 	const titles = ['Fließtextnotiz', 'Fließtextpredigt', 'Nur Code', 'Anderer Vers'] as const;
 	await page.goto('/notes/import');
 	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles([
@@ -418,21 +421,37 @@ function uniqueEmail(): string {
 	return `e2e-reader-note-${Math.random().toString(36).slice(2, 10)}@example.com`;
 }
 
-async function register(page: import('@playwright/test').Page): Promise<void> {
+async function loginNewReader(page: import('@playwright/test').Page): Promise<void> {
 	const email = uniqueEmail();
-	await page.goto('/register');
+	// These scenarios test documents, not signup. Isolated verified fixtures avoid exhausting
+	// the shared runner IP's registration quota, especially when a different suite retries.
+	const { db, client } = createDb(
+		process.env.E2E_DATABASE_URL ??
+			testDatabaseUrl(
+				process.env.DATABASE_URL ?? 'postgres://strongs:strongs@localhost:5432/strongs'
+			),
+		{ max: 1 }
+	);
+	try {
+		await db.insert(users).values({
+			email,
+			passwordHash: await hashPassword(PASSWORD),
+			displayName: 'Reader Notes E2E',
+			emailVerifiedAt: new Date(),
+			tourCompletedAt: new Date()
+		});
+	} finally {
+		await client.end();
+	}
+	await page.goto('/login');
 	await page.getByLabel('E-Mail-Adresse').fill(email);
-	await page.getByLabel('Anzeigename').fill('Reader Notes E2E');
 	await page.getByLabel('Passwort', { exact: true }).fill(PASSWORD);
-	await page.getByLabel('Passwort wiederholen').fill(PASSWORD);
-	await page.getByRole('button', { name: 'Konto erstellen' }).click();
-	await page.goto(await lastMailLinkTo(email));
-	await page.getByRole('button', { name: 'Konto aktivieren' }).click();
-	await page.evaluate(() => fetch('/api/tour', { method: 'POST' }));
+	await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+	await expect(page).toHaveURL(/\/account$/);
 }
 
 test('a reader verse creates and reopens a translation-specific unified note', async ({ page }) => {
-	await register(page);
+	await loginNewReader(page);
 	await page.goto('/Joh3,16');
 	const title = `Kontextnotiz aus dem Reader ${RUN_ID}`;
 	const bodyMarker = `sidecar-autosave-${RUN_ID}`;
@@ -1286,7 +1305,7 @@ test('the sermon manager creates from its template and persists workflow metadat
 test('the sermon board sorts planned dates and combines format, series and year filters', async ({
 	page
 }) => {
-	await register(page);
+	await loginNewReader(page);
 	const olderTitle = `Ausarbeitung 2025 ${RUN_ID}`;
 	const newerTitle = `Ausarbeitung 2026 ${RUN_ID}`;
 	const olderSeries = `Alte Reihe ${RUN_ID}`;
@@ -1762,7 +1781,7 @@ test('the notes workspace remains operable on mobile, by keyboard and in dark mo
 test('editor selection tools, outline, counts and Zen mode preserve the same document', async ({
 	page
 }) => {
-	await register(page);
+	await loginNewReader(page);
 	await createNoteFromLibrary(page);
 	await page.getByRole('tab', { name: 'Markdown' }).click();
 	const source = '# Anfang\n\nHallo Welt\n\n## Ende\n\n' + 'Langer Absatz.\n\n'.repeat(35);
@@ -1835,7 +1854,7 @@ test('editor selection tools, outline, counts and Zen mode preserve the same doc
 });
 
 test('slash commands create blocks and mentions add owner-private backlinks', async ({ page }) => {
-	await register(page);
+	await loginNewReader(page);
 	const targetId = await createNoteFromLibrary(page);
 	await saveMarkdownDocument(page, {
 		title: 'Zielbeitrag',
@@ -1893,7 +1912,7 @@ test('slash commands create blocks and mentions add owner-private backlinks', as
 test('sidecar search and passage filters survive reload and reader navigation', async ({
 	page
 }) => {
-	await register(page);
+	await loginNewReader(page);
 	await page.goto('/Joh3');
 	await page.getByTestId('layout-picker').click();
 	await page.getByTestId('reader-notes-sidecar-toggle').click();
@@ -1934,7 +1953,7 @@ test('sidecar search and passage filters survive reload and reader navigation', 
 test('the chapter-filtered sidecar reloads on chapter or link-group changes, not verse scrolling', async ({
 	page
 }) => {
-	await register(page);
+	await loginNewReader(page);
 	await page.setViewportSize({ width: 1280, height: 300 });
 	// Freeze chapter streams while allowing the sidecar's workspace filters to autosave.
 	await page.route(/\/api\/reader\/\d+\/\d+(?:\?|$)/, (route) => route.abort());
@@ -1984,7 +2003,7 @@ test('the chapter-filtered sidecar reloads on chapter or link-group changes, not
 });
 
 test('preparations keep multiple live collections beside the editor', async ({ page }) => {
-	await register(page);
+	await loginNewReader(page);
 	await page.goto('/lists');
 	await page.getByPlaceholder('Neue Stellensammlung').fill('Gesammelte Hoffnung');
 	await page.getByRole('button', { name: 'Neue Stellensammlung' }).click();
@@ -2027,7 +2046,7 @@ test('preparations keep multiple live collections beside the editor', async ({ p
 test('the account default Bible controls preview and inserted quotations inside and outside the reader', async ({
 	page
 }) => {
-	await register(page);
+	await loginNewReader(page);
 	await page.goto('/account?tab=appearance');
 	const settings = page.getByTestId('default-bible-settings');
 	await settings.getByLabel('Standardübersetzung', { exact: true }).selectOption('SEEDPLAIN');
