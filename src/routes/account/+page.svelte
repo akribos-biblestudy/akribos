@@ -232,38 +232,6 @@
 						<Button>{t('apiKeys.create')}</Button>
 					</form>
 
-					<form
-						class="mt-5 space-y-3 border-t border-stone-200 pt-5 dark:border-stone-800"
-						method="POST"
-						action="?/defaultBible"
-						use:enhance
-						data-testid="default-bible-settings"
-					>
-						<label for="default-bible" class="block text-sm font-medium">Standardübersetzung</label>
-						<p id="default-bible-hint" class="text-xs text-stone-500 dark:text-stone-400">
-							Für Bibelvorschauen beim Überfahren einer Stelle und für „Bibeltext einfügen“.
-						</p>
-						<select
-							id="default-bible"
-							name="defaultBibleId"
-							value={data.defaultBibleId ?? ''}
-							aria-describedby="default-bible-hint"
-							class="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
-						>
-							<option value="">Automatisch</option>
-							{#each data.bibles as bible (bible.id)}<option value={bible.id}>{bible.name}</option
-								>{/each}
-						</select>
-						<div class="flex items-center gap-3">
-							<Button type="submit">Standardübersetzung speichern</Button>
-							{#if form?.defaultBibleSaved}<span role="status" class="text-sm text-stone-500"
-									>{t('account.saved')}</span
-								>{/if}
-							{#if form?.defaultBibleError}<span role="alert" class="text-sm text-red-700"
-									>Bitte eine verfügbare Bibelübersetzung wählen.</span
-								>{/if}
-						</div>
-					</form>
 					<div class="mt-5 border-t border-stone-200 pt-5 dark:border-stone-800">
 						{#if data.apiKeys.length === 0}
 							<p class="text-sm text-stone-500 dark:text-stone-400">{t('apiKeys.empty')}</p>
@@ -315,6 +283,38 @@
 						<span class="text-sm text-stone-600 dark:text-stone-300">{t('account.theme')}</span>
 					</div>
 
+					<form
+						class="mt-5 space-y-3 border-t border-stone-200 pt-5 dark:border-stone-800"
+						method="POST"
+						action="?/defaultBible"
+						use:enhance
+						data-testid="default-bible-settings"
+					>
+						<label for="default-bible" class="block text-sm font-medium">Standardübersetzung</label>
+						<p id="default-bible-hint" class="text-xs text-stone-500 dark:text-stone-400">
+							Für Bibelvorschauen beim Überfahren einer Stelle und für „Bibeltext einfügen“.
+						</p>
+						<select
+							id="default-bible"
+							name="defaultBibleId"
+							value={data.defaultBibleId ?? ''}
+							aria-describedby="default-bible-hint"
+							class="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+						>
+							<option value="">Automatisch</option>
+							{#each data.bibles as bible (bible.id)}<option value={bible.id}>{bible.name}</option
+								>{/each}
+						</select>
+						<div class="flex items-center gap-3">
+							<Button type="submit">Standardübersetzung speichern</Button>
+							{#if form?.defaultBibleSaved}<span role="status" class="text-sm text-stone-500"
+									>{t('account.saved')}</span
+								>{/if}
+							{#if form?.defaultBibleError}<span role="alert" class="text-sm text-red-700"
+									>Bitte eine verfügbare Bibelübersetzung wählen.</span
+								>{/if}
+						</div>
+					</form>
 					<div class="mt-5 border-t border-stone-200 pt-5 dark:border-stone-800">
 						<div class="flex items-baseline justify-between gap-3">
 							<p class="text-sm font-medium">{t('account.readerFontSize')}</p>
@@ -350,26 +350,6 @@
 						>
 							{t('account.readerFontPreview')}
 						</p>
-					</div>
-
-					<div class="mt-5 border-t border-stone-200 pt-5 dark:border-stone-800">
-						<p class="text-sm font-medium">{t('account.readerTranslations')}</p>
-						<p class="mt-1 text-xs text-stone-500 dark:text-stone-400">
-							{t('account.readerTranslationsHint')}
-						</p>
-						<ul class="mt-2 flex flex-wrap gap-1.5">
-							{#each data.columns as columnId (columnId)}
-								{@const resource = data.readerResources.find((item) => item.id === columnId)}
-								{#if resource}
-									<li
-										class="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs
-										       dark:border-stone-700 dark:bg-stone-800"
-									>
-										{resource.tabTitle}
-									</li>
-								{/if}
-							{/each}
-						</ul>
 					</div>
 				</Card>
 

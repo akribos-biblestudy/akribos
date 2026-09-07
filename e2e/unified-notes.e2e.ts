@@ -1828,8 +1828,8 @@ test('the account default Bible controls preview and inserted quotations inside 
 	await page.getByTestId('reader-notes-sidecar-toggle').click();
 	const sidecar = page.getByTestId('reader-notes-sidecar');
 	await sidecar
-		.getByTestId('reader-notes-open-document')
-		.filter({ hasText: 'Bevorzugte Übersetzung' })
+		.getByTestId('reader-notes-library')
+		.getByRole('button', { name: /^Bevorzugte Übersetzung/ })
 		.click();
 	await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(
 		'Bevorzugte Übersetzung'

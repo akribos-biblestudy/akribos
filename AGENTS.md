@@ -202,8 +202,11 @@ Wichtige Scroll-Invarianten:
   ein Link und öffnet über `onVerseNumberClick()` dasselbe `VerseMenu` für den ersten Vers. Sie darf
   nicht wieder in ein rein dekoratives `span` umgewandelt werden.
 
-Die globalen Sucheingabe, Kapitelüberschrift und Kapitelpfeile sind im Reader bewusst entfernt; der
-globale Header enthält dort nur die dezente Layoutwahl und Ansichts-/Kontofunktionen. Der Theme-Schalter
+Die globale Sucheingabe ist auf allen Seiten aus der Top Bar entfernt, einschließlich Buch-/Kapitelwahl
+und globaler Tastatur-Fokussierung. Im Reader bleiben außerdem die globale Kapitelüberschrift und
+Kapitelpfeile entfernt; sein Header enthält nur die dezente Layoutwahl und Ansichts-/Kontofunktionen.
+Das Konto-Menü ist mindestens 16 rem breit (am Viewport begrenzt), damit „Notizen & Ausarbeitungen“
+einzeilig bleibt. Die Darstellung-Einstellungen zeigen keine Übersicht der offenen Reader-Ressourcen. Der Theme-Schalter
 bleibt auf normalen Bildschirmen rahmenlos. Eine mittlere Viewport-Breite darf allein keine kontrastreiche
 E-Ink-Darstellung aktivieren; Rahmen und deckender Hintergrund sind ausschließlich für `(update: slow)`
 beziehungsweise `(monochrome)` gedacht.

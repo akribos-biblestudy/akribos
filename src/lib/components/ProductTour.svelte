@@ -85,26 +85,13 @@
 	async function walkToVisibleStep(): Promise<void> {
 		while (tourState.index < tourState.steps.length) {
 			const current = tourState.steps[tourState.index]!;
-			const active = document.activeElement;
-
-			if (current.focusSearch) {
-				document.getElementById('site-search')?.focus();
-			} else if (active instanceof HTMLElement && active.id === 'site-search') {
-				active.blur();
-			}
-
 			await tick();
 			const element = findTarget(current);
 			if (element) {
 				position(element, current);
 				visible = true;
-				// A step that keeps the search field focused (to keep its chooser open) must leave that
-				// focus alone: moving it to the panel would blur the field, and `SiteHeader` closes the
-				// chooser the moment focus leaves it and everything inside it.
-				if (!current.focusSearch) {
-					await tick();
-					panel?.focus();
-				}
+				await tick();
+				panel?.focus();
 				return;
 			}
 			tourState.index += 1;
@@ -168,10 +155,7 @@
 	async function complete(): Promise<void> {
 		tourState.open = false;
 		visible = false;
-		// A step still holding the search field focused (to keep its chooser open) must let go of it,
-		// or the chooser would be left open with nothing pointing at it anymore.
-		const active = document.activeElement;
-		if (active instanceof HTMLElement && active.id === 'site-search') active.blur();
+
 		try {
 			document.cookie = 'tour-guest-done=1; path=/; max-age=31536000; samesite=lax';
 		} catch {
