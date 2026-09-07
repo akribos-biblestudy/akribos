@@ -1,14 +1,15 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { randomUUID } from 'node:crypto';
 import { bookById } from '$lib/bible/books';
-import { bookName, bookShortName } from '$lib/bible/book-names';
+import { bookName } from '$lib/bible/book-names';
 import {
 	formatReference,
 	isReferenceInCanon,
 	nextChapter,
 	parseReference,
 	previousChapter,
-	referencePath
+	referencePath,
+	type VerseRef
 } from '$lib/bible/reference';
 import { normalizeStrongId, strongLanguage } from '$lib/bible/strong';
 import { getDb } from '$lib/server/db';
@@ -965,9 +966,9 @@ function defaultLocation(
 
 function rememberLocation(
 	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
-	reference: { book: number; chapter: number }
+	reference: VerseRef
 ): void {
-	cookies.set(LOCATION_COOKIE, `${bookShortName(reference.book)}${reference.chapter}`, {
+	cookies.set(LOCATION_COOKIE, formatReference(reference), {
 		path: '/',
 		maxAge: 60 * 60 * 24 * 365,
 		httpOnly: false,

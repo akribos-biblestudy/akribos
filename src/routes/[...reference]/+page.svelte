@@ -1427,6 +1427,7 @@
 	}
 
 	let addressBarTimer: ReturnType<typeof setTimeout> | undefined;
+	let addressBarGeneration = 0;
 
 	/**
 	 * Keeps the URL, and `readerLocation` (which the header's search field reads), in step with
@@ -1448,6 +1449,9 @@
 		const reference = { book, chapter, verse };
 		visibleReferences[columnIndex] = reference;
 		readerLocation.reference = reference;
+		// Remember the exact verse synchronously, including leaving the Reader during the URL debounce.
+		document.cookie = `location=${encodeURIComponent(formatReference(reference))}; Path=/; Max-Age=31536000; SameSite=Lax`;
+		const generation = ++addressBarGeneration;
 
 		if (addressBarTimer) clearTimeout(addressBarTimer);
 		addressBarTimer = setTimeout(() => {
@@ -1468,7 +1472,7 @@
 			void request.then(async (response) => {
 				if (!response.ok) return;
 				const result = deserialize(await response.text());
-				if (result.type !== 'success') return;
+				if (generation !== addressBarGeneration || result.type !== 'success') return;
 				const state = readerStateFromActionData(result.data);
 				if (state) replaceState(readerUrl(path, state), page.state);
 			});
@@ -1477,6 +1481,7 @@
 
 	/** Cancels delayed work before it can apply an old chapter's position to a new navigation. */
 	function cancelScheduledReaderWork() {
+		addressBarGeneration += 1;
 		if (flowSyncTimer) clearTimeout(flowSyncTimer);
 		flowSyncTimer = undefined;
 		if (addressBarTimer) clearTimeout(addressBarTimer);
