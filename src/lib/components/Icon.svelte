@@ -36,6 +36,7 @@
 			| 'more-horizontal'
 			| 'open-external'
 			| 'pencil'
+			| 'paperclip'
 			| 'plus'
 			| 'quote'
 			| 'redo'
@@ -68,7 +69,9 @@
 	stroke-linejoin="round"
 	aria-hidden="true"
 >
-	{#if name === 'arrow-right'}
+	{#if name === 'paperclip'}
+		<path d="m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9M8 12l-2 2a1 1 0 0 0 2 2l7-7" />
+	{:else if name === 'arrow-right'}
 		<path d="M5 12h14M13 6l6 6-6 6" />
 	{:else if name === 'bold'}
 		<path d="M7 4h6a4 4 0 0 1 0 8H7Zm0 8h7a4 4 0 0 1 0 8H7Z" />

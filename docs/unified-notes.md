@@ -45,6 +45,24 @@ body changes; startup and post-restore migration backfill only missing legacy ro
 and fetch excerpt text only for the current 24-item page. The `view` parameter switches between card and
 compact list layouts.
 
+## Private attachments for preparation documents
+
+Preparation documents accept files in the editor's **Anlagen** card, including PDFs, presentations
+and images. Owners can upload multiple files, download originals and explicitly delete individual
+attachments. Limits are 50 MiB per file, 200 MiB and 50 attachments per document.
+
+`document_attachments` stores metadata and PostgreSQL `bytea` together, so existing database backups
+and restores also contain these files. Library and editor loads select metadata only. The composite
+document/owner foreign key and owner-scoped active-sermon joins apply to every read and mutation,
+including administrator requests. Downloads force attachment disposition and disable content sniffing
+and active content. The bounded multipart reader is shared with the Markdown importer.
+
+Mutations lock the document before checking revision and quota and increment the revision atomically.
+The editor serializes file operations with its autosave queue, saving pending edits before the operation
+and text entered during upload afterwards. Trash and conversion to notes retain dormant files; restoring
+the document or converting back makes them available again. Physical document/account deletion cascades.
+Attachments are private and are not included in publication snapshots or Markdown/Word/PDF interchange.
+
 ## Passage anchors
 
 Document passages are inclusive ordered ranges and may cross chapter or book boundaries. They are

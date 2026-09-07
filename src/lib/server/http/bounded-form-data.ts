@@ -1,7 +1,7 @@
-/** Errors raised before an untrusted import request reaches the platform's buffering form parser. */
+/** Errors raised before an untrusted upload reaches the platform's buffering form parser. */
 export class RequestBodyTooLargeError extends Error {
 	constructor() {
-		super('Request body exceeds the configured import limit.');
+		super('Request body exceeds the configured upload limit.');
 		this.name = 'RequestBodyTooLargeError';
 	}
 }
