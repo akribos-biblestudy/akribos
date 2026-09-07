@@ -205,6 +205,11 @@ bleibt auf normalen Bildschirmen rahmenlos. Eine mittlere Viewport-Breite darf a
 E-Ink-Darstellung aktivieren; Rahmen und deckender Hintergrund sind ausschließlich für `(update: slow)`
 beziehungsweise `(monochrome)` gedacht.
 
+Lexikon-Fließtext verwendet eine kompaktere Grundgröße von `0.95rem` und folgt der persönlichen
+Leseschrift-Skalierung. Bibelzitate im Lexikon behalten dieselbe `--reader-text-size` wie der Reader.
+Lexikon-Labels, Statistik und Bedienelemente verwenden dagegen feste `rem`-Größen wie die übrige
+Oberfläche; sie dürfen die Leseschrift-Skalierung nicht erben oder verschachtelt vervielfachen.
+
 Interaktive Oberflächen-Icons kommen aus `src/lib/components/Icon.svelte`: ein 24er-Raster, runde
 Linienenden und einheitlich 1,8 Strichstärke. Auch `ResourceKindIcon.svelte` delegiert dorthin; neue
 Bedienelemente dürfen nicht wieder eigene gefüllte SVGs oder Unicode-Ersatzzeichen einführen. Der
