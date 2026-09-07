@@ -113,6 +113,7 @@ export const de = {
 	'documents.library.view': 'Darstellung der Notizen',
 	'documents.library.cards': 'Kachelansicht',
 	'documents.library.list': 'Listenansicht',
+	'documents.library.created': 'Erstellt am {date}',
 	'documents.library.updated': 'Geändert {date}',
 	'documents.library.sourceLegacy': 'Aus Verskommentar übernommen',
 	'documents.library.new': 'Neues Dokument',

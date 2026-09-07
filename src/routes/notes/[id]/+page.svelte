@@ -295,6 +295,16 @@
 					{/if}
 					<div class="flex justify-between gap-3">
 						<dt class="text-stone-500 dark:text-stone-400">
+							{t('documents.library.created', { date: '' }).trimEnd()}
+						</dt>
+						<dd class="text-right">
+							<time datetime={new Date(workingDocument.createdAt).toISOString()}>
+								{dateFormat.format(new Date(workingDocument.createdAt))}
+							</time>
+						</dd>
+					</div>
+					<div class="flex justify-between gap-3">
+						<dt class="text-stone-500 dark:text-stone-400">
 							{t('documents.library.updated', { date: '' }).replace(/\s+$/u, '')}
 						</dt>
 						<dd class="text-right">{dateFormat.format(new Date(workingDocument.updatedAt))}</dd>

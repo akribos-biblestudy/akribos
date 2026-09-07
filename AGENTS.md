@@ -288,7 +288,10 @@ Metadaten erhalten und werden beim Rückwechsel wiederverwendet. Autosave darf d
 bei Notizen. Das globale Menü heißt „Notizen & Ausarbeitungen“.
 
 Die Notizbibliothek liefert höchstens 24 Notizkarten je URL-Seite (`page`), nach allen Filtern
-einschließlich der abgeleiteten Fließtextstellen. Ungültige Seitennummern werden begrenzt; Filterlinks
+einschließlich der abgeleiteten Fließtextstellen. Die Reihenfolge folgt `created_at` absteigend, bei
+gleichem Zeitpunkt der stabilen ID absteigend, bereits vor der Seitenauswahl. Bearbeiten ändert die
+Position nicht. Karten, Listenansicht und Dokumentdetails zeigen das Erstellungsdatum zusätzlich zum
+Änderungsdatum. Ungültige Seitennummern werden begrenzt; Filterlinks
 setzen die Seite zurück, Seitenlinks erhalten alle Filter. Nur gekürzte Vorschautexte werden an den
 Browser geliefert. Die aus gespeicherten Ankern und sichtbaren Fließtextstellen abgeleitete
 Buchverteilung zählt jedes Dokument je Buch höchstens einmal; ihr `book`-Filter lässt die ungefilterte
@@ -619,6 +622,9 @@ Stellensammlungen sind der dritte Reiter im Dokumentbereich und liegen unter `/l
 eigene und geteilte Sammlungen geöffnet und neue angelegt werden. Alte `/account?tab=lists`-Links
 leiten zur neuen Übersicht weiter. Konto-GETs laden weder Sammlungen noch die Legacy-Kommentarliste.
 Die bestehenden `/lists/[id]`-, `/l/[slug]`- und API-Adressen sowie Zusammenarbeit bleiben erhalten.
+Die drei Übersichten `/notes`, `/sermons` und `/lists` verwenden dieselbe Seitenbreite und denselben
+`DocumentAreaHeader`. Titel, Beschreibung, Aktionszeile und Bereichsreiter behalten dadurch beim
+Wechsel ihre Position; auch ohne Seitenaktionen bleibt deren Platz auf schmalen Bildschirmen reserviert.
 
 ## Daten, Suche und Sicherheit
 

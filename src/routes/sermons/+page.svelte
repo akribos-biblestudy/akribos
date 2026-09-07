@@ -2,7 +2,7 @@
 	import { deserialize } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import Icon from '$lib/components/Icon.svelte';
-	import DocumentAreaNav from '$lib/components/documents/DocumentAreaNav.svelte';
+	import DocumentAreaHeader from '$lib/components/documents/DocumentAreaHeader.svelte';
 	import { t } from '$lib/i18n';
 	import SermonBoard from '$lib/components/documents/SermonBoard.svelte';
 	import { SERMON_FORMATS, sermonFormatLabel } from '$lib/notes/documents';
@@ -47,26 +47,13 @@
 </script>
 
 <main class="mx-auto w-full max-w-[96rem] px-4 py-7 sm:px-6 sm:py-10" data-testid="sermon-manager">
-	<header class="flex flex-wrap items-start justify-between gap-4">
-		<div>
-			<p class="text-xs font-bold tracking-[0.16em] text-accent-700 uppercase dark:text-accent-300">
-				{t('documents.kind.sermon')}
-			</p>
-			<h1 class="mt-1 font-serif text-3xl font-semibold tracking-tight sm:text-4xl">
-				{t('sermons.title')}
-			</h1>
-			<p class="mt-2 max-w-2xl text-sm text-stone-500 dark:text-stone-400">
-				{t('sermons.subtitle')}
-			</p>
-		</div>
-		<div class="flex flex-wrap gap-2">
-			<a href="/sermons/templates" class="header-link">
-				<Icon name="file-text" class="size-4" />
-				{t('sermons.templates.title')}
-			</a>
-		</div>
-	</header>
-	<DocumentAreaNav active="sermons" />
+	<DocumentAreaHeader active="sermons">
+		{#snippet actions()}
+			<a href="/sermons/templates"
+				><Icon name="file-text" class="size-4" />{t('sermons.templates.title')}</a
+			>
+		{/snippet}
+	</DocumentAreaHeader>
 
 	<section
 		data-tour-target="sermon-create"
@@ -266,17 +253,6 @@
 	.status-filter.active {
 		background: var(--color-accent-600);
 		color: white;
-	}
-	.header-link {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.45rem;
-		border: 1px solid var(--color-stone-300);
-		border-radius: 0.5rem;
-		background: var(--surface-raised);
-		padding: 0.5rem 0.75rem;
-		font-size: 0.875rem;
-		font-weight: 650;
 	}
 	:global(.dark) .field-label {
 		color: var(--color-stone-300);

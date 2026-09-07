@@ -163,7 +163,7 @@ export async function listDocumentLibraryIndex(
 			)
 		)
 		.where(and(...conditions))
-		.orderBy(desc(documents.updatedAt), desc(documents.id));
+		.orderBy(desc(documents.createdAt), desc(documents.id));
 
 	return rows.map((row) => {
 		const fallback = row.fallbackBodyHtml
@@ -219,6 +219,7 @@ export type DocumentLibrarySummary = {
 	visibility: DocumentVisibility;
 	revision: number;
 	source: DocumentSource;
+	createdAt: Date;
 	updatedAt: Date;
 };
 
@@ -238,6 +239,7 @@ export async function listDocumentLibrarySummaries(
 			visibility: documents.visibility,
 			revision: documents.revision,
 			source: documents.source,
+			createdAt: documents.createdAt,
 			updatedAt: documents.updatedAt
 		})
 		.from(documents)
