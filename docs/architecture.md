@@ -129,7 +129,7 @@ feed and sitemap; `unlisted` snapshots are omitted from discovery but remain ano
 slug, so unlisted is not an authorisation mechanism.
 
 The private library and editor live at `/notes`; its two-area navigation links only “Notizen” and
-“Predigten”. Import and public notes are contextual note actions, while templates are contextual to the
+“Ausarbeitungen”. Import and public notes are contextual note actions, while templates are contextual to the
 sermon area. The note library derives an owner-scoped 66-book facet from both passage rows and visible
 body references; its book filter and card/list view remain in the URL. Visible-body ranges are indexed
 atomically on document writes in `document_body_reference_indexes`, with an idempotent startup backfill

@@ -1,3 +1,4 @@
+import { sermonFormatLabel } from '$lib/notes/documents';
 import {
 	AlignmentType,
 	Document as WordDocument,
@@ -136,7 +137,8 @@ function metadataLines(data: OwnedDocumentExport): string[] {
 		lines.push(`Bibelstellen: ${data.passages.map((item) => item.reference).join(', ')}`);
 	if (data.tags.length) lines.push(`Schlagwörter: ${data.tags.join(', ')}`);
 	if (data.document.kind === 'sermon') {
-		if (data.document.sermonSeries) lines.push(`Predigtreihe: ${data.document.sermonSeries}`);
+		lines.push(`Format: ${sermonFormatLabel(data.document.sermonFormat)}`);
+		if (data.document.sermonSeries) lines.push(`Reihe: ${data.document.sermonSeries}`);
 		if (data.document.sermonDate)
 			lines.push(`Geplanter Termin: ${formatGermanCalendarDate(data.document.sermonDate)}`);
 		for (const delivery of data.deliveries) {

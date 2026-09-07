@@ -67,13 +67,13 @@ test('notes and sermons convert both ways without losing text or sermon metadata
 	const id = await createNoteFromLibrary(page);
 	await page.getByRole('button', { name: 'Konto-Menü' }).click();
 	await expect(
-		page.getByRole('menuitem', { name: 'Notizen & Predigten', exact: true })
+		page.getByRole('menuitem', { name: 'Notizen & Ausarbeitungen', exact: true })
 	).toBeVisible();
 	await page.keyboard.press('Escape');
 	await page.getByLabel('Titel').fill('Wechselnotiz');
 	await page.getByRole('tab', { name: 'Markdown' }).click();
 	await page.getByRole('textbox', { name: 'Markdown' }).fill('Ungespeicherter Text mit Joh 3,16.');
-	await page.getByRole('button', { name: 'In Predigt umwandeln', exact: true }).click();
+	await page.getByRole('button', { name: 'In Ausarbeitung umwandeln', exact: true }).click();
 	await expect(page.getByTestId('sermon-workflow')).toBeVisible();
 	const read = async () => (await (await page.request.get(`/api/documents/${id}`)).json()).document;
 	let document = await read();
@@ -92,6 +92,7 @@ test('notes and sermons convert both ways without losing text or sermon metadata
 			markdown: document.bodyMarkdown,
 			sermonStatus: 'ready',
 			sermonDate: '06.09.2026',
+			sermonFormat: 'children',
 			sermonSeries: 'Erhaltene Serie'
 		}
 	});
@@ -109,18 +110,20 @@ test('notes and sermons convert both ways without losing text or sermon metadata
 		id,
 		kind: 'note',
 		sermonStatus: 'ready',
+		sermonFormat: 'children',
 		sermonSeries: 'Erhaltene Serie'
 	});
 	expect(document.sermonDate).toContain('2026-09-06');
 	await page.goto('/notes');
 	await expect(page.getByRole('heading', { name: 'Wechselnotiz', exact: true })).toBeVisible();
 	await page.goto(`/notes/${id}`);
-	await page.getByRole('button', { name: 'In Predigt umwandeln', exact: true }).click();
+	await page.getByRole('button', { name: 'In Ausarbeitung umwandeln', exact: true }).click();
 	await expect(page.getByTestId('sermon-workflow')).toBeVisible();
 	expect(await read()).toMatchObject({
 		id,
 		kind: 'sermon',
 		sermonStatus: 'ready',
+		sermonFormat: 'children',
 		sermonSeries: 'Erhaltene Serie',
 		bodyMarkdown: document.bodyMarkdown
 	});
@@ -143,7 +146,7 @@ test('conversion rejects foreign documents and requires explicit unpublishing', 
 	await loginAs(page, SEED_ADMIN);
 	await page.goto(`/notes/${SEED_ADMIN_PUBLISHED_NOTE_ID}`);
 	await expect(
-		page.getByRole('button', { name: 'In Predigt umwandeln', exact: true })
+		page.getByRole('button', { name: 'In Ausarbeitung umwandeln', exact: true })
 	).toBeDisabled();
 	const { document } = await (
 		await page.request.get(`/api/documents/${SEED_ADMIN_PUBLISHED_NOTE_ID}`)
@@ -821,7 +824,7 @@ test('a note autosaves, switches Markdown modes, adds cross-chapter anchors and 
 		new RegExp(`${bodyMarker}[\\s\\S]*Worfschaufel[\\s\\S]*Matthäus 3,12`)
 	);
 
-	const tags = page.getByPlaceholder('Theologie/Gnade, Predigt/Entwurf');
+	const tags = page.getByPlaceholder('Theologie/Gnade, Ausarbeitung/Entwurf');
 	await tags.fill(nestedTagPath);
 	const tagsSaved = page.waitForResponse(
 		(response) => response.request().method() === 'POST' && response.url().includes('?/syncTags')
@@ -1047,17 +1050,18 @@ test('the sermon manager creates from its template and persists workflow metadat
 	page
 }) => {
 	await loginAs(page, SEED_READER);
-	const title = `Predigtablauf ${RUN_ID}`;
+	const title = `Vorbereitungsablauf ${RUN_ID}`;
 	await page.goto('/sermons');
 	await expect(page.getByRole('heading', { name: 'Geliebt und gesandt' })).toBeVisible();
 
 	await page.getByLabel('Titel').fill(title);
 	await page.getByRole('textbox', { name: 'Bibelstelle', exact: true }).fill('Joh 3,16-17');
-	await page.getByLabel('Predigtreihe', { exact: true }).fill('E2E-Reihe');
-	await page.getByLabel('Predigttermin').fill('24.12.2026');
+	await page.getByLabel('Reihe', { exact: true }).fill('E2E-Reihe');
+	await page.getByLabel('Geplanter Termin').fill('24.12.2026');
+	await page.getByLabel('Format', { exact: true }).selectOption('home-group');
 	await page.getByRole('button', { name: 'Erstellen' }).click();
 	await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+\?returnTo=%2Fsermons$/);
-	await expect(page.getByRole('link', { name: 'Zur Predigtvorbereitung' })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'Zur Vorbereitung' })).toHaveAttribute(
 		'href',
 		'/sermons'
 	);
@@ -1070,23 +1074,39 @@ test('the sermon manager creates from its template and persists workflow metadat
 	await expect(page.getByRole('link', { name: 'Joh 3,16-17' })).toBeVisible();
 
 	const workflow = page.getByTestId('sermon-workflow');
+	await expect(workflow.getByLabel('Format', { exact: true })).toHaveValue('home-group');
+	await workflow.getByLabel('Format', { exact: true }).selectOption('bible-study');
 	await workflow.getByLabel('Arbeitsstand').selectOption('research');
-	await workflow.getByLabel('Predigttermin').fill('03.01.2027');
-	await workflow.getByLabel('Predigtreihe').fill('E2E-Reihe aktualisiert');
+	await workflow.getByLabel('Geplanter Termin').fill('03.01.2027');
+	await workflow.getByLabel('Reihe').fill('E2E-Reihe aktualisiert');
 	const saved = page.waitForResponse(
 		(response) =>
 			response.request().method() === 'PATCH' &&
 			(response.request().postData()?.includes('"sermonStatus":"research"') ?? false)
 	);
-	await workflow.getByRole('button', { name: 'Predigtstatus speichern' }).click();
+	await workflow.getByRole('button', { name: 'Arbeitsstand speichern' }).click();
 	expect((await saved).ok()).toBe(true);
 	await expect(workflow.getByRole('status')).toHaveText('Gespeichert');
 
 	await page.reload();
 	await expect(workflow.getByLabel('Arbeitsstand')).toHaveValue('research');
-	await expect(workflow.getByLabel('Predigttermin')).toHaveValue('03.01.2027');
-	await expect(workflow.getByLabel('Predigtreihe')).toHaveValue('E2E-Reihe aktualisiert');
+	await expect(workflow.getByLabel('Format', { exact: true })).toHaveValue('bible-study');
+	await expect(workflow.getByLabel('Geplanter Termin')).toHaveValue('03.01.2027');
+	await expect(workflow.getByLabel('Reihe')).toHaveValue('E2E-Reihe aktualisiert');
 
+	const id = new URL(page.url()).pathname.split('/').at(-1);
+	const { document } = await (await page.request.get(`/api/documents/${id}`)).json();
+	const invalid = await page.request.patch(`/api/documents/${id}`, {
+		data: {
+			revision: document.revision,
+			title: document.title,
+			markdown: document.bodyMarkdown,
+			sermonFormat: 'unsupported'
+		}
+	});
+	expect(invalid.status()).toBe(400);
+	const exported = await page.request.get(`/notes/${id}/export.md`);
+	expect(await exported.text()).toContain('format: bible-study');
 	await page.goto('/sermons?status=research');
 	await expect(page.getByRole('heading', { name: title })).toBeVisible();
 });
@@ -1095,8 +1115,8 @@ test('the sermon board sorts planned dates and combines series and year filters'
 	page
 }) => {
 	await register(page);
-	const olderTitle = `Predigt 2025 ${RUN_ID}`;
-	const newerTitle = `Predigt 2026 ${RUN_ID}`;
+	const olderTitle = `Ausarbeitung 2025 ${RUN_ID}`;
+	const newerTitle = `Ausarbeitung 2026 ${RUN_ID}`;
 	const olderSeries = `Alte Reihe ${RUN_ID}`;
 	const newerSeries = `Neue Reihe ${RUN_ID}`;
 
@@ -1104,8 +1124,8 @@ test('the sermon board sorts planned dates and combines series and year filters'
 		await page.goto('/sermons');
 		const create = page.locator('[data-tour-target="sermon-create"]');
 		await create.getByLabel('Titel').fill(title);
-		await create.getByLabel('Predigttermin').fill(date);
-		await create.getByLabel('Predigtreihe').fill(series);
+		await create.getByLabel('Geplanter Termin').fill(date);
+		await create.getByLabel('Reihe').fill(series);
 		await create.getByRole('button', { name: 'Erstellen' }).click();
 		await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+\?returnTo=%2Fsermons$/);
 	}
@@ -1120,7 +1140,7 @@ test('the sermon board sorts planned dates and combines series and year filters'
 	await expect(cards.nth(0)).toContainText(newerTitle);
 	await expect(cards.nth(1)).toContainText(olderTitle);
 
-	let filters = page.getByRole('form', { name: 'Predigten filtern' });
+	let filters = page.getByRole('form', { name: 'Ausarbeitungen filtern' });
 	const searchField = filters.getByRole('searchbox', { name: 'Dokumente durchsuchen' });
 	const searchIcon = filters.locator('label.relative svg');
 	const [fieldBox, iconBox, paddingLeft] = await Promise.all([
@@ -1132,14 +1152,14 @@ test('the sermon board sorts planned dates and combines series and year filters'
 	expect(iconBox).not.toBeNull();
 	expect(iconBox!.x + iconBox!.width).toBeLessThan(fieldBox!.x + paddingLeft);
 
-	await filters.getByLabel('Nach Predigtreihe filtern').selectOption(newerSeries);
+	await filters.getByLabel('Nach Reihe filtern').selectOption(newerSeries);
 	await filters.getByRole('button', { name: 'Filtern' }).click();
 	await expect(page).toHaveURL((url) => url.searchParams.get('series') === newerSeries);
 	await expect(page.getByRole('heading', { name: newerTitle })).toBeVisible();
 	await expect(page.getByRole('heading', { name: olderTitle })).toHaveCount(0);
 
-	filters = page.getByRole('form', { name: 'Predigten filtern' });
-	await filters.getByLabel('Nach Predigtreihe filtern').selectOption('');
+	filters = page.getByRole('form', { name: 'Ausarbeitungen filtern' });
+	await filters.getByLabel('Nach Reihe filtern').selectOption('');
 	await filters.getByLabel('Nach Jahr filtern').selectOption('2025');
 	await filters.getByRole('button', { name: 'Filtern' }).click();
 	await expect(page).toHaveURL((url) => url.searchParams.get('year') === '2025');
@@ -1169,7 +1189,7 @@ test('custom sermon templates, delivery history, rich exports and board movement
 	await page.goto('/sermons');
 	const createSermon = page.locator('[data-tour-target="sermon-create"]');
 	await createSermon.getByLabel('Titel').fill(sermonTitle);
-	await createSermon.getByLabel('Predigttermin').fill('06.09.2026');
+	await createSermon.getByLabel('Geplanter Termin').fill('06.09.2026');
 	await createSermon.getByLabel('Vorlage').selectOption({ label: templateName });
 	await createSermon.getByRole('button', { name: 'Erstellen' }).click();
 	await page.getByRole('tab', { name: 'Markdown' }).click();

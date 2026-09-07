@@ -15,6 +15,30 @@ export const SERMON_WORKFLOW_STATES = [
 ] as const;
 export type SermonWorkflowState = (typeof SERMON_WORKFLOW_STATES)[number];
 
+export const SERMON_FORMATS = [
+	'sermon',
+	'home-group',
+	'bible-study',
+	'youth',
+	'children',
+	'other'
+] as const;
+export type SermonFormat = (typeof SERMON_FORMATS)[number];
+const SERMON_FORMAT_LABELS: Record<SermonFormat, string> = {
+	sermon: 'Predigt',
+	'home-group': 'Hauskreis',
+	'bible-study': 'Bibelstunde',
+	youth: 'Jugendstunde',
+	children: 'Kinderstunde',
+	other: 'Sonstiges'
+};
+export function isSermonFormat(value: unknown): value is SermonFormat {
+	return typeof value === 'string' && (SERMON_FORMATS as readonly string[]).includes(value);
+}
+export function sermonFormatLabel(value: SermonFormat): string {
+	return SERMON_FORMAT_LABELS[value];
+}
+
 export const DOCUMENT_SOURCES = ['native', 'obsidian', 'legacy-verse-comment'] as const;
 export type DocumentSource = (typeof DOCUMENT_SOURCES)[number];
 
@@ -46,7 +70,7 @@ export const GERMAN_SERMON_STARTER_TEMPLATE = `## Bibeltext
 
 Was ist die eine Aussage, die in Erinnerung bleiben soll?
 
-## Ziel der Predigt
+## Ziel der Ausarbeitung
 
 Was sollen die Hörenden erkennen, glauben oder tun?
 

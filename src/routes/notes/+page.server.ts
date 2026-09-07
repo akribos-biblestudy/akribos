@@ -39,7 +39,7 @@ function cleanQuery(value: string | null): string {
 }
 
 function defaultTitle(kind: DocumentKind): string {
-	if (kind === 'sermon') return 'Neue Predigt';
+	if (kind === 'sermon') return 'Neue Ausarbeitung';
 	return 'Neue Notiz';
 }
 

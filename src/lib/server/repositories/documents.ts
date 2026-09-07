@@ -28,6 +28,8 @@ import {
 	isDocumentSource,
 	isDocumentVisibility,
 	isSermonWorkflowState,
+	isSermonFormat,
+	type SermonFormat,
 	isValidDocumentMarkdown,
 	isValidDocumentTitle,
 	normalizeDocumentTitle,
@@ -69,6 +71,7 @@ export type CreateDocumentInput = PreparedDocumentBody & {
 	sermonStatus?: SermonWorkflowState | null;
 	sermonDate?: Date | null;
 	sermonSeries?: string | null;
+	sermonFormat?: SermonFormat;
 };
 
 export type UpdateDocumentInput = {
@@ -78,6 +81,7 @@ export type UpdateDocumentInput = {
 	sermonStatus?: SermonWorkflowState | null;
 	sermonDate?: Date | null;
 	sermonSeries?: string | null;
+	sermonFormat?: SermonFormat;
 };
 
 export type DocumentMutationResult =
@@ -171,11 +175,19 @@ function validateCreateInput(input: CreateDocumentInput): void {
 			'legacy source and legacy verse-comment id must be set together'
 		);
 	}
+	if (input.sermonFormat !== undefined && !isSermonFormat(input.sermonFormat)) {
+		throw new InvalidDocumentInputError('sermonFields', 'unknown preparation format');
+	}
 	if (input.kind === 'sermon') {
 		if (input.sermonStatus != null && !isSermonWorkflowState(input.sermonStatus)) {
 			throw new InvalidDocumentInputError('sermonFields', 'unknown sermon status');
 		}
-	} else if (input.sermonStatus != null || input.sermonDate != null || input.sermonSeries != null) {
+	} else if (
+		input.sermonStatus != null ||
+		input.sermonDate != null ||
+		input.sermonSeries != null ||
+		input.sermonFormat !== undefined
+	) {
 		throw new InvalidDocumentInputError(
 			'sermonFields',
 			'sermon metadata is only valid for sermon documents'
@@ -208,7 +220,8 @@ export async function createDocument(
 				legacyVerseCommentId: input.legacyVerseCommentId ?? null,
 				sermonStatus: input.kind === 'sermon' ? (input.sermonStatus ?? 'idea') : null,
 				sermonDate: input.kind === 'sermon' ? (input.sermonDate ?? null) : null,
-				sermonSeries: input.kind === 'sermon' ? cleanOptionalText(input.sermonSeries) : null
+				sermonSeries: input.kind === 'sermon' ? cleanOptionalText(input.sermonSeries) : null,
+				sermonFormat: input.sermonFormat ?? 'sermon'
 			})
 			.returning();
 		await syncDocumentLinks(transactionDb, userId, document!.id, input.bodyMarkdown);
@@ -354,7 +367,8 @@ export async function updateDocument(
 		if (
 			input.sermonStatus !== undefined ||
 			input.sermonDate !== undefined ||
-			input.sermonSeries !== undefined
+			input.sermonSeries !== undefined ||
+			input.sermonFormat !== undefined
 		) {
 			throw new InvalidDocumentInputError(
 				'sermonFields',
@@ -368,6 +382,9 @@ export async function updateDocument(
 		throw new InvalidDocumentInputError('sermonFields', 'a sermon must have a valid status');
 	}
 
+	if (input.sermonFormat !== undefined && !isSermonFormat(input.sermonFormat)) {
+		throw new InvalidDocumentInputError('sermonFields', 'unknown preparation format');
+	}
 	const changes: PgUpdateSetSource<typeof documents> = {
 		updatedAt: new Date(),
 		revision: sql`${documents.revision} + 1`
@@ -381,6 +398,7 @@ export async function updateDocument(
 		changes.plainText = input.body.plainText;
 	}
 	if (current.kind === 'sermon') {
+		if (input.sermonFormat !== undefined) changes.sermonFormat = input.sermonFormat;
 		if (input.sermonStatus !== undefined) changes.sermonStatus = input.sermonStatus;
 		if (input.sermonDate !== undefined) changes.sermonDate = input.sermonDate;
 		if (input.sermonSeries !== undefined) {
@@ -779,6 +797,7 @@ export async function findDocumentsOverlappingPassage(
 			sermonStatus: documents.sermonStatus,
 			sermonDate: documents.sermonDate,
 			sermonSeries: documents.sermonSeries,
+			sermonFormat: documents.sermonFormat,
 			deletedAt: documents.deletedAt,
 			createdAt: documents.createdAt,
 			updatedAt: documents.updatedAt

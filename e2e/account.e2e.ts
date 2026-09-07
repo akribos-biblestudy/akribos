@@ -95,7 +95,11 @@ test('account settings keep navigation history and collections live in the docum
 	await expect(page).toHaveURL(/\/account\?tab=appearance$/);
 	await gotoLists(page);
 	const nav = page.getByRole('navigation', { name: 'Dokumentbereiche' });
-	await expect(nav.getByRole('link')).toHaveText(['Notizen', 'Predigten', 'Stellensammlungen']);
+	await expect(nav.getByRole('link')).toHaveText([
+		'Notizen',
+		'Ausarbeitungen',
+		'Stellensammlungen'
+	]);
 	await expect(page.getByPlaceholder('Neue Stellensammlung')).toBeVisible();
 	await page.goto('/account?tab=lists');
 	await expect(page).toHaveURL('/lists');

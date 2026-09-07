@@ -49,9 +49,9 @@ export const de = {
 	'nav.userMenu': 'Konto-Menü',
 	'nav.tour': 'Produkt-Tour',
 	'nav.notes': 'Notizen',
-	'nav.sermons': 'Predigten',
+	'nav.sermons': 'Ausarbeitungen',
 	'nav.publishedNotes': 'Veröffentlichte Notizen',
-	'nav.documents': 'Notizen & Predigten',
+	'nav.documents': 'Notizen & Ausarbeitungen',
 
 	// --- reader -------------------------------------------------------------
 	'reader.chooseTranslation': 'Werk wählen',
@@ -127,18 +127,18 @@ export const de = {
 	'documents.pagination.next': 'Weiter',
 	'documents.pagination.page': 'Seite {page} von {total}',
 	'documents.tags.noResults': 'Keine passenden Schlagwörter gefunden.',
-	'documents.kind.sermon': 'Predigt',
-	'documents.convert.toSermon': 'In Predigt umwandeln',
+	'documents.kind.sermon': 'Ausarbeitung',
+	'documents.convert.toSermon': 'In Ausarbeitung umwandeln',
 	'documents.convert.toNote': 'In Notiz umwandeln',
 	'documents.convert.hint':
-		'Inhalt, Tags, Bibelstellen und gespeicherte Predigtdaten bleiben erhalten.',
+		'Inhalt, Tags, Bibelstellen und gespeicherte Daten der Ausarbeitung bleiben erhalten.',
 	'documents.convert.published':
-		'Bitte zuerst die Veröffentlichung zurücknehmen, um diese Notiz in eine Predigt umzuwandeln.',
+		'Bitte zuerst die Veröffentlichung zurücknehmen, um diese Notiz in eine Ausarbeitung umzuwandeln.',
 	'documents.visibility.private': 'Privat',
 	'documents.visibility.unlisted': 'Nicht gelistet',
 	'documents.visibility.public': 'Öffentlich',
 	'documents.create.note': 'Neue Notiz',
-	'documents.create.sermon': 'Neue Predigt',
+	'documents.create.sermon': 'Neue Ausarbeitung',
 	'documents.delete': 'In den Papierkorb',
 	'documents.deleteConfirm': 'Dieses Dokument in den Papierkorb verschieben?',
 	'documents.restore': 'Dokument wiederherstellen',
@@ -242,7 +242,7 @@ export const de = {
 	'documents.details.legacy': 'Aus einem Verskommentar migriert',
 	'documents.tags.title': 'Schlagwörter',
 	'documents.tags.hint': 'Mit Schrägstrichen verschachteln, z. B. Theologie/Gnade.',
-	'documents.tags.placeholder': 'Theologie/Gnade, Predigt/Entwurf',
+	'documents.tags.placeholder': 'Theologie/Gnade, Ausarbeitung/Entwurf',
 	'documents.tags.add': 'Schlagwörter speichern',
 	'documents.tags.expand': 'Untergeordnete Schlagwörter aufklappen',
 	'documents.tags.collapse': 'Untergeordnete Schlagwörter zuklappen',
@@ -323,13 +323,13 @@ export const de = {
 	'documents.import.warning.tooManyPassages':
 		'Nur die ersten {maximum} Bibelstellen wurden eingelesen.',
 	'documents.import.warning.invalidSermon':
-		'Predigtmetadaten müssen als Zuordnung angegeben werden.',
+		'Metadaten der Ausarbeitung müssen als Zuordnung angegeben werden.',
 	'documents.import.warning.sermonOnOtherKind':
-		'Predigtmetadaten wurden bei einem anderen Dokumenttyp ignoriert.',
+		'Metadaten der Ausarbeitung wurden bei einem anderen Dokumenttyp ignoriert.',
 	'documents.import.warning.invalidSermonStatus':
-		'Der Predigtstatus war ungültig und wurde auf „Idee“ gesetzt.',
-	'documents.import.warning.invalidSermonDate': 'Ein ungültiges Predigtdatum wurde ignoriert.',
-	'documents.import.warning.invalidSermonSeries': 'Eine ungültige Predigtreihe wurde ignoriert.',
+		'Der Arbeitsstand war ungültig und wurde auf „Idee“ gesetzt.',
+	'documents.import.warning.invalidSermonDate': 'Ein ungültiges Geplanter Termin wurde ignoriert.',
+	'documents.import.warning.invalidSermonSeries': 'Eine ungültige Reihe wurde ignoriert.',
 	'documents.import.warning.unparsedPassage':
 		'Mindestens eine Bibelstelle konnte nicht erkannt werden und muss korrigiert werden.',
 	'documents.import.warning.unavailableBible':
@@ -394,31 +394,31 @@ export const de = {
 	'documents.returnToReader': 'Zurück zum Bibeltext',
 
 	// --- sermon workflow ----------------------------------------------------
-	'sermons.title': 'Predigtvorbereitung',
-	'sermons.board': 'Predigt-Board',
-	'sermons.subtitle': 'Entwürfe vom ersten Gedanken bis zur gehaltenen Predigt begleiten.',
-	'sermons.back': 'Zur Predigtvorbereitung',
-	'sermons.new': 'Predigt aus Vorlage erstellen',
-	'sermons.empty': 'Noch keine Predigten in Vorbereitung.',
+	'sermons.title': 'Vorbereitung',
+	'sermons.board': 'Ausarbeitungsboard',
+	'sermons.subtitle': 'Entwürfe vom ersten Gedanken bis zur gehaltenen Ausarbeitung begleiten.',
+	'sermons.back': 'Zur Vorbereitung',
+	'sermons.new': 'Ausarbeitung aus Vorlage erstellen',
+	'sermons.empty': 'Noch keine Ausarbeitungen in Vorbereitung.',
 	'sermons.status': 'Arbeitsstand',
 	'sermons.status.idea': 'Idee',
 	'sermons.status.research': 'Recherche',
 	'sermons.status.outline': 'Gliederung',
 	'sermons.status.ready': 'Bereit',
 	'sermons.status.delivered': 'Gehalten',
-	'sermons.date': 'Predigttermin',
-	'sermons.series': 'Predigtreihe',
+	'sermons.date': 'Geplanter Termin',
+	'sermons.series': 'Reihe',
 	'sermons.seriesPlaceholder': 'Optionaler Name der Reihe',
-	'sermons.filters': 'Predigten filtern',
-	'sermons.filterSeries': 'Nach Predigtreihe filtern',
+	'sermons.filters': 'Ausarbeitungen filtern',
+	'sermons.filterSeries': 'Nach Reihe filtern',
 	'sermons.allSeries': 'Alle Reihen',
 	'sermons.filterYear': 'Nach Jahr filtern',
 	'sermons.allYears': 'Alle Jahre',
 	'sermons.applyFilters': 'Filtern',
-	'sermons.saveWorkflow': 'Predigtstatus speichern',
-	'sermons.templates.title': 'Predigtvorlagen',
+	'sermons.saveWorkflow': 'Arbeitsstand speichern',
+	'sermons.templates.title': 'Ausarbeitungsvorlagen',
 	'sermons.templates.subtitle':
-		'Erstelle beliebige wiederverwendbare Markdown-Gliederungen für neue Predigten.',
+		'Erstelle beliebige wiederverwendbare Markdown-Gliederungen für neue Ausarbeitungen.',
 	'sermons.templates.new': 'Neue Vorlage',
 	'sermons.templates.own': 'Eigene Vorlagen',
 	'sermons.templates.name': 'Name der Vorlage',
@@ -427,13 +427,13 @@ export const de = {
 	'sermons.templates.template': 'Vorlage',
 	'sermons.templates.default': 'Akribos-Standardvorlage',
 	'sermons.templates.emptyDocument': 'Leeres Dokument',
-	'sermons.templates.empty': 'Du hast noch keine eigene Predigtvorlage.',
-	'sermons.templates.saved': 'Die Predigtvorlage wurde gespeichert.',
-	'sermons.templates.error': 'Die Predigtvorlage konnte nicht gespeichert werden.',
-	'sermons.templates.deleteConfirm': 'Diese Predigtvorlage wirklich löschen?',
+	'sermons.templates.empty': 'Du hast noch keine eigene Ausarbeitungsvorlage.',
+	'sermons.templates.saved': 'Die Ausarbeitungsvorlage wurde gespeichert.',
+	'sermons.templates.error': 'Die Ausarbeitungsvorlage konnte nicht gespeichert werden.',
+	'sermons.templates.deleteConfirm': 'Diese Ausarbeitungsvorlage wirklich löschen?',
 	'sermons.deliveries.title': 'Bereits gehalten',
 	'sermons.deliveries.hint':
-		'Halte für jede Durchführung gesondert fest, wann und wo du diese Predigt gehalten hast.',
+		'Halte für jede Durchführung gesondert fest, wann und wo du diese Ausarbeitung gehalten hast.',
 	'sermons.deliveries.date': 'Datum',
 	'sermons.deliveries.location': 'Ort',
 	'sermons.deliveries.locationPlaceholder': 'z. B. Hoffnungskirche Berlin',
@@ -826,10 +826,10 @@ export const de = {
 		'Ein Symbol steht nur am Anfang oder Ende eines verknüpften Abschnitts; die dezente Punktlinie markiert den gesamten Bereich. Ein Klick öffnet die Notizspalte.',
 	'tour.userMenu.title': 'Dein Konto',
 	'tour.userMenu.body':
-		'Unter „Notizen & Predigten“ findest du deine Texte und Stellensammlungen. „Mein Konto“ enthält Profil, Sicherheit und Darstellungseinstellungen.',
+		'Unter „Notizen & Ausarbeitungen“ findest du deine Texte und Stellensammlungen. „Mein Konto“ enthält Profil, Sicherheit und Darstellungseinstellungen.',
 	'tour.documentsUnified.title': 'Texte und Stellensammlungen',
 	'tour.documentsUnified.body':
-		'Wechsle direkt zwischen Notizen, Predigten und Stellensammlungen. Import und veröffentlichte Notizen bleiben bei den Notizen, Vorlagen beim Predigt-Board.',
+		'Wechsle direkt zwischen Notizen, Ausarbeitungen und Stellensammlungen. Import und veröffentlichte Notizen bleiben bei den Notizen, Vorlagen beim Ausarbeitungsboard.',
 	'tour.documentsTags.title': 'Verschachtelte Schlagwörter',
 	'tour.documentsTags.body':
 		'Große Schlagwortbäume kannst du auf- und zuklappen. Die Zahl in Klammern umfasst auch Dokumente untergeordneter Schlagwörter.',
@@ -841,7 +841,7 @@ export const de = {
 		'Der Editor speichert automatisch. Wechsle jederzeit zu Markdown; /bibel Mt 3,12 fügt den Bibeltext ein, und erkannte Stellen bieten dieselbe Aktion im Popup.',
 	'tour.documentDetails.title': 'Metadaten und Verknüpfungen',
 	'tour.documentDetails.body':
-		'Hier verwaltest du Schlagwörter, kanonische oder übersetzungsspezifische Bibelstellen sowie den Predigt- und Publikationsworkflow.',
+		'Hier verwaltest du Schlagwörter, kanonische oder übersetzungsspezifische Bibelstellen sowie den Ausarbeitungs- und Publikationsworkflow.',
 	'tour.documentExport.title': 'Drei Exportformate',
 	'tour.documentExport.body':
 		'Markdown exportiert portables YAML-Frontmatter; Word und PDF erzeugen direkt weitergebbare Dokumente.',
@@ -850,23 +850,23 @@ export const de = {
 		'Nur Administratoren veröffentlichen. Der öffentliche Schnappschuss bleibt von späteren Änderungen an der privaten Arbeitskopie getrennt.',
 	'tour.sermonDeliveries.title': 'Mehrfach gehalten',
 	'tour.sermonDeliveries.body':
-		'Eine Predigt kann beliebig viele Durchführungen mit deutschem Datum und Ort dokumentieren.',
+		'Eine Ausarbeitung kann beliebig viele Durchführungen mit deutschem Datum und Ort dokumentieren.',
 	'tour.importUpload.title': 'Einzel-, Mehrfach- oder ZIP-Import',
 	'tour.importUpload.body':
 		'Wähle mehrere Markdown-Dateien oder genau ein ZIP-Archiv. Pfade, Größen und Inhalte werden vor dem Entpacken und Anzeigen begrenzt geprüft.',
 	'tour.importPreview.title': 'Erst prüfen, dann importieren',
 	'tour.importPreview.body':
 		'Die Vorschau schreibt noch nichts. Erst die Bestätigung legt alle geprüften Dokumente atomar und immer privat an.',
-	'tour.sermonCreate.title': 'Predigt aus Vorlage',
+	'tour.sermonCreate.title': 'Ausarbeitung aus Vorlage',
 	'tour.sermonCreate.body':
 		'Beginne mit der Standardgliederung, einem leeren Dokument oder einer deiner frei bearbeitbaren Vorlagen.',
-	'tour.sermonBoard.title': 'Predigten durchs Board bewegen',
+	'tour.sermonBoard.title': 'Ausarbeitungen durchs Board bewegen',
 	'tour.sermonBoard.body':
 		'Ziehe Karten zwischen Arbeitsständen. Mit Alt und Pfeil links oder rechts verschiebst du die fokussierte Karte per Tastatur.',
 	'tour.sermonTemplates.title': 'Eigene Vorlage erstellen',
 	'tour.sermonTemplates.body':
-		'Name und beliebiger Markdown-Text bilden eine private Vorlage für neue Predigten.',
+		'Name und beliebiger Markdown-Text bilden eine private Vorlage für neue Ausarbeitungen.',
 	'tour.sermonTemplateList.title': 'Vorlagen verwalten',
 	'tour.sermonTemplateList.body':
-		'Bestehende Vorlagen lassen sich unabhängig von bereits daraus erstellten Predigten bearbeiten oder löschen.'
+		'Bestehende Vorlagen lassen sich unabhängig von bereits daraus erstellten Ausarbeitungen bearbeiten oder löschen.'
 } as const;

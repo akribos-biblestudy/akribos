@@ -9,6 +9,8 @@ import {
 } from '../bible/link-references.ts';
 import { MAX_PASSAGE_VERSE, passagePointKey } from '../bible/passage.ts';
 import {
+	isSermonFormat,
+	type SermonFormat,
 	MAX_DOCUMENT_MARKDOWN_BYTES,
 	MAX_DOCUMENT_PASSAGES,
 	MAX_OBSIDIAN_FRONTMATTER_BYTES,
@@ -42,6 +44,7 @@ export type DocumentMarkdownPassage = {
 };
 
 export type DocumentMarkdownSermon = {
+	format?: SermonFormat;
 	status: SermonMarkdownStatus;
 	date?: string;
 	series?: string;
@@ -394,6 +397,11 @@ export function exportDocumentMarkdown(input: DocumentMarkdownExportInput): stri
 			throw new DocumentMarkdownError('invalid_export', 'The sermon status is not exportable.');
 		}
 		const sermon: Record<string, unknown> = { status };
+		if (input.sermon?.format !== undefined) {
+			if (!isSermonFormat(input.sermon.format))
+				throw new DocumentMarkdownError('invalid_export', 'The preparation format is invalid.');
+			sermon.format = input.sermon.format;
+		}
 		if (input.sermon?.date) {
 			if (!isCalendarDate(input.sermon.date)) {
 				throw new DocumentMarkdownError('invalid_export', 'The sermon date must use YYYY-MM-DD.');
@@ -726,6 +734,7 @@ function readImportMetadata(
 		'sermon_status',
 		'sermon_date',
 		'sermon_series',
+		'sermon_format',
 		'created',
 		'updated'
 	]);
@@ -893,9 +902,15 @@ function readSermon(
 	}
 	const hasSermonMetadata =
 		metadata.sermon != null ||
-		['status', 'date', 'series', 'sermon_status', 'sermon_date', 'sermon_series'].some((key) =>
-			hasOwn(metadata, key)
-		);
+		[
+			'status',
+			'date',
+			'series',
+			'sermon_status',
+			'sermon_date',
+			'sermon_series',
+			'sermon_format'
+		].some((key) => hasOwn(metadata, key));
 	if (kind !== 'sermon') {
 		if (hasSermonMetadata) {
 			warnings.add(
@@ -915,6 +930,10 @@ function readSermon(
 		warnings.add('invalid-sermon-status', 'The sermon status was invalid and defaulted to idea.');
 	}
 
+	const rawFormat = nested.format ?? metadata.sermon_format;
+	const format = isSermonFormat(rawFormat) ? rawFormat : undefined;
+	if (rawFormat !== undefined && !format)
+		warnings.add('invalid-sermon-format', 'An invalid preparation format was ignored.');
 	const dateValue = nested.date ?? metadata.sermon_date ?? metadata.date;
 	let date: string | undefined;
 	if (dateValue != null) {
@@ -962,6 +981,7 @@ function readSermon(
 		status,
 		...(date ? { date } : {}),
 		...(series ? { series } : {}),
+		...(format ? { format } : {}),
 		...(deliveries.length ? { deliveries } : {})
 	};
 }

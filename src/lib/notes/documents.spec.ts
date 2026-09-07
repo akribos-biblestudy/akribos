@@ -57,8 +57,8 @@ describe('document vocabulary', () => {
 
 describe('titles and tags', () => {
 	it('normalizes whitespace, control characters and composed Unicode in titles', () => {
-		expect(normalizeDocumentTitle('  Eine\n  Predigt\tüber Cafe\u0301  ')).toBe(
-			'Eine Predigt über Café'
+		expect(normalizeDocumentTitle('  Eine\n  Ausarbeitung\tüber Cafe\u0301  ')).toBe(
+			'Eine Ausarbeitung über Café'
 		);
 		expect(DEFAULT_DOCUMENT_TITLE).toBe('Unbenanntes Dokument');
 	});
@@ -73,12 +73,12 @@ describe('titles and tags', () => {
 
 	it('normalizes Obsidian-style nested tags into safe segments', () => {
 		expect(normalizeTagSegment('  #Glaube  ')).toBe('Glaube');
-		expect(normalizeTagPath('#Predigt/ Evangelien / Johannes ')).toEqual([
-			'Predigt',
+		expect(normalizeTagPath('#Ausarbeitung/ Evangelien / Johannes ')).toEqual([
+			'Ausarbeitung',
 			'Evangelien',
 			'Johannes'
 		]);
-		expect(isValidTagPath(normalizeTagPath('#Predigt/Evangelien/Johannes'))).toBe(true);
+		expect(isValidTagPath(normalizeTagPath('#Ausarbeitung/Evangelien/Johannes'))).toBe(true);
 	});
 
 	it('rejects empty, oversized, delimiter-containing and over-deep tag segments', () => {
@@ -86,7 +86,7 @@ describe('titles and tags', () => {
 		expect(isValidTagSegment('')).toBe(false);
 		expect(isValidTagSegment('a/b')).toBe(false);
 		expect(isValidTagSegment('Gebet, Lob')).toBe(false);
-		expect(isValidTagSegment('Predigt\\Entwurf')).toBe(false);
+		expect(isValidTagSegment('Ausarbeitung\\Entwurf')).toBe(false);
 		expect(isValidTagSegment('x'.repeat(MAX_TAG_SEGMENT_LENGTH + 1))).toBe(false);
 		expect(isValidTagPath(['a', ''])).toBe(false);
 		expect(isValidTagPath(Array.from({ length: MAX_TAG_DEPTH + 1 }, () => 'Ebene'))).toBe(false);
@@ -132,7 +132,7 @@ describe('German sermon starter template', () => {
 	it('provides a useful structure without inventing document metadata', () => {
 		expect(GERMAN_SERMON_STARTER_TEMPLATE).toContain('## Bibeltext');
 		expect(GERMAN_SERMON_STARTER_TEMPLATE).toContain('## Kerngedanke');
-		expect(GERMAN_SERMON_STARTER_TEMPLATE).toContain('## Ziel der Predigt');
+		expect(GERMAN_SERMON_STARTER_TEMPLATE).toContain('## Ziel der Ausarbeitung');
 		expect(GERMAN_SERMON_STARTER_TEMPLATE).toContain('## Gliederung');
 		expect(GERMAN_SERMON_STARTER_TEMPLATE).toContain('## Anwendung');
 		expect(isValidDocumentMarkdown(GERMAN_SERMON_STARTER_TEMPLATE)).toBe(true);

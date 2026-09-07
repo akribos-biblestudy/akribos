@@ -198,7 +198,7 @@ describe('previewObsidianMarkdown metadata', () => {
 			`---\r
 title: Die Liebe Gottes\r
 type: sermon\r
-tags: [Predigt/Johannes, Liebe, liebe]\r
+tags: [Ausarbeitung/Johannes, Liebe, liebe]\r
 passages:\r
   - Joh 3,16-17\r
   - reference: Gen 1,1-2,2\r
@@ -207,6 +207,7 @@ references:\r
   reference: Rö 8,1\r
   resourceId: SEEDPLAIN\r
 sermon:\r
+  format: bible-study\r
   status: outline\r
   date: 2026-09-06\r
   series: Johannesevangelium\r
@@ -220,7 +221,7 @@ Text\r
 		expect(preview).toMatchObject({
 			title: 'Die Liebe Gottes',
 			kind: 'sermon',
-			tags: ['Predigt/Johannes', 'Liebe'],
+			tags: ['Ausarbeitung/Johannes', 'Liebe'],
 			passages: [
 				{ reference: 'Joh 3,16-17' },
 				{ reference: 'Gen 1,1-2,2', resourceId: 'SEEDDE' },
@@ -228,6 +229,7 @@ Text\r
 			],
 			sermon: {
 				status: 'outline',
+				format: 'bible-study',
 				date: '2026-09-06',
 				series: 'Johannesevangelium'
 			},
@@ -248,6 +250,7 @@ kind: note
 status: needs-admin
 date: 2026-02-30
 series: 42
+sermon_format: unsupported
 ---
 Body`
 		);
@@ -257,6 +260,7 @@ Body`
 		expect(preview.warnings.join(' ')).toMatch(/defaulted to idea/);
 		expect(preview.warnings.join(' ')).toMatch(/date was ignored/);
 		expect(preview.warnings.join(' ')).toMatch(/series was ignored/);
+		expect(preview.warnings.join(' ')).toMatch(/format was ignored/);
 	});
 
 	it('ignores privilege, identity and publication metadata instead of importing it', () => {
@@ -378,10 +382,11 @@ describe('Markdown export', () => {
 	const input: DocumentMarkdownExportInput = {
 		title: 'Liebe & Hoffnung',
 		kind: 'sermon',
-		tags: ['Predigt/Johannes', 'Gnade'],
+		tags: ['Ausarbeitung/Johannes', 'Gnade'],
 		passages: [{ reference: 'Joh 3,16-17' }, { reference: 'Gen 1,1', resourceId: 'SEEDDE' }],
 		sermon: {
 			status: 'ready',
+			format: 'youth',
 			date: '2026-09-06',
 			series: 'Johannes',
 			deliveries: [
@@ -402,6 +407,7 @@ describe('Markdown export', () => {
 		expect(first).toContain('type: sermon\n');
 		expect(first).toContain('resource: SEEDDE\n');
 		expect(first).toContain('status: ready\n');
+		expect(first).toContain('format: youth\n');
 		expect(first).toContain('created: 2026-09-01T10:20:30.000Z\n');
 		expect(first).toContain('updated: 2026-09-04T12:00:00.000Z\n');
 		expect(first).toContain('# Anfang\n\nEin **Text**.\n');

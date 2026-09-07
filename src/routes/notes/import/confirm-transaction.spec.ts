@@ -232,7 +232,7 @@ Text
 		form.set(
 			'source',
 			`---
-title: Predigt
+title: Ausarbeitung
 type: sermon
 sermon:
   status: delivered

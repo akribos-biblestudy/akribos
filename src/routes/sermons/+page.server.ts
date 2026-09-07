@@ -3,6 +3,7 @@ import { parsePassage, passageToDbEndpoints } from '$lib/bible/passage';
 import {
 	GERMAN_SERMON_STARTER_TEMPLATE,
 	isSermonWorkflowState,
+	isSermonFormat,
 	SERMON_WORKFLOW_STATES
 } from '$lib/notes/documents';
 import {
@@ -95,6 +96,7 @@ export async function load({ locals, url, setHeaders }) {
 			sermonStatus: sermon.sermonStatus,
 			sermonDate: sermon.sermonDate,
 			sermonSeries: sermon.sermonSeries,
+			sermonFormat: sermon.sermonFormat,
 			revision: sermon.revision
 		})),
 		tagTree,
@@ -118,7 +120,9 @@ export const actions = {
 	create: async ({ request, locals, url }) => {
 		const user = requireDocumentUser(locals.user, url);
 		const form = await request.formData();
-		const title = String(form.get('title') ?? '').trim() || 'Neue Predigt';
+		const title = String(form.get('title') ?? '').trim() || 'Neue Ausarbeitung';
+		const rawFormat = String(form.get('format') ?? 'sermon');
+		if (!isSermonFormat(rawFormat)) return fail(400, { error: 'sermonFormat' as const });
 		const rawStatus = String(form.get('status') ?? 'idea');
 		if (!isSermonWorkflowState(rawStatus)) {
 			return fail(400, { error: 'sermonStatus' as const });
@@ -162,6 +166,7 @@ export const actions = {
 					visibility: 'private',
 					source: 'native',
 					sermonStatus: rawStatus,
+					sermonFormat: rawFormat,
 					sermonDate: date.value,
 					sermonSeries: series,
 					...prepareDocumentBody(starter)

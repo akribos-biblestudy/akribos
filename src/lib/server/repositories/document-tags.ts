@@ -291,6 +291,7 @@ export async function listDocumentsByTag(
 			sermonStatus: documents.sermonStatus,
 			sermonDate: documents.sermonDate,
 			sermonSeries: documents.sermonSeries,
+			sermonFormat: documents.sermonFormat,
 			deletedAt: documents.deletedAt,
 			createdAt: documents.createdAt,
 			updatedAt: documents.updatedAt

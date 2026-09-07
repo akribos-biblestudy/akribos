@@ -23,7 +23,7 @@
 		aria-current={active === 'sermons' ? 'page' : undefined}
 	>
 		<Icon name="message" class="size-4" />
-		Predigten
+		Ausarbeitungen
 	</a>
 	<a
 		href="/lists"

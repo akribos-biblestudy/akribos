@@ -71,6 +71,7 @@ function toDocumentSummary(document: Document) {
 		sermonStatus: document.sermonStatus,
 		sermonDate: document.sermonDate?.toISOString().slice(0, 10) ?? null,
 		sermonSeries: document.sermonSeries,
+		sermonFormat: document.sermonFormat,
 		deletedAt: document.deletedAt,
 		createdAt: document.createdAt,
 		updatedAt: document.updatedAt
