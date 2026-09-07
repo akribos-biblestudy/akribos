@@ -9,6 +9,8 @@
  *   pnpm db:seed
  */
 
+import { parseHebrewLexiconXml } from '../src/lib/bible/parse/hebrew-lexicon-xml.ts';
+
 import { and, eq } from 'drizzle-orm';
 import { passageToDbEndpoints, type Passage } from '../src/lib/bible/passage.ts';
 import { parseVpl } from '../src/lib/bible/parse/vpl.ts';
@@ -127,13 +129,11 @@ const LEXICON = `<?xml version="1.0" encoding="utf-8"?>
 /** A Hebrew dictionary entry used to verify that Strong clicks choose and reuse lexicons by
  * language instead of treating every dictionary in a tab group as interchangeable. */
 const HEBREW_LEXICON = `<?xml version="1.0" encoding="utf-8"?>
-<strongsdictionary><prologue>Seed</prologue><entries>
-	<entry strongs="00430"><strongs>430</strongs>
-		<hebrew unicode="אֱלֹהִים" translit="ʼĕlôhîym"/>
-		<pronunciation strongs="el-o-heem'"/>
-		<strongs_def>God, gods</strongs_def>
-	</entry>
-</entries></strongsdictionary>`;
+<lexicon><entry id="H430">
+    <w pron="el-o-heem'" xlit="ʼĕlôhîym" xml:lang="heb">אֱלֹהִים</w>
+    <meaning>God, gods</meaning>
+    <translation xml:lang="de" method="machine"><meaning>Gott, Götter</meaning></translation>
+</entry></lexicon>`;
 
 /** A commentary entry on the same verse as the fixture translations, so the reader has something to
  *  show alongside them. */
@@ -550,7 +550,9 @@ try {
 	await ingestBible(db, parseZefania(GREEK), { sourceFormat: 'zefania' });
 
 	await ingestLexicon(db, parseStrongsXml(LEXICON), { sourceFormat: 'strongs-xml' });
-	await ingestLexicon(db, parseStrongsXml(HEBREW_LEXICON), { sourceFormat: 'strongs-xml' });
+	await ingestLexicon(db, parseHebrewLexiconXml(HEBREW_LEXICON), {
+		sourceFormat: 'hebrew-lexicon-xml'
+	});
 
 	await ingestCommentary(db, parseCommentaryCsv(COMMENTARY), {
 		sourceFormat: 'commentary-csv',

@@ -19,6 +19,7 @@ import { logger } from '../logger.ts';
 import type { Database } from '../db/client.ts';
 import { backupJobs, type BackupJob } from '../db/schema.ts';
 import { refreshStrongStatisticsBlocking } from '../db/statistics.ts';
+import { backfillHebrewTranslations } from '../import/backfill-hebrew-translations.ts';
 import { backfillDocumentBodyReferenceIndexes } from '../repositories/document-reference-index.ts';
 import { invalidateResourceCache } from '../repositories/resources.ts';
 import { pruneExpiredSessions } from '../auth/session.ts';
@@ -462,6 +463,7 @@ async function executeRestore(
 			// history table, so pending migrations must be re-applied for the running code to match.
 			await migrate(db, { migrationsFolder: './drizzle' });
 			await backfillDocumentBodyReferenceIndexes(db);
+			await backfillHebrewTranslations(db);
 			// Materialized view *data* is not part of a dump; without this, search and Strong's
 			// statistics come back empty.
 			await refreshStrongStatisticsBlocking(db);

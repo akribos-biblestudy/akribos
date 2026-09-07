@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { parseHebrewLexiconXml } from './hebrew-lexicon-xml.ts';
 import type { ParsedLexiconEntry, ParseEvent } from './types.ts';
 
@@ -20,6 +22,86 @@ function wrap(entries: string): string {
 }
 
 describe('parseHebrewLexiconXml', () => {
+	it('keeps translated prose separate and renders links and escaped text in both editions', async () => {
+		const { entries, warnings } = await collect(
+			wrap(`<entry id="H2">
+			<w xml:lang="arc">אַב</w><source>from <w src="H1">1</w></source><usage>father.</usage>
+			<translation xml:lang="de" method="machine">
+				<source>von <w src="H1">1</w> &lt;script&gt;</source><usage>Vater.</usage>
+			</translation>
+		</entry>`)
+		);
+		expect(warnings).toEqual([]);
+		expect(entries[0]).toMatchObject({
+			lemma: 'אַב',
+			kjvDefinitionHtml: 'father.',
+			germanTranslation: {
+				definitionHtml: null,
+				kjvDefinitionHtml: 'Vater.',
+				machineTranslated: true
+			}
+		});
+		expect(entries[0]?.derivationHtml).toBe('from <a class="strong-link" href="/H1">H1</a>');
+		expect(entries[0]?.germanTranslation?.derivationHtml).toBe(
+			'von <a class="strong-link" href="/H1">H1</a> &lt;script&gt;'
+		);
+	});
+
+	it('ignores unsupported translations without leaking their prose or headword into the original', async () => {
+		const { entries } = await collect(
+			wrap(`<entry id="H1"><w>אָב</w>
+			<translation xml:lang="fr"><w>wrong</w><meaning>père</meaning></translation>
+			<meaning>father</meaning></entry>`)
+		);
+		expect(entries[0]).toMatchObject({ lemma: 'אָב', definitionHtml: 'father' });
+		expect(entries[0]?.germanTranslation).toBeUndefined();
+	});
+
+	it('warns and retains the whole original when a German edition is incomplete', async () => {
+		const { entries, warnings } = await collect(
+			wrap(`<entry id="H1"><w>אָב</w>
+			<meaning>father</meaning><usage>father.</usage>
+			<translation xml:lang="de"><meaning>Vater</meaning></translation></entry>`)
+		);
+		expect(warnings).toHaveLength(1);
+		expect(entries[0]?.definitionHtml).toBe('father');
+		expect(entries[0]?.germanTranslation).toBeUndefined();
+	});
+
+	it('contains a complete German draft for every bundled entry and preserves every original field', async () => {
+		const { entries, warnings } = await collect(await readFile('data/hebrewstrong.xml', 'utf8'));
+		expect(warnings).toEqual([]);
+		expect(entries).toHaveLength(8674);
+		expect(entries.every((entry) => entry.germanTranslation?.machineTranslated)).toBe(true);
+		const links = (value: string | null | undefined) =>
+			[...(value ?? '').matchAll(/href="\/(H\d+)"/g)].map((match) => match[1]).sort();
+		for (const entry of entries) {
+			for (const field of ['definitionHtml', 'derivationHtml', 'kjvDefinitionHtml'] as const) {
+				expect(links(entry.germanTranslation?.[field]), `${entry.strong}.${field}`).toEqual(
+					links(entry[field])
+				);
+			}
+		}
+		// Regression examples: articles and inflection need the whole lexical phrase as context.
+		for (const strong of ['H6183', 'H8064']) {
+			expect(
+				entries.find((entry) => entry.strong === strong)?.germanTranslation?.definitionHtml
+			).toContain('der <strong>Himmel</strong>');
+		}
+		expect(
+			entries.find((entry) => entry.strong === 'H7225')?.germanTranslation?.definitionHtml
+		).toContain('das <strong>Erste</strong>');
+		const original = entries.map((entry) => {
+			const copy = { ...entry };
+			delete copy.germanTranslation;
+			return copy;
+		});
+		// Fingerprint of all parsed original fields before the bilingual extension, including headwords.
+		expect(createHash('sha256').update(JSON.stringify(original)).digest('hex')).toBe(
+			'47d0fcd2484c535b9884ca864f09ff837e7cb3281c09cbe888e8d904d5300da8'
+		);
+	});
+
 	it('parses an entry copied from HebrewStrong.xml', async () => {
 		const { entries } = await collect(
 			wrap(`<entry id="H100">

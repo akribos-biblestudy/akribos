@@ -9,6 +9,7 @@ import { checkApiRateLimit, KEYED_LIMIT, TRUSTED_LIMIT } from '$lib/server/api/r
 import { apiError } from '$lib/server/api/errors';
 import { cleanStaleStagedFiles, failInterruptedBackupJobs } from '$lib/server/backup/jobs';
 import { startBackupScheduler } from '$lib/server/backup/scheduler';
+import { backfillHebrewTranslations } from '$lib/server/import/backfill-hebrew-translations';
 import { backfillDocumentBodyReferenceIndexes } from '$lib/server/repositories/document-reference-index';
 
 /**
@@ -38,6 +39,15 @@ export const init: ServerInit = async () => {
 		// Missing index rows still have a read-only parsing fallback, so an unexpected legacy body must
 		// not prevent the server from starting or the unrelated housekeeping above from completing.
 		logger.warn({ err: error }, 'document Bible-reference index backfill skipped');
+	}
+
+	try {
+		const translatedEntries = await backfillHebrewTranslations(db);
+		if (translatedEntries > 0)
+			logger.info({ translatedEntries }, 'Hebrew lexicon translations backfilled');
+	} catch (error) {
+		// The original edition stays readable when enrichment is temporarily unavailable.
+		logger.warn({ err: error }, 'Hebrew lexicon translation backfill skipped');
 	}
 
 	// Outside the try/catch above: a database that is briefly unreachable at boot must not permanently
