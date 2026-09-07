@@ -5,14 +5,12 @@
 	import DocumentAreaNav from '$lib/components/documents/DocumentAreaNav.svelte';
 	import { t } from '$lib/i18n';
 	import SermonBoard from '$lib/components/documents/SermonBoard.svelte';
-	import SermonColumnManager from '$lib/components/documents/SermonColumnManager.svelte';
 	import { SERMON_FORMATS, sermonFormatLabel } from '$lib/notes/documents';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 
 	let { data, form } = $props();
 	let movingId = $state<string | null>(null);
 	let moveError = $state('');
-	let columnsOpen = $state(false);
 	const germanDatePattern = '[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{4}';
 	function filterUrl(status: string | null): string {
 		const params = new SvelteURLSearchParams();
@@ -62,15 +60,6 @@
 			</p>
 		</div>
 		<div class="flex flex-wrap gap-2">
-			<button
-				type="button"
-				class="header-link"
-				aria-expanded={columnsOpen}
-				aria-controls="sermon-column-settings"
-				onclick={() => (columnsOpen = !columnsOpen)}
-			>
-				<Icon name="layout" class="size-4" /> Spalten bearbeiten
-			</button>
 			<a href="/sermons/templates" class="header-link">
 				<Icon name="file-text" class="size-4" />
 				{t('sermons.templates.title')}
@@ -78,9 +67,6 @@
 		</div>
 	</header>
 	<DocumentAreaNav active="sermons" />
-	<div id="sermon-column-settings" hidden={!columnsOpen}>
-		<SermonColumnManager board={data.board} />
-	</div>
 
 	<section
 		data-tour-target="sermon-create"
@@ -233,6 +219,7 @@
 		</p>{/if}
 	<SermonBoard
 		columns={data.board.columns}
+		boardRevision={data.board.revision}
 		sermons={data.sermons}
 		filteredStatus={data.filters.status}
 		{movingId}

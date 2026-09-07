@@ -34,7 +34,6 @@
 			| 'minimize'
 			| 'moon'
 			| 'more-horizontal'
-			| 'grip'
 			| 'open-external'
 			| 'pencil'
 			| 'plus'
@@ -71,8 +70,6 @@
 >
 	{#if name === 'arrow-right'}
 		<path d="M5 12h14M13 6l6 6-6 6" />
-	{:else if name === 'grip'}
-		<path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01" />
 	{:else if name === 'bold'}
 		<path d="M7 4h6a4 4 0 0 1 0 8H7Zm0 8h7a4 4 0 0 1 0 8H7Z" />
 	{:else if name === 'underline'}

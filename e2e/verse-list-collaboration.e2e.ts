@@ -78,7 +78,8 @@ test('sharing a list by email: adding a verse, replying to a comment, and reacti
 		.locator('form[action="?/comment"]')
 		.getByRole('button', { name: 'Speichern' })
 		.click();
-	await expect(memberPage.getByText('Mein Lieblingsvers!')).toBeVisible();
+	// Wait for the saved comment, rather than matching the still-open editor's text.
+	await expect(memberPage.locator('.comment-body').getByText('Mein Lieblingsvers!')).toBeVisible();
 	await expect(memberPage.getByText('Member').first()).toBeVisible();
 
 	// The owner sees the new verse, the member's name on their comment, and replies to it.
@@ -100,7 +101,7 @@ test('sharing a list by email: adding a verse, replying to a comment, and reacti
 		.locator('form[action="?/comment"]')
 		.getByRole('button', { name: 'Speichern' })
 		.click();
-	await expect(ownerPage.getByText('Meiner auch!')).toBeVisible();
+	await expect(ownerPage.locator('.comment-body').getByText('Meiner auch!')).toBeVisible();
 
 	// The owner reacts to the member's comment with an emoji from the fixed set of 8.
 	await commentReactions.getByRole('button', { name: '❤️' }).click();

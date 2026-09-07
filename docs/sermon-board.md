@@ -28,9 +28,18 @@ Primary documentation reviewed:
 | [SVAR Svelte Kanban](https://docs.svar.dev/svelte/kanban/getting-started/quick-start/)                         | Complete Svelte board accepting columns and cards. A larger replacement for the existing card content, document links, filters and design than this workflow requires.                                                                                       |
 | [Atlassian Pragmatic drag and drop](https://atlassian.design/components/pragmatic-drag-and-drop/core-package/) | Framework-independent adapters provide a viable foundation. More Svelte integration and accessibility wiring would remain in this application than with the selected actions.                                                                                |
 
-`SermonBoard.svelte` replaces native drag handlers with the selected library. Cards have a dedicated
-handle so document links and text selection remain usable. Space/Enter picks up a handle and Tab moves
-between columns; Alt+Left/Right on the document link remains a direct alternative. German announcements,
-an explicit error message after failed moves, and the existing document revisions remain application
-responsibilities. Column configuration uses normal progressively enhanced forms, including explicit
-left/right buttons for ordering and an explicit target for deletion.
+`SermonBoard.svelte` uses nested `dndzone` actions with separate types for columns and cards. The
+entire card can be dragged, including its title and body; an ordinary title click still opens the
+editor. Column titles can be clicked to rename inline (Enter or blur saves, Escape cancels), and
+columns can be reordered by dragging their headers. A plus button after the last column opens the
+creation field. The header's three-dot menu contains deletion and left/right actions as a keyboard
+alternative; deletion retains its explicit destination dialog. There is no separate settings panel.
+
+Card events stop propagation so a nested card move cannot become a column reorder. Reordering sends
+the complete ordered list of IDs with the board revision; the repository requires an exact permutation
+of the current own columns, rejecting duplicates, omissions and foreign IDs. The extra plus control is
+outside the action's element because every direct child of a dndzone must correspond to an item.
+Pointer capture excludes header form/menu controls from starting a column drag. Space/Enter on a
+focused card or column starts keyboard dragging; Alt+Left/Right on document links remains available.
+Touch uses a short hold to distinguish dragging from scrolling. German announcements, an explicit error
+message after failed moves, and document/board revisions remain application responsibilities.

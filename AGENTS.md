@@ -485,8 +485,15 @@ auf 80 Zeichen und die Konfiguration auf 30 Spalten begrenzt; doppelte Namen wer
 Groß-/Kleinschreibung abgewiesen. Editor und URL-Statusfilter verwenden dieselben eigenen Spalten.
 Markdown exportiert neben `sermon.status` auch `sermon.statusName`; Import verwendet eine vorhandene
 eigene ID beziehungsweise denselben Namen oder legt atomar eine eigene Spalte an.
-Karten wechseln den Status revisioniert über `svelte-dnd-action` (Maus/Touch am Griff,
-Leertaste und Tab für Tastaturbedienung); `Alt` + Pfeil links/rechts am Dokumentlink bleibt erhalten.
+Karten sind auf ihrer gesamten Fläche über `svelte-dnd-action` ziehbar; ein normaler Titelklick öffnet
+weiterhin das Dokument. Die Spalten verwenden eine äußere `dndzone` mit eigenem Typ. Karten-Events
+stoppen die Weitergabe, damit sie nie die Spaltenreihenfolge überschreiben. Sortieren überträgt eine
+vollständige ID-Permutation samt Boardrevision; der Server weist fehlende, doppelte und fremde IDs ab.
+Ein Plus-Button nach der letzten Spalte (außerhalb der `dndzone`) legt Spalten an. Ein Titelklick öffnet
+die Inline-Bearbeitung (Enter/Blur speichert, Escape verwirft); der Spaltenkopf lässt sich ziehen.
+Das Drei-Punkte-Menü bietet Löschen mit Zielspalten-Dialog und Links-/Rechts-Aktionen als Tastaturalternative.
+Leertaste/Tab und `Alt` + Pfeil links/rechts am Dokumentlink bleiben erhalten. Eine separate
+Spalten-Verwaltungsansicht existiert nicht.
 Die Bibliotheksauswahl ist in `docs/sermon-board.md` begründet. Ein redundantes Status-Select wird auf
 der Karte nicht gerendert. Auch nach Drag-and-drop bleiben Karten nach geplantem Termin absteigend
 sortiert; Ausarbeitungen ohne Termin folgen zuletzt. URL-Filter für Arbeitsstand, Volltext, Reihe und

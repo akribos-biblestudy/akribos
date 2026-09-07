@@ -39,6 +39,29 @@ afterAll(async () => {
 });
 
 describe('personal preparation columns', () => {
+	it('accepts only complete own column permutations and checks their revision', async () => {
+		const owner = await account();
+		const original = (await getSermonBoard(db, owner)).columns.map((column) => column.id);
+		for (const ids of [
+			original.slice(1),
+			[...original.slice(1), original[1]!],
+			[...original.slice(1), randomUUID()]
+		]) {
+			expect(await changeSermonBoard(db, owner, 1, { action: 'sort', ids })).toEqual({
+				ok: false,
+				reason: 'columnOrder'
+			});
+		}
+		const reordered = [...original].reverse();
+		expect(await changeSermonBoard(db, owner, 1, { action: 'sort', ids: reordered })).toMatchObject(
+			{ ok: true, revision: 2 }
+		);
+		expect((await getSermonBoard(db, owner)).columns.map((column) => column.id)).toEqual(reordered);
+		expect(await changeSermonBoard(db, owner, 1, { action: 'sort', ids: original })).toEqual({
+			ok: false,
+			reason: 'boardConflict'
+		});
+	});
 	it('starts with existing columns, persists names/order and rejects stale or foreign changes', async () => {
 		const owner = await account();
 		const stranger = await account();

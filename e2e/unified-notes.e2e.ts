@@ -12,21 +12,29 @@ test('personal board columns can be managed, used in the editor, exported and de
 	await register(page);
 	await page.goto('/sermons');
 	await expect(page.locator('.board-column')).toHaveCount(5);
-	await page.getByRole('button', { name: 'Spalten bearbeiten' }).click();
-	const manager = page.getByRole('region', { name: 'Spalten bearbeiten' });
-	await manager.getByRole('textbox', { name: 'Neue Spalte', exact: true }).fill('Teamprüfung');
-	await manager.getByRole('button', { name: 'Spalte hinzufügen', exact: true }).click();
-	let edit = manager.getByRole('form', { name: 'Spalte Teamprüfung bearbeiten', exact: true });
-	await expect(edit).toBeVisible();
-	const columnId = await edit.locator('[name="columnId"]').inputValue();
-	await edit.getByRole('textbox', { name: 'Spaltenname' }).fill('Feedback');
-	await edit.getByRole('button', { name: 'Speichern', exact: true }).click();
-	edit = manager.getByRole('form', { name: 'Spalte Feedback bearbeiten', exact: true });
-	await expect(edit).toBeVisible();
-	await edit.getByRole('button', { name: 'Feedback nach links' }).click();
-	await expect(page.locator('.board-column').nth(4)).toHaveAttribute('aria-label', 'Feedback');
-	await page.reload();
-	await expect(page.locator('.board-column').nth(4)).toHaveAttribute('aria-label', 'Feedback');
+
+	await expect(page.getByRole('button', { name: 'Spalten bearbeiten' })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Spalte hinzufügen', exact: true }).click();
+	await page.getByRole('textbox', { name: 'Neue Spalte', exact: true }).fill('Teamprüfung');
+	await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
+	let customColumn = page.getByRole('group', { name: 'Teamprüfung', exact: true });
+	await expect(customColumn).toBeVisible();
+	const columnId = (await customColumn.getAttribute('data-column-id'))!;
+	await customColumn
+		.getByRole('button', { name: 'Spalte Teamprüfung umbenennen', exact: true })
+		.click();
+	await customColumn.getByRole('textbox', { name: 'Spaltenname' }).fill('Verwerfen');
+	await customColumn.getByRole('textbox', { name: 'Spaltenname' }).press('Escape');
+	await expect(
+		customColumn.getByRole('button', { name: 'Spalte Teamprüfung umbenennen', exact: true })
+	).toBeVisible();
+	await customColumn
+		.getByRole('button', { name: 'Spalte Teamprüfung umbenennen', exact: true })
+		.press('Enter');
+	await customColumn.getByRole('textbox', { name: 'Spaltenname' }).fill('Feedback');
+	await customColumn.getByRole('textbox', { name: 'Spaltenname' }).press('Enter');
+	customColumn = page.getByRole('group', { name: 'Feedback', exact: true });
+	await expect(customColumn).toBeVisible();
 	const create = page.locator('[data-tour-target="sermon-create"]');
 	await create.getByLabel('Titel').fill('Meine Team-Ausarbeitung');
 	await create.getByRole('button', { name: 'Erstellen', exact: true }).click();
@@ -38,6 +46,29 @@ test('personal board columns can be managed, used in the editor, exported and de
 	await expect(workflow.getByText('Gespeichert', { exact: true })).toBeVisible();
 	const exported = await (await page.request.get(`/notes/${id}/export.md`)).text();
 	expect(exported).toContain('statusName: Feedback');
+	await page.goto('/sermons');
+	// Reorder by dragging the column title, using the same gesture as a card drag below.
+	const header = customColumn.locator('.column-title span');
+	await header.scrollIntoViewIfNeeded();
+	const source = await header.boundingBox();
+	const target = await page
+		.getByRole('group', { name: 'Gehalten', exact: true })
+		.locator('.column-header')
+		.boundingBox();
+	const sorted = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/columns')
+	);
+	await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(target!.x + 20, target!.y + target!.height / 2, { steps: 25 });
+	await page.mouse.up();
+	expect((await sorted).ok()).toBe(true);
+	await expect(page.locator('.board-column').nth(4)).toHaveAttribute('aria-label', 'Feedback');
+	await page.reload();
+	await expect(page.locator('.board-column').nth(4)).toHaveAttribute('aria-label', 'Feedback');
+	await expect(
+		customColumn.getByRole('heading', { name: 'Meine Team-Ausarbeitung' })
+	).toBeVisible();
 	await page.goto(`/sermons?status=${columnId}`);
 	await expect(
 		page.getByRole('heading', { name: 'Meine Team-Ausarbeitung', exact: true })
@@ -71,11 +102,11 @@ test('personal board columns can be managed, used in the editor, exported and de
 	}
 
 	await page.goto('/sermons');
-	await page.getByRole('button', { name: 'Spalten bearbeiten' }).click();
-	const row = manager.locator(`li[data-column-id="${columnId}"]`);
-	await row.getByText('Spalte löschen', { exact: true }).click();
-	await row.getByRole('combobox', { name: 'Zielspalte' }).selectOption('research');
-	await row.getByRole('button', { name: 'Verschieben und löschen' }).click();
+	await page.getByRole('button', { name: 'Spaltenaktionen für Feedback', exact: true }).click();
+	await page.getByRole('menuitem', { name: 'Spalte löschen', exact: true }).click();
+	const deletion = page.getByRole('dialog');
+	await deletion.getByRole('combobox', { name: 'Zielspalte' }).selectOption('research');
+	await deletion.getByRole('button', { name: 'Verschieben und löschen' }).click();
 	await expect(page.locator('.board-column')).toHaveCount(5);
 	await expect(
 		page
@@ -88,6 +119,62 @@ test('personal board columns can be managed, used in the editor, exported and de
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
 		true
 	);
+});
+
+test('a whole sermon card can be dragged by touch without moving its column', async ({
+	browser
+}) => {
+	const context = await browser.newContext({
+		viewport: { width: 390, height: 844 },
+		hasTouch: true,
+		isMobile: true
+	});
+	try {
+		const page = await context.newPage();
+		await register(page);
+		await page.goto('/sermons');
+		const create = page.locator('[data-tour-target="sermon-create"]');
+		await create.getByLabel('Titel').fill('Ausarbeitung per Touch verschieben');
+		await create.getByRole('button', { name: 'Erstellen', exact: true }).click();
+		await expect(page.getByTestId('document-editor')).toBeVisible();
+		await page.goto('/sermons');
+		const card = page.getByTestId('sermon-card');
+		await card.scrollIntoViewIfNeeded();
+		const source = await card.getByRole('heading').boundingBox();
+		const target = await page
+			.getByRole('group', { name: 'Recherche', exact: true })
+			.locator('.card-list')
+			.boundingBox();
+		const startX = source!.x + source!.width / 2;
+		const endX = Math.min(target!.x + 35, 370);
+		const y = source!.y + source!.height / 2;
+		const cdp = await context.newCDPSession(page);
+		const moved = page.waitForResponse(
+			(response) => response.request().method() === 'POST' && response.url().includes('?/move')
+		);
+		await cdp.send('Input.dispatchTouchEvent', {
+			type: 'touchStart',
+			touchPoints: [{ x: startX, y }]
+		});
+		// Hold through the library's delay so ordinary swiping remains available for scrolling.
+		await page.waitForTimeout(250);
+		for (let step = 1; step <= 15; step++) {
+			await cdp.send('Input.dispatchTouchEvent', {
+				type: 'touchMove',
+				touchPoints: [{ x: startX + ((endX - startX) * step) / 15, y }]
+			});
+			await page.waitForTimeout(25);
+		}
+		await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+		expect((await moved).ok()).toBe(true);
+		await expect(card).toHaveAttribute('data-sermon-status', 'research');
+		await expect(page).toHaveURL('/sermons');
+		await page.reload();
+		await expect(card).toHaveAttribute('data-sermon-status', 'research');
+		await expect(page.locator('.board-column').first()).toHaveAttribute('data-column-id', 'idea');
+	} finally {
+		await context.close();
+	}
 });
 
 test('note pagination limits cards and preserves filters while tag search reveals collapsed groups', async ({
@@ -1314,9 +1401,9 @@ test('custom sermon templates, delivery history, rich exports and board movement
 	const outlineColumn = page.getByRole('group', { name: 'Gliederung' });
 	// Exercise the headless library using a real mouse drag between visible column drop zones.
 	await page.setViewportSize({ width: 1600, height: 1000 });
-	const handle = card.getByRole('button', { name: `${sermonTitle} verschieben`, exact: true });
-	await handle.scrollIntoViewIfNeeded();
-	const sourceBox = await handle.boundingBox();
+	const cardBody = card.locator('p').first();
+	await cardBody.scrollIntoViewIfNeeded();
+	const sourceBox = await cardBody.boundingBox();
 	const targetBox = await outlineColumn.locator('ul').boundingBox();
 	expect(sourceBox).not.toBeNull();
 	expect(targetBox).not.toBeNull();
@@ -1345,9 +1432,9 @@ test('custom sermon templates, delivery history, rich exports and board movement
 			.filter({ hasText: sermonTitle })
 	).toBeVisible();
 	// The library's own keyboard path works independently of the retained Alt+Arrow shortcut.
-	const readyHandle = page.getByRole('button', { name: `${sermonTitle} verschieben`, exact: true });
-	await readyHandle.focus();
-	await readyHandle.press('Space');
+	const readyCard = page.getByTestId('sermon-card').filter({ hasText: sermonTitle });
+	await readyCard.focus();
+	await readyCard.press('Space');
 	const libraryMove = page.waitForResponse(
 		(response) => response.request().method() === 'POST' && response.url().includes('?/move')
 	);
@@ -1359,6 +1446,9 @@ test('custom sermon templates, delivery history, rich exports and board movement
 			.getByRole('group', { name: 'Gehalten' })
 			.getByRole('heading', { name: sermonTitle, exact: true })
 	).toBeVisible();
+	await expect(page).toHaveURL('/sermons');
+	await page.getByRole('link', { name: sermonTitle, exact: true }).click();
+	await expect(page.getByTestId('document-editor')).toBeVisible();
 });
 
 test('a normal account cannot publish a note through either the UI or a forged action', async ({

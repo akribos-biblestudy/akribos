@@ -21,6 +21,7 @@ export async function getSermonBoard(db: Database, userId: string, lock = false)
 
 export type SermonBoardChange =
 	| { action: 'create'; name: string }
+	| { action: 'sort'; ids: string[] }
 	| { action: 'rename'; id: string; name: string }
 	| { action: 'reorder'; id: string; direction: 'left' | 'right' }
 	| { action: 'delete'; id: string; targetId: string };
@@ -34,45 +35,59 @@ export async function changeSermonBoard(
 	return db.transaction(async (tx) => {
 		const board = await getSermonBoard(tx as unknown as Database, userId, true);
 		if (board.revision !== revision) return { ok: false, reason: 'boardConflict' } as const;
-		const columns = board.columns.map((column) => ({ ...column }));
-		const index =
-			change.action === 'create' ? -1 : columns.findIndex((column) => column.id === change.id);
-		if (change.action !== 'create' && index < 0)
-			return { ok: false, reason: 'columnMissing' } as const;
-		if (change.action === 'create' || change.action === 'rename') {
-			const name = cleanSermonColumnName(change.name);
+		let columns = board.columns.map((column) => ({ ...column }));
+		if (change.action === 'sort') {
+			const byId = new Map(columns.map((column) => [column.id, column]));
 			if (
-				!name ||
-				columns.some(
-					(column, i) =>
-						i !== index && column.name.toLocaleLowerCase('de') === name.toLocaleLowerCase('de')
-				)
+				change.ids.length !== columns.length ||
+				new Set(change.ids).size !== columns.length ||
+				change.ids.some((id) => !byId.has(id))
 			)
-				return { ok: false, reason: 'columnName' } as const;
-			if (change.action === 'create') {
-				if (columns.length >= MAX_SERMON_COLUMNS)
-					return { ok: false, reason: 'columnLimit' } as const;
-				columns.push({ id: randomUUID(), name });
-			} else columns[index]!.name = name;
-		} else if (change.action === 'reorder') {
-			const target = index + (change.direction === 'left' ? -1 : 1);
-			if (target < 0 || target >= columns.length)
-				return { ok: false, reason: 'columnMissing' } as const;
-			[columns[index], columns[target]] = [columns[target]!, columns[index]!];
+				return { ok: false, reason: 'columnOrder' } as const;
+			columns = change.ids.map((id) => byId.get(id)!);
 		} else {
-			if (columns.length === 1) return { ok: false, reason: 'lastColumn' } as const;
-			if (change.targetId === change.id || !columns.some((column) => column.id === change.targetId))
-				return { ok: false, reason: 'columnTarget' } as const;
-			// Include dormant note metadata and trash: restoring/converting must never revive a deleted column.
-			await tx
-				.update(documents)
-				.set({
-					sermonStatus: change.targetId,
-					revision: sql`${documents.revision} + 1`,
-					updatedAt: new Date()
-				})
-				.where(and(eq(documents.userId, userId), eq(documents.sermonStatus, change.id)));
-			columns.splice(index, 1);
+			const index =
+				change.action === 'create' ? -1 : columns.findIndex((column) => column.id === change.id);
+			if (change.action !== 'create' && index < 0)
+				return { ok: false, reason: 'columnMissing' } as const;
+			if (change.action === 'create' || change.action === 'rename') {
+				const name = cleanSermonColumnName(change.name);
+				if (
+					!name ||
+					columns.some(
+						(column, i) =>
+							i !== index && column.name.toLocaleLowerCase('de') === name.toLocaleLowerCase('de')
+					)
+				)
+					return { ok: false, reason: 'columnName' } as const;
+				if (change.action === 'create') {
+					if (columns.length >= MAX_SERMON_COLUMNS)
+						return { ok: false, reason: 'columnLimit' } as const;
+					columns.push({ id: randomUUID(), name });
+				} else columns[index]!.name = name;
+			} else if (change.action === 'reorder') {
+				const target = index + (change.direction === 'left' ? -1 : 1);
+				if (target < 0 || target >= columns.length)
+					return { ok: false, reason: 'columnMissing' } as const;
+				[columns[index], columns[target]] = [columns[target]!, columns[index]!];
+			} else {
+				if (columns.length === 1) return { ok: false, reason: 'lastColumn' } as const;
+				if (
+					change.targetId === change.id ||
+					!columns.some((column) => column.id === change.targetId)
+				)
+					return { ok: false, reason: 'columnTarget' } as const;
+				// Include dormant note metadata and trash: restoring/converting must never revive a deleted column.
+				await tx
+					.update(documents)
+					.set({
+						sermonStatus: change.targetId,
+						revision: sql`${documents.revision} + 1`,
+						updatedAt: new Date()
+					})
+					.where(and(eq(documents.userId, userId), eq(documents.sermonStatus, change.id)));
+				columns.splice(index, 1);
+			}
 		}
 		await tx
 			.update(users)

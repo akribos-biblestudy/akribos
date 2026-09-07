@@ -131,6 +131,7 @@ export const actions = {
 		const id = String(form.get('columnId') ?? '');
 		let change: SermonBoardChange;
 		if (action === 'create') change = { action, name: String(form.get('name') ?? '') };
+		else if (action === 'sort') change = { action, ids: form.getAll('columnIds').map(String) };
 		else if (action === 'rename') change = { action, id, name: String(form.get('name') ?? '') };
 		else if (action === 'delete')
 			change = { action, id, targetId: String(form.get('targetId') ?? '') };
