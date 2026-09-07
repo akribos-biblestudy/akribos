@@ -1765,7 +1765,7 @@ test('preparations keep multiple live collections beside the editor', async ({ p
 	const collections = page.getByTestId('preparation-collections');
 	await collections.getByLabel('Vorhandene Stellensammlung').selectOption(firstListId);
 	await collections.getByRole('button', { name: 'Stellensammlung verknüpfen' }).click();
-	await expect(collections.getByRole('link', { name: 'Joh3,16' })).toBeVisible();
+	await expect(collections.getByRole('link', { name: 'Joh 3,16' })).toBeVisible();
 	await collections.getByText('Neue Stellensammlung anlegen', { exact: true }).click();
 	await collections.getByLabel('Name der Stellensammlung').fill('Weitere Gedanken');
 	await collections.getByRole('button', { name: 'Anlegen und verknüpfen' }).click();
@@ -1775,8 +1775,8 @@ test('preparations keep multiple live collections beside the editor', async ({ p
 	await page.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
 	await expect(page.getByRole('link', { name: 'Johannes 1,1' })).toBeVisible();
 	await page.goto(preparationUrl);
-	await expect(collections.getByRole('link', { name: 'Joh1,1' })).toBeVisible();
-	await expect(collections.getByRole('link', { name: 'Joh3,16' })).toBeVisible();
+	await expect(collections.getByRole('link', { name: 'Joh 1,1' })).toBeVisible();
+	await expect(collections.getByRole('link', { name: 'Joh 3,16' })).toBeVisible();
 	await collections.getByRole('button', { name: 'Gesammelte Hoffnung lösen' }).click();
 	await expect(collections.getByTestId('preparation-collection')).toHaveCount(1);
 	await page.reload();

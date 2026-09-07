@@ -158,7 +158,13 @@ test('a reader gets a default highlight palette, can rename a colour and add one
 	]);
 
 	await rows.first().getByRole('textbox').fill('Verheißungen');
+	const renamed = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'POST' &&
+			new URL(response.url()).searchParams.has('/renameHighlightStyle')
+	);
 	await rows.first().getByRole('button', { name: 'Speichern' }).click();
+	expect((await renamed).ok()).toBe(true);
 
 	// The name survives a reload — the whole point of naming a colour is to keep the label.
 	await page.reload();
