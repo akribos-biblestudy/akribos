@@ -121,5 +121,11 @@ describe('sidecar URL filters', () => {
 		expect(readerStateFromPage({ url, state: { readerNotesFilters: filters } })).toBe(
 			encodeReaderUrlState(workspace, {}, filters)
 		);
+		const latest = workspaceFromColumns(['bible'], { book: 43, chapter: 4, verse: 2 });
+		const search = { [latest.tiles[0]!.activeTabId!]: 'Liebe' };
+		const readerState = encodeReaderUrlState(latest, search);
+		expect(readerStateFromPage({ url, state: { readerState, readerNotesFilters: filters } })).toBe(
+			encodeReaderUrlState(latest, search, filters)
+		);
 	});
 });

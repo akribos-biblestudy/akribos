@@ -1,4 +1,8 @@
 import { getDb } from '$lib/server/db';
+import {
+	ensureDefaultReaderWorkspace,
+	listSavedReaderWorkspaces
+} from '$lib/server/repositories/saved-reader-workspaces';
 import { listBibles, listReaderResources } from '$lib/server/repositories/resources';
 import {
 	resolveReaderWorkspace,
@@ -34,8 +38,9 @@ export async function load({ cookies, locals }) {
 	);
 	const columns = workspaceColumns(workspace);
 	if (locals.user && !locals.user.readerWorkspace) {
-		await updateReaderWorkspace(db, locals.user.id, workspace, columns);
+		await updateReaderWorkspace(db, locals.user.id, workspace);
 	}
+	if (locals.user) await ensureDefaultReaderWorkspace(db, locals.user.id, workspace);
 	// Also keep a device fallback for guests and after sign-out. Signed-in readers use the account copy.
 	writeWorkspaceCompatibilityCookies(cookies, workspace);
 	const readerFontScale = readFontScale(cookies, locals.user?.readerFontScale);
@@ -43,7 +48,10 @@ export async function load({ cookies, locals }) {
 	const theme = readTheme(cookies, locals.user?.theme);
 	if (theme) writeTheme(cookies, theme);
 
+	const savedWorkspaces = locals.user ? await listSavedReaderWorkspaces(db, locals.user.id) : [];
 	return {
+		savedWorkspaces,
+		activeSavedWorkspaceId: savedWorkspaces.find((entry) => entry.isActive)?.id ?? null,
 		bibles,
 		defaultBibleId,
 		previewBibleId: defaultBibleId ?? bibles[0]?.id ?? null,

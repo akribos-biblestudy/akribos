@@ -10,6 +10,7 @@ import { emailVerifications, passwordResets, resources, users, type User } from 
 import { hashPassword } from '../auth/password.ts';
 import { normalizeFontScale } from '../reader-preferences.ts';
 import type { ReaderWorkspace } from '../../reader/workspace.ts';
+import { persistReaderWorkspace, type WorkspaceWriteGuard } from './saved-reader-workspaces';
 
 export function normalizeEmail(email: string): string {
 	return email.trim().toLowerCase();
@@ -100,16 +101,9 @@ export async function updateReaderWorkspace(
 	db: Database,
 	userId: string,
 	workspace: ReaderWorkspace,
-	columns: string[]
-): Promise<void> {
-	await db
-		.update(users)
-		.set({
-			readerWorkspace: workspace,
-			readerColumns: columns.slice(0, 5),
-			updatedAt: new Date()
-		})
-		.where(eq(users.id, userId));
+	options: { guard?: WorkspaceWriteGuard; readerState?: string } = {}
+): Promise<boolean> {
+	return persistReaderWorkspace(db, userId, workspace, options);
 }
 
 export async function updateReaderFontScale(

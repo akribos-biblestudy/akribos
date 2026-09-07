@@ -6,6 +6,8 @@
 	import ProductTour from './ProductTour.svelte';
 	import ReaderViewMenu from './ReaderViewMenu.svelte';
 	import ReaderLayoutPicker from './ReaderLayoutPicker.svelte';
+	import ReaderWorkspaceMenu from './ReaderWorkspaceMenu.svelte';
+	import type { SavedWorkspaceSummary } from '$lib/reader/saved-workspaces';
 	import ThemeToggle from './ThemeToggle.svelte';
 	import type { ReaderLayout } from '$lib/reader/workspace';
 	import { startTour } from '$lib/tour/tour-state.svelte';
@@ -13,9 +15,11 @@
 
 	let {
 		user = null,
+		savedWorkspaces = [],
 		readerPreferences = null,
 		guestTourDone = false
 	}: {
+		savedWorkspaces?: SavedWorkspaceSummary[];
 		user?: {
 			displayName: string | null;
 			email: string;
@@ -73,6 +77,10 @@
 		</a>
 
 		<div class="flex min-w-0 flex-1 items-center justify-end gap-0.5">
+			{#if user}<ReaderWorkspaceMenu
+					workspaces={savedWorkspaces}
+					reader={!!readerPreferences}
+				/>{/if}
 			{#if readerPreferences}<ReaderLayoutPicker
 					layout={readerPreferences.layout}
 					notesAvailable={user !== null}

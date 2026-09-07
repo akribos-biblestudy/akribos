@@ -81,6 +81,36 @@ Workspace nach dessen erster Migration nicht wieder überschreiben. Eine bestehe
 verlustfrei migriert: höchstens vier Spalten werden Kacheln, eine alte fünfte Spalte wird ein weiterer
 Tab in der vierten Kachel.
 
+Benannte Arbeitsbereiche liegen in `saved_reader_workspaces`: kanonischer Reader-URL-Zustand
+inklusive Suchen/Notizfiltern plus Trennergrößen. Genau ein Eintrag je Konto ist aktiv (`is_active`,
+partieller eindeutiger Index); bei der ersten Nutzung wird der bisherige Konto-/Gerätestand unter
+„Standard“ übernommen, niemals eine fremde URL-Ansicht. Das Header-Menü liefert nur eigene Namen, IDs,
+Verwaltungsrevisionen und Aktivstatus und hebt den aktiven Eintrag hervor. Neue Arbeitsbereiche kopieren
+die aktuelle Ansicht und werden anschließend geöffnet. Die aktuelle Ansicht wird über einen pro
+Root-Layout erzeugten Svelte-Kontext aus sichtbaren Referenzen und Suchen erfasst; bei verzögertem
+Scrollen gewinnt die tatsächlich fokussierte Quellkachel.
+
+Reader-Mutationen schreiben `users.reader_workspace` und den aktiven benannten Stand atomar unter
+Sperre der Nutzerzeile. Die Action trägt `workspaceId` nur in ihrer Anfrage, nicht in geteilten URLs;
+Aktiv-ID und vorheriger semantischer Zustand werden vor dem Schreiben erneut geprüft. So kann eine
+verspätete Anfrage den inzwischen geöffneten anderen Arbeitsbereich nicht überschreiben. Suchen und
+Sidecar-Filter speichern über den gleichfalls geschützten `/api/reader/workspaces/[id]/view`-Endpunkt.
+Der aktuelle flache URL-Zustand steht zusätzlich in `page.state.readerState`, damit nachfolgende
+Aktionen auch vor einer Servernavigation aktuelle Suchen und Referenzen übernehmen. Vor dem Wechsel
+werden ausstehende Lese-/Suchänderungen abgewartet. Fremde URL-Zweige bleiben unabhängig und dürfen den
+aktiven Stand weiterhin nicht überschreiben. Autosave ändert nicht die Verwaltungsrevision; Umbenennen
+und Löschen verlangen diese weiterhin. Der aktive Arbeitsbereich lässt sich erst nach dem Wechsel zu
+einem anderen löschen. Namen sind pro Konto eindeutig; höchstens 100 Einträge sind erlaubt.
+
+`/workspaces/[id]` ist ein schreibfreier Öffnungs-GET. Erst nach dieser Navigation (und damit nach dem
+Flush ausstehender Dokumentänderungen) aktiviert eine Form Action den Eintrag und übernimmt dessen
+Stand atomar als Konto-Arbeitsbereich. Vorladen verändert keine Präferenz. Speichern und Öffnen prüfen
+Ressourcen erneut gegen die öffentlichen, fertigen Werke; weggefallene Tabs und Kontexte werden beim
+Öffnen bereinigt und bei der nächsten Änderung fortgeschrieben.
+Das Wiederherstellen offener Tab-Suchen lädt nur deren Ergebnisse und schreibt die bereits
+kanonisierte URL nicht erneut: Vor der Initialisierung der Kapitelstreams wären Fokus und sichtbare
+Referenzen sonst noch unvollständig und könnten die gerade geöffnete Momentaufnahme verändern.
+
 Die aktuelle Reader-Adresse trägt zusätzlich eine lesbare Momentaufnahme aus wiederholbaren Parametern
 von `src/lib/reader/url-state.ts`: `layout`, `tab`, `active`, `focus`, `lookup`, `source`, `sourceRef`,
 `word`, `search`, `notesQuery`, `notesTag` und `notesFilter`. Tab-Koordinaten verwenden die Form `Kachel.Tab`, beispielsweise

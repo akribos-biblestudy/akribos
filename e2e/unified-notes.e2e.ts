@@ -1893,7 +1893,8 @@ test('the chapter-filtered sidecar reloads on chapter or link-group changes, not
 }) => {
 	await register(page);
 	await page.setViewportSize({ width: 1280, height: 300 });
-	await page.route('**/api/reader/**', (route) => route.abort());
+	// Freeze chapter streams while allowing the sidecar's workspace filters to autosave.
+	await page.route(/\/api\/reader\/\d+\/\d+(?:\?|$)/, (route) => route.abort());
 	await page.goto('/Joh3');
 	await page.getByTestId('layout-picker').click();
 	await page.getByTestId('reader-notes-sidecar-toggle').click();
@@ -1962,7 +1963,11 @@ test('preparations keep multiple live collections beside the editor', async ({ p
 	await collections.getByLabel('Name der Stellensammlung').fill('Weitere Gedanken');
 	await collections.getByRole('button', { name: 'Anlegen und verknüpfen' }).click();
 	await expect(collections.getByTestId('preparation-collection')).toHaveCount(2);
-	await collections.getByRole('link', { name: 'Weitere Gedanken' }).click();
+	const collectionLink = collections.getByRole('link', { name: 'Weitere Gedanken' });
+	const collectionUrl = await collectionLink.getAttribute('href');
+	await collectionLink.click();
+	// The editor may resume navigation after flushing. Wait for the destination before filling its form.
+	await expect(page).toHaveURL(collectionUrl!);
 	await page.getByPlaceholder('Joh 3,16').fill('Joh 1,1');
 	await page.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
 	await expect(page.getByRole('link', { name: 'Johannes 1,1' })).toBeVisible();

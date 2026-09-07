@@ -1480,7 +1480,8 @@ test('the logo restores an exact verse even when leaving during the scroll debou
 }) => {
 	await loginAsAdmin(page);
 	await page.setViewportSize({ width: 900, height: 300 });
-	await page.route('**/api/reader/**', (route) => route.abort());
+	// Freeze chapter streams without blocking the independent workspace persistence endpoint.
+	await page.route(/\/api\/reader\/\d+\/\d+(?:\?|$)/, (route) => route.abort());
 	await page.goto('/Joh3');
 	await page.getByRole('button', { name: 'Konto-Menü' }).click();
 	const notesLink = page.getByRole('menuitem', { name: 'Notizen & Ausarbeitungen', exact: true });
