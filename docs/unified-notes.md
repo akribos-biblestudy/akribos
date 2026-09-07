@@ -37,7 +37,7 @@ filtering by a parent includes its descendants.
 The library gives the tag tree most of the available viewport height, displays the descendant-inclusive
 document count beside every tag and lets every parent branch collapse independently. The global account
 menu exposes one “Dokumente” entry. Within it, the only area navigation is “Notizen” and “Ausarbeitungen”;
-import and public notes remain contextual note actions, while templates are contextual to sermons. A
+import remains a contextual note action, while templates are contextual to sermons. A
 66-book distribution combines stored passage anchors with references in visible prose, counts each
 document once per book and filters through the `book` URL parameter without changing the chart totals.
 Visible-prose ranges are stored in the owner-scoped `document_body_reference_indexes` projection when a
@@ -92,18 +92,23 @@ containing all public fields and a non-email author label. Editing or
 autosaving the working copy cannot change the public page. A later explicit publish replaces the
 snapshot; unpublish removes it.
 
-Snapshots are either `public` or `unlisted`. Public snapshots appear in `/notes/published`, its Atom
-feed and the sitemap. Unlisted snapshots are omitted from these discovery surfaces but are anonymously reachable
-through their direct slug. An unlisted slug is therefore not a password or authorisation boundary and
-may be forwarded by anyone who knows it. Private drafts have no snapshot and no public route. A normal
-user cannot invoke publication even by constructing a request; the repository checks both role and
-ownership in addition to the UI controls, and publication fails without the owner's non-empty display
-name rather than exposing an email address.
+Snapshots are exclusively `unlisted`. The former `/notes/published` index and Atom feed return
+`410 Gone`; the sitemap never enumerates notes. Direct `/notes/published/[slug]` links remain anonymously
+accessible and carry `noindex, nofollow` in both HTTP and HTML. Such a link is not a password or an
+authorisation boundary and may be forwarded. Crawling of the old URLs remains allowed so search engines
+can see the removal/noindex responses. This does not guarantee immediate removal from external indexes.
+Private drafts have no snapshot. Sharing still requires an administrator's own note and a non-empty
+display name; ordinary accounts cannot invoke it, and an email address is never an author fallback.
 
-Authenticated HTML and every personal JSON/download response use `private, no-store`. Anonymous
-published-note HTML also remains `private, no-store`, because it inherits cookie-based guest preferences from
-the global layout. The cookie-free Atom feed and sitemap are public but require revalidation
-(`max-age=0, must-revalidate`) before reuse so a publication change cannot leave stale discovery data.
+Migration `0037_unlisted_note_sharing.sql` converts existing public working copies and snapshots to
+unlisted while preserving content, author, slug and sharing dates. It increments affected working-copy
+revisions and aligns only snapshots that were previously current. Database checks now reject `public`;
+form and repository validation reject forged public-sharing requests as well. Personal blogs (#186)
+remain deferred.
+
+Authenticated HTML and personal JSON/downloads use `private, no-store`. Anonymous shared-note HTML
+also remains private because the root layout contains cookie preferences. The sitemap remains publicly
+cacheable with `max-age=0, must-revalidate`.
 
 ## Markdown and Obsidian interchange
 
@@ -232,8 +237,8 @@ Verse-list comments are collaborative conversations and are not copied into priv
   document, its context follows the currently visible verse while reading. Desktop width is horizontally
   resizable; only harmless width and open/closed preferences are stored locally. Private document ids
   never enter Reader URLs, history or local storage. Notes do not add icons or underlines to Bible text. Closing waits for autosave to finish.
-- `/notes/published` and `/notes/published/feed.xml` expose published-note snapshots;
-  `/notes/published/[slug]` renders a public or unlisted snapshot and never hydrates fields from the
+- `/notes/published` and `/notes/published/feed.xml` are retired (`410 Gone`);
+  `/notes/published/[slug]` renders an unlisted snapshot and never hydrates fields from the
   working copy. There are intentionally no parallel legacy publication routes.
 
 ## Recovery and rollback

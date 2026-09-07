@@ -69,7 +69,6 @@ export const de = {
 	'nav.tour': 'Produkt-Tour',
 	'nav.notes': 'Notizen',
 	'nav.sermons': 'Ausarbeitungen',
-	'nav.publishedNotes': 'Veröffentlichte Notizen',
 	'nav.documents': 'Notizen & Ausarbeitungen',
 
 	// --- reader -------------------------------------------------------------
@@ -158,7 +157,6 @@ export const de = {
 		'Bitte zuerst die Veröffentlichung zurücknehmen, um diese Notiz in eine Ausarbeitung umzuwandeln.',
 	'documents.visibility.private': 'Privat',
 	'documents.visibility.unlisted': 'Nicht gelistet',
-	'documents.visibility.public': 'Öffentlich',
 	'documents.create.note': 'Neue Notiz',
 	'documents.create.sermon': 'Neue Ausarbeitung',
 	'documents.delete': 'In den Papierkorb',
@@ -389,21 +387,24 @@ export const de = {
 		'Der Dokumenttext ist auf 1 MiB zuzüglich begrenztem YAML-Frontmatter beschränkt.',
 	'documents.import.error.invalidFrontmatter':
 		'Das YAML-Frontmatter ist ungültig oder überschreitet seine sichere Größen- und Komplexitätsgrenze.',
-	'documents.publication.title': 'Veröffentlichung',
-	'documents.publication.adminOnly': 'Nur Administratoren können Notizen veröffentlichen.',
+	'documents.publication.title': 'Freigabe per Link',
+	'documents.publication.adminOnly':
+		'Nur Administratoren können eigene Notizen per Link freigeben.',
 	'documents.publication.private':
-		'Stelle die Arbeitskopie auf „Nicht gelistet“ oder „Öffentlich“, bevor du sie veröffentlichst.',
+		'Notizen können ausschließlich nicht gelistet per Link freigegeben werden.',
+	'documents.publication.unlistedHint':
+		'Nicht gelistet: Jeder mit dem Link kann diese Notiz ohne Anmeldung lesen und den Link weitergeben. Sie erscheint in keiner öffentlichen Übersicht.',
 	'documents.publication.slug': 'Webadresse',
 	'documents.publication.excerpt': 'Kurzbeschreibung',
-	'documents.publication.publish': 'Schnappschuss veröffentlichen',
-	'documents.publication.update': 'Veröffentlichung aktualisieren',
-	'documents.publication.unpublish': 'Veröffentlichung zurückziehen',
-	'documents.publication.current': 'Veröffentlicht am {date}',
+	'documents.publication.publish': 'Schnappschuss freigeben',
+	'documents.publication.update': 'Freigabe aktualisieren',
+	'documents.publication.unpublish': 'Freigabe zurückziehen',
+	'documents.publication.current': 'Freigegeben am {date}',
 	'documents.publication.outdated':
-		'Die Arbeitskopie enthält neuere Änderungen. Der öffentliche Schnappschuss bleibt unverändert.',
-	'documents.publication.currentCopy': 'Die Veröffentlichung entspricht der Arbeitskopie.',
-	'documents.publication.open': 'Öffentliche Seite öffnen',
-	'documents.publication.error': 'Die Notiz konnte nicht veröffentlicht werden.',
+		'Die Arbeitskopie enthält neuere Änderungen. Der freigegebene Schnappschuss bleibt unverändert.',
+	'documents.publication.currentCopy': 'Die Freigabe entspricht der Arbeitskopie.',
+	'documents.publication.open': 'Freigegebenen Link öffnen',
+	'documents.publication.error': 'Die Notiz konnte nicht freigegeben werden.',
 	'documents.editor.actionError': 'Die Änderung konnte nicht gespeichert werden.',
 	'documents.tags.error': 'Die Schlagwörter konnten nicht gespeichert werden.',
 	'documents.passages.error': 'Die Bibelstellen-Verknüpfung konnte nicht gespeichert werden.',
@@ -466,17 +467,9 @@ export const de = {
 	'sermons.deliveries.error': 'Die Durchführung konnte nicht gespeichert werden.',
 
 	// --- public note snapshots ---------------------------------------------
-	'publishedNotes.title': 'Veröffentlichte Notizen',
-	'publishedNotes.subtitle': 'Bibelstudien und Impulse aus Akribos.',
-	'publishedNotes.empty': 'Zurzeit sind keine Notizen veröffentlicht.',
 	'publishedNotes.by': 'Von {author}',
-	'publishedNotes.published': 'Veröffentlicht am {date}',
-	'publishedNotes.read': 'Notiz lesen',
+	'publishedNotes.published': 'Freigegeben am {date}',
 	'publishedNotes.unlisted': 'Nicht gelistete Notiz',
-	'publishedNotes.pagination': 'Notizseiten',
-	'publishedNotes.previous': 'Neuere Notizen',
-	'publishedNotes.next': 'Ältere Notizen',
-	'publishedNotes.page': 'Seite {page}',
 
 	// --- Strong word study --------------------------------------------------
 	'strong.title': 'Strong-Nummer {id}',

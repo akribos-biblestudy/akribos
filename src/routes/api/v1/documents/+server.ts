@@ -34,7 +34,7 @@ export async function GET({ locals, setHeaders, url }) {
 
 	const visibility = url.searchParams.get('visibility')?.trim() || undefined;
 	if (visibility && !isDocumentVisibility(visibility)) {
-		return invalidFilter('visibility', visibility, 'private, unlisted, or public');
+		return invalidFilter('visibility', visibility, 'private or unlisted');
 	}
 
 	const deleted = url.searchParams.get('deleted')?.trim() || undefined;

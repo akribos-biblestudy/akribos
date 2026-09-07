@@ -3,7 +3,7 @@
 export const DOCUMENT_KINDS = ['note', 'sermon'] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
-export const DOCUMENT_VISIBILITIES = ['private', 'unlisted', 'public'] as const;
+export const DOCUMENT_VISIBILITIES = ['private', 'unlisted'] as const;
 export type DocumentVisibility = (typeof DOCUMENT_VISIBILITIES)[number];
 
 export const SERMON_WORKFLOW_STATES = [

@@ -383,13 +383,20 @@ explizites Veröffentlichen sperrt die Arbeitskopie und ersetzt atomar die volls
 Momentaufnahme (Titel, Exzerpt, bereinigtes HTML/Markdown, Autorname, Tags und Stellen); weitere
 Autosaves werden erst durch erneutes Veröffentlichen sichtbar. Nur ein Admin darf eine **eigene** aktive
 Notiz (`note`) mit nicht leerem Anzeigenamen veröffentlichen; eine
-E-Mail-Adresse ist nie Autor-Fallback. `public` erscheint unter `/notes/published`, im
-Atom-Feed und in der Sitemap. `unlisted` fehlt dort, ist aber unter dem Slug ohne Anmeldung abrufbar und
-deshalb keine Zugriffskontrolle oder geheime Freigabe. Veröffentlichungs-HTML bleibt trotz öffentlichem Snapshot
-`private, no-store`, weil das globale Layout auch für Gäste Cookie-Präferenzen enthält. Cookie-freie
-Discovery-Endpunkte wie Feed und Sitemap sind öffentlich, verlangen derzeit aber mit
-`max-age=0, must-revalidate` vor jeder Wiederverwendung eine Revalidierung, damit Publish/Unpublish
-sofort sichtbar wird. Sobald eine Session aufgelöst wurde, erzwingt `hooks.server.ts` abschließend für
+E-Mail-Adresse ist nie Autor-Fallback. Freigaben sind ausschließlich `unlisted` und über ihren
+bestehenden Slug ohne Anmeldung abrufbar; das ist keine Zugriffskontrolle oder geheime Freigabe.
+Öffentliche Notizübersicht und Atom-Feed sind entfernt und liefern `410 Gone`; die Sitemap enthält
+keine Notizen. Alle Freigaben erhalten `noindex, nofollow` als HTTP-Header und HTML-Metadatum.
+`robots.txt` lässt die bisherigen Freigabe-URLs weiterhin crawlen, damit Suchmaschinen die
+410-/noindex-Antworten sehen und früher indexierte Seiten entfernen können.
+Migration `0037_unlisted_note_sharing.sql` stellt bestehende `public`-Arbeitskopien und Schnappschüsse
+auf `unlisted` um, ohne Link, Inhalt oder Autor zu ändern. Sie erhöht betroffene Dokumentrevisionen;
+bisher aktuelle Schnappschüsse bleiben revisionsgleich, bereits veraltete bleiben veraltet.
+Datenbank-Constraints und Form-/Repository-Validierung verbieten neue `public`-Werte. Persönliche Blogs
+(#186) bleiben zurückgestellt; die bestehende Beschränkung auf eigene Admin-Notizen bleibt bestehen.
+Freigabe-HTML bleibt `private, no-store`, weil das globale Layout auch für Gäste Cookie-Präferenzen
+enthält. Die cookie-freie Sitemap bleibt öffentlich mit `max-age=0, must-revalidate`.
+Sobald eine Session aufgelöst wurde, erzwingt `hooks.server.ts` abschließend für
 jede Antwort `private, no-store`. Dasselbe gilt ausdrücklich für private HTML-, JSON- und
 Download-Antworten.
 

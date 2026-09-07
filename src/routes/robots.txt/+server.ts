@@ -13,6 +13,7 @@ export function GET({ setHeaders }) {
 			'Disallow: /account',
 			'Disallow: /lists',
 			'Disallow: /l/',
+			// Crawlers must see the 410/noindex responses to remove previously indexed notes.
 			'Allow: /notes/published',
 			'Disallow: /notes',
 			'Disallow: /sermons',

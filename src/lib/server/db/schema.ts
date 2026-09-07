@@ -754,6 +754,7 @@ export const documents = pgTable(
 			'documents_sermon_format_check',
 			sql`${table.sermonFormat} in ('sermon', 'home-group', 'bible-study', 'youth', 'children', 'other')`
 		),
+		check('documents_visibility_check', sql`${table.visibility} in ('private', 'unlisted')`),
 		check('documents_kind_check', sql`${table.kind} in ('note', 'sermon')`),
 		check('documents_title_check', sql`length(btrim(${table.title})) > 0`),
 		check('documents_revision_check', sql`${table.revision} > 0`),
@@ -1082,7 +1083,7 @@ export const documentPublications = pgTable(
 		bodyMarkdown: text('body_markdown').notNull(),
 		/** A real display name captured at publish time; repository code never falls back to email. */
 		authorName: text('author_name').notNull(),
-		visibility: text('visibility', { enum: ['public', 'unlisted'] }).notNull(),
+		visibility: text('visibility', { enum: ['unlisted'] }).notNull(),
 		passages: jsonb('passages').$type<PublishedPassageSnapshot[]>().notNull(),
 		tags: text('tags')
 			.array()
@@ -1095,6 +1096,7 @@ export const documentPublications = pgTable(
 	(table) => [
 		uniqueIndex('document_publications_slug_idx').on(table.slug),
 		index('document_publications_visibility_published_idx').on(table.visibility, table.publishedAt),
+		check('document_publications_visibility_check', sql`${table.visibility} = 'unlisted'`),
 		check('document_publications_title_check', sql`length(btrim(${table.title})) > 0`),
 		check('document_publications_slug_check', sql`length(btrim(${table.slug})) > 0`),
 		check('document_publications_author_check', sql`length(btrim(${table.authorName})) > 0`),

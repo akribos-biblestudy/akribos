@@ -1,6 +1,6 @@
 /** Explicit, admin-only publication snapshots for note working copies. */
 
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import {
 	documentPassages,
@@ -16,7 +16,7 @@ import {
 export type PublishDocumentInput = {
 	slug: string;
 	excerpt: string;
-	visibility: 'public' | 'unlisted';
+	visibility: 'unlisted';
 	expectedRevision?: number;
 };
 
@@ -38,27 +38,6 @@ export type PublishDocumentResult =
 export type UnpublishDocumentResult =
 	{ ok: true; unpublished: boolean } | { ok: false; reason: 'forbidden' | 'notFound' };
 
-export type PublishedDocumentSummary = Pick<
-	DocumentPublication,
-	| 'slug'
-	| 'title'
-	| 'excerpt'
-	| 'authorName'
-	| 'passages'
-	| 'tags'
-	| 'firstPublishedAt'
-	| 'publishedAt'
->;
-
-type PublicationListOptions = { limit?: number; offset?: number };
-
-function publicationWindow(options: PublicationListOptions): { limit: number; offset: number } {
-	return {
-		limit: Math.max(1, Math.min(100, Math.trunc(options.limit ?? 50))),
-		offset: Math.max(0, Math.trunc(options.offset ?? 0))
-	};
-}
-
 /** Slugs are already prepared by the caller; this check only keeps them one safe URL segment. */
 export function isPublicationSlug(value: string): boolean {
 	return value.length > 0 && value.length <= 160 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
@@ -72,7 +51,7 @@ function postgresErrorCode(error: unknown): string | undefined {
 
 /**
  * Copies the complete visitor-facing state from an owned note into its current snapshot. The
- * requested public/unlisted visibility is applied to the working copy in the same locked transaction,
+ * requested unlisted visibility is applied to the working copy in the same locked transaction,
  * so validation failures cannot leave visibility and snapshot out of sync. The actor's role and
  * ownership are read from the database rather than trusted from request data.
  */
@@ -84,7 +63,7 @@ export async function publishDocument(
 ): Promise<PublishDocumentResult> {
 	const slug = input.slug.trim();
 	if (!isPublicationSlug(slug)) return { ok: false, reason: 'invalidSlug' };
-	if (input.visibility !== 'public' && input.visibility !== 'unlisted') {
+	if (input.visibility !== 'unlisted') {
 		return { ok: false, reason: 'private' };
 	}
 
@@ -275,62 +254,7 @@ export async function getOwnedDocumentPublication(
 	return publication;
 }
 
-/** Public note index/feed/sitemap source. Unlisted snapshots are intentionally excluded. */
-export async function listPublishedDocuments(
-	db: Database,
-	options: PublicationListOptions = {}
-): Promise<DocumentPublication[]> {
-	const { limit, offset } = publicationWindow(options);
-	return db
-		.select()
-		.from(documentPublications)
-		.where(eq(documentPublications.visibility, 'public'))
-		.orderBy(desc(documentPublications.publishedAt), desc(documentPublications.documentId))
-		.limit(limit)
-		.offset(offset);
-}
-
-/** Lightweight public-index projection that deliberately omits both body representations. */
-export async function listPublishedDocumentSummaries(
-	db: Database,
-	options: PublicationListOptions = {}
-): Promise<PublishedDocumentSummary[]> {
-	const { limit, offset } = publicationWindow(options);
-	return db
-		.select({
-			slug: documentPublications.slug,
-			title: documentPublications.title,
-			excerpt: documentPublications.excerpt,
-			authorName: documentPublications.authorName,
-			passages: documentPublications.passages,
-			tags: documentPublications.tags,
-			firstPublishedAt: documentPublications.firstPublishedAt,
-			publishedAt: documentPublications.publishedAt
-		})
-		.from(documentPublications)
-		.where(eq(documentPublications.visibility, 'public'))
-		.orderBy(desc(documentPublications.publishedAt), desc(documentPublications.documentId))
-		.limit(limit)
-		.offset(offset);
-}
-
-/** Smallest sitemap projection; unlisted snapshots remain intentionally undiscoverable. */
-export async function listPublishedDocumentSlugs(
-	db: Database,
-	options: PublicationListOptions = {}
-): Promise<string[]> {
-	const { limit, offset } = publicationWindow(options);
-	const rows = await db
-		.select({ slug: documentPublications.slug })
-		.from(documentPublications)
-		.where(eq(documentPublications.visibility, 'public'))
-		.orderBy(desc(documentPublications.publishedAt), desc(documentPublications.documentId))
-		.limit(limit)
-		.offset(offset);
-	return rows.map((row) => row.slug);
-}
-
-/** Direct detail lookup includes both public and unlisted snapshots, but never private working data. */
+/** Direct unlisted snapshot lookup; never reads private working data. */
 export async function getPublishedDocumentBySlug(
 	db: Database,
 	slug: string

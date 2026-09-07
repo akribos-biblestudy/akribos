@@ -361,7 +361,7 @@ Diese Änderung existiert nur in der Arbeitskopie, bis ein Admin erneut veröffe
 			kind: 'note',
 			title: 'Gnade, die trägt',
 			...seedBody(workingNoteMarkdown),
-			visibility: 'public',
+			visibility: 'unlisted',
 			// Revision 1 is the snapshot below; revision 2 demonstrates unpublished working-copy changes.
 			revision: 2,
 			source: 'native',
@@ -493,7 +493,7 @@ Diese Änderung existiert nur in der Arbeitskopie, bis ein Admin erneut veröffe
 			bodyHtml: publishedNoteBody.bodyHtml,
 			bodyMarkdown: publishedNoteBody.bodyMarkdown,
 			authorName: 'Akribos Demo-Redaktion',
-			visibility: 'public',
+			visibility: 'unlisted',
 			passages: [
 				{
 					resourceId: publicationPassage.resourceId ?? null,

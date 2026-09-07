@@ -709,17 +709,10 @@
 							onsubmit={flushBeforeSubmit}
 						>
 							<input type="hidden" name="revision" value={currentRevision} />
-							<label class="field-label">
-								<span>{t('documents.details.visibility')}</span>
-								<select
-									name="visibility"
-									class="field-control"
-									value={workingDocument.visibility === 'unlisted' ? 'unlisted' : 'public'}
-								>
-									<option value="public">{t('documents.visibility.public')}</option>
-									<option value="unlisted">{t('documents.visibility.unlisted')}</option>
-								</select>
-							</label>
+							<input type="hidden" name="visibility" value="unlisted" />
+							<p class="text-xs leading-relaxed text-stone-500 dark:text-stone-400">
+								{t('documents.publication.unlistedHint')}
+							</p>
 							<label class="field-label">
 								<span>{t('documents.publication.slug')}</span>
 								<input

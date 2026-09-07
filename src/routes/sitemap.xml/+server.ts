@@ -4,17 +4,8 @@ import { config } from '$lib/server/config';
 import { getDb } from '$lib/server/db';
 import { chapterCount } from '$lib/server/repositories/resources';
 import { listBibles } from '$lib/server/repositories/resources';
-import { listPublishedDocumentSlugs } from '$lib/server/repositories/document-publications';
 
-const PUBLICATION_PAGE_SIZE = 100;
-
-/**
- * Sitemap of every chapter that actually has text and every discoverable note snapshot.
- *
- * Chapter counts come from the imported data rather than from the canonical table, so the sitemap
- * never advertises a chapter that would render empty. Notes come only from the publication
- * repository, whose listing excludes unlisted snapshots and mutable working copies.
- */
+/** Sitemap of Bible chapters with imported text and general site pages; no shared notes. */
 export async function GET({ setHeaders }) {
 	const db = getDb();
 	const bibles = await listBibles(db);
@@ -30,21 +21,6 @@ export async function GET({ setHeaders }) {
 		for (let chapter = 1; chapter <= chapters; chapter += 1) {
 			urls.push(`${origin}/${bookShortName(book.id)}${chapter}`);
 		}
-	}
-
-	// Public snapshots are discoverable. Unlisted publications are deliberately absent even though
-	// somebody holding their direct link can open them.
-	let publicationOffset = 0;
-	while (true) {
-		const slugs = await listPublishedDocumentSlugs(db, {
-			limit: PUBLICATION_PAGE_SIZE,
-			offset: publicationOffset
-		});
-		for (const slug of slugs) {
-			urls.push(`${origin}/notes/published/${encodeURIComponent(slug)}`);
-		}
-		if (slugs.length < PUBLICATION_PAGE_SIZE) break;
-		publicationOffset += slugs.length;
 	}
 
 	setHeaders({
