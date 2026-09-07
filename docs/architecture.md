@@ -187,6 +187,20 @@ shape; those collaborative threads are not unified documents. See
 
 ## Reader workspace
 
+Named snapshots are stored separately in `saved_reader_workspaces`, scoped to their owning account.
+Each snapshot combines the canonical Reader URL state (including tab searches and note filters) with
+the divider sizes omitted from shared links. The header lists only IDs, names and revisions. Saving
+captures the Reader's live references through a context created per root layout, so it also includes
+scrolling newer than the URL debounce. Normal reading never updates a named snapshot; replacing its
+contents is explicit. Rename, replacement and deletion check the revision, and an owner row lock
+serializes changes to enforce unique names and the 100-entry limit.
+
+Opening uses `/workspaces/[id]`: its GET only reads the owned entry. After navigation has allowed any
+document editor to flush pending changes, the page submits a form action which validates available
+resources, replaces the current account workspace and redirects to the restored Reader URL. Prefetch
+therefore never changes account preferences. Missing resources are removed from the opened copy while
+the original snapshot stays intact. The generated migration is `0033_flowery_umar.sql`.
+
 The reader uses a small, pure workspace domain model in `src/lib/reader/workspace.ts`. It supports the
 same eight tile arrangements as Logos Web: one tile, two/three/four columns, two rows, a 2×2 grid, and
 both three-tile arrangements with one full-height side. At most four tiles are visible, while each tile

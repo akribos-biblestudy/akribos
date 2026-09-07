@@ -1,4 +1,5 @@
 import { getDb } from '$lib/server/db';
+import { listSavedReaderWorkspaces } from '$lib/server/repositories/saved-reader-workspaces';
 import { listBibles, listReaderResources } from '$lib/server/repositories/resources';
 import {
 	resolveReaderWorkspace,
@@ -44,6 +45,7 @@ export async function load({ cookies, locals }) {
 	if (theme) writeTheme(cookies, theme);
 
 	return {
+		savedWorkspaces: locals.user ? await listSavedReaderWorkspaces(db, locals.user.id) : [],
 		bibles,
 		defaultBibleId,
 		previewBibleId: defaultBibleId ?? bibles[0]?.id ?? null,

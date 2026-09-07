@@ -1962,7 +1962,11 @@ test('preparations keep multiple live collections beside the editor', async ({ p
 	await collections.getByLabel('Name der Stellensammlung').fill('Weitere Gedanken');
 	await collections.getByRole('button', { name: 'Anlegen und verknüpfen' }).click();
 	await expect(collections.getByTestId('preparation-collection')).toHaveCount(2);
-	await collections.getByRole('link', { name: 'Weitere Gedanken' }).click();
+	const collectionLink = collections.getByRole('link', { name: 'Weitere Gedanken' });
+	const collectionUrl = await collectionLink.getAttribute('href');
+	await collectionLink.click();
+	// The editor may resume navigation after flushing. Wait for the destination before filling its form.
+	await expect(page).toHaveURL(collectionUrl!);
 	await page.getByPlaceholder('Joh 3,16').fill('Joh 1,1');
 	await page.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
 	await expect(page.getByRole('link', { name: 'Johannes 1,1' })).toBeVisible();

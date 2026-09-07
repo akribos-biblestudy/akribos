@@ -1,10 +1,16 @@
 <script lang="ts">
 	import './layout.css';
 	import { page } from '$app/state';
+	import { setContext } from 'svelte';
+	import {
+		READER_WORKSPACE_CONTEXT,
+		type ReaderWorkspaceCapture
+	} from '$lib/reader/saved-workspaces';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
 	import type { ReaderWorkspace } from '$lib/reader/workspace';
 
 	let { children, data } = $props();
+	setContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT, { capture: null });
 
 	/** Reader route signal and its persisted workspace. */
 	const reader = $derived(
@@ -37,6 +43,7 @@
 			100}); --header-height: {reader ? '3.25rem' : '4rem'}"
 	>
 		<SiteHeader
+			savedWorkspaces={data.savedWorkspaces}
 			user={data?.user ?? null}
 			readerPreferences={reader && readerWorkspace
 				? { fontScale: data.readerFontScale, layout: readerWorkspace.layout }

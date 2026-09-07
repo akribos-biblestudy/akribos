@@ -2,7 +2,11 @@
 	import { deserialize, enhance } from '$app/forms';
 	import { beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	import { onDestroy, onMount, tick, untrack } from 'svelte';
+	import { getContext, onDestroy, onMount, tick, untrack } from 'svelte';
+	import {
+		READER_WORKSPACE_CONTEXT,
+		type ReaderWorkspaceCapture
+	} from '$lib/reader/saved-workspaces';
 	import { SvelteMap, SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity';
 	import { formatReference, referencePath, type VerseRef } from '$lib/bible/reference';
 	import {
@@ -71,6 +75,23 @@
 	} from '$lib/reader/notes-sidecar';
 
 	let { data } = $props();
+	const workspaceCapture = getContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT);
+	onMount(() => {
+		workspaceCapture.capture = () => ({
+			readerState: encodeReaderUrlState(
+				workspaceAtVisibleReferences(activeFlowSource),
+				currentSearchQueries(),
+				notesFilters
+			),
+			layoutSizes: {
+				...data.workspace.layoutSizes,
+				[data.workspace.layout]: { columns: [...layoutColumns], rows: [...layoutRows] }
+			}
+		});
+		return () => {
+			workspaceCapture.capture = null;
+		};
+	});
 	const notesFilters = $derived(
 		page.state.readerNotesFilters ?? readReaderNotesFilters(page.url.searchParams)
 	);
@@ -949,9 +970,15 @@
 		);
 	}
 
-	function workspaceAtVisibleReferences(): ReaderWorkspace {
+	function workspaceAtVisibleReferences(snapshotSourceIndex?: number): ReaderWorkspace {
 		let workspace = data.workspace as ReaderWorkspace;
-		for (const column of data.columns) {
+		const source =
+			snapshotSourceIndex === undefined ? undefined : data.columns[snapshotSourceIndex];
+		const columns = data.columns.filter((column) => column !== source);
+		if (source) columns.push(source);
+		// A named snapshot must focus the actual live source, even before the URL debounce. Existing
+		// URL reconciliation keeps its normal column order.
+		for (const column of columns) {
 			const reference = toolbarReference(column);
 			workspace = setReaderTabReference(workspace, column.tileId, column.activeTab.id, reference);
 		}
@@ -993,7 +1020,8 @@
 		columnIndex: number,
 		rawQuery: string,
 		pageNumber = 1,
-		requestedBook?: number | null
+		requestedBook?: number | null,
+		{ updateUrl = true }: { updateUrl?: boolean } = {}
 	): Promise<void> {
 		const column = data.columns[columnIndex];
 		const query = rawQuery.trim();
@@ -1019,7 +1047,7 @@
 				error: null
 			}
 		};
-		syncReaderUrl();
+		if (updateUrl) syncReaderUrl();
 
 		try {
 			const params = new SvelteURLSearchParams({
@@ -1066,7 +1094,9 @@
 		tabSearches = {};
 		for (const column of data.columns) {
 			const query = data.searchQueries[column.activeTab.id];
-			if (query) void runTabSearch(column.index, query);
+			// The server already supplied the complete canonical snapshot. Loading search results must
+			// not rebuild it before the chapter streams initialize their focus and visible references.
+			if (query) void runTabSearch(column.index, query, 1, undefined, { updateUrl: false });
 		}
 	});
 

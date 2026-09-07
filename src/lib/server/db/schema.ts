@@ -17,6 +17,7 @@
  */
 
 import { sql } from 'drizzle-orm';
+import type { SavedWorkspaceSnapshot } from '../../reader/saved-workspaces.ts';
 import {
 	bigint,
 	bigserial,
@@ -345,6 +346,31 @@ export const users = pgTable(
 	(table) => [
 		uniqueIndex('users_email_idx').on(table.email),
 		check('users_reader_font_scale_check', sql`${table.readerFontScale} between 85 and 140`)
+	]
+);
+
+export const savedReaderWorkspaces = pgTable(
+	'saved_reader_workspaces',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		snapshot: jsonb('snapshot').$type<SavedWorkspaceSnapshot>().notNull(),
+		revision: integer('revision').notNull().default(1),
+		...timestamps
+	},
+	(table) => [
+		uniqueIndex('saved_reader_workspaces_owner_name_idx').on(
+			table.userId,
+			sql`lower(${table.name})`
+		),
+		check(
+			'saved_reader_workspaces_name_check',
+			sql`char_length(btrim(${table.name})) between 1 and 80`
+		),
+		check('saved_reader_workspaces_revision_check', sql`${table.revision} > 0`)
 	]
 );
 
