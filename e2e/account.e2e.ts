@@ -45,10 +45,13 @@ async function register(page: import('@playwright/test').Page, email: string): P
 	await page.evaluate(() => fetch('/api/tour', { method: 'POST' }));
 }
 
-/** Verse lists live under their own section of the settings dashboard now, not a page of their own. */
+/** Passage collections are the third document workspace area. */
 async function gotoLists(page: import('@playwright/test').Page): Promise<void> {
-	await page.goto('/account');
-	await page.getByRole('button', { name: 'Verslisten & Kommentare' }).click();
+	await page.goto('/notes');
+	await page
+		.getByRole('navigation', { name: 'Dokumentbereiche' })
+		.getByRole('link', { name: 'Stellensammlungen' })
+		.click();
 }
 
 test('registration, sign out and sign in again', async ({ page }) => {
@@ -75,51 +78,27 @@ test('registration, sign out and sign in again', async ({ page }) => {
 	await expect(page).toHaveURL(/\/account$/);
 });
 
-test('user menu tabs update the URL, survive a reload and support browser back/forward', async ({
+test('account settings keep navigation history and collections live in the document workspace', async ({
 	page
 }) => {
 	await register(page, uniqueEmail());
-
-	// Starts on the default "Profil & Sicherheit" section without a `tab` parameter.
-	await expect(page).toHaveURL(/\/account$/);
 	await expect(page.getByRole('heading', { name: 'Profil' })).toBeVisible();
-
-	// A flag that only a full page reload would clear, to prove the tab switch below is a
-	// client-side navigation rather than a hard reload.
-	await page.evaluate(() => {
-		(window as unknown as { __noReload?: boolean }).__noReload = true;
-	});
-
-	await page.getByRole('button', { name: 'Verslisten & Kommentare' }).click();
-	await expect(page).toHaveURL(/\/account\?tab=lists$/);
-	await expect(page.getByPlaceholder('Neue Versliste')).toBeVisible();
-	expect(
-		await page.evaluate(() => (window as unknown as { __noReload?: boolean }).__noReload)
-	).toBe(true);
-	// Documents the `tab` query parameter and the active section for issue #132.
-	await page.screenshot({ path: 'docs/screenshots/issue-132-tab-lists.png' });
-
+	await expect(page.getByRole('button', { name: 'Stellensammlungen' })).toHaveCount(0);
+	await expect(page.getByRole('heading', { name: 'Kommentare' })).toHaveCount(0);
 	await page.getByRole('button', { name: 'Darstellung' }).click();
 	await expect(page).toHaveURL(/\/account\?tab=appearance$/);
-	await expect(page.getByRole('heading', { name: 'Darstellung' })).toBeVisible();
-	await page.screenshot({ path: 'docs/screenshots/issue-132-tab-appearance.png' });
-
-	// Reloading the page evaluates the `tab` parameter again on the server, keeping this tab active.
 	await page.reload();
 	await expect(page.getByRole('heading', { name: 'Darstellung' })).toBeVisible();
-
-	// The browser's back/forward buttons step between the tabs previously visited.
-	await page.goBack();
-	await expect(page).toHaveURL(/\/account\?tab=lists$/);
-	await expect(page.getByPlaceholder('Neue Versliste')).toBeVisible();
-
 	await page.goBack();
 	await expect(page).toHaveURL(/\/account$/);
-	await expect(page.getByRole('heading', { name: 'Profil' })).toBeVisible();
-
 	await page.goForward();
-	await expect(page).toHaveURL(/\/account\?tab=lists$/);
-	await expect(page.getByPlaceholder('Neue Versliste')).toBeVisible();
+	await expect(page).toHaveURL(/\/account\?tab=appearance$/);
+	await gotoLists(page);
+	const nav = page.getByRole('navigation', { name: 'Dokumentbereiche' });
+	await expect(nav.getByRole('link')).toHaveText(['Notizen', 'Predigten', 'Stellensammlungen']);
+	await expect(page.getByPlaceholder('Neue Stellensammlung')).toBeVisible();
+	await page.goto('/account?tab=lists');
+	await expect(page).toHaveURL('/lists');
 });
 
 test('an API key can be created, shown once and revoked', async ({ page }) => {
@@ -207,15 +186,15 @@ test('a wrong password is refused', async ({ page }) => {
 test('a verse list keeps its verses and comments', async ({ page }) => {
 	await register(page, uniqueEmail());
 
-	// Create a list from the settings dashboard's "Verslisten & Kommentare" section.
+	// Create a collection from the document workspace.
 	await gotoLists(page);
-	await page.getByPlaceholder('Neue Versliste').fill('Meine Studienliste');
-	await page.getByRole('button', { name: 'Neue Versliste' }).click();
+	await page.getByPlaceholder('Neue Stellensammlung').fill('Meine Studienliste');
+	await page.getByRole('button', { name: 'Neue Stellensammlung' }).click();
 	await expect(page).toHaveURL(/\/lists\//);
 
 	// Add a verse by reference.
 	await page.getByPlaceholder('Joh 3,16').fill('Joh 3,16');
-	await page.getByRole('button', { name: 'Zur Versliste hinzufügen' }).click();
+	await page.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
 	await expect(page.getByRole('link', { name: 'Johannes 3,16' })).toBeVisible();
 	await expect(page.getByText('Denn also hat Gott', { exact: false })).toBeVisible();
 
@@ -260,10 +239,10 @@ test('a shared list is readable without an account', async ({ page, browser }) =
 	await register(page, uniqueEmail());
 
 	await gotoLists(page);
-	await page.getByPlaceholder('Neue Versliste').fill('Geteilte Liste');
-	await page.getByRole('button', { name: 'Neue Versliste' }).click();
+	await page.getByPlaceholder('Neue Stellensammlung').fill('Geteilte Liste');
+	await page.getByRole('button', { name: 'Neue Stellensammlung' }).click();
 	await page.getByPlaceholder('Joh 3,16').fill('1Mo 1,1');
-	await page.getByRole('button', { name: 'Zur Versliste hinzufügen' }).click();
+	await page.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
 
 	await page.getByRole('button', { name: 'Teilen' }).click();
 	const shareUrl = await page.locator('input[readonly]').inputValue();
@@ -347,8 +326,8 @@ test('the verse menu ticks and unticks an existing list', async ({ page }) => {
 	await register(page, uniqueEmail());
 
 	await gotoLists(page);
-	await page.getByPlaceholder('Neue Versliste').fill('Merkverse');
-	await page.getByRole('button', { name: 'Neue Versliste' }).click();
+	await page.getByPlaceholder('Neue Stellensammlung').fill('Merkverse');
+	await page.getByRole('button', { name: 'Neue Stellensammlung' }).click();
 
 	await page.goto('/Joh3');
 	const verse = page.locator('#Joh3_16 a.verse-number');

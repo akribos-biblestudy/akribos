@@ -2,7 +2,6 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { formatReference, referencePath } from '$lib/bible/reference';
 	import { t } from '$lib/i18n';
 	import Button from '$lib/components/Button.svelte';
 	import Card from '$lib/components/Card.svelte';
@@ -21,12 +20,6 @@
 					: null
 	);
 
-	function verseCount(count: number): string {
-		if (count === 0) return t('lists.countNone');
-		if (count === 1) return t('lists.countOne');
-		return t('lists.count', { count });
-	}
-
 	const dateFormat = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' });
 
 	let copiedKey = $state(false);
@@ -42,12 +35,12 @@
 
 	let newColor = $state('#FFF1C6');
 
-	type Section = 'lists' | 'profileSecurity' | 'appearance';
+	type Section = 'profileSecurity' | 'appearance';
 
 	const DEFAULT_SECTION: Section = 'profileSecurity';
 
 	function isSection(value: string | null): value is Section {
-		return value === 'lists' || value === 'profileSecurity' || value === 'appearance';
+		return value === 'profileSecurity' || value === 'appearance';
 	}
 
 	/**
@@ -55,8 +48,8 @@
 	 * between them does not need fresh server data — only a different section visible. The section is
 	 * nonetheless tracked in the `tab` query parameter (not just local state), so reloading the page
 	 * shows the same section again and the browser's back/forward buttons step between sections. A
-	 * link here can point straight at a section (e.g. the verse list detail page's "back" link uses
-	 * `/account?tab=lists`) by naming it in that parameter.
+	 * link here can point straight at a section (e.g. appearance settings use
+	 * `/account?tab=appearance`) by naming it in that parameter.
 	 */
 	const activeSection = $derived<Section>(
 		(() => {
@@ -80,7 +73,6 @@
 
 	const sections = [
 		{ id: 'profileSecurity' as const, label: t('account.nav.profileSecurity') },
-		{ id: 'lists' as const, label: t('lists.title') },
 		{ id: 'appearance' as const, label: t('account.appearance') }
 	];
 </script>
@@ -108,121 +100,7 @@
 		</nav>
 
 		<div class="min-w-0 flex-1 space-y-5">
-			{#if activeSection === 'lists'}
-				<Card title={t('lists.title')} description={t('lists.subtitle')}>
-					<form method="POST" action="?/createList" class="mb-5 flex gap-2">
-						<label class="sr-only" for="new-list-title">{t('lists.titleLabel')}</label>
-						<input
-							id="new-list-title"
-							name="title"
-							placeholder={t('lists.defaultTitle')}
-							class="min-w-0 flex-1 rounded-md border border-stone-300 px-3 py-1.5 text-sm
-							       focus:border-accent-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
-						/>
-						<Button variant="primary">{t('lists.new')}</Button>
-					</form>
-
-					{#if data.lists.length === 0}
-						<div
-							class="rounded-xl border border-dashed border-stone-300 px-6 py-10 text-center dark:border-stone-700"
-						>
-							<p class="font-medium">{t('lists.overviewEmpty')}</p>
-							<p class="mx-auto mt-1 max-w-sm text-sm text-stone-500 dark:text-stone-400">
-								{t('lists.overviewEmptyHint')}
-							</p>
-						</div>
-					{:else}
-						<ul class="grid gap-3 sm:grid-cols-2">
-							{#each data.lists as list (list.id)}
-								<li
-									class="rounded-xl border border-stone-200 transition-colors hover:border-stone-300
-									       dark:border-stone-800 dark:hover:border-stone-700"
-								>
-									<!-- The whole card is the link; there is nothing else to do with a list from here. -->
-									<a href="/lists/{list.id}" class="block px-4 py-3">
-										<span class="flex items-baseline justify-between gap-2">
-											<span class="truncate font-medium">{list.title}</span>
-											<span class="flex shrink-0 gap-1">
-												{#if list.role === 'member'}
-													<span
-														class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-600
-														       dark:bg-stone-800 dark:text-stone-300"
-													>
-														{t('lists.sharedByOwner', { owner: list.ownerName ?? '' })}
-													</span>
-												{/if}
-												{#if list.isPublic}
-													<span
-														class="rounded-full bg-accent-50 px-2 py-0.5 text-xs text-accent-700
-														       dark:bg-accent-900/40 dark:text-accent-300"
-													>
-														{t('lists.isPublic')}
-													</span>
-												{/if}
-											</span>
-										</span>
-										<span class="mt-1 block text-xs text-stone-500 dark:text-stone-400">
-											{verseCount(list.itemCount)}
-											<span aria-hidden="true"> · </span>
-											{t('lists.updated', { date: dateFormat.format(new Date(list.updatedAt)) })}
-										</span>
-									</a>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</Card>
-
-				<Card title={t('lists.notesTitle')}>
-					{#if data.notes.length === 0}
-						<p class="text-sm text-stone-500 dark:text-stone-400">{t('lists.notesEmpty')}</p>
-					{:else}
-						<ul class="grid gap-3 sm:grid-cols-2">
-							{#each data.notes as note (note.kind + note.id)}
-								<li
-									class="rounded-xl border border-stone-200 bg-white/50 p-4 dark:border-stone-800
-									       dark:bg-stone-900/40"
-								>
-									<div class="flex items-start justify-between gap-3">
-										<div>
-											<a
-												class="font-semibold text-accent-600 hover:underline dark:text-accent-400"
-												href={note.kind === 'translation'
-													? referencePath({
-															book: note.book,
-															chapter: note.chapter,
-															verse: note.verse
-														})
-													: `/lists/${note.listId}#note-${note.itemId}`}
-											>
-												{formatReference({
-													book: note.book,
-													chapter: note.chapter,
-													verse: note.verse
-												})}
-											</a>
-											<p class="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-												{note.kind === 'translation'
-													? t('comments.translation', { translation: note.resourceName ?? '' })
-													: t('lists.verseNote', { list: note.listTitle ?? '' })}
-											</p>
-										</div>
-										<time
-											class="shrink-0 text-xs text-stone-400"
-											datetime={new Date(note.updatedAt).toISOString()}
-										>
-											{dateFormat.format(new Date(note.updatedAt))}
-										</time>
-									</div>
-									<!-- Both comment types are sanitised when saved. -->
-									<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-									<div class="note-preview mt-3 text-sm leading-relaxed">{@html note.html}</div>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</Card>
-			{:else if activeSection === 'profileSecurity'}
+			{#if activeSection === 'profileSecurity'}
 				<Card title={t('account.profile')} description={t('account.profileHint')}>
 					<form method="POST" action="?/profile" use:enhance class="max-w-sm space-y-3">
 						<TextField
@@ -583,18 +461,5 @@
 
 	:global(.dark) .settings-nav-item.active {
 		color: var(--color-accent-300);
-	}
-
-	.note-preview {
-		display: -webkit-box;
-		overflow: hidden;
-		-webkit-box-orient: vertical;
-		-webkit-line-clamp: 5;
-		line-clamp: 5;
-	}
-
-	.note-preview :global(ul) {
-		list-style: disc;
-		padding-left: 1.25rem;
 	}
 </style>

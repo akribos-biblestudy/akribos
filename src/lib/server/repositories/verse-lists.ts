@@ -91,7 +91,7 @@ export async function createVerseList(
 ): Promise<VerseList> {
 	const [list] = await db
 		.insert(verseLists)
-		.values({ userId, title: title.trim() || 'Neue Versliste' })
+		.values({ userId, title: title.trim() || 'Neue Stellensammlung' })
 		.returning();
 	return list!;
 }
@@ -277,7 +277,7 @@ export async function removeVerseFromList(
 export async function renameVerseList(db: Database, listId: string, title: string): Promise<void> {
 	await db
 		.update(verseLists)
-		.set({ title: title.trim().slice(0, 300) || 'Neue Versliste', updatedAt: new Date() })
+		.set({ title: title.trim().slice(0, 300) || 'Neue Stellensammlung', updatedAt: new Date() })
 		.where(eq(verseLists.id, listId));
 }
 

@@ -47,10 +47,9 @@ test('sharing a list by email: adding a verse, replying to a comment, and reacti
 	await register(memberPage, memberEmail, 'Member');
 
 	// Create a shared list from the settings dashboard, same as any other list.
-	await ownerPage.goto('/account');
-	await ownerPage.getByRole('button', { name: 'Verslisten & Kommentare' }).click();
-	await ownerPage.getByPlaceholder('Neue Versliste').fill('Gemeinsame Liste');
-	await ownerPage.getByRole('button', { name: 'Neue Versliste' }).click();
+	await ownerPage.goto('/lists');
+	await ownerPage.getByPlaceholder('Neue Stellensammlung').fill('Gemeinsame Liste');
+	await ownerPage.getByRole('button', { name: 'Neue Stellensammlung' }).click();
 	await expect(ownerPage).toHaveURL(/\/lists\//);
 	const listUrl = ownerPage.url();
 
@@ -67,7 +66,7 @@ test('sharing a list by email: adding a verse, replying to a comment, and reacti
 
 	// The member adds a verse of their own.
 	await memberPage.getByPlaceholder('Joh 3,16').fill('Joh 3,16');
-	await memberPage.getByRole('button', { name: 'Zur Versliste hinzufügen' }).click();
+	await memberPage.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
 	await expect(memberPage.getByRole('link', { name: 'Johannes 3,16' })).toBeVisible();
 
 	// … and comments on it.
@@ -147,16 +146,15 @@ test('a member can only remove verses they added themselves; the owner can remov
 	const memberPage = await memberContext.newPage();
 	await register(memberPage, memberEmail, 'Member2');
 
-	await ownerPage.goto('/account');
-	await ownerPage.getByRole('button', { name: 'Verslisten & Kommentare' }).click();
-	await ownerPage.getByPlaceholder('Neue Versliste').fill('Zweite gemeinsame Liste');
-	await ownerPage.getByRole('button', { name: 'Neue Versliste' }).click();
+	await ownerPage.goto('/lists');
+	await ownerPage.getByPlaceholder('Neue Stellensammlung').fill('Zweite gemeinsame Liste');
+	await ownerPage.getByRole('button', { name: 'Neue Stellensammlung' }).click();
 	await expect(ownerPage).toHaveURL(/\/lists\//);
 	const listUrl = ownerPage.url();
 
 	// The owner adds a verse of their own.
 	await ownerPage.getByPlaceholder('Joh 3,16').fill('1Mo 1,1');
-	await ownerPage.getByRole('button', { name: 'Zur Versliste hinzufügen' }).click();
+	await ownerPage.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
 	await expect(ownerPage.getByRole('link', { name: '1.Mose 1,1' })).toBeVisible();
 
 	await ownerPage.getByLabel('E-Mail-Adresse einladen').fill(memberEmail);
@@ -169,25 +167,25 @@ test('a member can only remove verses they added themselves; the owner can remov
 
 	// The member adds a second verse …
 	await memberPage.getByPlaceholder('Joh 3,16').fill('Joh 3,17');
-	await memberPage.getByRole('button', { name: 'Zur Versliste hinzufügen' }).click();
+	await memberPage.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
 	await expect(memberPage.getByRole('link', { name: 'Johannes 3,17' })).toBeVisible();
 
 	// … and cannot remove the owner's verse: no delete control is even offered for it.
 	const ownersVerseItem = memberPage.locator('li', { hasText: '1.Mose 1,1' });
 	await expect(
-		ownersVerseItem.getByRole('button', { name: 'Aus Versliste entfernen' })
+		ownersVerseItem.getByRole('button', { name: 'Aus Stellensammlung entfernen' })
 	).toHaveCount(0);
 
 	// But the member's own verse does offer one, and removing it works.
 	const membersVerseItem = memberPage.locator('li', { hasText: 'Johannes 3,17' });
-	await membersVerseItem.getByRole('button', { name: 'Aus Versliste entfernen' }).click();
+	await membersVerseItem.getByRole('button', { name: 'Aus Stellensammlung entfernen' }).click();
 	await expect(memberPage.getByRole('link', { name: 'Johannes 3,17' })).toHaveCount(0);
 
 	// The owner, on the other hand, can remove any verse, including their own.
 	await ownerPage.reload();
 	await ownerPage
 		.locator('li', { hasText: '1.Mose 1,1' })
-		.getByRole('button', { name: 'Aus Versliste entfernen' })
+		.getByRole('button', { name: 'Aus Stellensammlung entfernen' })
 		.click();
 	await expect(ownerPage.getByRole('link', { name: '1.Mose 1,1' })).toHaveCount(0);
 
@@ -209,10 +207,9 @@ test('a member can leave a shared list, landing back on their own lists tab', as
 	const memberPage = await memberContext.newPage();
 	await register(memberPage, memberEmail, 'Member3');
 
-	await ownerPage.goto('/account');
-	await ownerPage.getByRole('button', { name: 'Verslisten & Kommentare' }).click();
-	await ownerPage.getByPlaceholder('Neue Versliste').fill('Dritte gemeinsame Liste');
-	await ownerPage.getByRole('button', { name: 'Neue Versliste' }).click();
+	await ownerPage.goto('/lists');
+	await ownerPage.getByPlaceholder('Neue Stellensammlung').fill('Dritte gemeinsame Liste');
+	await ownerPage.getByRole('button', { name: 'Neue Stellensammlung' }).click();
 	await expect(ownerPage).toHaveURL(/\/lists\//);
 
 	await ownerPage.getByLabel('E-Mail-Adresse einladen').fill(memberEmail);
@@ -227,8 +224,8 @@ test('a member can leave a shared list, landing back on their own lists tab', as
 	// the same name.
 	await memberPage.locator('summary', { hasText: 'Liste verlassen' }).click();
 	await memberPage.getByRole('button', { name: 'Liste verlassen' }).click();
-	// Redirects to the account settings' verse-lists tab, not the old #lists hash (see issue #132).
-	await expect(memberPage).toHaveURL(/\/account\?tab=lists$/);
+	// Returns to the collections overview in the document workspace.
+	await expect(memberPage).toHaveURL(/\/lists$/);
 	await expect(memberPage.getByText('Dritte gemeinsame Liste')).toHaveCount(0);
 
 	await ownerContext.close();

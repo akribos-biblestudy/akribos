@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Icon from '../Icon.svelte';
 
-	let { active }: { active: 'notes' | 'sermons' } = $props();
+	let { active }: { active: 'notes' | 'sermons' | 'lists' } = $props();
 </script>
 
 <nav
@@ -25,12 +25,20 @@
 		<Icon name="message" class="size-4" />
 		Predigten
 	</a>
+	<a
+		href="/lists"
+		class:active={active === 'lists'}
+		aria-current={active === 'lists' ? 'page' : undefined}
+	>
+		<Icon name="list" class="size-4" />
+		Stellensammlungen
+	</a>
 </nav>
 
 <style>
 	.document-area-nav {
 		display: inline-grid;
-		grid-template-columns: repeat(2, minmax(8rem, 1fr));
+		grid-template-columns: repeat(3, minmax(8rem, 1fr));
 		gap: 0.3rem;
 		margin-top: 1.35rem;
 		padding: 0.3rem;
@@ -67,11 +75,19 @@
 		color: var(--color-accent-300);
 	}
 
-	@media (max-width: 420px) {
+	@media (max-width: 520px) {
+		a {
+			padding-inline: 0.35rem;
+			font-size: 0.72rem;
+			gap: 0.25rem;
+		}
+		a :global(svg) {
+			display: none;
+		}
 		.document-area-nav {
 			display: grid;
 			width: 100%;
-			grid-template-columns: repeat(2, minmax(0, 1fr));
+			grid-template-columns: 1fr 1fr 1.6fr;
 		}
 	}
 </style>

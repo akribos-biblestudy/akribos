@@ -233,7 +233,7 @@ test('the landing page shows a prominent reader link and real product screenshot
 	).toHaveAttribute('src', '/landing/strong-study.webp');
 	await expect(
 		page.getByRole('img', {
-			name: 'Geöffnetes Versmenü im Akribos-Reader mit Markierungen, Kommentaren und Verslisten'
+			name: 'Geöffnetes Versmenü im Akribos-Reader mit Markierungen, Kommentaren und Stellensammlungen'
 		})
 	).toHaveAttribute('src', '/landing/verse-menu.webp');
 });

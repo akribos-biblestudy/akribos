@@ -12,8 +12,6 @@ import {
 	updateProfile,
 	updateReaderFontScale
 } from '$lib/server/repositories/users';
-import { createVerseList, listVerseLists } from '$lib/server/repositories/verse-lists';
-import { listUserNotes } from '$lib/server/repositories/verse-comments';
 import {
 	countApiKeys,
 	createApiKey,
@@ -33,20 +31,17 @@ import { writeFontScale } from '$lib/server/reader-preferences';
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
-export async function load({ locals }) {
+export async function load({ locals, url }) {
 	if (!locals.user) redirect(303, '/login?redirectTo=%2Faccount');
+	if (url.searchParams.get('tab') === 'lists') redirect(303, '/lists');
 
 	const db = getDb();
-	const [lists, notes, apiKeys, highlightStyles] = await Promise.all([
-		listVerseLists(db, locals.user.id),
-		listUserNotes(db, locals.user.id),
+	const [apiKeys, highlightStyles] = await Promise.all([
 		listApiKeys(db, locals.user.id),
 		listHighlightStyles(db, locals.user.id)
 	]);
 
 	return {
-		lists,
-		notes,
 		readerFontScale: locals.user.readerFontScale,
 		minPasswordLength: MIN_PASSWORD_LENGTH,
 		apiKeys,
@@ -57,13 +52,6 @@ export async function load({ locals }) {
 }
 
 export const actions = {
-	createList: async ({ request, locals }) => {
-		if (!locals.user) redirect(303, '/login');
-		const form = await request.formData();
-		const list = await createVerseList(getDb(), locals.user.id, String(form.get('title') ?? ''));
-		redirect(303, `/lists/${list.id}`);
-	},
-
 	profile: async ({ request, locals }) => {
 		if (!locals.user) redirect(303, '/login');
 		const form = await request.formData();
