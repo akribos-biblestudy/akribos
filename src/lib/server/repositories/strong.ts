@@ -7,6 +7,8 @@
  * cheap queries regardless of how common the word is.
  */
 
+import type { LexiconTranslation } from '../../bible/lexicon.ts';
+
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { bookIdsForTestament } from '../../bible/books.ts';
 import { normalizeStrongId, strongLanguage, type StrongId } from '../../bible/strong.ts';
@@ -22,6 +24,7 @@ export type StrongEntry = {
 	definitionHtml: string | null;
 	derivationHtml: string | null;
 	kjvDefinitionHtml: string | null;
+	germanTranslation: LexiconTranslation | null;
 	seeAlso: string[];
 	language: 'grc' | 'hbo';
 	/** Rights notice of the lexicon this entry came from, e.g. a translated dictionary's copyright. */
@@ -69,6 +72,7 @@ export async function loadStrongEntry(
 			definitionHtml: lexiconEntries.definitionHtml,
 			derivationHtml: lexiconEntries.derivationHtml,
 			kjvDefinitionHtml: lexiconEntries.kjvDefinitionHtml,
+			germanTranslation: lexiconEntries.germanTranslation,
 			seeAlso: lexiconEntries.seeAlso,
 			language: lexiconEntries.language,
 			licenseHtml: resources.licenseHtml,
@@ -114,6 +118,7 @@ export async function findLexiconEntry(
 			definitionHtml: lexiconEntries.definitionHtml,
 			derivationHtml: lexiconEntries.derivationHtml,
 			kjvDefinitionHtml: lexiconEntries.kjvDefinitionHtml,
+			germanTranslation: lexiconEntries.germanTranslation,
 			seeAlso: lexiconEntries.seeAlso,
 			language: lexiconEntries.language,
 			licenseHtml: resources.licenseHtml,

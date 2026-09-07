@@ -9,6 +9,7 @@
 	import BookDistribution from '$lib/components/BookDistribution.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import LexiconDefinition from '$lib/components/LexiconDefinition.svelte';
 
 	let { data } = $props();
 
@@ -28,8 +29,12 @@
 <svelte:head>
 	<meta
 		name="description"
-		content="{data.strong}: {data.entry?.definitionHtml
-			? data.entry.definitionHtml.replace(/<[^>]*>/g, '')
+		content="{data.strong}: {(data.entry?.germanTranslation?.definitionHtml ??
+		data.entry?.definitionHtml)
+			? (data.entry.germanTranslation?.definitionHtml ?? data.entry.definitionHtml ?? '').replace(
+					/<[^>]*>/g,
+					''
+				)
 			: 'Alle Bibelstellen'} — {formatNumber(data.statistics.occurrences)} Vorkommen."
 	/>
 </svelte:head>
@@ -66,34 +71,10 @@
 				{t('strong.lexiconDetails')}
 			</summary>
 			<div class="space-y-4 border-t border-stone-200 px-4 py-4 text-sm dark:border-stone-800">
-				{#if data.entry.definitionHtml}
-					<section>
-						<h2 class="mb-1 text-xs font-semibold tracking-wide text-stone-500 uppercase">
-							{t('strong.definition')}
-						</h2>
-						<div
-							class="lexicon"
-							use:verseHoverPopover={{ bibleId: data.defaultBibleId ?? data.primaryBibleId }}
-						>
-							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-							{@html data.entry.definitionHtml}
-						</div>
-					</section>
-				{/if}
-				{#if data.entry.derivationHtml}
-					<section>
-						<h2 class="mb-1 text-xs font-semibold tracking-wide text-stone-500 uppercase">
-							{t('strong.derivation')}
-						</h2>
-						<div
-							class="lexicon"
-							use:verseHoverPopover={{ bibleId: data.defaultBibleId ?? data.primaryBibleId }}
-						>
-							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-							{@html data.entry.derivationHtml}
-						</div>
-					</section>
-				{/if}
+				<LexiconDefinition
+					entry={data.entry}
+					bibleId={data.defaultBibleId ?? data.primaryBibleId}
+				/>
 				{#if data.entry.seeAlso.length > 0}
 					<section>
 						<h2 class="mb-1 text-xs font-semibold tracking-wide text-stone-500 uppercase">
@@ -301,36 +282,11 @@
 		</section>
 
 		<aside class="hidden space-y-6 text-sm lg:block">
-			{#if data.entry?.definitionHtml}
-				<section>
-					<h2 class="mb-1 text-xs font-semibold tracking-wide text-stone-500 uppercase">
-						{t('strong.definition')}
-					</h2>
-					<!-- Built by our own parser with every source string escaped; see
-					     src/lib/bible/parse/strongs-xml.ts. -->
-					<div
-						class="lexicon"
-						use:verseHoverPopover={{ bibleId: data.defaultBibleId ?? data.primaryBibleId }}
-					>
-						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-						{@html data.entry.definitionHtml}
-					</div>
-				</section>
-			{/if}
-
-			{#if data.entry?.derivationHtml}
-				<section>
-					<h2 class="mb-1 text-xs font-semibold tracking-wide text-stone-500 uppercase">
-						{t('strong.derivation')}
-					</h2>
-					<div
-						class="lexicon"
-						use:verseHoverPopover={{ bibleId: data.defaultBibleId ?? data.primaryBibleId }}
-					>
-						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-						{@html data.entry.derivationHtml}
-					</div>
-				</section>
+			{#if data.entry}
+				<LexiconDefinition
+					entry={data.entry}
+					bibleId={data.defaultBibleId ?? data.primaryBibleId}
+				/>
 			{/if}
 
 			{#if data.glosses.length > 0}

@@ -94,6 +94,7 @@ export async function ingestLexicon(
 			definitionHtml: entry.definitionHtml ?? null,
 			derivationHtml: entry.derivationHtml ?? null,
 			kjvDefinitionHtml: entry.kjvDefinitionHtml ?? null,
+			germanTranslation: entry.germanTranslation ?? null,
 			seeAlso: entry.seeAlso ?? []
 		}));
 		batch = [];
@@ -110,6 +111,7 @@ export async function ingestLexicon(
 					definitionHtml: sql`excluded.definition_html`,
 					derivationHtml: sql`excluded.derivation_html`,
 					kjvDefinitionHtml: sql`excluded.kjv_definition_html`,
+					germanTranslation: sql`excluded.german_translation`,
 					seeAlso: sql`excluded.see_also`
 				}
 			});

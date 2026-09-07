@@ -7,6 +7,8 @@
  * stays flat whether the upload is 1 MB or 100 MB.
  */
 
+import type { LexiconTranslation } from '../lexicon.ts';
+
 import type { VerseSegment } from '../segments.ts';
 
 export const SOURCE_FORMATS = [
@@ -64,6 +66,7 @@ export type ParsedLexiconEntry = {
 	definitionHtml?: string;
 	derivationHtml?: string;
 	kjvDefinitionHtml?: string;
+	germanTranslation?: LexiconTranslation;
 	seeAlso?: string[];
 };
 

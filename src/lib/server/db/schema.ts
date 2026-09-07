@@ -16,6 +16,8 @@
  *   the gloss statistics plain SQL instead of a text-parsing exercise at request time.
  */
 
+import type { LexiconTranslation } from '../../bible/lexicon.ts';
+
 import { sql } from 'drizzle-orm';
 import type { SavedWorkspaceSnapshot } from '../../reader/saved-workspaces.ts';
 import {
@@ -222,6 +224,8 @@ export const lexiconEntries = pgTable(
 		derivationHtml: text('derivation_html'),
 		/** Strong's list of King James renderings; useful even in a German UI. */
 		kjvDefinitionHtml: text('kjv_definition_html'),
+		/** German edition; null for an untranslated dictionary entry. Original fields stay intact. */
+		germanTranslation: jsonb('german_translation').$type<LexiconTranslation>(),
 		/** Other Strong's ids the entry points to. */
 		seeAlso: text('see_also')
 			.array()

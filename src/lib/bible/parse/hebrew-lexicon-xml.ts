@@ -32,7 +32,12 @@ export async function* parseHebrewLexiconXml(input: SourceInput): ParseStream {
 	let strongNumber: number | undefined;
 	let field: Field | undefined;
 	let inline: Inline | undefined;
-	const html: Record<Field, string> = { source: '', meaning: '', usage: '' };
+	const originalHtml: Record<Field, string> = { source: '', meaning: '', usage: '' };
+	const germanHtml: Record<Field, string> = { source: '', meaning: '', usage: '' };
+	let html = originalHtml;
+	let translated = false;
+	let machineTranslated = false;
+	let skipDepth = 0;
 	let entriesSeen = 0;
 
 	const resetEntry = () => {
@@ -40,14 +45,35 @@ export async function* parseHebrewLexiconXml(input: SourceInput): ParseStream {
 		strongNumber = undefined;
 		field = undefined;
 		inline = undefined;
-		html.source = '';
-		html.meaning = '';
-		html.usage = '';
+		for (const fields of [originalHtml, germanHtml]) {
+			fields.source = '';
+			fields.meaning = '';
+			fields.usage = '';
+		}
+		html = originalHtml;
+		translated = false;
+		machineTranslated = false;
+		skipDepth = 0;
 	};
 
 	for await (const event of readXml(input)) {
+		if (skipDepth) {
+			if (event.type === 'open') skipDepth += 1;
+			else if (event.type === 'close') skipDepth -= 1;
+			continue;
+		}
 		if (event.type === 'open') {
 			switch (event.name) {
+				case 'translation':
+					if (attribute(event.attributes, 'lang') !== 'de' || translated || field) {
+						skipDepth = 1;
+						break;
+					}
+					translated = true;
+					machineTranslated = attribute(event.attributes, 'method') === 'machine';
+					html = germanHtml;
+					inline = undefined;
+					break;
 				case 'entry':
 					resetEntry();
 					strongNumber = toNumber(attribute(event.attributes, 'id'));
@@ -61,6 +87,7 @@ export async function* parseHebrewLexiconXml(input: SourceInput): ParseStream {
 
 				case 'w': {
 					const reference = toNumber(attribute(event.attributes, 'src'));
+					if (!field && html === germanHtml) break;
 					if (!field) {
 						inline = 'headword';
 						entry.transliteration = attribute(event.attributes, 'xlit');
@@ -101,6 +128,12 @@ export async function* parseHebrewLexiconXml(input: SourceInput): ParseStream {
 		}
 
 		switch (event.name) {
+			case 'translation':
+				html = originalHtml;
+				field = undefined;
+				inline = undefined;
+				break;
+
 			case 'w':
 				if (inline === 'quoted' && field) html[field] += '</span>';
 				inline = undefined;
@@ -130,6 +163,17 @@ export async function* parseHebrewLexiconXml(input: SourceInput): ParseStream {
 					break;
 				}
 
+				const completeTranslation =
+					translated &&
+					(['meaning', 'source', 'usage'] as const).every(
+						(key) => !cleanup(originalHtml[key]) || Boolean(cleanup(germanHtml[key]))
+					);
+				if (translated && !completeTranslation) {
+					yield {
+						type: 'warning',
+						message: `incomplete German translation for H${strongNumber}; kept the original`
+					};
+				}
 				entriesSeen += 1;
 				yield {
 					type: 'lexiconEntry',
@@ -139,6 +183,16 @@ export async function* parseHebrewLexiconXml(input: SourceInput): ParseStream {
 						lemma: entry.lemma,
 						...(entry.transliteration ? { transliteration: entry.transliteration } : {}),
 						...(entry.pronunciation ? { pronunciation: entry.pronunciation } : {}),
+						...(completeTranslation
+							? {
+									germanTranslation: {
+										definitionHtml: cleanup(germanHtml.meaning) || null,
+										derivationHtml: cleanup(germanHtml.source) || null,
+										kjvDefinitionHtml: cleanup(germanHtml.usage) || null,
+										machineTranslated
+									}
+								}
+							: {}),
 						...(cleanup(html.meaning) ? { definitionHtml: cleanup(html.meaning) } : {}),
 						...(cleanup(html.source) ? { derivationHtml: cleanup(html.source) } : {}),
 						...(cleanup(html.usage) ? { kjvDefinitionHtml: cleanup(html.usage) } : {})

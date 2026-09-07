@@ -671,6 +671,17 @@ nicht bis zum eigentlichen Ende des Wörterbuchs (5624): Gerhard Kautz' deutsche
 (`data/stronggreek_de_kautz.xml`, siehe `docs/importing.md`) nummeriert seinen Anhang mit
 Synonymgruppen 5801-6020 durch.
 
+Das hebräische Open-Scriptures-Lexikon speichert die deutsche Fassung getrennt in
+`lexicon_entries.german_translation`; die drei bisherigen HTML-Felder bleiben das englische Original.
+`data/hebrewstrong.xml` ergänzt je Eintrag einen `translation`-Block mit `xml:lang="de"` und
+`method="machine"|"human"`. Unvollständige Übersetzungen werden mit Warnung verworfen. Deutsch wird
+standardmäßig gezeigt, das englische Original bleibt über ein natives Details-Element zugänglich.
+Die gebündelte deutsche Fassung ist eine gekennzeichnete Vorübersetzung und fachlich noch zu prüfen.
+Die Ressourcensprache bleibt `hbo`. Startup und Backup-Wiederherstellung ergänzen vorhandene fertige
+`hebrew-lexicon-xml`-Ressourcen nur bei exakt übereinstimmenden Originalfeldern; bestehende Übersetzungen
+und andere Lexika bleiben erhalten. GETs schreiben nicht. Schema, Herkunft, Reproduktion und
+Prüfbedarf stehen in `docs/hebrew-lexicon.md`.
+
 SWORD-Module werden über `diatheke` **buchweise** gelesen (`-k <osisId>`). Das angefragte Buch ist
 damit die maßgebliche Zuordnung, nicht der Buchname in der Ausgabe: den schreibt SWORD in der Locale,
 die es gerade auflöst, standardmäßig mit römischen Zahlen (`II Thessalonians`, `Revelation of John`).

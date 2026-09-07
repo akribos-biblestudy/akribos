@@ -12,6 +12,7 @@
 	import Icon from './Icon.svelte';
 	import MorphologyList from './MorphologyList.svelte';
 	import VerseText from './VerseText.svelte';
+	import LexiconDefinition from './LexiconDefinition.svelte';
 
 	type StudyPayload = {
 		strong: string;
@@ -194,28 +195,7 @@
 				</section>
 			{/if}
 
-			{#if entry.definitionHtml}
-				<section>
-					<h3>Definition</h3>
-					<!-- Lexicon imports sanitize their supported source format before persistence. -->
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					<div class="lexicon-body">{@html entry.definitionHtml}</div>
-				</section>
-			{/if}
-			{#if entry.derivationHtml}
-				<section>
-					<h3>Herkunft</h3>
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					<div class="lexicon-body">{@html entry.derivationHtml}</div>
-				</section>
-			{/if}
-			{#if entry.kjvDefinitionHtml}
-				<section>
-					<h3>King-James-Wiedergaben</h3>
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					<div class="lexicon-body">{@html entry.kjvDefinitionHtml}</div>
-				</section>
-			{/if}
+			<LexiconDefinition {entry} bibleId={sourceResource?.id ?? null} />
 			{#if entry.seeAlso.length > 0}
 				<section>
 					<h3>Siehe auch</h3>
@@ -384,11 +364,7 @@
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 	}
-	.lexicon-body {
-		font-size: calc(0.95rem * var(--reader-font-scale, 1));
-		line-height: 1.6;
-		font-family: var(--reader-font-family, ui-serif, Georgia, serif);
-	}
+
 	.original-word {
 		margin-bottom: 0.25rem;
 		font-family: var(--font-greek), var(--font-hebrew), serif;

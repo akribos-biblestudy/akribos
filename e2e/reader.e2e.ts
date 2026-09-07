@@ -948,6 +948,15 @@ test('Strong clicks reuse only a lexicon of the matching language', async ({ pag
 	await expect(secondTile.locator('.resource-tab.active')).toContainText('Strong Hebräisch');
 	await expect(lexiconLookup(page)).toHaveValue('H430');
 	await expect(secondTile.getByLabel('Lexikoneintrag in Strong')).toContainText('אֱלֹהִים');
+	const hebrewDefinition = secondTile.locator('.lexicon-definition');
+	await expect(hebrewDefinition.locator('[lang="de"]')).toHaveText(/Gott, Götter/);
+	await expect(hebrewDefinition.locator('[lang="en"]')).not.toBeVisible();
+	await hebrewDefinition.getByText('Englisches Original', { exact: true }).click();
+	await expect(hebrewDefinition.locator('[lang="en"]')).toHaveText(/God, gods/);
+	await expect(hebrewDefinition.locator('[lang="de"]')).toBeVisible();
+	await page.reload();
+	await expect(secondTile.locator('.lexicon-definition [lang="de"]')).toHaveText(/Gott, Götter/);
+	await expect(secondTile.locator('.lexicon-definition [lang="en"]')).not.toBeVisible();
 
 	await page.goto('/Joh3');
 	await firstTile.locator('button.strong[data-strong="G25"]').first().click();
@@ -1517,4 +1526,22 @@ test('the logo preserves a verse from a direct reader link', async ({ page }) =>
 	await page.goto('/notes');
 	await page.getByRole('link', { name: 'Akribos – Startseite' }).click();
 	await expectReaderPath(page, '/Joh3,16');
+});
+
+test('the standalone Hebrew entry defaults to German and exposes its English original on desktop and mobile', async ({
+	page
+}) => {
+	await page.goto('/H430');
+	const desktop = page.locator('aside .lexicon-definition');
+	await expect(desktop.locator('[lang="de"]')).toHaveText(/Gott, Götter/);
+	await expect(desktop.locator('[lang="en"]')).not.toBeVisible();
+	await desktop.getByText('Englisches Original', { exact: true }).click();
+	await expect(desktop.locator('[lang="en"]')).toHaveText(/God, gods/);
+	await page.setViewportSize({ width: 375, height: 812 });
+	await page.getByText('Bedeutung und Herkunft', { exact: true }).click();
+	const mobile = page.locator('details .lexicon-definition').first();
+	await expect(mobile.locator('[lang="de"]')).toHaveText(/Gott, Götter/);
+	await mobile.getByText('Englisches Original', { exact: true }).click();
+	await expect(mobile.locator('[lang="en"]')).toHaveText(/God, gods/);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
