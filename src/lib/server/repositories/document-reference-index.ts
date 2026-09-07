@@ -2,7 +2,12 @@
 
 import { and, desc, eq, exists, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { documentBodyBibleReferenceIndex } from '../../notes/document-markdown.ts';
-import type { DocumentKind, DocumentSource, DocumentVisibility } from '../../notes/documents.ts';
+import {
+	NOTE_LIBRARY_TIME_ZONE,
+	type DocumentKind,
+	type DocumentSource,
+	type DocumentVisibility
+} from '../../notes/documents.ts';
 import type { Database } from '../db/client.ts';
 import {
 	documentBodyReferenceIndexes,
@@ -81,6 +86,7 @@ export type DocumentLibraryIndexFilters = {
 
 export type DocumentLibraryIndexRow = {
 	id: string;
+	createdYear: number;
 	books: number[];
 	ranges: ReturnType<typeof documentBodyBibleReferenceIndex>['ranges'];
 };
@@ -147,6 +153,7 @@ export async function listDocumentLibraryIndex(
 	const rows = await db
 		.select({
 			id: documents.id,
+			createdYear: sql<number>`extract(year from ${documents.createdAt} at time zone ${NOTE_LIBRARY_TIME_ZONE})::integer`,
 			books: documentBodyReferenceIndexes.books,
 			ranges: documentBodyReferenceIndexes.ranges,
 			fallbackBodyHtml: sql<string | null>`case
@@ -171,6 +178,7 @@ export async function listDocumentLibraryIndex(
 			: { books: [], ranges: [] };
 		return {
 			id: row.id,
+			createdYear: row.createdYear,
 			books: row.books ?? fallback.books,
 			ranges: row.ranges ?? fallback.ranges
 		};

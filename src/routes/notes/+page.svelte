@@ -6,7 +6,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import DocumentAreaHeader from '$lib/components/documents/DocumentAreaHeader.svelte';
 	import { t, type MessageKey } from '$lib/i18n';
-	import type { DocumentKind } from '$lib/notes/documents';
+	import { NOTE_LIBRARY_TIME_ZONE, type DocumentKind } from '$lib/notes/documents';
 	import { SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity';
 
 	let { data, form } = $props();
@@ -32,6 +32,7 @@
 	});
 
 	const dateFormat = new Intl.DateTimeFormat('de-DE', {
+		timeZone: NOTE_LIBRARY_TIME_ZONE,
 		dateStyle: 'medium',
 		timeStyle: 'short'
 	});
@@ -66,6 +67,7 @@
 		if (data.filters.tag) params.set('tag', data.filters.tag);
 		if (data.filters.passage) params.set('passage', data.filters.passage);
 		if (data.filters.resourceId) params.set('resource', data.filters.resourceId);
+		if (data.filters.year) params.set('year', String(data.filters.year));
 		if (data.filters.book) params.set('book', String(data.filters.book));
 		if (data.filters.view === 'list') params.set('view', 'list');
 		if (data.filters.deleted) params.set('deleted', '1');
@@ -229,7 +231,7 @@
 				aria-label={t('action.search')}
 			>
 				<div
-					class="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(14rem,1.5fr)_minmax(11rem,1fr)_12rem_auto]"
+					class="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(10rem,1.5fr)_minmax(9rem,1fr)_minmax(8rem,1fr)_7rem_auto]"
 				>
 					<label class="relative block sm:col-span-2 xl:col-span-1">
 						<span class="sr-only">{t('documents.library.search')}</span>
@@ -264,6 +266,14 @@
 							{#each data.bibles as bible (bible.id)}
 								<option value={bible.id}>{bible.tabTitle ?? bible.abbrev}</option>
 							{/each}
+						</select>
+					</label>
+
+					<label>
+						<span class="sr-only">{t('documents.library.yearFilter')}</span>
+						<select name="year" class="filter-control" value={data.filters.year ?? ''}>
+							<option value="">{t('documents.library.allYears')}</option>
+							{#each data.yearOptions as year (year)}<option value={year}>{year}</option>{/each}
 						</select>
 					</label>
 
@@ -372,11 +382,12 @@
 						data.filters.kind ||
 						data.filters.tag ||
 						data.filters.passage ||
+						data.filters.year ||
 						data.filters.book
 							? t('documents.library.noResults')
 							: t('documents.library.empty')}
 					</p>
-					{#if !(data.filters.q || data.filters.kind || data.filters.tag || data.filters.passage || data.filters.book)}
+					{#if !(data.filters.q || data.filters.kind || data.filters.tag || data.filters.passage || data.filters.year || data.filters.book)}
 						<p class="mx-auto mt-1 max-w-sm text-sm text-stone-500 dark:text-stone-400">
 							{t('documents.library.emptyHint')}
 						</p>

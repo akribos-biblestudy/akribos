@@ -79,9 +79,12 @@ export async function load({ locals, url, setHeaders }) {
 	const parsedBook = /^\d{1,2}$/u.test(rawBook) ? Number(rawBook) : undefined;
 	const book =
 		parsedBook && BOOKS.some((candidate) => candidate.id === parsedBook) ? parsedBook : null;
+	const rawYear = (url.searchParams.get('year') ?? '').trim();
+	const year = /^[1-9]\d{3}$/u.test(rawYear) ? Number(rawYear) : null;
 	const view = url.searchParams.get('view') === 'list' ? 'list' : 'cards';
 	const deleted = url.searchParams.get('deleted') === '1';
-	const filterErrors: Array<'kind' | 'tag' | 'passage' | 'resource' | 'book'> = [];
+	const filterErrors: Array<'kind' | 'tag' | 'passage' | 'resource' | 'book' | 'year'> = [];
+	if (rawYear && !year) filterErrors.push('year');
 	if (rawKind && !kind) filterErrors.push('kind');
 	if (rawBook && !book) filterErrors.push('book');
 	let normalizedTagPath: string | undefined;
@@ -148,6 +151,10 @@ export async function load({ locals, url, setHeaders }) {
 		}
 	}
 	if (filterErrors.length > 0) documents = [];
+	const yearOptions = [
+		...new Set([...documents.map((document) => document.createdYear), ...(year ? [year] : [])])
+	].sort((a, b) => b - a);
+	if (year) documents = documents.filter((document) => document.createdYear === year);
 
 	// The distribution follows every active library filter except its own book selection. Explicit
 	// ranges and visible prose references contribute each document at most once per covered book.
@@ -204,6 +211,7 @@ export async function load({ locals, url, setHeaders }) {
 		tagTree,
 		bibles,
 		bookCounts,
+		yearOptions,
 		filters: {
 			q,
 			kind: kind ?? null,
@@ -211,6 +219,7 @@ export async function load({ locals, url, setHeaders }) {
 			passage: passageText,
 			resourceId: rawResourceId || null,
 			book,
+			year,
 			view,
 			deleted
 		},

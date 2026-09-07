@@ -319,6 +319,11 @@ Metadaten erhalten und werden beim Rückwechsel wiederverwendet. Autosave darf d
 ändern. Die Datenbank verlangt nur bei aktiven Ausarbeitungen einen Status, nicht mehr leere Metadaten der Ausarbeitung
 bei Notizen. Das globale Menü heißt „Notizen & Ausarbeitungen“.
 
+Die Notizbibliothek kann über `year` nach Erstellungsjahr gefiltert werden. Jahresgrenzen und
+Datumsanzeige verwenden einheitlich `Europe/Berlin`; spätere Bearbeitungen ändern die Zuordnung nicht.
+Der Jahresfilter wird vor Buchverteilung und Pagination angewendet und bleibt in Filter-, Ansichts-,
+Seiten- und Rückkehrlinks erhalten. Die angebotenen Jahre folgen den übrigen Filtern außer dem
+Buchfilter; ein ausdrücklich gewähltes Jahr bleibt auch bei leerem Ergebnis auswählbar.
 Die Notizbibliothek liefert höchstens 24 Notizkarten je URL-Seite (`page`), nach allen Filtern
 einschließlich der abgeleiteten Fließtextstellen. Die Reihenfolge folgt `created_at` absteigend, bei
 gleichem Zeitpunkt der stabilen ID absteigend, bereits vor der Seitenauswahl. Bearbeiten ändert die

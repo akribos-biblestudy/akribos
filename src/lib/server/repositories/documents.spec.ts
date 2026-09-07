@@ -183,8 +183,8 @@ describe.sequential('unified document repositories', () => {
 			title: `${query} newer`,
 			...EMPTY_BODY
 		});
-		const oldCreatedAt = new Date('2025-01-01T12:00:00Z');
-		const newCreatedAt = new Date('2025-02-01T12:00:00Z');
+		const oldCreatedAt = new Date('2024-12-31T22:59:59Z');
+		const newCreatedAt = new Date('2024-12-31T23:00:00Z');
 		await db
 			.update(documents)
 			.set({ createdAt: oldCreatedAt, updatedAt: oldCreatedAt })
@@ -201,6 +201,11 @@ describe.sequential('unified document repositories', () => {
 		).toBe(true);
 		expect(await ids()).toEqual([newer.id, older.id]);
 		const [summary] = await listDocumentLibrarySummaries(db, ownerId, [older.id]);
+		expect(
+			(await listDocumentLibraryIndex(db, ownerId, { kind: 'note', query })).map(
+				(row) => row.createdYear
+			)
+		).toEqual([2025, 2024]);
 		expect(summary?.createdAt).toEqual(oldCreatedAt);
 		expect(summary!.updatedAt.getTime()).toBeGreaterThan(newCreatedAt.getTime());
 	});
