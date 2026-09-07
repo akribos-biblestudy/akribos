@@ -52,7 +52,10 @@ Die Root-Route `/` leitet jeden Besucher unmittelbar zum Bibeltext weiter, nicht
 Angemeldete Leser landen an ihrer im `location`-Cookie gespeicherten letzten Lesestelle, alle anderen
 (auch nicht angemeldete Besucher) an Johannes 1 als Fallback. Das Akribos-Logo verlinkt unverändert auf
 `/` und darf das `location`-Cookie nicht löschen, damit es auch von Konto- und Verwaltungsseiten zur
-letzten Lesestelle zurückführt. Die Marketing-Landingpage wird auf `/` nicht mehr angezeigt, bleibt aber
+letzten Lesestelle zurückführt. Das `location`-Cookie enthält auch die genaue Versposition. Echte
+Nutzerscrolls schreiben sie synchron vor dem URL-Debounce, damit sofortiges Verlassen des Readers
+die letzte Stelle erhält; verspätete Antworten früherer Scroll-Aktionen dürfen nach einer Navigation
+die URL nicht mehr verändern. Die Marketing-Landingpage wird auf `/` nicht mehr angezeigt, bleibt aber
 unter `/about` unverändert erreichbar. Weil das Root-Verhalten vom Session-Cookie abhängt, darf die
 Antwort nicht öffentlich gecacht werden.
 

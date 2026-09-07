@@ -1461,3 +1461,46 @@ test('the Akribos logo returns to the remembered reader location', async ({ page
 
 	await expectReaderPath(page, '/Joh3');
 });
+
+test('the logo restores an exact verse even when leaving during the scroll debounce', async ({
+	page
+}) => {
+	await loginAsAdmin(page);
+	await page.setViewportSize({ width: 900, height: 300 });
+	await page.route('**/api/reader/**', (route) => route.abort());
+	await page.goto('/Joh3');
+	await page.getByRole('button', { name: 'Konto-Menü' }).click();
+	const notesLink = page.getByRole('menuitem', { name: 'Notizen & Predigten', exact: true });
+	await expect(notesLink).toBeVisible();
+	// Scroll and leave in the same JavaScript task: no URL debounce can run between these events.
+	await page
+		.locator('.flow-column')
+		.first()
+		.evaluate((element) => {
+			const verse = element.querySelector<HTMLElement>('[data-verse-key="43:3:16"]');
+			if (!verse) throw new Error('missing fixture verse');
+			const distance =
+				verse.getBoundingClientRect().bottom - element.getBoundingClientRect().top - 22;
+			element.dispatchEvent(
+				new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: distance / 0.55 })
+			);
+			element.dispatchEvent(new Event('scroll'));
+			const link = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+				(item) => item.textContent?.trim() === 'Notizen & Predigten'
+			);
+			if (!link) throw new Error('missing notes navigation');
+			link.click();
+		});
+	await expect(page).toHaveURL('/notes');
+	await page.getByRole('link', { name: 'Akribos – Startseite' }).click();
+	await expectReaderPath(page, '/Joh3,17');
+	await expect(tabReference(page)).toHaveValue('Joh 3,17');
+});
+
+test('the logo preserves a verse from a direct reader link', async ({ page }) => {
+	await loginAsAdmin(page);
+	await page.goto('/Joh3,16');
+	await page.goto('/notes');
+	await page.getByRole('link', { name: 'Akribos – Startseite' }).click();
+	await expectReaderPath(page, '/Joh3,16');
+});
