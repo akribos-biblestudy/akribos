@@ -47,7 +47,7 @@ export async function load({ params, locals, cookies }) {
 
 	const db = getDb();
 	const access = await findListAccess(db, params.id, locals.user.id);
-	if (!access) error(404, 'Versliste nicht gefunden');
+	if (!access) error(404, 'Stellensammlung nicht gefunden');
 
 	const bibles = await listBibles(db);
 	const primary =
@@ -100,7 +100,7 @@ async function collaboratorAccess(
 	if (!locals.user) redirect(303, '/login');
 	const db = getDb();
 	const access = await findListAccess(db, id, locals.user.id);
-	if (!access) error(404, 'Versliste nicht gefunden');
+	if (!access) error(404, 'Stellensammlung nicht gefunden');
 	return { db, userId: locals.user.id, access };
 }
 
@@ -163,7 +163,7 @@ export const actions = {
 	delete: async ({ params, locals }) => {
 		const { db, access } = await ownerAccess(locals, params.id);
 		await deleteVerseList(db, access.list.id);
-		redirect(303, '/account');
+		redirect(303, '/lists');
 	},
 
 	/** Invites a collaborator by email. Owner-only, like every other membership action. */
@@ -221,7 +221,7 @@ export const actions = {
 		const { db, userId, access } = await collaboratorAccess(locals, params.id);
 		if (access.isOwner) return fail(400, { error: 'owner' as const });
 		await leaveVerseList(db, access.list.id, userId);
-		redirect(303, '/account?tab=lists');
+		redirect(303, '/lists');
 	},
 
 	comment: async ({ params, request, locals }) => {

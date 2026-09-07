@@ -12,7 +12,7 @@
 <svelte:head>
 	<meta
 		name="description"
-		content="Akribos verbindet parallele Bibelübersetzungen, Kommentare, Strong-Lexikon, Urtextanalyse, Suche, Notizen und Verslisten in einem modernen Bibelstudium."
+		content="Akribos verbindet parallele Bibelübersetzungen, Kommentare, Strong-Lexikon, Urtextanalyse, Suche, Notizen und Stellensammlungen in einem modernen Bibelstudium."
 	/>
 </svelte:head>
 
@@ -188,13 +188,15 @@
 			<figure class="product-shot menu-shot">
 				<img
 					src="/landing/verse-menu.webp"
-					alt="Geöffnetes Versmenü im Akribos-Reader mit Markierungen, Kommentaren und Verslisten"
+					alt="Geöffnetes Versmenü im Akribos-Reader mit Markierungen, Kommentaren und Stellensammlungen"
 					width="1440"
 					height="900"
 					loading="lazy"
 					decoding="async"
 				/>
-				<figcaption>Das echte Versmenü bündelt Markierungen, Kommentare und Verslisten.</figcaption>
+				<figcaption>
+					Das echte Versmenü bündelt Markierungen, Kommentare und Stellensammlungen.
+				</figcaption>
 			</figure>
 			<div class="feature-grid">
 				<article class="highlights">
@@ -216,7 +218,7 @@
 				</article>
 				<article class="lists">
 					<div class="round-icon"><Icon name="star" class="size-4" /></div>
-					<span>Verslisten</span>
+					<span>Stellensammlungen</span>
 					<h3>Sammeln & teilen</h3>
 					<p>
 						Ordne Verse nach Thema, ergänze Notizen und teile ausgewählte Listen per Link — auch

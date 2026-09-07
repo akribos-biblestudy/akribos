@@ -263,7 +263,7 @@ nicht allein einem Media Query, damit auch Touchscreen-Desktops mit Maus korrekt
 aber nicht mehr geladen oder als grüne Inline-Bubble dargestellt. Auch die alte Kommentar-Erstellung im
 `VerseMenu` ist entfernt; neue persönliche Gedanken sind ausschließlich einheitliche Dokumente. Der
 idempotente Legacy-Backfill bleibt zwingend, damit bestehende Kommentare als private Dokumente
-auffindbar sind und ein Rollback/API-Client die Quellzeilen weiterhin lesen kann. Verslisten-Kommentare
+auffindbar sind und ein Rollback/API-Client die Quellzeilen weiterhin lesen kann. Stellensammlungen-Kommentare
 sind davon unberührt und verwenden weiterhin `NoteEditor.svelte`.
 
 ## Einheitliche Notizen und Predigten
@@ -350,7 +350,7 @@ einem privaten Dokument mit einem translationsspezifischen Einzelvers-Anker. Das
 Provenienz und macht Migration sowie `pnpm db:backfill-notes` wiederholbar. Letzterer Befehl erfasst
 Legacy-Kommentare, die nach Migration 0025 entstanden oder aus einem Backup wiederhergestellt wurden.
 Der Reader lädt oder bearbeitet `verse_comments` nicht mehr; `GET /api/v1/notes` behält exakt seine
-vorherige `{ notes: [...] }`-Antwort inklusive Verslisten-Threads; diese kollaborativen Threads werden
+vorherige `{ notes: [...] }`-Antwort inklusive Stellensammlungen-Threads; diese kollaborativen Threads werden
 nicht in private Dokumente kopiert. Nach dem einmaligen Kopieren sind Legacy-Kommentar und Dokument
 bewusst zwei unabhängige Arbeitskopien; spätere Änderungen werden nicht in beide Richtungen gespiegelt.
 
@@ -458,7 +458,7 @@ Eigentümer-ID oder Veröffentlichungsberechtigung. Anhänge und automatisches Z
 implementiert. Der PDF-Export löst relative Linkziele gegen den Request-Ursprung auf, bewahrt Links als
 klickbare grüne Annotationen und färbt auch freie, vom gemeinsamen Parser erkannte Bibelstellen grün;
 Inline-Code bleibt davon ausgenommen. Auf jeder gepufferten A4-Seite setzt er eine Akribos-Kopfzeile
-sowie eine Fußzeile mit Seitenzahl. Die Bereichsnavigation besteht nur aus „Notizen“ und „Predigten“; Import und
+sowie eine Fußzeile mit Seitenzahl. Die Bereichsnavigation besteht aus „Notizen“, „Predigten“ und „Stellensammlungen“; Import und
 veröffentlichte Notizen sind kontextuelle Aktionen, Vorlagen gehören in den Predigtbereich. Predigten
 bleiben normale Dokumente mit den Zuständen `idea`, `research`, `outline`, `ready`, `delivered`;
 `/sermons` ist nur ihre fokussierte Workflow-Ansicht. Karten wechseln den Status revisioniert per
@@ -474,9 +474,9 @@ und dem nötigen eindeutigen Dokument-/Owner-Index an.
 Migration `0027_thankful_vin_gonzales.sql` ergänzt `document_links` und baut den abgeleiteten Index für
 bestehende echte HTML-Links owner-sicher auf; Codebeispiele und bloßer URL-Text werden nicht erfasst.
 
-### Zusammenarbeit an Verslisten (issue #129)
+### Zusammenarbeit an Stellensammlungen (issue #129)
 
-Eine Versliste hat genau einen Eigentümer (`verse_lists.user_id`), der sie umbenennen, löschen, den
+Eine Stellensammlung hat genau einen Eigentümer (`verse_lists.user_id`), der sie umbenennen, löschen, den
 öffentlichen Teilen-Link umschalten und Mitglieder verwalten darf. Der öffentliche Link (`slug`) bleibt
 unverändert bestehen und ist unabhängig von der neuen, E-Mail-basierten Mitgliedschaft: eine Liste kann
 beides, nur eines oder keins von beidem haben. Mitgliedschaft läuft über zwei Tabellen, nach demselben
@@ -581,14 +581,12 @@ zusätzlichen, angemeldeten Schritte (`MEMBER_TOUR_STEPS`); sonst die vollständ
 Registrierung standardmäßig auf `/account` weiterleiten, nicht in den Reader, erscheint die Tour für
 diese Fälle beim nächsten Reader-Besuch automatisch, nicht zwingend unmittelbar nach dem Einloggen.
 
-Das Benutzer-Menü (`/account`) zeigt seine Abschnitte (Profil & Sicherheit, Verslisten & Kommentare,
-Darstellung) ebenfalls ohne eigene Server-Navigation, hält den aktiven Abschnitt aber im
-`tab`-Queryparameter statt in reinem lokalem State: `activeSection` ist von `page.url.searchParams`
-abgeleitet, ein Klick ruft `goto()` mit `replaceState: false` auf. Dadurch bekommt jeder Tabwechsel
-einen echten Browser-History-Eintrag (Vor/Zurück wechselt zwischen Abschnitten) und ein Neuladen zeigt
-denselben Abschnitt wieder, ohne dass das Server-Load der Seite den `tab`-Parameter lesen muss. Der
-Standardabschnitt (`profileSecurity`) führt keinen `tab`-Parameter in der URL; Links auf einen
-bestimmten Abschnitt nennen ihn deshalb explizit, z. B. `/account?tab=lists`.
+Das Benutzer-Menü (`/account`) enthält nur Profil & Sicherheit sowie Darstellung. Der aktive
+Abschnitt steht im `tab`-Queryparameter und bleibt über Reload und Browser-History erhalten.
+Stellensammlungen sind der dritte Reiter im Dokumentbereich und liegen unter `/lists`; dort können
+eigene und geteilte Sammlungen geöffnet und neue angelegt werden. Alte `/account?tab=lists`-Links
+leiten zur neuen Übersicht weiter. Konto-GETs laden weder Sammlungen noch die Legacy-Kommentarliste.
+Die bestehenden `/lists/[id]`-, `/l/[slug]`- und API-Adressen sowie Zusammenarbeit bleiben erhalten.
 
 ## Daten, Suche und Sicherheit
 

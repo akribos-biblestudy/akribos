@@ -34,7 +34,7 @@
 		<p class="text-stone-700 dark:text-stone-300">
 			Wer sich registriert, hinterlegt eine E-Mail-Adresse und ein Passwort. Das Passwort wird
 			ausschließlich als Hashwert gespeichert (Argon2), niemals im Klartext. Diese Daten dienen
-			dazu, das Konto und die davon abhängigen Funktionen (Verslisten, Kommentare,
+			dazu, das Konto und die davon abhängigen Funktionen (Stellensammlungen, Kommentare,
 			Leseeinstellungen) bereitzustellen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Erfüllung
 			des Nutzungsverhältnisses).
 		</p>
@@ -86,13 +86,13 @@
 	</section>
 
 	<section class="mb-8">
-		<h2 class="mb-2 text-lg font-semibold">Verslisten und Kommentare</h2>
+		<h2 class="mb-2 text-lg font-semibold">Stellensammlungen und Kommentare</h2>
 		<p class="text-stone-700 dark:text-stone-300">
-			Verslisten und Kommentare, die ein Konto anlegt, werden diesem Konto zugeordnet gespeichert.
-			Eine Liste wird nur dann für andere ohne eigenes Konto einsehbar, wenn sie ausdrücklich über
-			einen Link freigegeben wird; das geschieht ausschließlich auf eigene Veranlassung.
-			Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, für die Freigabe zusätzlich Art. 6 Abs. 1 lit.
-			a DSGVO.
+			Stellensammlungen und Kommentare, die ein Konto anlegt, werden diesem Konto zugeordnet
+			gespeichert. Eine Liste wird nur dann für andere ohne eigenes Konto einsehbar, wenn sie
+			ausdrücklich über einen Link freigegeben wird; das geschieht ausschließlich auf eigene
+			Veranlassung. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, für die Freigabe zusätzlich Art.
+			6 Abs. 1 lit. a DSGVO.
 		</p>
 	</section>
 

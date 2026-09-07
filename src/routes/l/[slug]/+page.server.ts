@@ -16,7 +16,7 @@ import { findVerseList, loadVerseListItems } from '$lib/server/repositories/vers
 export async function load({ params, setHeaders }) {
 	const db = getDb();
 	const list = await findVerseList(db, { slug: params.slug });
-	if (!list || !list.isPublic) error(404, 'Diese Versliste ist nicht öffentlich.');
+	if (!list || !list.isPublic) error(404, 'Diese Stellensammlung ist nicht öffentlich.');
 
 	const bibles = await listBibles(db);
 	const primary = bibles[0]?.id ?? null;

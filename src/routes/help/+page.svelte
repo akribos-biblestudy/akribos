@@ -41,7 +41,7 @@
 		{
 			href: '#listen',
 			number: '07',
-			title: 'Verslisten',
+			title: 'Stellensammlungen',
 			description: 'Sammeln, ordnen und teilen'
 		},
 		{
@@ -183,8 +183,8 @@
 					<strong>Was bringt ein Konto?</strong>
 					<p>
 						Lesen, suchen und Strong-Einträge nachschlagen funktioniert ohne Anmeldung. Ein
-						kostenloses Konto brauchst du erst für persönliche Markierungen, Kommentare, Verslisten
-						und dauerhaft gespeicherte Einstellungen.
+						kostenloses Konto brauchst du erst für persönliche Markierungen, Kommentare,
+						Stellensammlungen und dauerhaft gespeicherte Einstellungen.
 					</p>
 					<a href="/register">Konto erstellen →</a>
 				</div>
@@ -468,7 +468,7 @@
 				<figure class="screenshot screenshot-narrow">
 					<img
 						src="/help/verse-menu.webp"
-						alt="Geöffnetes Versmenü mit Kopieren, Markierungsfarben, Notiz und Verslisten"
+						alt="Geöffnetes Versmenü mit Kopieren, Markierungsfarben, Notiz und Stellensammlungen"
 						width="1440"
 						height="900"
 						loading="lazy"
@@ -542,16 +542,16 @@
 				</ol>
 				<p class="privacy-note">
 					Dokumente und die Notizspalte sind privat. Kommentare innerhalb einer öffentlich
-					freigegebenen Versliste gehören dagegen zur Liste und können dort sichtbar sein.
+					freigegebenen Stellensammlung gehören dagegen zur Liste und können dort sichtbar sein.
 				</p>
 			</section>
 
 			<section id="listen" class="knowledge-section">
 				<div class="section-heading">
-					<p class="eyebrow">07 · Verslisten</p>
+					<p class="eyebrow">07 · Stellensammlungen</p>
 					<h2>Verse sammeln, kommentieren und teilen</h2>
 					<p>
-						Verslisten eignen sich für Themenstudien, Predigtvorbereitung, Lesepläne oder
+						Stellensammlungen eignen sich für Themenstudien, Predigtvorbereitung, Lesepläne oder
 						persönliche Sammlungen.
 					</p>
 				</div>
@@ -559,7 +559,8 @@
 				<h3>Eine Liste anlegen und füllen</h3>
 				<ul class="feature-list">
 					<li>
-						Öffne <a href="/account?tab=lists">Konto → Verslisten</a>, gib einen Namen ein und wähle
+						Öffne <a href="/lists">Notizen & Predigten → Stellensammlungen</a>, gib einen Namen ein
+						und wähle
 						<strong>Neue Liste</strong>.
 					</li>
 					<li>

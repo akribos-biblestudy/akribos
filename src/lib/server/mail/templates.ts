@@ -151,17 +151,20 @@ export function verseListInviteMail(
 	link: string,
 	options: { listTitle: string; inviterName: string }
 ): TransactionalMail {
-	return transactionalMail(`Akribos: ${options.inviterName} lädt dich zu einer Versliste ein`, {
-		preheader: `${options.inviterName} möchte gemeinsam mit dir an "${options.listTitle}" arbeiten.`,
-		eyebrow: 'Einladung zur Zusammenarbeit',
-		title: 'Du wurdest zu einer Versliste eingeladen',
-		intro: `${options.inviterName} lädt dich ein, gemeinsam an der Versliste „${options.listTitle}“ zu arbeiten. Du kannst dort Verse ergänzen, Kommentare schreiben und auf die Kommentare anderer antworten.`,
-		buttonLabel: 'Einladung ansehen',
-		link,
-		expires: 'Dieser Link ist 7 Tage gültig und kann nur einmal verwendet werden.',
-		ignoreNote:
-			'Du kennst diese Versliste nicht? Dann kannst du diese E-Mail einfach ignorieren – es ändert sich nichts an deinem Konto.'
-	});
+	return transactionalMail(
+		`Akribos: ${options.inviterName} lädt dich zu einer Stellensammlung ein`,
+		{
+			preheader: `${options.inviterName} möchte gemeinsam mit dir an "${options.listTitle}" arbeiten.`,
+			eyebrow: 'Einladung zur Zusammenarbeit',
+			title: 'Du wurdest zu einer Stellensammlung eingeladen',
+			intro: `${options.inviterName} lädt dich ein, gemeinsam an der Stellensammlung „${options.listTitle}“ zu arbeiten. Du kannst dort Verse ergänzen, Kommentare schreiben und auf die Kommentare anderer antworten.`,
+			buttonLabel: 'Einladung ansehen',
+			link,
+			expires: 'Dieser Link ist 7 Tage gültig und kann nur einmal verwendet werden.',
+			ignoreNote:
+				'Du kennst diese Stellensammlung nicht? Dann kannst du diese E-Mail einfach ignorieren – es ändert sich nichts an deinem Konto.'
+		}
+	);
 }
 
 export function passwordResetMail(link: string): TransactionalMail {
