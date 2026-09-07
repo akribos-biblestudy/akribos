@@ -123,7 +123,7 @@ test('someone who already finished the guest tour only sees the signed-in-only s
 	await page.goto('/Joh3');
 	const tour = page.getByRole('dialog', { name: 'Versmenü' });
 	await expect(tour).toBeVisible();
-	await expect(page.getByText('Schritt 2 von 3')).toBeVisible();
+	await expect(page.getByText('Schritt 1 von 2')).toBeVisible();
 
 	await page.getByRole('button', { name: 'Weiter' }).click();
 	await expect(page.getByRole('dialog', { name: 'Dein Konto' })).toBeVisible();
@@ -148,5 +148,5 @@ test('someone who never saw the guest tour gets the full sequence once signed in
 
 	await page.goto('/Joh3');
 	await expect(page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' })).toBeVisible();
-	await expect(page.getByText('Schritt 1 von 9')).toBeVisible();
+	await expect(page.getByText('Schritt 1 von 8')).toBeVisible();
 });

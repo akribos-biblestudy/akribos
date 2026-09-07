@@ -68,17 +68,10 @@ export const GUEST_TOUR_STEPS: TourStep[] = [
 ];
 
 /**
- * Additional steps shown only once signed in: note boundaries, the verse menu (highlight, note,
+ * Additional steps shown only once signed in: the verse menu (highlight, note,
  * verse lists) and the account entry point.
  */
 export const MEMBER_TOUR_STEPS: TourStep[] = [
-	{
-		id: 'reader-note-indicator',
-		selector: '.reader-note-indicator',
-		titleKey: 'tour.readerNotes.title',
-		bodyKey: 'tour.readerNotes.body',
-		placement: 'right'
-	},
 	{
 		id: 'verse-menu',
 		selector: '.flow-chapter-number',

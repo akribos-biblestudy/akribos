@@ -145,11 +145,10 @@ grid column outside the persisted Bible-resource tile layout; on phones it becom
 Reading/Note view rather than narrowing the text. Visibility and harmless desktop width are device-local. The
 active private document id remains component state and is never copied into the Reader URL, browser
 history or local storage. Without an open document the sidecar follows the current verse in the active
-Bible column and offers an owner-scoped text/type/tag/passage-filtered library; a verse indicator can
-open an exact matching document. It reuses the same owner-scoped
+Bible column and offers an owner-scoped text/type/tag/passage-filtered library that opens matching documents. It reuses the same owner-scoped
 internal GET/PATCH endpoint and `DocumentEditor` serial autosave as the full page. Closing, hiding or
 switching back to reading first flushes pending content and refuses the transition on an error or
-revision conflict. Verse ranges underline every covered verse but render indicators only at endpoints.
+revision conflict. Notes do not add indicators or underlines to Bible text.
 
 References quoted in prose are a presentation concern, not stored document markup. The shared matcher
 accepts the same German/English aliases and punctuation variants as Reader URLs. Static safe HTML is
