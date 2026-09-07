@@ -580,7 +580,7 @@
 		font-size: 0.9rem;
 		font-weight: 700;
 		overflow-wrap: anywhere;
-		cursor: grab;
+		cursor: text;
 	}
 	.column-title:hover {
 		color: var(--color-accent-700);
@@ -625,9 +625,11 @@
 		min-height: 17rem;
 		padding: 0.2rem 0.7rem 0.7rem;
 	}
-	.sermon-card,
-	.sermon-card a {
+	.sermon-card {
 		cursor: grab;
+	}
+	.sermon-card a {
+		cursor: pointer;
 	}
 	.sermon-card:focus-visible,
 	.column-title:focus-visible {
