@@ -1653,10 +1653,10 @@ test('sidecar search and passage filters survive reload and reader navigation', 
 		.locator('.reader-tile')
 		.first()
 		.getByRole('searchbox', { name: /Bibelstelle oder Suche in/ });
-	await field.fill('Joh 4');
+	await field.fill('Joh 1');
 	await field.press('Enter');
 	await expect(page).toHaveURL(
-		(url) => url.pathname === '/Joh4' && url.searchParams.get('notesFilter') === 'current'
+		(url) => url.pathname === '/Joh1' && url.searchParams.get('notesFilter') === 'current'
 	);
 	await expect(search).toHaveValue('Gnade: Glaube & Liebe');
 	await expect(filter).toBeChecked();
