@@ -1,10 +1,14 @@
+import {
+	getSermonBoard,
+	changeSermonBoard,
+	type SermonBoardChange
+} from '$lib/server/repositories/sermon-board';
 import { fail, redirect } from '@sveltejs/kit';
 import { parsePassage, passageToDbEndpoints } from '$lib/bible/passage';
 import {
 	GERMAN_SERMON_STARTER_TEMPLATE,
 	isSermonWorkflowState,
-	isSermonFormat,
-	SERMON_WORKFLOW_STATES
+	isSermonFormat
 } from '$lib/notes/documents';
 import {
 	documentEditorUrl,
@@ -50,7 +54,9 @@ export async function load({ locals, url, setHeaders }) {
 	const db = getDb();
 	const q = (url.searchParams.get('q') ?? '').trim().slice(0, MAX_DOCUMENT_QUERY_LENGTH);
 	const rawStatus = url.searchParams.get('status');
-	const status = rawStatus && isSermonWorkflowState(rawStatus) ? rawStatus : undefined;
+	const board = await getSermonBoard(db, user.id);
+	const status =
+		rawStatus && board.columns.some((column) => column.id === rawStatus) ? rawStatus : undefined;
 	const rawSeries = (url.searchParams.get('series') ?? '').trim();
 	const rawYear = (url.searchParams.get('year') ?? '').trim();
 	const allSermonsPromise = listDocuments(db, user.id, { kind: 'sermon' });
@@ -101,7 +107,7 @@ export async function load({ locals, url, setHeaders }) {
 		})),
 		tagTree,
 		templates,
-		statuses: SERMON_WORKFLOW_STATES,
+		board,
 		seriesOptions,
 		yearOptions,
 		filters: { q, status: status ?? null, series: series ?? null, year: year ?? null },
@@ -117,14 +123,34 @@ export async function load({ locals, url, setHeaders }) {
 }
 
 export const actions = {
+	columns: async ({ request, locals, url }) => {
+		const user = requireDocumentUser(locals.user, url);
+		const form = await request.formData();
+		const revision = parseRequiredRevision(form.get('boardRevision'));
+		const action = form.get('columnAction');
+		const id = String(form.get('columnId') ?? '');
+		let change: SermonBoardChange;
+		if (action === 'create') change = { action, name: String(form.get('name') ?? '') };
+		else if (action === 'rename') change = { action, id, name: String(form.get('name') ?? '') };
+		else if (action === 'delete')
+			change = { action, id, targetId: String(form.get('targetId') ?? '') };
+		else if (action === 'left' || action === 'right')
+			change = { action: 'reorder', id, direction: action };
+		else return fail(400, { error: 'columnMissing' as const });
+		if (!revision) return fail(400, { error: 'boardConflict' as const });
+		const result = await changeSermonBoard(getDb(), user.id, revision, change);
+		if (!result.ok)
+			return fail(result.reason === 'boardConflict' ? 409 : 400, { error: result.reason });
+		return { columnsSaved: true };
+	},
 	create: async ({ request, locals, url }) => {
 		const user = requireDocumentUser(locals.user, url);
 		const form = await request.formData();
 		const title = String(form.get('title') ?? '').trim() || 'Neue Ausarbeitung';
 		const rawFormat = String(form.get('format') ?? 'sermon');
 		if (!isSermonFormat(rawFormat)) return fail(400, { error: 'sermonFormat' as const });
-		const rawStatus = String(form.get('status') ?? 'idea');
-		if (!isSermonWorkflowState(rawStatus)) {
+		const rawStatus = form.get('status') ? String(form.get('status')) : undefined;
+		if (rawStatus !== undefined && !isSermonWorkflowState(rawStatus)) {
 			return fail(400, { error: 'sermonStatus' as const });
 		}
 		const date = parseCalendarDate(form.get('date'));
@@ -203,7 +229,13 @@ export const actions = {
 		if (!isUuid(id) || revision === null || !isSermonWorkflowState(status)) {
 			return fail(400, { error: 'sermonStatus' as const });
 		}
-		const result = await updateDocument(getDb(), user.id, id, revision, { sermonStatus: status });
+		let result;
+		try {
+			result = await updateDocument(getDb(), user.id, id, revision, { sermonStatus: status });
+		} catch (caught) {
+			if (caught instanceof InvalidDocumentInputError) return fail(400, { error: caught.code });
+			throw caught;
+		}
 		if (!result.ok) {
 			return fail(result.reason === 'conflict' ? 409 : 404, {
 				error: result.reason,

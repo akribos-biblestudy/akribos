@@ -45,10 +45,6 @@
 		return t('documents.details.native');
 	}
 
-	function sermonStatusLabel(status: string): string {
-		return t(`sermons.status.${status}` as MessageKey);
-	}
-
 	function displayedKindLabel(kind: string): string {
 		return t(`documents.kind.${kind}` as MessageKey);
 	}
@@ -431,8 +427,8 @@
 								class="field-control"
 								value={workingDocument.sermonStatus}
 							>
-								{#each ['idea', 'research', 'outline', 'ready', 'delivered'] as status (status)}
-									<option value={status}>{sermonStatusLabel(status)}</option>
+								{#each data.sermonBoard.columns as column (column.id)}
+									<option value={column.id}>{column.name}</option>
 								{/each}
 							</select>
 						</label>

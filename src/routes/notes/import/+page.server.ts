@@ -1,3 +1,4 @@
+import { importSermonColumn, SermonColumnImportError } from '$lib/server/repositories/sermon-board';
 import { fail, redirect } from '@sveltejs/kit';
 import { parsePassage, passageToDbEndpoints } from '$lib/bible/passage';
 import { t } from '$lib/i18n';
@@ -435,7 +436,14 @@ export const actions = {
 						source: 'obsidian',
 						sourceFilename: preview.sourceFilename,
 						sermonStatus:
-							preview.kind === 'sermon' ? (preview.sermon?.status ?? 'idea') : undefined,
+							preview.kind === 'sermon'
+								? await importSermonColumn(
+										transactionDb,
+										user.id,
+										preview.sermon?.status ?? 'idea',
+										preview.sermon?.statusName
+									)
+								: undefined,
 						sermonDate: preview.kind === 'sermon' ? sermonDates[index] : undefined,
 						sermonSeries: preview.kind === 'sermon' ? preview.sermon?.series : undefined,
 						sermonFormat: preview.kind === 'sermon' ? preview.sermon?.format : undefined,
@@ -533,6 +541,12 @@ export const actions = {
 				return imported;
 			});
 		} catch (caught) {
+			if (caught instanceof SermonColumnImportError)
+				return fail(400, {
+					error: 'sermonFields' as const,
+					message: caught.message,
+					filename: activeFilename
+				});
 			if (caught instanceof ImportPersistenceError) {
 				return fail(caught.status, caught.failure);
 			}

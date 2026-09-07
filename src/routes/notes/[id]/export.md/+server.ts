@@ -1,3 +1,4 @@
+import { getSermonBoard } from '$lib/server/repositories/sermon-board';
 import { error } from '@sveltejs/kit';
 import { formatPassage, passageFromDbEndpoints } from '$lib/bible/passage';
 import {
@@ -27,10 +28,11 @@ export async function GET({ params, locals, url, setHeaders }) {
 	const document = await getDocument(db, user.id, params.id);
 	if (!document) error(404, 'Dokument nicht gefunden');
 
-	const [passageRows, tags, deliveries] = await Promise.all([
+	const [passageRows, tags, deliveries, board] = await Promise.all([
 		listDocumentPassages(db, user.id, document.id),
 		listDocumentTags(db, user.id, document.id),
-		document.kind === 'sermon' ? listSermonDeliveries(db, user.id, document.id) : []
+		document.kind === 'sermon' ? listSermonDeliveries(db, user.id, document.id) : [],
+		getSermonBoard(db, user.id)
 	]);
 	const passages: DocumentMarkdownPassage[] = passageRows.map((row) => {
 		const passage = passageFromDbEndpoints(row);
@@ -52,7 +54,8 @@ export async function GET({ params, locals, url, setHeaders }) {
 			...(document.kind === 'sermon'
 				? {
 						sermon: {
-							status: document.sermonStatus ?? 'idea',
+							status: document.sermonStatus ?? board.columns[0]!.id,
+							statusName: board.columns.find((column) => column.id === document.sermonStatus)?.name,
 							format: document.sermonFormat,
 							date: formatCalendarDate(document.sermonDate),
 							series: document.sermonSeries ?? undefined,

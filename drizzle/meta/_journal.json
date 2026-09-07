@@ -225,6 +225,13 @@
       "when": 1788773722819,
       "tag": "0031_far_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788776933689,
+      "tag": "0032_needy_spot",
+      "breakpoints": true
     }
   ]
 }

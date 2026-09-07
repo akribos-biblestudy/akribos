@@ -251,7 +251,6 @@ export const actions = {
 					title,
 					visibility: 'private',
 					source: 'native',
-					sermonStatus: rawKind === 'sermon' ? 'idea' : undefined,
 					...prepareDocumentBody(markdown)
 				},
 				endpoints ? [{ ...endpoints, resourceId, position: 0 }] : []

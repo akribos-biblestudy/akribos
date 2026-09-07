@@ -53,6 +53,7 @@
 		"pino": "^10.3.1",
 		"postgres": "^3.4.9",
 		"saxes": "^6.0.0",
+		"svelte-dnd-action": "^0.9.79",
 		"turndown": "^7.2.4",
 		"yaml": "^2.9.0",
 		"zod": "^4.4.3"

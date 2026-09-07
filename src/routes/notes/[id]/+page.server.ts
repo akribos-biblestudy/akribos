@@ -1,3 +1,4 @@
+import { getSermonBoard } from '$lib/server/repositories/sermon-board';
 import { listVerseLists } from '$lib/server/repositories/verse-lists';
 import {
 	listDocumentCollections,
@@ -104,7 +105,8 @@ export async function load({ params, locals, url, setHeaders }) {
 		publication,
 		sermonDeliveries,
 		collections,
-		availableCollections
+		availableCollections,
+		sermonBoard
 	] = await Promise.all([
 		listDocumentPassages(db, user.id, documentId),
 		listDocumentTags(db, user.id, documentId),
@@ -113,7 +115,8 @@ export async function load({ params, locals, url, setHeaders }) {
 		getOwnedDocumentPublication(db, user.id, documentId),
 		document.kind === 'sermon' ? listSermonDeliveries(db, user.id, documentId) : [],
 		document.kind === 'sermon' ? listDocumentCollections(db, user.id, documentId) : [],
-		document.kind === 'sermon' ? listVerseLists(db, user.id) : []
+		document.kind === 'sermon' ? listVerseLists(db, user.id) : [],
+		getSermonBoard(db, user.id)
 	]);
 
 	return {
@@ -127,6 +130,7 @@ export async function load({ params, locals, url, setHeaders }) {
 		bibles,
 		publication: publication ?? null,
 		sermonDeliveries,
+		sermonBoard,
 		collections,
 		availableCollections: availableCollections.map(({ id, title }) => ({ id, title })),
 		isAdmin: user.role === 'admin',

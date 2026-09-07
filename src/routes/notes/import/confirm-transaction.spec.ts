@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 	transactionDb: { marker: 'import-transaction' },
 	listBibles: vi.fn(),
 	createDocument: vi.fn(),
+	importSermonColumn: vi.fn(),
 	syncDocumentTags: vi.fn(),
 	replaceDocumentPassages: vi.fn(),
 	addSermonDelivery: vi.fn(),
@@ -38,6 +39,11 @@ vi.mock('$lib/server/repositories/documents', async (importOriginal) => {
 	};
 });
 
+vi.mock('$lib/server/repositories/sermon-board', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('$lib/server/repositories/sermon-board')>();
+	return { ...actual, importSermonColumn: mocks.importSermonColumn };
+});
+
 vi.mock('$lib/server/repositories/sermon-deliveries', () => ({
 	addSermonDelivery: mocks.addSermonDelivery
 }));
@@ -46,6 +52,7 @@ import { actions } from './+page.server.ts';
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	mocks.importSermonColumn.mockImplementation(async (_db, _user, status) => status);
 	mocks.committed = false;
 	mocks.rolledBack = false;
 	mocks.db.transaction.mockImplementation(async (callback) => {
@@ -258,6 +265,12 @@ Text
 			} as never)
 		).rejects.toMatchObject({ status: 303 });
 
+		expect(mocks.importSermonColumn).toHaveBeenCalledWith(
+			mocks.transactionDb,
+			'import-owner',
+			'delivered',
+			undefined
+		);
 		expect(mocks.addSermonDelivery).toHaveBeenNthCalledWith(
 			1,
 			mocks.transactionDb,

@@ -45,6 +45,7 @@ import {
 } from '../../notes/documents.ts';
 import { COMMENT_REACTION_EMOJIS } from '../../notes/reactions.ts';
 import type { ReaderWorkspace } from '../../reader/workspace.ts';
+import { DEFAULT_SERMON_COLUMNS, type SermonColumn } from '../../notes/sermon-board.ts';
 import { tsvector } from './types.ts';
 
 const timestamps = {
@@ -311,6 +312,11 @@ export const users = pgTable(
 		 * by search and older clients; it is updated from this structure whenever the workspace changes.
 		 */
 		readerWorkspace: jsonb('reader_workspace').$type<ReaderWorkspace>(),
+		sermonColumns: jsonb('sermon_columns')
+			.$type<SermonColumn[]>()
+			.notNull()
+			.default(DEFAULT_SERMON_COLUMNS),
+		sermonBoardRevision: integer('sermon_board_revision').notNull().default(1),
 		/** Scripture font size as an integer percentage. */
 		readerFontScale: integer('reader_font_scale').notNull().default(100),
 		/** Preferred public Bible for previews and quotations; null uses the contextual default. */
@@ -696,7 +702,7 @@ export const documents = pgTable(
 		sourceFilename: text('source_filename'),
 		/** Stable, unique provenance key that makes the legacy verse-comment backfill idempotent. */
 		legacyVerseCommentId: uuid('legacy_verse_comment_id'),
-		sermonStatus: text('sermon_status', { enum: SERMON_WORKFLOW_STATES }),
+		sermonStatus: text('sermon_status'),
 		sermonDate: date('sermon_date', { mode: 'date' }),
 		sermonSeries: text('sermon_series'),
 		sermonFormat: text('sermon_format', { enum: SERMON_FORMATS }).notNull().default('sermon'),

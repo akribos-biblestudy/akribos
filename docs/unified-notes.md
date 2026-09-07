@@ -9,8 +9,8 @@ public content and a compatibility migration.
 A **document** is an owner-private working copy. The product has two writing areas:
 
 - `note` for study notes, which an administrator may publish;
-- `sermon` for a preparation document with the workflow `idea -> research -> outline -> ready ->
-delivered`.
+- `sermon` for a preparation document in an owner-configurable workflow (initially
+  `idea -> research -> outline -> ready -> delivered`).
 
 There is no separate publication working-copy type: publishing is a state transition for a `note`, not a
 third writing area. This keeps import, filtering, APIs and the editor on the same two document kinds.
@@ -199,8 +199,9 @@ Verse-list comments are collaborative conversations and are not copied into priv
 - `/notes/[id]` edits one working copy, tags and passage anchors; `export.md`, `export.docx` and
   `export.pdf` provide the three owner-only formats. `/notes/import` previews one/many Markdown files or
   one ZIP before explicit atomic import.
-- `/sermons` groups the owner's sermon documents by `idea`, `research`, `outline`, `ready` and
-  `delivered`. Cards move by drag-and-drop; `Alt` + left/right arrow moves the focused card without a
+- `/sermons` groups the owner's sermon documents into their own ordered columns. Accounts start with
+  `idea`, `research`, `outline`, `ready` and `delivered`; names, additions, order and removal are private
+  account preferences. See [the board design](sermon-board.md). Cards move by drag-and-drop; `Alt` + left/right arrow moves the focused card without a
   pointer. New sermons may use the
   built-in outline, be empty or start from an owner-created template under `/sermons/templates`. The
   editor additionally carries a planned date, series and any number of actual delivery entries (date

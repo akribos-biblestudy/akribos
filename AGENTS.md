@@ -471,12 +471,26 @@ klickbare grüne Annotationen und färbt auch freie, vom gemeinsamen Parser erka
 Inline-Code bleibt davon ausgenommen. Auf jeder gepufferten A4-Seite setzt er eine Akribos-Kopfzeile
 sowie eine Fußzeile mit Seitenzahl. Die Bereichsnavigation besteht aus „Notizen“, „Ausarbeitungen“ und „Stellensammlungen“; Import und
 veröffentlichte Notizen sind kontextuelle Aktionen, Vorlagen gehören in den Ausarbeitungsbereich. Ausarbeitungen
-bleiben normale Dokumente mit den Zuständen `idea`, `research`, `outline`, `ready`, `delivered`;
-`/sermons` ist nur ihre fokussierte Workflow-Ansicht. Karten wechseln den Status revisioniert per
-Drag-and-drop; `Alt` + Pfeil links/rechts ist die barrierearme Tastaturalternative. Ein redundantes
-Status-Select wird auf der Karte nicht gerendert. Innerhalb der gesamten Ansicht und jeder Statusspalte
-stehen Karten nach geplantem Geplanter Termin absteigend; Ausarbeitungen ohne Termin folgen zuletzt. Die
-URL-Filter für Arbeitsstand, Volltext, Reihe und Jahr sind kombinierbar. `sermon_templates`
+bleiben normale Dokumente (`kind = sermon`); `/sermons` zeigt sie in kontoeigenen Spalten.
+`users.sermon_columns` speichert eine geordnete JSON-Liste aus stabiler ID und frei wählbarem Namen;
+`sermon_board_revision` verhindert das Überschreiben gleichzeitiger Konfigurationsänderungen.
+Migration `0032_needy_spot.sql` liefert bestehenden und neuen Konten die bisherigen fünf Spalten
+`idea`, `research`, `outline`, `ready`, `delivered` als Default. Neue Spalten erhalten UUIDs;
+`documents.sermon_status` referenziert immer eine Spalte des Eigentümers. Board-GETs schreiben nie.
+Spaltenänderungen, Dokumenterstellung, Statuswechsel und Typwechsel sperren zuerst dieselbe Nutzerzeile,
+erst danach Dokumentzeilen. Löschen verlangt eine andere eigene Zielspalte, verschiebt im selben
+Transaktionsblock auch ruhende Notizmetadaten und Papierkorb-Dokumente und erhöht deren Revisionen.
+Mindestens eine Spalte bleibt erhalten; neue Ausarbeitungen starten in der ersten Spalte. Namen sind
+auf 80 Zeichen und die Konfiguration auf 30 Spalten begrenzt; doppelte Namen werden ignorierend auf
+Groß-/Kleinschreibung abgewiesen. Editor und URL-Statusfilter verwenden dieselben eigenen Spalten.
+Markdown exportiert neben `sermon.status` auch `sermon.statusName`; Import verwendet eine vorhandene
+eigene ID beziehungsweise denselben Namen oder legt atomar eine eigene Spalte an.
+Karten wechseln den Status revisioniert über `svelte-dnd-action` (Maus/Touch am Griff,
+Leertaste und Tab für Tastaturbedienung); `Alt` + Pfeil links/rechts am Dokumentlink bleibt erhalten.
+Die Bibliotheksauswahl ist in `docs/sermon-board.md` begründet. Ein redundantes Status-Select wird auf
+der Karte nicht gerendert. Auch nach Drag-and-drop bleiben Karten nach geplantem Termin absteigend
+sortiert; Ausarbeitungen ohne Termin folgen zuletzt. URL-Filter für Arbeitsstand, Volltext, Reihe und
+Jahr sind kombinierbar. `sermon_templates`
 enthält frei editierbare private
 Markdown-Vorlagen. `sermon_deliveries` speichert mehrere tatsächliche Durchführungen aus Kalenderdatum
 und Ort über einen zusammengesetzten Dokument-/Owner-FK; jede Mutation erhöht die Dokumentrevision.
