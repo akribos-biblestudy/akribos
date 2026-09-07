@@ -206,7 +206,11 @@
 				</select>
 			</label>
 			<label class="field-label"
-				><span>Format</span><select name="format" class="field-control">
+				><span id="create-format-label">Format</span><select
+					aria-labelledby="create-format-label"
+					name="format"
+					class="field-control"
+				>
 					{#each SERMON_FORMATS as format (format)}<option value={format}
 							>{sermonFormatLabel(format)}</option
 						>{/each}

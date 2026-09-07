@@ -311,7 +311,8 @@
 					</h2>
 					<form class="mt-3 space-y-3" onsubmit={saveSermonWorkflow}>
 						<label class="field-label"
-							><span>Format</span><select
+							><span id="document-format-label">Format</span><select
+								aria-labelledby="document-format-label"
 								name="sermonFormat"
 								class="field-control"
 								value={workingDocument.sermonFormat}
