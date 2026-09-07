@@ -1,5 +1,8 @@
 .git
 .github
+.claude
+.codex
+.agents
 .svelte-kit
 build
 node_modules
@@ -10,7 +13,9 @@ docs
 
 # The bundled source bibles are ~37 MB and are only needed when seeding, which is done from a
 # checkout or through the admin UI — not from inside the image.
-data
+data/*
+# Startup backfills existing Hebrew lexicons from this bundled translation.
+!data/hebrewstrong.xml
 
 .env
 .env.*
