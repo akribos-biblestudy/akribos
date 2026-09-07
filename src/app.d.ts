@@ -5,6 +5,10 @@ import type { ApiAuth } from '$lib/server/api/gate';
 
 declare global {
 	namespace App {
+		interface PageState {
+			readerNotesFilters?: import('$lib/reader/url-state').ReaderNotesFilters;
+		}
+
 		interface Error {
 			message: string;
 			/**

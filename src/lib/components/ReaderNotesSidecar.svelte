@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { ReaderNotesFilters } from '$lib/reader/url-state';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { onDestroy, tick } from 'svelte';
@@ -30,11 +31,15 @@
 	let {
 		bibleId = null,
 		context = null,
+		filters,
+		onFiltersChange,
 		onDocumentCreated,
 		onClose
 	}: {
 		bibleId?: string | null;
 		context?: ReaderNotesContext | null;
+		filters: ReaderNotesFilters;
+		onFiltersChange: (filters: ReaderNotesFilters) => void;
 		onDocumentCreated?: (document: ReaderCreatedDocument) => void;
 		onClose: () => void;
 	} = $props();
@@ -47,9 +52,6 @@
 	let requestGeneration = 0;
 	let request: AbortController | undefined;
 	let createError = $state('');
-	let libraryQuery = $state('');
-	let libraryTag = $state('');
-	let onlyCurrentPassage = $state(false);
 	let libraryDocuments = $state<LibraryDocument[]>([]);
 	let libraryTags = $state<LibraryTag[]>([]);
 	let libraryTruncated = $state(false);
@@ -106,9 +108,9 @@
 
 	function libraryUrl(): URL {
 		const url = new URL('/api/documents', window.location.origin);
-		if (libraryQuery.trim()) url.searchParams.set('q', libraryQuery.trim());
-		if (libraryTag) url.searchParams.set('tag', libraryTag);
-		if (onlyCurrentPassage && context) {
+		if (filters.query.trim()) url.searchParams.set('q', filters.query.trim());
+		if (filters.tag) url.searchParams.set('tag', filters.tag);
+		if (filters.onlyCurrentPassage && context) {
 			url.searchParams.set('passage', context.passage);
 			url.searchParams.set('resource', context.resource.id);
 		}
@@ -117,11 +119,11 @@
 
 	function libraryFilterSignature(): string {
 		return JSON.stringify([
-			libraryQuery,
-			libraryTag,
-			onlyCurrentPassage,
-			onlyCurrentPassage ? context?.passage : null,
-			onlyCurrentPassage ? context?.resource.id : null
+			filters.query,
+			filters.tag,
+			filters.onlyCurrentPassage,
+			filters.onlyCurrentPassage ? context?.passage : null,
+			filters.onlyCurrentPassage ? context?.resource.id : null
 		]);
 	}
 
@@ -176,7 +178,7 @@
 			() => {
 				if (signature === libraryFilterSignature()) void loadLibrary();
 			},
-			onlyCurrentPassage ? 180 : libraryQuery.trim() ? 250 : 0
+			filters.onlyCurrentPassage ? 180 : filters.query.trim() ? 250 : 0
 		);
 		return () => {
 			if (libraryTimer) clearTimeout(libraryTimer);
@@ -408,7 +410,8 @@
 					<span class="sr-only">Dokumente durchsuchen</span>
 					<Icon name="search" class="size-4" />
 					<input
-						bind:value={libraryQuery}
+						value={filters.query}
+						oninput={(event) => onFiltersChange({ ...filters, query: event.currentTarget.value })}
 						type="search"
 						placeholder="Titel und Inhalt durchsuchen"
 					/>
@@ -417,7 +420,11 @@
 				<div class="library-filters">
 					<label>
 						<span class="sr-only">Tag</span>
-						<select bind:value={libraryTag} aria-label="Tag filtern">
+						<select
+							value={filters.tag}
+							onchange={(event) => onFiltersChange({ ...filters, tag: event.currentTarget.value })}
+							aria-label="Tag filtern"
+						>
 							<option value="">Alle Tags</option>
 							{#each libraryTags as tag (tag.id)}
 								<option value={tag.path}>{tag.path}</option>
@@ -427,7 +434,13 @@
 				</div>
 
 				<label class="context-filter" class:disabled={!context}>
-					<input bind:checked={onlyCurrentPassage} type="checkbox" disabled={!context} />
+					<input
+						checked={filters.onlyCurrentPassage}
+						onchange={(event) =>
+							onFiltersChange({ ...filters, onlyCurrentPassage: event.currentTarget.checked })}
+						type="checkbox"
+						disabled={!context}
+					/>
 					<span>Nur Dokumente zur aktuellen Stelle</span>
 				</label>
 

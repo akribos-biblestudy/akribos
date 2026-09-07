@@ -1628,3 +1628,44 @@ test('slash commands create blocks and mentions add owner-private backlinks', as
 		`/notes/${sourceId}`
 	);
 });
+
+test('sidecar search and passage filters survive reload and reader navigation', async ({
+	page
+}) => {
+	await register(page);
+	await page.goto('/Joh3');
+	await page.getByTestId('layout-picker').click();
+	await page.getByTestId('reader-notes-sidecar-toggle').click();
+	const sidecar = page.getByTestId('reader-notes-sidecar');
+	const search = sidecar.getByRole('searchbox', { name: 'Dokumente durchsuchen' });
+	const filter = sidecar.getByLabel('Nur Dokumente zur aktuellen Stelle');
+	await search.fill('Gnade: Glaube & Liebe');
+	await filter.check();
+	await expect(page).toHaveURL(
+		(url) =>
+			url.searchParams.get('notesQuery') === 'Gnade: Glaube & Liebe' &&
+			url.searchParams.get('notesFilter') === 'current'
+	);
+	await page.reload();
+	await expect(search).toHaveValue('Gnade: Glaube & Liebe');
+	await expect(filter).toBeChecked();
+	const field = page
+		.locator('.reader-tile')
+		.first()
+		.getByRole('searchbox', { name: /Bibelstelle oder Suche in/ });
+	await field.fill('Joh 1');
+	await field.press('Enter');
+	await expect(page).toHaveURL(
+		(url) => url.pathname === '/Joh1' && url.searchParams.get('notesFilter') === 'current'
+	);
+	await expect(search).toHaveValue('Gnade: Glaube & Liebe');
+	await expect(filter).toBeChecked();
+	await search.fill('');
+	await filter.uncheck();
+	await expect(page).toHaveURL(
+		(url) => !url.searchParams.has('notesQuery') && !url.searchParams.has('notesFilter')
+	);
+	await page.reload();
+	await expect(search).toHaveValue('');
+	await expect(filter).not.toBeChecked();
+});
