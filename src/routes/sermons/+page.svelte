@@ -5,7 +5,12 @@
 	import DocumentAreaNav from '$lib/components/documents/DocumentAreaNav.svelte';
 	import { t, type MessageKey } from '$lib/i18n';
 	import { formatGermanCalendarDate } from '$lib/notes/calendar-date';
-	import { isSermonWorkflowState, type SermonWorkflowState } from '$lib/notes/documents';
+	import {
+		SERMON_FORMATS,
+		sermonFormatLabel,
+		isSermonWorkflowState,
+		type SermonWorkflowState
+	} from '$lib/notes/documents';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 
 	let { data, form } = $props();
@@ -127,7 +132,7 @@
 
 <main class="mx-auto w-full max-w-[96rem] px-4 py-7 sm:px-6 sm:py-10" data-testid="sermon-manager">
 	<p id="sermon-card-keyboard-help" class="sr-only">
-		Predigt fokussieren und mit Alt plus Pfeil links oder rechts zwischen Arbeitsständen
+		Ausarbeitung fokussieren und mit Alt plus Pfeil links oder rechts zwischen Arbeitsständen
 		verschieben.
 	</p>
 	<header class="flex flex-wrap items-start justify-between gap-4">
@@ -200,6 +205,17 @@
 					{/each}
 				</select>
 			</label>
+			<label class="field-label"
+				><span id="create-format-label">Format</span><select
+					aria-labelledby="create-format-label"
+					name="format"
+					class="field-control"
+				>
+					{#each SERMON_FORMATS as format (format)}<option value={format}
+							>{sermonFormatLabel(format)}</option
+						>{/each}
+				</select></label
+			>
 			<input type="hidden" name="status" value="idea" />
 			<button
 				type="submit"
@@ -370,6 +386,7 @@
 			</p>
 		{/if}
 		<div class="mt-4 space-y-1 text-[0.68rem] text-stone-400">
+			<p class="text-xs text-stone-500">{sermonFormatLabel(sermon.sermonFormat)}</p>
 			{#if sermon.sermonSeries}
 				<p class="truncate">{sermon.sermonSeries}</p>
 			{/if}

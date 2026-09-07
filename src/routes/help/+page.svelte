@@ -65,7 +65,7 @@
 		{
 			href: '#predigten',
 			number: '11',
-			title: 'Predigtvorbereitung',
+			title: 'Vorbereitung',
 			description: 'Vorlagen, Board und Historie'
 		},
 		{
@@ -93,7 +93,7 @@
 <svelte:head>
 	<meta
 		name="description"
-		content="Die vollständige Akribos-Anleitung: Bibel lesen, Notizen schreiben und veröffentlichen, Predigten vorbereiten sowie Markdown, Word und PDF austauschen."
+		content="Die vollständige Akribos-Anleitung: Bibel lesen, Notizen schreiben und veröffentlichen, Ausarbeitungen vorbereiten sowie Markdown, Word und PDF austauschen."
 	/>
 </svelte:head>
 
@@ -551,7 +551,7 @@
 					<p class="eyebrow">07 · Stellensammlungen</p>
 					<h2>Verse sammeln, kommentieren und teilen</h2>
 					<p>
-						Stellensammlungen eignen sich für Themenstudien, Predigtvorbereitung, Lesepläne oder
+						Stellensammlungen eignen sich für Themenstudien, Vorbereitung, Lesepläne oder
 						persönliche Sammlungen.
 					</p>
 				</div>
@@ -559,8 +559,8 @@
 				<h3>Eine Liste anlegen und füllen</h3>
 				<ul class="feature-list">
 					<li>
-						Öffne <a href="/lists">Notizen & Predigten → Stellensammlungen</a>, gib einen Namen ein
-						und wähle
+						Öffne <a href="/lists">Notizen & Ausarbeitungen → Stellensammlungen</a>, gib einen Namen
+						ein und wähle
 						<strong>Neue Liste</strong>.
 					</li>
 					<li>
@@ -699,11 +699,12 @@
 			<section id="dokumente" class="knowledge-section">
 				<div class="section-heading">
 					<p class="eyebrow">10 · Dokumente & Editor</p>
-					<h2>Zwei klare Bereiche für Notizen und Predigten</h2>
+					<h2>Zwei klare Bereiche für Notizen und Ausarbeitungen</h2>
 					<p>
 						Der Menüpunkt <a href="/notes">Dokumente</a> öffnet den Schreibbereich. Die kompakte
-						Navigation unterscheidet nur <strong>Notizen</strong> und <strong>Predigten</strong>.
-						Import und veröffentlichte Notizen stehen bei den Notizen, Vorlagen beim Predigt-Board.
+						Navigation unterscheidet nur <strong>Notizen</strong> und
+						<strong>Ausarbeitungen</strong>. Import und veröffentlichte Notizen stehen bei den
+						Notizen, Vorlagen beim Ausarbeitungsboard.
 					</p>
 				</div>
 				<h3>Suchen und ordnen</h3>
@@ -740,16 +741,16 @@
 
 			<section id="predigten" class="knowledge-section">
 				<div class="section-heading">
-					<p class="eyebrow">11 · Predigtvorbereitung</p>
+					<p class="eyebrow">11 · Vorbereitung</p>
 					<h2>Von der Vorlage bis zur Durchführung</h2>
 					<p>
-						Das Predigt-Board begleitet jede Arbeitskopie durch Idee, Recherche, Gliederung, Bereit
-						und Gehalten.
+						Das Ausarbeitungsboard begleitet jede Arbeitskopie durch Idee, Recherche, Gliederung,
+						Bereit und Gehalten.
 					</p>
 				</div>
 				<ol class="plain-steps">
 					<li>
-						Erstelle unter <a href="/sermons/templates">Predigtvorlagen</a> beliebige private Markdown-Gliederungen
+						Erstelle unter <a href="/sermons/templates">Ausarbeitungsvorlagen</a> beliebige private Markdown-Gliederungen
 						oder nutze die Standardvorlage.
 					</li>
 					<li>Wähle beim Erstellen Titel, Bibelstelle, Reihe, lokalisiertes Datum und Vorlage.</li>
@@ -759,7 +760,7 @@
 					</li>
 					<li>
 						Trage im Dokument unter „Bereits gehalten“ beliebig viele Kombinationen aus Datum und
-						Ort ein. Der geplante Predigttermin bleibt davon unabhängig.
+						Ort ein. Der geplante Geplanter Termin bleibt davon unabhängig.
 					</li>
 				</ol>
 				<p class="privacy-note">
@@ -785,7 +786,8 @@
 				<h3>Exportformate</h3>
 				<ul class="feature-list">
 					<li>
-						<strong>Markdown:</strong> UTF-8-Text mit YAML-Frontmatter für Typ, Tags, Stellen und Predigtmetadaten.
+						<strong>Markdown:</strong> UTF-8-Text mit YAML-Frontmatter für Typ, Tags, Stellen und Metadaten
+						der Ausarbeitung.
 					</li>
 					<li>
 						<strong>Word (.docx):</strong> bearbeitbares Dokument mit Überschrift, Metadaten und gegliedertem

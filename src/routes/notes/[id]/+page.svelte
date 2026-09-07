@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SERMON_FORMATS, sermonFormatLabel } from '$lib/notes/documents';
 	import { tick, untrack } from 'svelte';
 	import DocumentEditor from '$lib/components/documents/DocumentEditor.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -142,7 +143,8 @@
 					markdown: workingDocument.bodyMarkdown,
 					sermonStatus: values.get('sermonStatus'),
 					sermonDate: values.get('sermonDate') || null,
-					sermonSeries: values.get('sermonSeries') || null
+					sermonSeries: values.get('sermonSeries') || null,
+					sermonFormat: values.get('sermonFormat')
 				})
 			});
 			const result = (await response.json().catch(() => ({}))) as {
@@ -308,6 +310,18 @@
 						{t('sermons.status')}
 					</h2>
 					<form class="mt-3 space-y-3" onsubmit={saveSermonWorkflow}>
+						<label class="field-label"
+							><span id="document-format-label">Format</span><select
+								aria-labelledby="document-format-label"
+								name="sermonFormat"
+								class="field-control"
+								value={workingDocument.sermonFormat}
+							>
+								{#each SERMON_FORMATS as format (format)}<option value={format}
+										>{sermonFormatLabel(format)}</option
+									>{/each}
+							</select></label
+						>
 						<label class="field-label">
 							<span>{t('sermons.status')}</span>
 							<select

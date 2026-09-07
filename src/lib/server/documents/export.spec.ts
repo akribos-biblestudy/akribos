@@ -10,9 +10,10 @@ const fixture = {
 		bodyMarkdown:
 			'# Hoffnung\n\nGott **liebt** die Welt: χάρις שָׁלוֹם. [Weitere Notiz](/notes/5eed0000-0000-4000-8000-000000000005) und [Akribos](https://akribos.de/about).\n',
 		sermonDate: new Date('2026-09-06T00:00:00.000Z'),
-		sermonSeries: 'Johannes'
+		sermonSeries: 'Johannes',
+		sermonFormat: 'home-group'
 	},
-	tags: ['Predigt/Johannes'],
+	tags: ['Ausarbeitung/Johannes'],
 	passages: [{ reference: 'Joh 3,16-17' }],
 	deliveries: [{ date: new Date('2026-09-13T00:00:00.000Z'), location: 'Gemeinde Nord' }]
 } as OwnedDocumentExport;
@@ -32,8 +33,8 @@ describe('portable rich document exports', () => {
 	});
 
 	it('marks inline Bible references as green PDF runs without changing code spans', () => {
-		expect(pdfInlineRuns('Predigt am 03.05.2026. Siehe Joh 3,16 und `Mt 5,3`.')).toEqual([
-			{ text: 'Predigt am 03.05.2026. Siehe ' },
+		expect(pdfInlineRuns('Ausarbeitung am 03.05.2026. Siehe Joh 3,16 und `Mt 5,3`.')).toEqual([
+			{ text: 'Ausarbeitung am 03.05.2026. Siehe ' },
 			{ text: 'Joh 3,16', bibleReference: true },
 			{ text: ' und Mt 5,3.' }
 		]);

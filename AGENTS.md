@@ -266,15 +266,23 @@ idempotente Legacy-Backfill bleibt zwingend, damit bestehende Kommentare als pri
 auffindbar sind und ein Rollback/API-Client die Quellzeilen weiterhin lesen kann. Stellensammlungen-Kommentare
 sind davon unberührt und verwenden weiterhin `NoteEditor.svelte`.
 
-## Einheitliche Notizen und Predigten
+## Einheitliche Notizen und Ausarbeitungen
+
+Der frühere Oberflächenbegriff „Predigten“ heißt „Ausarbeitungen“. Die bestehenden Routen `/sermons`,
+API-Werte `kind=sermon` und Tabellenbezeichnungen bleiben kompatibel. `documents.sermon_format` ist
+zusätzlich genau eines von `sermon`, `home-group`, `bible-study`, `youth`, `children`, `other`; das Feld
+„Format“ zeigt Predigt, Hauskreis, Bibelstunde, Jugendstunde, Kinderstunde oder Sonstiges. Alte und neue
+Dokumente starten mit `sermon`. Formatänderungen sind eigentümergeprüft und revisioniert; beim Wechsel
+in eine Notiz bleibt das Format als ruhende Metadaten erhalten. Markdown/YAML führt es als
+`sermon.format` mit; alte Importe ohne dieses Feld bleiben gültig.
 
 Der explizite Typwechsel im Dokumenteditor (`changeKind`) speichert zuerst ausstehende Textänderungen,
 prüft Eigentümer und Revision und sperrt dieselbe Dokumentzeile wie die Veröffentlichung. Veröffentlichte
 Notizen müssen vor dem Wechsel explizit zurückgezogen werden. ID, Inhalt, Tags und Stellen bleiben
-unverändert; Predigtstatus, Datum, Serie und Durchführungshistorie bleiben bei Notizen als ruhende
+unverändert; Arbeitsstand, Datum, Serie und Durchführungshistorie bleiben bei Notizen als ruhende
 Metadaten erhalten und werden beim Rückwechsel wiederverwendet. Autosave darf den Typ weiterhin nicht
-ändern. Die Datenbank verlangt nur bei aktiven Predigten einen Status, nicht mehr leere Predigtfelder
-bei Notizen. Das globale Menü heißt „Notizen & Predigten“.
+ändern. Die Datenbank verlangt nur bei aktiven Ausarbeitungen einen Status, nicht mehr leere Metadaten der Ausarbeitung
+bei Notizen. Das globale Menü heißt „Notizen & Ausarbeitungen“.
 
 Die Notizbibliothek liefert höchstens 24 Notizkarten je URL-Seite (`page`), nach allen Filtern
 einschließlich der abgeleiteten Fließtextstellen. Ungültige Seitennummern werden begrenzt; Filterlinks
@@ -290,7 +298,7 @@ Schlagworthierarchie startet eingeklappt. Die clientseitige Suche nach Tagpfaden
 steht als `tagSearch` in der URL und zeigt Treffer samt Vorfahren automatisch; Leeren stellt den manuellen
 Aufklappzustand wieder her. Editorlinks übernehmen die vollständige Bibliotheks-URL als `returnTo`.
 
-Die Oberfläche kennt zwei Schreibbereiche: veröffentlichbare Notizen und Predigten. Beide sind private
+Die Oberfläche kennt zwei Schreibbereiche: veröffentlichbare Notizen und Ausarbeitungen. Beide sind private
 Arbeitskopien in `documents`; `kind` ist genau `note` oder `sermon`. Eine Veröffentlichung ist ein
 Schnappschuss einer Notiz und kein eigener Dokumenttyp.
 Jeder Zugriff auf Arbeitskopie, Tags und Stellenanker wird serverseitig mit `user_id` eingegrenzt; eine
@@ -320,7 +328,7 @@ bereinigtes `body_html` aus, einschließlich alter Linkbeschriftungen, inline fo
 Kapitel-/Versbereiche; Code und Linkziele zählen nicht. Diese abgeleiteten Treffer sind kanonisch und
 werden nur innerhalb bereits eigentümergeprüfter Dokumente ermittelt. Es gibt weder schreibende GETs
 noch einen Backfill: Bestehende Importe funktionieren sofort, und entfernte Textreferenzen erzeugen
-keine bleibenden Anker. Manuelle Anker bleiben ausdrücklich gespeicherte Bezüge. Die Reader-Sidecar-Bibliothek zeigt sowohl Notizen als auch Predigten; die eigenständigen
+keine bleibenden Anker. Manuelle Anker bleiben ausdrücklich gespeicherte Bezüge. Die Reader-Sidecar-Bibliothek zeigt sowohl Notizen als auch Ausarbeitungen; die eigenständigen
 Bereiche `/notes` und `/sermons` behalten ihre bisherige Trennung.
 
 Tags sind pro Nutzer getrennte Hierarchien in `document_tags`; `/` trennt Pfadsegmente. Der
@@ -342,8 +350,8 @@ sofort sichtbar wird. Sobald eine Session aufgelöst wurde, erzwingt `hooks.serv
 jede Antwort `private, no-store`. Dasselbe gilt ausdrücklich für private HTML-, JSON- und
 Download-Antworten.
 
-Migration `drizzle/0025_clever_agent_brand.sql` legt die Dokument-, Publikations-, Predigtvorlagen- und
-Predigthistorien-Tabellen an und enthält danach den
+Migration `drizzle/0025_clever_agent_brand.sql` legt die Dokument-, Publikations-, Ausarbeitungsvorlagen- und
+Durchführungshistorien-Tabellen an und enthält danach den
 absichtlich handgeschriebenen Daten-Backfill: Jede bestehende Zeile aus `verse_comments` wird zu genau
 einem privaten Dokument mit einem translationsspezifischen Einzelvers-Anker. Das bereits bereinigte
 `comment_html` und die Quellzeile bleiben erhalten; `legacy_verse_comment_id` ist die eindeutige
@@ -402,7 +410,7 @@ muss innerhalb dieses Dialogs liegen, damit sie in der modalen Browser-Ebene bed
 Ein `/` an einer Wortgrenze öffnet im visuellen Editor ein an der Schreibmarke platziertes Befehlsmenü
 für Absatz, H1–H3, Listen, Zitat, Codeblock, Trennlinie und Bibeltext; `/bibel <Stelle>` plus Enter bleibt
 der direkte Tastaturweg. `@` öffnet dort die Suche nach ausschließlich eigenen, nicht gelöschten Notizen
-und Predigten anhand von Titel, Fließtext oder Schlagwort. Eine Auswahl fügt einen gewöhnlichen
+und Ausarbeitungen anhand von Titel, Fließtext oder Schlagwort. Eine Auswahl fügt einen gewöhnlichen
 Markdown-Link der Form `[Titel](/notes/<uuid>)` ein. `document_links` ist nur der daraus abgeleitete,
 gerichtete Suchindex für Rückverknüpfungen: `syncDocumentLinks()` ersetzt ihn innerhalb derselben
 revisionierten Speichertransaktion. Beide Fremdschlüssel enthalten `user_id`, unbekannte oder fremde IDs
@@ -458,14 +466,14 @@ Eigentümer-ID oder Veröffentlichungsberechtigung. Anhänge und automatisches Z
 implementiert. Der PDF-Export löst relative Linkziele gegen den Request-Ursprung auf, bewahrt Links als
 klickbare grüne Annotationen und färbt auch freie, vom gemeinsamen Parser erkannte Bibelstellen grün;
 Inline-Code bleibt davon ausgenommen. Auf jeder gepufferten A4-Seite setzt er eine Akribos-Kopfzeile
-sowie eine Fußzeile mit Seitenzahl. Die Bereichsnavigation besteht aus „Notizen“, „Predigten“ und „Stellensammlungen“; Import und
-veröffentlichte Notizen sind kontextuelle Aktionen, Vorlagen gehören in den Predigtbereich. Predigten
+sowie eine Fußzeile mit Seitenzahl. Die Bereichsnavigation besteht aus „Notizen“, „Ausarbeitungen“ und „Stellensammlungen“; Import und
+veröffentlichte Notizen sind kontextuelle Aktionen, Vorlagen gehören in den Ausarbeitungsbereich. Ausarbeitungen
 bleiben normale Dokumente mit den Zuständen `idea`, `research`, `outline`, `ready`, `delivered`;
 `/sermons` ist nur ihre fokussierte Workflow-Ansicht. Karten wechseln den Status revisioniert per
 Drag-and-drop; `Alt` + Pfeil links/rechts ist die barrierearme Tastaturalternative. Ein redundantes
 Status-Select wird auf der Karte nicht gerendert. Innerhalb der gesamten Ansicht und jeder Statusspalte
-stehen Karten nach geplantem Predigtdatum absteigend; Predigten ohne Termin folgen zuletzt. Die
-URL-Filter für Arbeitsstand, Volltext, Predigtreihe und Jahr sind kombinierbar. `sermon_templates`
+stehen Karten nach geplantem Geplanter Termin absteigend; Ausarbeitungen ohne Termin folgen zuletzt. Die
+URL-Filter für Arbeitsstand, Volltext, Reihe und Jahr sind kombinierbar. `sermon_templates`
 enthält frei editierbare private
 Markdown-Vorlagen. `sermon_deliveries` speichert mehrere tatsächliche Durchführungen aus Kalenderdatum
 und Ort über einen zusammengesetzten Dokument-/Owner-FK; jede Mutation erhöht die Dokumentrevision.

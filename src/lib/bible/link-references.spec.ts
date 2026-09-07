@@ -110,8 +110,8 @@ describe('linkBibleReferences', () => {
 	});
 
 	it('does not mistake a dotted calendar date for Amos', () => {
-		expect(linkBibleReferences('Predigt am 03.05.2026. Zu Am 3,5.')).toBe(
-			'Predigt am 03.05.2026. Zu <a class="bible-reference verse-ref" href="/Am3,5" tabindex="0" data-sveltekit-preload-data="off" data-reference="Am3,5" data-book="30" data-chapter="3" data-verse="5">Am 3,5</a>.'
+		expect(linkBibleReferences('Ausarbeitung am 03.05.2026. Zu Am 3,5.')).toBe(
+			'Ausarbeitung am 03.05.2026. Zu <a class="bible-reference verse-ref" href="/Am3,5" tabindex="0" data-sveltekit-preload-data="off" data-reference="Am3,5" data-book="30" data-chapter="3" data-verse="5">Am 3,5</a>.'
 		);
 	});
 });

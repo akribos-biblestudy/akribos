@@ -1483,7 +1483,7 @@ test('the logo restores an exact verse even when leaving during the scroll debou
 	await page.route('**/api/reader/**', (route) => route.abort());
 	await page.goto('/Joh3');
 	await page.getByRole('button', { name: 'Konto-Menü' }).click();
-	const notesLink = page.getByRole('menuitem', { name: 'Notizen & Predigten', exact: true });
+	const notesLink = page.getByRole('menuitem', { name: 'Notizen & Ausarbeitungen', exact: true });
 	await expect(notesLink).toBeVisible();
 	// Scroll and leave in the same JavaScript task: no URL debounce can run between these events.
 	await page
@@ -1499,7 +1499,7 @@ test('the logo restores an exact verse even when leaving during the scroll debou
 			);
 			element.dispatchEvent(new Event('scroll'));
 			const link = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
-				(item) => item.textContent?.trim() === 'Notizen & Predigten'
+				(item) => item.textContent?.trim() === 'Notizen & Ausarbeitungen'
 			);
 			if (!link) throw new Error('missing notes navigation');
 			link.click();

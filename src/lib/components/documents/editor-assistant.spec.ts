@@ -28,11 +28,11 @@ describe('editor assistant triggers', () => {
 	});
 
 	it('opens mentions after whitespace, including searches for hierarchical tags', () => {
-		expect(editorAssistantTrigger('Siehe @Predigt/Gnade', 1, 21)).toEqual({
+		expect(editorAssistantTrigger('Siehe @Ausarbeitung/Gnade', 1, 21)).toEqual({
 			kind: 'mention',
 			from: 7,
 			to: 21,
-			query: 'Predigt/Gnade'
+			query: 'Ausarbeitung/Gnade'
 		});
 		expect(editorAssistantTrigger('mail@example.com', 1, 17)).toBeNull();
 	});

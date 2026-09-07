@@ -53,6 +53,7 @@ export async function GET({ params, locals, url, setHeaders }) {
 				? {
 						sermon: {
 							status: document.sermonStatus ?? 'idea',
+							format: document.sermonFormat,
 							date: formatCalendarDate(document.sermonDate),
 							series: document.sermonSeries ?? undefined,
 							deliveries: deliveries.map((delivery) => ({

@@ -40,6 +40,7 @@ import {
 	DOCUMENT_KINDS,
 	DOCUMENT_SOURCES,
 	DOCUMENT_VISIBILITIES,
+	SERMON_FORMATS,
 	SERMON_WORKFLOW_STATES
 } from '../../notes/documents.ts';
 import { COMMENT_REACTION_EMOJIS } from '../../notes/reactions.ts';
@@ -694,6 +695,7 @@ export const documents = pgTable(
 		sermonStatus: text('sermon_status', { enum: SERMON_WORKFLOW_STATES }),
 		sermonDate: date('sermon_date', { mode: 'date' }),
 		sermonSeries: text('sermon_series'),
+		sermonFormat: text('sermon_format', { enum: SERMON_FORMATS }).notNull().default('sermon'),
 		/** Soft deletion keeps a document recoverable. Public snapshots are removed by the repository. */
 		deletedAt: timestamp('deleted_at', { withTimezone: true }),
 		...timestamps
@@ -704,6 +706,10 @@ export const documents = pgTable(
 		index('documents_user_kind_updated_idx').on(table.userId, table.kind, table.updatedAt),
 		index('documents_user_deleted_updated_idx').on(table.userId, table.deletedAt, table.updatedAt),
 		uniqueIndex('documents_legacy_verse_comment_idx').on(table.legacyVerseCommentId),
+		check(
+			'documents_sermon_format_check',
+			sql`${table.sermonFormat} in ('sermon', 'home-group', 'bible-study', 'youth', 'children', 'other')`
+		),
 		check('documents_kind_check', sql`${table.kind} in ('note', 'sermon')`),
 		check('documents_title_check', sql`length(btrim(${table.title})) > 0`),
 		check('documents_revision_check', sql`${table.revision} > 0`),

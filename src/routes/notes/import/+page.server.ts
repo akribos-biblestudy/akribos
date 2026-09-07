@@ -438,6 +438,7 @@ export const actions = {
 							preview.kind === 'sermon' ? (preview.sermon?.status ?? 'idea') : undefined,
 						sermonDate: preview.kind === 'sermon' ? sermonDates[index] : undefined,
 						sermonSeries: preview.kind === 'sermon' ? preview.sermon?.series : undefined,
+						sermonFormat: preview.kind === 'sermon' ? preview.sermon?.format : undefined,
 						...prepareDocumentBody(preview.markdown)
 					});
 					let currentRevision = document.revision;

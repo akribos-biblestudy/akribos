@@ -1,0 +1,2 @@
+ALTER TABLE "documents" ADD COLUMN "sermon_format" text DEFAULT 'sermon' NOT NULL;--> statement-breakpoint
+ALTER TABLE "documents" ADD CONSTRAINT "documents_sermon_format_check" CHECK ("documents"."sermon_format" in ('sermon', 'home-group', 'bible-study', 'youth', 'children', 'other'));

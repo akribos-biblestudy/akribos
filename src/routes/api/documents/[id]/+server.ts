@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { DocumentMarkdownError } from '$lib/notes/document-markdown';
-import { isDocumentVisibility, isSermonWorkflowState } from '$lib/notes/documents';
+import { isDocumentVisibility, isSermonFormat, isSermonWorkflowState } from '$lib/notes/documents';
 import {
 	isUuid,
 	MAX_DOCUMENT_JSON_BYTES,
@@ -97,7 +97,10 @@ export async function PATCH({ params, locals, request, setHeaders }) {
 	if (!current) return responseError(404, 'notFound');
 
 	const hasSermonMetadata =
-		'sermonStatus' in payload || 'sermonDate' in payload || 'sermonSeries' in payload;
+		'sermonStatus' in payload ||
+		'sermonDate' in payload ||
+		'sermonSeries' in payload ||
+		'sermonFormat' in payload;
 	if (current.kind !== 'sermon' && hasSermonMetadata) {
 		return responseError(400, 'sermonFields');
 	}
@@ -118,6 +121,10 @@ export async function PATCH({ params, locals, request, setHeaders }) {
 		throw caught;
 	}
 	if (current.kind === 'sermon') {
+		if (payload.sermonFormat !== undefined) {
+			if (!isSermonFormat(payload.sermonFormat)) return responseError(400, 'sermonFormat');
+			input.sermonFormat = payload.sermonFormat;
+		}
 		if (payload.sermonStatus !== undefined) {
 			if (!isSermonWorkflowState(payload.sermonStatus)) {
 				return responseError(400, 'sermonStatus');
