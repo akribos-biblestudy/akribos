@@ -263,6 +263,7 @@ test('a reader verse creates and reopens a translation-specific unified note', a
 	let sidecar = page.getByTestId('reader-notes-sidecar');
 	await expect(sidecar.getByTestId('reader-notes-current-context')).toContainText('Johannes 3,16');
 	await expect(sidecar.getByTestId('reader-notes-sidecar-create')).toBeVisible();
+	await expect(sidecar).not.toContainText('Für diese Stelle ist noch keine Notiz verknüpft.');
 	await expect(sidecar.getByText('Keine passenden Dokumente gefunden.')).toBeVisible();
 	await expect(sidecar.getByLabel('Dokumenttyp filtern')).toHaveCount(0);
 	await expect(sidecar.getByLabel('Tag filtern')).toBeVisible();
@@ -274,7 +275,7 @@ test('a reader verse creates and reopens a translation-specific unified note', a
 
 	const panel = page.getByTestId('reader-notes-panel');
 	await expect(panel).toBeVisible();
-	await expect(panel).toContainText('Zu dieser Stelle gibt es noch keine Notiz.');
+	await expect(panel).not.toContainText('Zu dieser Stelle gibt es noch keine Notiz.');
 	await expect(panel.getByLabel('Übersetzungsbezug')).toHaveValue(/.+/);
 
 	const readerUrl = page.url();
