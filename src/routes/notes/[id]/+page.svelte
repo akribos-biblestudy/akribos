@@ -239,7 +239,7 @@
 			<Icon name="chevron-left" class="size-4" />
 			{backLabel()}
 		</a>
-		<div class="flex items-center gap-2">
+		<div class="flex flex-wrap items-center gap-2">
 			<button
 				type="button"
 				class="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 px-3 py-1.5 text-xs font-semibold hover:border-accent-400 dark:border-white/12"
