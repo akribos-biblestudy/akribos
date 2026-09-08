@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { allBookNames } from './book-names';
 import {
 	findBibleReferences,
 	linkBibleReferences,
@@ -6,6 +7,14 @@ import {
 } from './link-references';
 
 describe('rewriteBibleReferenceLinks', () => {
+	it('corrects an existing numbered reference link from its full visible label', () => {
+		const html = '<p><a href="/1Sam9,2">2. Sam 9,2</a></p>';
+		const result = rewriteBibleReferenceLinks(html);
+		expect(result).toContain('href="/2Sam9,2"');
+		expect(result).toContain('>2. Sam 9,2</a>');
+		expect(rewriteBibleReferenceLinks(result)).toBe(result);
+	});
+
 	it('upgrades old formatted links using the entire label and is idempotent', () => {
 		const html = '<p><a href="http://strongs.de/heb8,8"><strong>Hebräer</strong> 8,8-10</a></p>';
 		const result = rewriteBibleReferenceLinks(html);
@@ -22,6 +31,52 @@ describe('rewriteBibleReferenceLinks', () => {
 });
 
 describe('linkBibleReferences', () => {
+	it.each(
+		allBookNames().flatMap(({ book, names }) =>
+			/^\d/.test(names.short)
+				? ['', ' ', '.', '. ', '\u00a0', '.\u202f'].map((separator) => ({
+						book,
+						label: `${names.short[0]}${separator}${names.short.slice(1)} 1,2`,
+						href: `/${names.short}1,2`
+					}))
+				: []
+		)
+	)('keeps the complete numbered abbreviation in $label', ({ book, label, href }) => {
+		expect(findBibleReferences(`Siehe ${label}.`)).toEqual([
+			expect.objectContaining({
+				from: 6,
+				to: 6 + label.length,
+				label,
+				href,
+				reference: { book, chapter: 1, verse: 2 }
+			})
+		]);
+		expect(linkBibleReferences(label)).toContain(`>${label}</a>`);
+	});
+
+	it('uses the second Samuel book for ranges and inherited references', () => {
+		expect(findBibleReferences('2. Sam 9,2-4; 10,1').map(({ canonical }) => canonical)).toEqual([
+			'2Sam9,2-4',
+			'2Sam10,1'
+		]);
+		expect(findBibleReferences('1. Sam 31,13-2. Sam 1,2')).toEqual([
+			expect.objectContaining({
+				label: '1. Sam 31,13-2. Sam 1,2',
+				passage: {
+					start: { book: 9, chapter: 31, verse: 13 },
+					end: { book: 10, chapter: 1, verse: 2 }
+				}
+			})
+		]);
+	});
+
+	it.each([
+		['II. Sam 9,2', '/2Sam9,2'],
+		['III Joh 1,2', '/3Joh1,2']
+	])('keeps Roman book numbers in %s', (label, href) => {
+		expect(findBibleReferences(label)).toEqual([expect.objectContaining({ label, href })]);
+	});
+
 	it.each([
 		['Joh 3,16', '/Joh3,16'],
 		['Johannes3:16', '/Joh3,16'],

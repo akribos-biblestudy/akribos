@@ -333,8 +333,14 @@ setzen die Seite zurück, Seitenlinks erhalten alle Filter. Nur gekürzte Vorsch
 Browser geliefert. Die aus gespeicherten Ankern und sichtbaren Fließtextstellen abgeleitete
 Buchverteilung zählt jedes Dokument je Buch höchstens einmal; ihr `book`-Filter lässt die ungefilterte
 Verteilung stehen. Sichtbare Fließtextstellen werden beim Schreiben kompakt in
-`document_body_reference_indexes` fortgeschrieben; ein idempotenter Startup-Backfill erfasst ältere
-Dokumente und läuft ebenso nach der Migration eines wiederhergestellten älteren Backups. Bibliotheks-GETs schreiben weiterhin nicht und laden zunächst nur sortierte IDs und diesen
+`document_body_reference_indexes` fortgeschrieben. Dessen `parser_version` kennzeichnet die verwendete
+Stellenerkennung; Änderungen daran erhöhen `DOCUMENT_REFERENCE_PARSER_VERSION`. Der idempotente
+Startup-Backfill ersetzt fehlende und veraltete Indizes aller Notizen und Ausarbeitungen einschließlich
+Papierkorb und läuft ebenso nach einer Backup-Wiederherstellung. Er sperrt die Dokumentzeilen je
+100er-Batch, damit paralleles Autosave keinen veralteten Index erhält; Text, Revision, Zeitstempel,
+manuelle Stellenanker und Veröffentlichungen bleiben unverändert. `pnpm db:reindex-documents` erzwingt
+denselben Scan für alle Dokumente. Bibliotheks-GETs berechnen fehlende oder veraltete Indizes nur im
+Speicher, schreiben weiterhin nicht und laden zunächst nur sortierte IDs und diesen
 Index, anschließend vollständige Vorschaufelder ausschließlich für die höchstens 24 Einträge der
 aktuellen Seite. `view=cards|list` schaltet URL-stabil zwischen Kachel- und Listenansicht. Die
 Schlagworthierarchie startet eingeklappt. Die clientseitige Suche nach Tagpfaden
@@ -369,8 +375,8 @@ Stellenfilter in der Bibliothek und in `/api/documents` berücksichtigen zusätz
 Ankern die sichtbaren Bibelreferenzen im Dokument-Fließtext. `documentBodyOverlapsPassage()` wertet
 bereinigtes `body_html` aus, einschließlich alter Linkbeschriftungen, inline formatierter Stellen und
 Kapitel-/Versbereiche; Code und Linkziele zählen nicht. Diese abgeleiteten Treffer sind kanonisch und
-werden nur innerhalb bereits eigentümergeprüfter Dokumente ermittelt. Es gibt weder schreibende GETs
-noch einen Backfill: Bestehende Importe funktionieren sofort, und entfernte Textreferenzen erzeugen
+werden nur innerhalb bereits eigentümergeprüfter Dokumente ermittelt. Es gibt keine schreibenden GETs
+und keinen Backfill manueller Stellenanker: Bestehende Importe funktionieren sofort, und entfernte Textreferenzen erzeugen
 keine bleibenden Anker. Manuelle Anker bleiben ausdrücklich gespeicherte Bezüge. Die Reader-Sidecar-Bibliothek zeigt sowohl Notizen als auch Ausarbeitungen; die eigenständigen
 Bereiche `/notes` und `/sermons` behalten ihre bisherige Trennung.
 
@@ -419,7 +425,11 @@ Autosave-Route und SvelteKit Form Actions.
 
 Bibelstellen im Dokument-Fließtext werden bei der Darstellung automatisch verlinkt:
 `findBibleReferences()`/`linkBibleReferences()` akzeptieren die gemeinsamen Buchnamen und Schreibweisen,
-überspringen Code und erzeugen interne `.verse-ref`-Links. Gepunktete Kalenderdaten wie
+überspringen Code und erzeugen interne `.verse-ref`-Links. Nummerierte Abkürzungen erlauben zwischen
+Zahl und Buchname dieselben Punkte/Leerzeichen wie Vollnamen (`2Sam`, `2 Sam`, `2. Sam`, auch geschützte
+Leerzeichen); römische Nummern I–III benötigen einen Trenner. Die Nummer gehört immer zum vollständigen
+Treffer, auch bei Bereichsenden und geerbten Folgestellen, damit `2. Sam 9,2` nie auf `Sam`/1. Samuel
+zurückfällt. Gepunktete Kalenderdaten wie
 `am 03.05.2026` dürfen dabei nicht als Amos-Stelle erkannt werden. Dokumente ergänzen
 `rewriteBibleReferenceLinks()`: Ist der vollständige Text eines vorhandenen Links eine Bibelstelle,
 wird dessen Ziel aus diesem Text abgeleitet, einschließlich des ganzen Versbereichs. Neue Importe

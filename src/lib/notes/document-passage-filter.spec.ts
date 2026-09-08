@@ -8,6 +8,16 @@ function overlaps(html: string, reference: string): boolean {
 }
 
 describe('document body passage filters', () => {
+	it.each([
+		'<p>2. Sam 9,2</p>',
+		'<p>2. <strong>Sam</strong> 9,2</p>',
+		'<p>2. <a href="/1Sam9,2">Sam 9,2</a></p>',
+		'<p>2.&#160;Sam 9,2</p>'
+	])('assigns numbered references to the right book in existing HTML: %s', (html) => {
+		expect(overlaps(html, '2Sam 9,2')).toBe(true);
+		expect(overlaps(html, '1Sam 9,2')).toBe(false);
+	});
+
 	it('matches old imported link labels and whole ranges independently of their URLs', () => {
 		const html = '<p><a href="http://strongs.de/heb8,8">Hebräer <strong>8,8-10</strong></a></p>';
 		expect(overlaps(html, 'Hebr 8,10')).toBe(true);

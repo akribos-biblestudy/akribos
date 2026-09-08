@@ -1,0 +1,1 @@
+ALTER TABLE "document_body_reference_indexes" ADD COLUMN "parser_version" integer DEFAULT 1 NOT NULL;

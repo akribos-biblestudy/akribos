@@ -19,12 +19,22 @@ function escapeRegExp(value: string): string {
 
 /** Dots and whitespace in book names are optional in the normalised reference grammar. */
 function bookPattern(value: string): string {
-	return value
-		.trim()
-		.split(/[\s.]+/)
-		.filter(Boolean)
-		.map(escapeRegExp)
-		.join('[\\s.]*');
+	const numbered = /^([1-5])[\s.]*(.*)$/u.exec(value.trim());
+	const number = numbered?.[1];
+	const prefix = number
+		? Number(number) <= 3
+			? `(?:${number}[\\s.]*|${'I'.repeat(Number(number))}[\\s.]+)`
+			: `${number}[\\s.]*`
+		: '';
+	// Compact aliases such as `2Sam` need the same separator as the full name `2.Samuel`.
+	return (
+		prefix +
+		(numbered?.[2] ?? value.trim())
+			.split(/[\s.]+/)
+			.filter(Boolean)
+			.map(escapeRegExp)
+			.join('[\\s.]*')
+	);
 }
 
 const BOOK_PATTERN = BOOKS.flatMap((book) => {

@@ -16,6 +16,19 @@ const schema = new Schema({
 });
 
 describe('createBibleReferenceDecorations', () => {
+	it('highlights the book number with the complete second Samuel reference', () => {
+		const document = schema.node('doc', null, [
+			schema.node('paragraph', null, [schema.text('Siehe 2. Sam 9,2.')])
+		]);
+		expect(createBibleReferenceDecorations(document).find()).toEqual([
+			expect.objectContaining({
+				from: 7,
+				to: 17,
+				spec: expect.objectContaining({ bibleReference: '2Sam9,2' })
+			})
+		]);
+	});
+
 	it('adds reference decorations at ProseMirror text positions without changing the document', () => {
 		const document = schema.node('doc', null, [
 			schema.node('paragraph', null, [schema.text('Vor Mt 3,12 und Johannes3:16 danach')])

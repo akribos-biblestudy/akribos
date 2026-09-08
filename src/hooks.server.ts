@@ -36,7 +36,7 @@ export const init: ServerInit = async () => {
 			logger.info({ indexedDocuments }, 'document Bible-reference index backfilled');
 		}
 	} catch (error) {
-		// Missing index rows still have a read-only parsing fallback, so an unexpected legacy body must
+		// Missing/outdated index rows have a read-only parsing fallback, so an unexpected legacy body must
 		// not prevent the server from starting or the unrelated housekeeping above from completing.
 		logger.warn({ err: error }, 'document Bible-reference index backfill skipped');
 	}
