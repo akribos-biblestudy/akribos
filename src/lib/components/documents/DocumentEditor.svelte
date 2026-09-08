@@ -6,6 +6,7 @@
 		type BibleQuotation
 	} from '$lib/actions/verse-hover-popover';
 	import { parsePassage } from '$lib/bible/passage';
+	import type { VerseRef } from '$lib/bible/reference';
 	import {
 		documentHtmlToMarkdown,
 		documentMarkdownToHtml,
@@ -35,7 +36,8 @@
 		compact = false,
 		onSaved,
 		onState,
-		onOpenDocument
+		onOpenDocument,
+		onOpenBibleReference
 	}: {
 		document: Omit<EditableDocument, 'bodyHtml'>;
 		bibleId?: string | null;
@@ -45,6 +47,7 @@
 		onState?: (state: { status: SaveState; revision: number }) => void;
 		/** Keeps document mentions inside the Reader sidecar when it supplies its owner-checked opener. */
 		onOpenDocument?: (documentId: string) => boolean | Promise<boolean>;
+		onOpenBibleReference?: (reference: VerseRef) => Promise<boolean>;
 	} = $props();
 
 	type Mode = 'visual' | 'markdown';
@@ -1434,6 +1437,9 @@
 					bibleId,
 					tooltipId: bibleReferenceTooltipId,
 					onInsert: insertBibleQuotation,
+					onOpen: onOpenBibleReference
+						? async (reference) => (await flush()) && (await onOpenBibleReference!(reference))
+						: undefined,
 					insertLabel: t('documents.editor.insertBibleQuote'),
 					openLabel: t('documents.editor.openBibleReference')
 				}}

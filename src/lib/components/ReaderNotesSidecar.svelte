@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { ReaderNotesFilters } from '$lib/reader/url-state';
+	import type { VerseRef } from '$lib/bible/reference';
+	import { rememberReaderDocument } from '$lib/reader/document-navigation';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { onDestroy, tick } from 'svelte';
@@ -29,19 +31,23 @@
 	type LibraryTag = { id: string; path: string };
 
 	let {
+		userId,
 		bibleId = null,
 		context = null,
 		filters,
 		onFiltersChange,
 		onDocumentCreated,
-		onClose
+		onClose,
+		onOpenBibleReference
 	}: {
+		userId: string;
 		bibleId?: string | null;
 		context?: ReaderNotesContext | null;
 		filters: ReaderNotesFilters;
 		onFiltersChange: (filters: ReaderNotesFilters) => void;
 		onDocumentCreated?: (document: ReaderCreatedDocument) => void;
 		onClose: () => void;
+		onOpenBibleReference: (reference: VerseRef) => Promise<boolean>;
 	} = $props();
 
 	let activeDocumentId = $state<string | null>(null);
@@ -207,12 +213,15 @@
 			};
 			if (generation !== requestGeneration) return false;
 			if (!response.ok || !result.document) {
+				if (response.status === 401 || response.status === 404)
+					rememberReaderDocument(userId, null);
 				loadState = 'error';
 				errorMessage = loadError(response.status);
 				return false;
 			}
 
 			loadedDocument = result.document;
+			rememberReaderDocument(userId, result.document.id);
 			loadState = 'ready';
 			await tick();
 			return true;
@@ -245,6 +254,7 @@
 		request?.abort();
 		requestGeneration += 1;
 		activeDocumentId = null;
+		rememberReaderDocument(userId, null);
 		loadedDocument = null;
 		loadState = 'empty';
 		errorMessage = '';
@@ -292,7 +302,7 @@
 					</button>
 				{/if}
 				<a
-					href={`/notes/${encodeURIComponent(loadedDocument.id)}`}
+					href={`/notes/${encodeURIComponent(loadedDocument.id)}${context ? `?returnTo=${encodeURIComponent(context.returnTo)}` : ''}`}
 					class="icon-button"
 					aria-label="Im vollständigen Notiz-Editor öffnen"
 					title="Im vollständigen Editor öffnen"><Icon name="open-external" class="size-4" /></a
@@ -319,6 +329,7 @@
 			<Icon name="info" class="size-6" />
 			<p>{errorMessage}</p>
 			<button type="button" onclick={retry}>Erneut versuchen</button>
+			<button type="button" onclick={() => void showContext()}>Notizübersicht öffnen</button>
 		</div>
 	{:else if loadState === 'ready' && loadedDocument}
 		<div class="sidecar-editor" data-testid="reader-notes-sidecar-editor">
@@ -330,6 +341,7 @@
 					compact
 					onSaved={(next) => (loadedDocument = next)}
 					onOpenDocument={openDocument}
+					{onOpenBibleReference}
 				/>
 			{/key}
 		</div>

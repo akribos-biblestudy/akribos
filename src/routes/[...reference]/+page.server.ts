@@ -1,5 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { randomUUID } from 'node:crypto';
+import { openReaderBibleReference } from '$lib/reader/open-bible-reference';
 import { bookById } from '$lib/bible/books';
 import { bookName } from '$lib/bible/book-names';
 import {
@@ -453,6 +454,27 @@ export const actions = {
 			current,
 			setReaderTabLinkSet(current.workspace, tileId, tabId, linkSet)
 		);
+	},
+
+	openBibleReference: async ({ request, cookies, locals, url }) => {
+		const form = await request.formData();
+		const reference = parseReference(String(form.get('reference') ?? ''));
+		if (!reference || !isReferenceInCanon(reference)) return fail(400, { error: 'reference' });
+		const available = await listReaderResources(getDb());
+		const current = await currentWorkspace(cookies, locals.user, url, available);
+		const target = openReaderBibleReference(
+			current.workspace,
+			available,
+			reference,
+			randomUUID,
+			locals.user?.defaultBibleId
+		);
+		if (!target) return fail(400, { error: 'bible' });
+		delete current.searchQueries[target.tabId];
+		return finishWorkspaceMutation(cookies, locals.user, current, target.workspace, {
+			path: referencePath(reference),
+			tileId: target.tileId
+		});
 	},
 
 	setTabReference: async ({ request, cookies, locals, params, url }) => {

@@ -8,9 +8,14 @@
 	} from '$lib/reader/saved-workspaces';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
 	import type { ReaderWorkspace } from '$lib/reader/workspace';
+	import {
+		DOCUMENT_READER_NAVIGATION,
+		type DocumentReaderNavigation
+	} from '$lib/reader/document-navigation';
 
 	let { children, data } = $props();
 	setContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT, { capture: null });
+	setContext<DocumentReaderNavigation>(DOCUMENT_READER_NAVIGATION, { pending: null });
 
 	/** Reader route signal and its persisted workspace. */
 	const reader = $derived(

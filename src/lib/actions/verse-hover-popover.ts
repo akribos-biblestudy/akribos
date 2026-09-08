@@ -11,7 +11,7 @@
 import { safeLinkHref } from '../notes/document-markdown.ts';
 import { segmentsToText, type VerseSegment } from '../bible/segments.ts';
 import { formatPassage, parsePassage, type Passage } from '../bible/passage.ts';
-import { formatReference, nextChapter } from '../bible/reference.ts';
+import { formatReference, nextChapter, type VerseRef } from '../bible/reference.ts';
 
 type ChapterVerseRow = { verse: number; verseEnd?: number; segments: VerseSegment[] };
 
@@ -117,6 +117,8 @@ export type VerseHoverParams = {
 	tooltipId?: string;
 	/** Makes the otherwise read-only preview actionable inside a document editor. */
 	onInsert?: (quotation: BibleQuotation) => void;
+	/** Opens a reference in the current application workspace instead of a separate browser tab. */
+	onOpen?: (reference: VerseRef) => Promise<boolean>;
 	insertLabel?: string;
 	openLabel?: string;
 };
@@ -135,6 +137,7 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 	let popupHovered = false;
 	let popupFocused = false;
 	let onInsert = params.onInsert;
+	let onOpen = params.onOpen;
 	let openLabel = params.openLabel ?? 'Bibelstelle öffnen';
 	let insertLabel = params.insertLabel ?? 'Bibeltext einfügen';
 	let escapeDismissedReference: string | null = null;
@@ -279,11 +282,11 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 		const body = ownerDocument.createElement('div');
 		body.textContent = text;
 		box.append(heading, body);
-		if (onInsert) {
+		if (onInsert || onOpen) {
 			box.classList.add('interactive');
 			box.setAttribute('role', 'dialog');
 			box.setAttribute('aria-label', `${referenceLabel}: ${quotation ? insertLabel : openLabel}`);
-			if (quotation) {
+			if (quotation && onInsert) {
 				const button = ownerDocument.createElement('button');
 				button.type = 'button';
 				button.className = 'verse-hover-popup-insert';
@@ -301,8 +304,34 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 				open.className = 'verse-hover-popup-insert';
 				open.textContent = openLabel;
 				open.href = href;
-				open.target = '_blank';
-				open.rel = 'noopener noreferrer';
+				if (onOpen && activeAnchor) {
+					const reference: VerseRef = {
+						book: Number(activeAnchor.dataset.book),
+						chapter: Number(activeAnchor.dataset.chapter),
+						...(activeAnchor.dataset.verse ? { verse: Number(activeAnchor.dataset.verse) } : {}),
+						...(activeAnchor.dataset.verseEnd
+							? { verseEnd: Number(activeAnchor.dataset.verseEnd) }
+							: {})
+					};
+					let opening = false;
+					open.addEventListener('click', async (event) => {
+						if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+						event.preventDefault();
+						if (opening) return;
+						opening = true;
+						try {
+							if (await onOpen?.(reference)) hide(true);
+						} catch {
+							body.textContent =
+								'Die Bibelstelle konnte nicht geöffnet werden. Versuche es erneut.';
+						} finally {
+							opening = false;
+						}
+					});
+				} else {
+					open.target = '_blank';
+					open.rel = 'noopener noreferrer';
+				}
 				box.append(open);
 			}
 		} else {
@@ -313,13 +342,13 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 	}
 
 	async function show(target: HTMLElement): Promise<void> {
-		if (!bibleId && !onInsert) return;
+		if (!bibleId && !onInsert && !onOpen) return;
 		const book = Number(target.dataset.book);
 		const chapter = Number(target.dataset.chapter);
 		const verse = Number(target.dataset.verse);
 		const verseEnd = target.dataset.verseEnd ? Number(target.dataset.verseEnd) : undefined;
 		// Chapter-only references in editors still need an explicit way to open their destination.
-		if (!book || !chapter || (!verse && !onInsert)) return;
+		if (!book || !chapter || (!verse && !onInsert && !onOpen)) return;
 
 		const token = ++requestToken;
 		activeAnchor = target;
@@ -519,6 +548,7 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 			if (bibleId !== next.bibleId) hide(true);
 			bibleId = next.bibleId;
 			onInsert = next.onInsert;
+			onOpen = next.onOpen;
 			insertLabel = next.insertLabel ?? 'Bibeltext einfügen';
 			openLabel = next.openLabel ?? 'Bibelstelle öffnen';
 		},
