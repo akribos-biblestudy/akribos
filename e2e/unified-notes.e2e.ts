@@ -807,6 +807,70 @@ test('numbered book references keep their number in notes and sermons after relo
 	await expect(page.getByRole('heading', { name: 'Samuel note', exact: true })).toHaveCount(0);
 });
 
+test('verse shorthand survives import and reload in notes and sermons with exact passage filters', async ({
+	page
+}) => {
+	await loginNewReader(page);
+	const references = [
+		'Joh 7,12+47',
+		'Joh 7,12.47',
+		'Joh 7,12f',
+		'Joh 7,12ff',
+		'Joh 7,12a',
+		'Joh 7,12b',
+		'Joh 7,12c'
+	];
+	await page.goto('/notes/import');
+	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles(
+		['note', 'sermon'].map((kind) => ({
+			name: `${kind}.md`,
+			mimeType: 'text/markdown',
+			buffer: Buffer.from(
+				`---\ntitle: Kurzstellen ${kind}\ntype: ${kind}\n---\n${references.join('\n\n')}`
+			)
+		}))
+	);
+	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+	await page.getByRole('button', { name: 'Als privates Dokument importieren' }).click();
+	await expect(page).toHaveURL('/notes');
+
+	const matchingDocuments = async (verse: number) => {
+		const response = await page.request.get(`/api/documents?passage=Joh7,${verse}`);
+		expect(response.ok()).toBe(true);
+		return (await response.json()).documents as { id: string; title: string }[];
+	};
+	const documents = await matchingDocuments(12);
+	const titles = ['Kurzstellen note', 'Kurzstellen sermon'];
+	expect(documents.map(({ title }) => title).sort()).toEqual(titles);
+	for (const verse of [13, 14, 47]) {
+		expect((await matchingDocuments(verse)).map(({ title }) => title).sort()).toEqual(titles);
+	}
+	for (const verse of [11, 15, 46, 48]) expect(await matchingDocuments(verse)).toEqual([]);
+
+	for (const document of documents) {
+		await page.goto(`/notes/${document.id}`);
+		const editor = page.getByTestId('document-editor');
+		for (const reload of [false, true]) {
+			if (reload) await page.reload();
+			await expect(editor.locator('a[data-reference="Joh7,47"]')).toHaveText(['47', '47']);
+			for (const [label, href] of [
+				['Joh 7,12f', '/Joh7,12-13'],
+				['Joh 7,12ff', '/Joh7,12-14'],
+				['Joh 7,12a', '/Joh7,12'],
+				['Joh 7,12b', '/Joh7,12'],
+				['Joh 7,12c', '/Joh7,12']
+			]) {
+				await expect(editor.getByRole('link', { name: label, exact: true })).toHaveAttribute(
+					'href',
+					href
+				);
+			}
+		}
+		const detail = await (await page.request.get(`/api/documents/${document.id}`)).json();
+		for (const reference of references) expect(detail.document.bodyMarkdown).toContain(reference);
+	}
+});
+
 test('a private note links inline Bible references and previews real text by hover and focus', async ({
 	page
 }) => {

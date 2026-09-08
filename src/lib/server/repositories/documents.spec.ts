@@ -320,6 +320,47 @@ describe.sequential('unified document repositories', () => {
 		).toEqual(originals.sort((a, b) => a.id.localeCompare(b.id)));
 	});
 
+	it.each(['note', 'sermon'] as const)(
+		'reindexes legacy shorthand in a %s without changing the working copy',
+		async (kind) => {
+			const original = await createDocument(db, ownerId, {
+				kind,
+				title: `Legacy shorthand ${kind}`,
+				...prepareDocumentBody('Joh 7,12ff+47b')
+			});
+			const expectedRanges = [
+				{ startBook: 43, endBook: 43, startKey: 43007012, endKey: 43007014 },
+				{ startBook: 43, endBook: 43, startKey: 43007047, endKey: 43007047 }
+			];
+			await db
+				.update(documentBodyReferenceIndexes)
+				.set({
+					parserVersion: 2,
+					books: [43],
+					ranges: [{ startBook: 43, endBook: 43, startKey: 43007001, endKey: 43007999 }]
+				})
+				.where(eq(documentBodyReferenceIndexes.documentId, original.id));
+			const stored = async () =>
+				(
+					await db
+						.select()
+						.from(documentBodyReferenceIndexes)
+						.where(eq(documentBodyReferenceIndexes.documentId, original.id))
+				)[0];
+
+			expect(
+				(await listDocumentLibraryIndex(db, ownerId)).find(({ id }) => id === original.id)?.ranges
+			).toEqual(expectedRanges);
+			expect((await stored())?.parserVersion).toBe(2);
+			await backfillDocumentBodyReferenceIndexes(db);
+			expect(await stored()).toMatchObject({
+				parserVersion: DOCUMENT_REFERENCE_PARSER_VERSION,
+				ranges: expectedRanges
+			});
+			expect(await getDocument(db, ownerId, original.id)).toEqual(original);
+		}
+	);
+
 	it('atomically creates a working copy with its initial passage', async () => {
 		const created = await createDocumentWithPassages(
 			db,

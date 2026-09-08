@@ -440,6 +440,14 @@ dieselben Treffer nicht persistierte ProseMirror-Dekorationen; sie dürfen `body
 Markdown-Roundtrip nicht verändern. Im Editor positioniert ein Linkklick die Schreibmarke;
 Strg-/Cmd-Klick öffnet kein Ziel mehr. Die Bibelvorschau bietet „Bibelstelle öffnen“, der am Text
 verankerte Linkeditor „Link öffnen“. Die Toolbar unterstützt Links und H1–H6.
+Verslisten mit `+` oder `.` erben Buch und Kapitel und erzeugen einzelne Links und Suchintervalle:
+`Joh 7,12+47` beziehungsweise `Joh 7,12.47` umfasst ausschließlich Verse 12 und 47. Die Endungen
+`a`, `b`, `c` referenzieren den ganzen Vers, auch an Bereichsgrenzen. `f` erweitert um einen,
+`ff` um zwei Verse (`Joh 7,12f` → 12–13, `Joh 7,12ff` → 12–14); `ff` ist bewusst ein festes Minimum
+ohne automatisch erratenes Abschnittsende. Wie explizite Versbereiche bleiben diese Nummern im
+genannten Kapitel; werkabhängige Verszählungen werden im reinen Parser nicht erraten. Die originale
+Schreibweise bleibt im Text erhalten. Editor, Vorschau und abgeleitete Dokumentindizes nutzen dieselbe
+Erkennung; Parser-Version 3 lässt vorhandene Arbeitskopien beim Startup erneut indizieren.
 Unterstreichen und Hervorheben verwenden ausschließlich attributfreie `<u>`-/`<mark>`-Tags als
 Markdown-Erweiterung; alle sonstigen Roh-HTML-Regeln bleiben erhalten. Explizite Verse und kapitelübergreifende Bereiche zeigen über
 `verseHoverPopover` bei Maus-Hover und Tastaturfokus echten Bibeltext; dafür werden die bestehenden

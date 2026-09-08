@@ -7,6 +7,18 @@ import {
 } from './link-references';
 
 describe('rewriteBibleReferenceLinks', () => {
+	it.each([
+		['Joh 7,12f', '/Joh7,12-13'],
+		['Joh 7,12ff', '/Joh7,12-14'],
+		['Joh 7,12a', '/Joh7,12'],
+		['Joh 7,12b', '/Joh7,12'],
+		['Joh 7,12c', '/Joh7,12']
+	])('normalizes an authored link labelled %s', (label, href) => {
+		const result = rewriteBibleReferenceLinks(`<a href="/old">${label}</a>`);
+		expect(result).toContain(`href="${href}"`);
+		expect(result).toContain(`>${label}</a>`);
+	});
+
 	it('corrects an existing numbered reference link from its full visible label', () => {
 		const html = '<p><a href="/1Sam9,2">2. Sam 9,2</a></p>';
 		const result = rewriteBibleReferenceLinks(html);
@@ -84,6 +96,12 @@ describe('linkBibleReferences', () => {
 		['1Mo 1_1', '/1Mo1,1'],
 		['Hohes Lied 2,1–3', '/Hld2,1-3'],
 		['Matthew 5:3', '/Mt5,3'],
+		['Joh 7,12f', '/Joh7,12-13'],
+		['Joh 7,12ff', '/Joh7,12-14'],
+		['Joh 7,12a', '/Joh7,12'],
+		['Joh 7,12b', '/Joh7,12'],
+		['Joh 7,12c', '/Joh7,12'],
+		['Joh 7,12a-14b', '/Joh7,12-14'],
 		['Röm 8', '/Röm8']
 	])('links the accepted reference spelling %s', (input, href) => {
 		const linked = linkBibleReferences(`Siehe ${input}.`);
@@ -129,6 +147,48 @@ describe('linkBibleReferences', () => {
 		expect(linked).toContain('data-reference="Joh4,2"');
 		expect(linked).not.toContain('data-reference="Joh5,3"');
 	});
+
+	it.each(['+', '.', ' + ', ' . '])(
+		'links disjoint verses separated by %j individually',
+		(separator) => {
+			const text = `Siehe Joh 7,12${separator}47.`;
+			const matches = findBibleReferences(text);
+			expect(matches.map(({ label, canonical }) => ({ label, canonical }))).toEqual([
+				{ label: 'Joh 7,12', canonical: 'Joh7,12' },
+				{ label: '47', canonical: 'Joh7,47' }
+			]);
+			for (const match of matches) {
+				expect(text.slice(match.from, match.to)).toBe(match.label);
+			}
+			const linked = linkBibleReferences(text);
+			expect(linked).toContain(`>Joh 7,12</a>${separator}<a `);
+			expect(linked).toContain('data-reference="Joh7,47"');
+			expect(linked).toContain('>47</a>.');
+			expect(linkBibleReferences(linked)).toBe(linked);
+		}
+	);
+
+	it('combines verse lists, ranges, suffixes and subsequent chapters without overlapping matches', () => {
+		const text = 'Joh 7,12a+14f.47ff; 8,2b+4-6; 9,1 und 10,2';
+		expect(findBibleReferences(text).map(({ label, canonical }) => ({ label, canonical }))).toEqual(
+			[
+				{ label: 'Joh 7,12a', canonical: 'Joh7,12' },
+				{ label: '14f', canonical: 'Joh7,14-15' },
+				{ label: '47ff', canonical: 'Joh7,47-49' },
+				{ label: '8,2b', canonical: 'Joh8,2' },
+				{ label: '4-6', canonical: 'Joh8,4-6' },
+				{ label: '9,1', canonical: 'Joh9,1' }
+			]
+		);
+		expect(findBibleReferences('1Mo 50,26+27-2Mo 1,2+4').map(({ canonical }) => canonical)).toEqual(
+			['1Mo50,26', '1Mo50,27-2Mo 1,2', '2Mo1,4']
+		);
+	});
+
+	it.each(['Joh 7,12d', 'Joh 7,12fff', 'Joh 7,12abc', 'Joh 7,12foo', 'Joh 7,12f2'])(
+		'does not turn an invalid verse suffix into a whole-chapter reference: %s',
+		(text) => expect(findBibleReferences(text)).toEqual([])
+	);
 
 	it('links a cross-chapter or cross-book range as one hover-previewable link', () => {
 		const crossChapter = linkBibleReferences('Siehe 1Mo 1,31-2,3.');

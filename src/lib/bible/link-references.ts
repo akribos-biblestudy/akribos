@@ -46,16 +46,22 @@ const BOOK_PATTERN = BOOKS.flatMap((book) => {
 	.map(bookPattern)
 	.join('|');
 
-const RANGE_END_PATTERN = `(?:(?:${BOOK_PATTERN})\\s*\\d{1,3}\\s*[,:_]\\s*\\d{1,3}|\\d{1,3}\\s*[,:_]\\s*\\d{1,3}|\\d{1,3})`;
+const VERSE_PATTERN = '\\d{1,3}(?:[abc]|ff?)?';
+const RANGE_END_PATTERN = `(?:(?:${BOOK_PATTERN})\\s*\\d{1,3}\\s*[,:_]\\s*${VERSE_PATTERN}|\\d{1,3}\\s*[,:_]\\s*${VERSE_PATTERN}|${VERSE_PATTERN})`;
+const VERSE_PASSAGE_PATTERN = `${VERSE_PATTERN}(?:\\s*[-–—]\\s*${RANGE_END_PATTERN})?`;
+// An invalid verse suffix must not fall back to indexing the entire chapter.
+const REFERENCE_END_PATTERN = '(?![\\p{L}\\p{N}]|\\s*[,:_]\\s*\\d)';
 
 const REFERENCE_PATTERN = new RegExp(
-	`(^|[^\\p{L}\\p{N}])((?:${BOOK_PATTERN})\\s*\\d{1,3}(?:\\s*[,:_]\\s*\\d{1,3}(?:\\s*[-–—]\\s*${RANGE_END_PATTERN})?)?)(?![\\p{L}\\p{N}])`,
+	`(^|[^\\p{L}\\p{N}])((?:${BOOK_PATTERN})\\s*\\d{1,3}(?:\\s*[,:_]\\s*${VERSE_PASSAGE_PATTERN})?)${REFERENCE_END_PATTERN}`,
 	'giu'
 );
 
-/** A repeated chapter/verse after a semicolon inherits the preceding explicit book name. */
-const CONTINUATION_PATTERN =
-	/^(\s*;\s*)(\d{1,3}\s*[,:_]\s*\d{1,3}(?:\s*[-–]\s*\d{1,3})?)(?![\p{L}\p{N}])/u;
+/** Semicolons inherit the book; plus/dot verse lists inherit both book and chapter. */
+const CONTINUATION_PATTERN = new RegExp(
+	`^(\\s*(?:;\\s*(\\d{1,3})\\s*[,:_]|[+.])\\s*)(${VERSE_PASSAGE_PATTERN})${REFERENCE_END_PATTERN}`,
+	'iu'
+);
 
 /** A dotted date must not turn a preceding word such as German `am` into the book Amos. */
 const CALENDAR_DATE_CONTINUATION_PATTERN = /^\s*\.\s*\d{1,2}(?:\s*\.\s*\d{2,4})?(?!\d)/u;
@@ -160,8 +166,9 @@ function parseMatchReference(label: string): { reference: VerseRef; passage?: Pa
 
 /**
  * Finds references in one plain-text run. Besides every spelling accepted by `parseReference`, a
- * semicolon-separated chapter/verse may inherit the previous book (`Joh 3,16; 4,2`). A prose word
- * between the two deliberately breaks that inheritance.
+ * semicolon-separated chapter/verse may inherit the previous book (`Joh 3,16; 4,2`). Plus/dot lists
+ * inherit the chapter as separate verses (`Joh 7,12+47`), never as an encompassing range. A prose
+ * word between references deliberately breaks that inheritance.
  */
 export function findBibleReferences(text: string): BibleReferenceMatch[] {
 	const matches: BibleReferenceMatch[] = [];
@@ -173,31 +180,43 @@ export function findBibleReferences(text: string): BibleReferenceMatch[] {
 		const label = primary[2] ?? '';
 		const from = primary.index + prefix.length;
 		const to = from + label.length;
-		if (CALENDAR_DATE_CONTINUATION_PATTERN.test(text.slice(to))) continue;
-
 		const parsed = parseMatchReference(label);
 		if (!parsed) continue;
+		if (
+			parsed.reference.verse === undefined &&
+			CALENDAR_DATE_CONTINUATION_PATTERN.test(text.slice(to))
+		)
+			continue;
 
 		matches.push(matchFromReference(text, from, to, parsed.reference, parsed.passage));
 
 		let continuationOffset = to;
+		let context = parsed.passage?.end ?? parsed.reference;
 		while (parsed.reference.verse !== undefined) {
 			const continuation = CONTINUATION_PATTERN.exec(text.slice(continuationOffset));
 			if (!continuation) break;
 			const separator = continuation[1] ?? '';
-			const continuationLabel = continuation[2] ?? '';
+			const continuationChapter = continuation[2];
+			const continuationVerse = continuation[3] ?? '';
+			// A repeated chapter is part of the visible link, while punctuation remains plain text.
+			const chapterOffset = continuationChapter
+				? separator.indexOf(continuationChapter)
+				: separator.length;
+			const continuationLabel = continuation[0].slice(chapterOffset);
 			const continued = parseMatchReference(
-				`${bookShortName(parsed.reference.book)} ${continuationLabel}`
+				`${bookShortName(context.book)} ${continuationChapter ?? context.chapter},${continuationVerse}`
 			);
 			if (!continued) break;
 
-			const continuedFrom = continuationOffset + separator.length;
+			const continuedFrom = continuationOffset + chapterOffset;
 			const continuedTo = continuedFrom + continuationLabel.length;
 			matches.push(
 				matchFromReference(text, continuedFrom, continuedTo, continued.reference, continued.passage)
 			);
 			continuationOffset += continuation[0].length;
+			context = continued.passage?.end ?? continued.reference;
 		}
+		REFERENCE_PATTERN.lastIndex = continuationOffset;
 	}
 
 	REFERENCE_PATTERN.lastIndex = 0;

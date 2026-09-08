@@ -97,7 +97,7 @@ export function normalizePassage(
 }
 
 function parseFullPoint(input: string): PassagePoint | null {
-	const match = /^(.+?)\s*(\d{1,3})\s*[,:_]\s*(\d{1,3})$/u.exec(input.trim());
+	const match = /^(.+?)\s*(\d{1,3})\s*[,:_]\s*(\d{1,3})[abc]?$/iu.exec(input.trim());
 	if (!match) return null;
 
 	const book = findBookId(match[1] ?? '');
@@ -111,12 +111,13 @@ function parseFullPoint(input: string): PassagePoint | null {
 
 function parseRangeEnd(input: string, start: PassagePoint): PassagePoint | null {
 	const trimmed = input.trim();
-	if (/^\d{1,3}$/u.test(trimmed)) {
-		const point = { ...start, verse: Number(trimmed) };
+	const verse = /^(\d{1,3})[abc]?$/iu.exec(trimmed);
+	if (verse) {
+		const point = { ...start, verse: Number(verse[1]) };
 		return isValidPassagePoint(point) ? point : null;
 	}
 
-	const sameBook = /^(\d{1,3})\s*[,:_]\s*(\d{1,3})$/u.exec(trimmed);
+	const sameBook = /^(\d{1,3})\s*[,:_]\s*(\d{1,3})[abc]?$/iu.exec(trimmed);
 	if (sameBook) {
 		const point = { book: start.book, chapter: Number(sameBook[1]), verse: Number(sameBook[2]) };
 		return isValidPassagePoint(point) ? point : null;
@@ -133,20 +134,24 @@ function parseRangeEnd(input: string, start: PassagePoint): PassagePoint | null 
  * - `Joh 3,16-18`
  * - `1Mo 1,31-2,3`
  * - `1Mo 50,26-2Mo 1,2`
+ *
+ * Verse parts `a`/`b`/`c` refer to the whole verse. A final `f` adds one verse, `ff` adds two;
+ * the latter is a deterministic minimum, not an inferred section boundary. As with explicit ranges,
+ * verse numbers stay within the named chapter; resource-specific versification is not guessed here.
  */
 export function parsePassage(input: string): Passage | null {
-	const parts = input
-		.trim()
+	const trimmed = input.trim();
+	const following = /\d(ff?)$/iu.exec(trimmed);
+	const additionalVerses = following?.[1]?.length ?? 0;
+	const parts = (additionalVerses ? trimmed.slice(0, -additionalVerses) : trimmed)
 		.replace(/\s+/gu, ' ')
 		.split(/\s*[-–—]\s*/u);
 	if (parts.length < 1 || parts.length > 2 || !parts[0]) return null;
 
 	const start = parseFullPoint(parts[0]);
 	if (!start) return null;
-	if (parts.length === 1) return normalizePassage(start);
-
-	const end = parts[1] ? parseRangeEnd(parts[1], start) : null;
-	return end ? normalizePassage(start, end) : null;
+	const end = parts.length === 1 ? start : parts[1] ? parseRangeEnd(parts[1], start) : null;
+	return end ? normalizePassage(start, { ...end, verse: end.verse + additionalVerses }) : null;
 }
 
 function pointLabel(point: PassagePoint, style: 'short' | 'full'): string {
