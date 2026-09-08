@@ -183,6 +183,14 @@ The rich editor uses non-persisted ProseMirror decorations, so automatically lin
 the author's Markdown or its export. Published notes use the same matcher over the already safe
 snapshot HTML.
 
+Verse lists such as `Joh 7,12+47` and `Joh 7,12.47` create separate links and filter intervals for
+verses 12 and 47, leaving the gap out. Verse-part suffixes `a`, `b`, and `c` refer to the whole verse,
+including at range endpoints. `Joh 7,12f` covers verses 12–13; `Joh 7,12ff` covers verses 12–14.
+The two additional verses for `ff` are a fixed minimum, not a guessed section boundary. Like explicit
+verse ranges, these numbers stay in the named chapter; the pure parser does not infer resource-specific
+versification. Original labels remain unchanged. The editor, previews and body filters share this
+recognition; parser version 3 causes existing note and sermon reference indexes to be refreshed at startup.
+
 Hovering or focusing a verse reference shows its actual text, including a bounded cross-chapter range.
 Inside the visual editor the popup includes “Bibeltext einfügen”; `/bibel Mt 3,12` followed by Enter is
 the keyboard-first equivalent. Both insert an ordinary blockquote plus a bold reference/translation

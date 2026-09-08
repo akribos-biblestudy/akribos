@@ -9,6 +9,29 @@ function overlaps(html: string, reference: string): boolean {
 
 describe('document body passage filters', () => {
 	it.each([
+		['Joh 7,12+47', [12, 47]],
+		['Joh 7,12.47', [12, 47]],
+		['Joh 7,12f', [12, 13]],
+		['Joh 7,12ff', [12, 13, 14]],
+		['Joh 7,12a', [12]],
+		['Joh 7,12b', [12]],
+		['Joh 7,12c', [12]]
+	] as const)('matches exactly the specified verses in %s', (reference, verses) => {
+		for (let verse = 11; verse <= 48; verse++) {
+			expect(overlaps(`<p>${reference}</p>`, `Joh 7,${verse}`)).toBe(
+				(verses as readonly number[]).includes(verse)
+			);
+		}
+	});
+
+	it('recognizes shorthand across inline formatting and legacy link labels', () => {
+		const html = '<p><a href="/old">Joh 7,12<strong>ff</strong></a>+<em>47b</em></p>';
+		expect(overlaps(html, 'Joh 7,14')).toBe(true);
+		expect(overlaps(html, 'Joh 7,47')).toBe(true);
+		expect(overlaps(html, 'Joh 7,46')).toBe(false);
+	});
+
+	it.each([
 		'<p>2. Sam 9,2</p>',
 		'<p>2. <strong>Sam</strong> 9,2</p>',
 		'<p>2. <a href="/1Sam9,2">Sam 9,2</a></p>',

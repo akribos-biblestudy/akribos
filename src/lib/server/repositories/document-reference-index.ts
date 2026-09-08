@@ -32,7 +32,7 @@ import {
 
 const BACKFILL_BATCH_SIZE = 100;
 /** Increment whenever prose parsing changes so existing working copies are rescanned at startup. */
-export const DOCUMENT_REFERENCE_PARSER_VERSION = 2;
+export const DOCUMENT_REFERENCE_PARSER_VERSION = 3;
 
 /** Replace the projection in the same transaction that changes the authoritative document body. */
 export async function syncDocumentBodyReferenceIndex(

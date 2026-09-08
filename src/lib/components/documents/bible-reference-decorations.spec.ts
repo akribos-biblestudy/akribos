@@ -16,6 +16,39 @@ const schema = new Schema({
 });
 
 describe('createBibleReferenceDecorations', () => {
+	it.each([
+		[
+			'Joh 7,12+47',
+			[
+				['Joh 7,12', 'Joh7,12'],
+				['47', 'Joh7,47']
+			]
+		],
+		[
+			'Joh 7,12.47',
+			[
+				['Joh 7,12', 'Joh7,12'],
+				['47', 'Joh7,47']
+			]
+		],
+		['Joh 7,12f', [['Joh 7,12f', 'Joh7,12-13']]],
+		['Joh 7,12ff', [['Joh 7,12ff', 'Joh7,12-14']]],
+		['Joh 7,12a', [['Joh 7,12a', 'Joh7,12']]],
+		['Joh 7,12b', [['Joh 7,12b', 'Joh7,12']]],
+		['Joh 7,12c', [['Joh 7,12c', 'Joh7,12']]]
+	] as const)('decorates the complete shorthand %s without changing its text', (text, expected) => {
+		const document = schema.node('doc', null, [
+			schema.node('paragraph', null, [schema.text(text)])
+		]);
+		const before = document.toJSON();
+		expect(
+			createBibleReferenceDecorations(document)
+				.find()
+				.map(({ from, to, spec }) => [document.textBetween(from, to), spec.bibleReference])
+		).toEqual(expected);
+		expect(document.toJSON()).toEqual(before);
+	});
+
 	it('highlights the book number with the complete second Samuel reference', () => {
 		const document = schema.node('doc', null, [
 			schema.node('paragraph', null, [schema.text('Siehe 2. Sam 9,2.')])

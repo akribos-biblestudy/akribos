@@ -36,6 +36,27 @@ describe('parsePassage', () => {
 		expect(parsePassage(input)).toEqual(expected);
 	});
 
+	it.each([
+		['Joh 7,12a', 12, 12],
+		['Joh 7,12b', 12, 12],
+		['Joh 7,12c', 12, 12],
+		['Joh 7,12f', 12, 13],
+		['Joh 7,12ff', 12, 14],
+		['Joh 7,12FF', 12, 14],
+		['Joh 7,12a-14c', 12, 14],
+		['Joh 7,12-14f', 12, 15]
+	] as const)('normalizes verse suffixes in %s', (input, startVerse, endVerse) => {
+		expect(parsePassage(input)).toEqual({
+			start: { book: 43, chapter: 7, verse: startVerse },
+			end: { book: 43, chapter: 7, verse: endVerse }
+		});
+	});
+
+	it('accepts verse parts at cross-chapter and cross-book range endpoints', () => {
+		expect(parsePassage('Joh 7,12a-8,2b')).toEqual(parsePassage('Joh 7,12-8,2'));
+		expect(parsePassage('1Mo 50,26c-2Mo 1,2b')).toEqual(parsePassage('1Mo 50,26-2Mo 1,2'));
+	});
+
 	it('normalizes a range entered backwards', () => {
 		expect(parsePassage('Joh 4,2-Joh 3,16')).toEqual({
 			start: { book: 43, chapter: 3, verse: 16 },
@@ -52,7 +73,14 @@ describe('parsePassage', () => {
 		'Joh 3,1000',
 		'Unbekannt 1,1',
 		'Joh 3,16-',
-		'Joh 3,16-18-20'
+		'Joh 3,16-18-20',
+		'Joh 7,12+47',
+		'Joh 7,12.47',
+		'Joh 7,12d',
+		'Joh 7,12fff',
+		'Joh 7,12abc',
+		'Joh 7,999f',
+		'Joh 7,998ff'
 	])('rejects invalid input %j', (input) => {
 		expect(parsePassage(input)).toBeNull();
 	});
