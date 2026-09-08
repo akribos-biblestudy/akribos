@@ -211,6 +211,21 @@ reading context. The popup uses the public chapter API, caches per chapter, boun
 chapters, exposes a tooltip relationship with `aria-describedby`, and closes with Escape.
 Whole-chapter references remain links but do not open a chapter-sized popup.
 
+“Bibelstelle öffnen” navigates within the current browser tab. In the Reader sidecar it targets the first
+visible Bible tile, retaining its link group and ordinary group synchronization. If none is visible,
+the preferred Bible (or first public, ready Bible) opens as a new group-A tab in an empty tile or the
+first tile. Existing tabs and layout are retained. The guarded Reader action and SvelteKit navigation
+preserve the sidecar editor and unchanged chapter streams. From the standalone editor, this action
+and “Im Arbeitsbereich öffnen” carry the current document into the Reader sidecar after saving pending
+changes; the return link to the Reader does the same.
+
+The selected document id and owner id are stored only in the current browser tab's `sessionStorage`.
+Reload restores the same document through the existing owner-checked API. A different owner is ignored,
+401/404 clears the stored selection, and returning to the note library clears it explicitly. Hiding the
+sidecar retains the selection. No document id enters Reader URLs, shared workspaces or `localStorage`;
+no document body is stored in the session. A root-layout context also supports the editor-to-Reader
+handoff when browser storage is disabled.
+
 ## Legacy compatibility
 
 Existing `verse_comments` remain available through `GET /api/v1/notes`, but their former inline green

@@ -10,6 +10,11 @@
 	import { SvelteMap, SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity';
 	import { formatReference, referencePath, type VerseRef } from '$lib/bible/reference';
 	import {
+		DOCUMENT_READER_NAVIGATION,
+		readReaderDocument,
+		type DocumentReaderNavigation
+	} from '$lib/reader/document-navigation';
+	import {
 		MAX_PASSAGE_VERSE,
 		parsePassage,
 		passagePointKey,
@@ -77,6 +82,7 @@
 
 	let { data } = $props();
 	const workspaceCapture = getContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT);
+	const documentNavigation = getContext<DocumentReaderNavigation>(DOCUMENT_READER_NAVIGATION);
 	onMount(() => {
 		workspaceCapture.capture = () => ({
 			readerState: encodeReaderUrlState(
@@ -824,14 +830,57 @@
 
 	onMount(() => {
 		if (!data.user) return;
+		const userId = data.user.id;
 		readerNotesSidecarWidth = clampSidecarWidth(readReaderNotesSidecarWidth());
 		const synchronize = (event: Event) => {
 			void handleReaderNotesSidecarRequest((event as ReaderNotesSidecarEvent).detail.open);
 		};
 		window.addEventListener(READER_NOTES_SIDECAR_EVENT, synchronize);
-		if (readReaderNotesSidecarOpen()) void handleReaderNotesSidecarRequest(true);
-		return () => window.removeEventListener(READER_NOTES_SIDECAR_EVENT, synchronize);
+		const pending = documentNavigation.pending;
+		documentNavigation.pending = null;
+		const handoff = pending?.userId === userId ? pending : null;
+		const documentId = handoff?.documentId ?? readReaderDocument(userId);
+		let cancelled = false;
+		void (async () => {
+			if (handoff || readReaderNotesSidecarOpen()) await handleReaderNotesSidecarRequest(true);
+			await tick();
+			if (cancelled) return;
+			if (documentId) await readerNotesSidecar?.openDocument(documentId);
+			if (!cancelled && handoff?.reference) await openBibleReference(handoff.reference);
+		})();
+		return () => {
+			cancelled = true;
+			window.removeEventListener(READER_NOTES_SIDECAR_EVENT, synchronize);
+		};
 	});
+
+	async function openBibleReference(reference: VerseRef): Promise<boolean> {
+		try {
+			await flushWorkspace();
+			const form = new FormData();
+			form.set('reference', formatReference(reference));
+			const response = await fetch(actionUrl('openBibleReference'), {
+				method: 'POST',
+				body: form,
+				headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
+			});
+			const result = deserialize(await response.text());
+			const state = result.type === 'success' && readerStateFromActionData(result.data);
+			if (!response.ok || !state || result.type !== 'success') throw new Error('reference');
+			await goto(readerUrl(referencePath(reference), state), {
+				invalidateAll: true,
+				noScroll: true
+			});
+			const target = data.workspace.tiles.findIndex((tile) => tile.id === result.data?.tileId);
+			if (target >= 0) mobileTile = target;
+			mobileReaderView = 'reading';
+			workspaceSaveError = '';
+			return true;
+		} catch {
+			workspaceSaveError = 'Die Bibelstelle konnte nicht geöffnet werden.';
+			return false;
+		}
+	}
 
 	/**
 	 * Strong's number currently under the mouse. Cleared again on pointer leave; see
@@ -2527,12 +2576,14 @@
 			</div>
 			<ReaderNotesSidecar
 				bind:this={readerNotesSidecar}
+				userId={data.user.id}
 				bibleId={primaryBibleId}
 				context={readerNotesContext}
 				filters={notesFilters}
 				onFiltersChange={updateNotesFilters}
 				onDocumentCreated={recordCreatedReaderDocument}
 				onClose={finishReaderNotesSidecarClose}
+				onOpenBibleReference={openBibleReference}
 			/>
 		</div>
 	{/if}

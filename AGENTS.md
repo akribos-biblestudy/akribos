@@ -460,6 +460,15 @@ Links ohne Textvorschau; im Editor erhalten sie nur das explizite Öffnen-Angebo
 Im visuellen Dokumenteditor besitzt die Versvorschau zusätzlich „Bibeltext einfügen“;
 `/bibel <Stelle>` plus Enter ist der Tastaturweg. Beide fügen ein gewöhnliches Blockzitat mit fetter
 Quellenzeile ein, kein proprietäres ProseMirror-Element.
+„Bibelstelle öffnen“ verwendet im Sidecar die erste aktive Bibelkachel in Workspace-Reihenfolge;
+deren Tabgruppe bleibt erhalten und synchronisiert sich wie bei jeder Stellennavigation. Ohne aktive
+Bibel wird die persönliche Standardbibel beziehungsweise die erste öffentliche, fertige Bibel als
+neuer Tab mit Gruppe A geöffnet, bevorzugt in einer leeren, sonst in der ersten Kachel. Layout und
+vorhandene Tabs bleiben erhalten. `openBibleReference` nutzt dieselben geschützten Reader-Mutationen
+wie andere Tab-Aktionen; anschließend navigiert SvelteKit im selben Browser-Tab und erhält den
+Sidecar-Editor sowie unveränderte Kapitelstreams. Der eigenständige Editor übergibt Dokument und
+optionale Zielstelle über einen pro Root-Layout erzeugten Kontext an den Reader. Sowohl die Vorschau
+als auch „Im Arbeitsbereich öffnen“ und der Rückkehrlink zum Bibeltext warten zuvor auf Autosave.
 
 Der Dokumenteditor begrenzt seine Höhe auch eigenständig auf den Viewport; nur der Schreibbereich
 scrollt, Werkzeugleiste und Footer bleiben erreichbar. Die Zähler im Footer zählen den sichtbaren
@@ -507,6 +516,13 @@ URL-Änderungen halten diese Filter zusätzlich in `page.state.readerNotesFilter
 Konto-Workspace und enthalten keine private Dokument-ID. Der Schalter speichert ausschließlich Sichtbarkeit und harmlose Breite
 (`reader-notes-sidecar-open`, `reader-notes-sidecar-width`); eine private Dokument-ID gelangt weder in Reader-URL/History noch in
 `localStorage`. Beim Öffnen wird der aktuelle Vers der zuletzt aktiven Bibelspalte als Kontext verwendet;
+Die zuletzt geöffnete Dokument-ID wird getrennt davon im `sessionStorage` des Browser-Tabs unter
+`reader-notes-sidecar-document` zusammen mit der Nutzer-ID gemerkt. Reload und der Wechsel zwischen
+vollständigem Editor und Workspace stellen dieselbe Notiz/Ausarbeitung wieder her. Jeder Abruf prüft
+den Eigentümer erneut; fremde Nutzer-IDs werden ignoriert, 401/404 entfernen den gespeicherten Eintrag.
+Der Wechsel zur Notizübersicht löscht die Auswahl; bloßes Ausblenden erhält sie. Dokumentinhalte und
+offene Dokument-IDs gehören weiterhin weder in Reader-URLs noch in geräteübergreifende Workspaces
+oder `localStorage`. Bei gesperrtem Sitzungsspeicher bleibt der Kontext-Übergang im laufenden Tab möglich.
 Die Sidecar-Bibliothek öffnet Dokumente im `compact`-Modus von `DocumentEditor.svelte`. Laden und Autosave verwenden unverändert das eigentümergeprüfte interne
 `GET`/`PATCH /api/documents/[id]`. Wechsel, Ausblenden und Schließen warten auf `flush()`; ein
 Speicherfehler oder Revisionskonflikt lässt den Editor sichtbar. `ReaderNotesPanel` bleibt der eine

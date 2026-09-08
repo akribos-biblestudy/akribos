@@ -7,7 +7,7 @@ export const MAX_READER_NOTES_SIDECAR_WIDTH = 720;
 
 export type ReaderNotesSidecarEvent = CustomEvent<{ open: boolean }>;
 
-/** The sidecar preference is device-local. A private document id is deliberately never persisted. */
+/** Visibility is device-local; the separate document selection uses only owner-scoped sessionStorage. */
 export function readReaderNotesSidecarOpen(storage?: Pick<Storage, 'getItem'>): boolean {
 	try {
 		return (storage ?? window.localStorage).getItem(READER_NOTES_SIDECAR_STORAGE_KEY) === '1';
@@ -50,7 +50,7 @@ export function readReaderNotesSidecarWidth(storage?: Pick<Storage, 'getItem'>):
 	}
 }
 
-/** Width is the only additional sidecar state persisted; document ids remain memory-only. */
+/** Device-local sizing never includes document ids. */
 export function setReaderNotesSidecarWidth(
 	width: number,
 	storage?: Pick<Storage, 'setItem'>

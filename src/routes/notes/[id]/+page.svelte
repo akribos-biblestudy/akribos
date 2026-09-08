@@ -1,8 +1,20 @@
 <script lang="ts">
-	import { formatReference } from '$lib/bible/reference';
+	import {
+		formatReference,
+		parseReference,
+		isReferenceInCanon,
+		type VerseRef
+	} from '$lib/bible/reference';
+	import { goto } from '$app/navigation';
+	import {
+		DOCUMENT_READER_NAVIGATION,
+		rememberReaderDocument,
+		type DocumentReaderNavigation
+	} from '$lib/reader/document-navigation';
+	import { setReaderNotesSidecarOpen } from '$lib/reader/notes-sidecar';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
 	import { SERMON_FORMATS, sermonFormatLabel } from '$lib/notes/documents';
-	import { tick, untrack } from 'svelte';
+	import { getContext, tick, untrack } from 'svelte';
 	import DocumentEditor from '$lib/components/documents/DocumentEditor.svelte';
 	import DocumentAttachments from '$lib/components/documents/DocumentAttachments.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -10,6 +22,35 @@
 	import { formatGermanCalendarDate } from '$lib/notes/calendar-date';
 
 	let { data, form } = $props();
+	const documentNavigation = getContext<DocumentReaderNavigation>(DOCUMENT_READER_NAVIGATION);
+	let openingWorkspace = $state(false);
+	let workspaceError = $state('');
+	const readerReturnTo = $derived.by(() => {
+		const reference = parseReference((data.returnTo?.split('?')[0] ?? '').slice(1));
+		return reference && isReferenceInCanon(reference) ? data.returnTo : null;
+	});
+
+	async function openInWorkspace(reference?: VerseRef): Promise<boolean> {
+		if (openingWorkspace || !data.user) return false;
+		openingWorkspace = true;
+		workspaceError = '';
+		try {
+			if (editor && !(await editor.flush())) return false;
+			const userId = data.user.id;
+			const documentId = workingDocument.id;
+			rememberReaderDocument(userId, documentId);
+			setReaderNotesSidecarOpen(true);
+			documentNavigation.pending = { userId, documentId, reference };
+			await goto(readerReturnTo ?? '/');
+			return true;
+		} catch {
+			documentNavigation.pending = null;
+			workspaceError = 'Der Arbeitsbereich konnte nicht geöffnet werden.';
+			return false;
+		} finally {
+			openingWorkspace = false;
+		}
+	}
 
 	type EditorSaveState = 'saved' | 'dirty' | 'saving' | 'error' | 'conflict';
 	type EditorHandle = {
@@ -187,12 +228,26 @@
 	<div class="mb-4 flex flex-wrap items-center justify-between gap-3 px-1">
 		<a
 			href={data.returnTo ?? '/notes'}
+			onclick={(event) => {
+				if (!readerReturnTo || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)
+					return;
+				event.preventDefault();
+				void openInWorkspace();
+			}}
 			class="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-500 hover:text-accent-700 dark:text-stone-400 dark:hover:text-accent-300"
 		>
 			<Icon name="chevron-left" class="size-4" />
 			{backLabel()}
 		</a>
 		<div class="flex items-center gap-2">
+			<button
+				type="button"
+				class="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 px-3 py-1.5 text-xs font-semibold hover:border-accent-400 dark:border-white/12"
+				disabled={openingWorkspace}
+				onclick={() => void openInWorkspace()}
+			>
+				<Icon name="book-open" class="size-3.5" />Im Arbeitsbereich öffnen
+			</button>
 			<details class="export-menu">
 				<summary
 					class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-stone-300 bg-[color:var(--surface-raised)] px-3 py-1.5 text-xs font-semibold shadow-sm hover:border-accent-400 dark:border-white/12"
@@ -217,6 +272,7 @@
 			</span>
 		</div>
 	</div>
+	{#if workspaceError}<p role="alert" class="mb-4 text-sm text-red-700">{workspaceError}</p>{/if}
 
 	{#if form?.error}
 		<p
@@ -242,6 +298,7 @@
 				bibleId={data.previewBibleId}
 				onSaved={onEditorSaved}
 				onState={onEditorState}
+				onOpenBibleReference={openInWorkspace}
 			/>
 		{/key}
 

@@ -515,8 +515,8 @@ test('a reader verse creates and reopens a translation-specific unified note', a
 	const fullEditorHref = await sidecar
 		.getByRole('link', { name: 'Im vollständigen Notiz-Editor öffnen' })
 		.getAttribute('href');
-	expect(fullEditorHref).toMatch(/^\/notes\/[0-9a-f-]+$/);
-	const documentId = fullEditorHref!.split('/').at(-1)!;
+	expect(fullEditorHref).toMatch(/^\/notes\/[0-9a-f-]+\?returnTo=/);
+	const documentId = new URL(fullEditorHref!, page.url()).pathname.split('/').at(-1)!;
 	const detail = await page.evaluate(async (id) => {
 		const response = await fetch(`/api/v1/documents/${id}`);
 		return { status: response.status, body: await response.json() };
@@ -545,11 +545,9 @@ test('a reader verse creates and reopens a translation-specific unified note', a
 		.poll(() => sidecar.evaluate((element) => element.getBoundingClientRect().width))
 		.toBeGreaterThan(widthBeforeKeyboardResize);
 
-	// The device-local sidecar preference survives a reload, while its private document id does not.
-	// The freshly loaded passage context offers the owned note, whose persisted content can be opened.
+	// The same owned document resumes after reload, without putting its id in the Reader URL.
 	await page.reload();
 	sidecar = page.getByTestId('reader-notes-sidecar');
-	await sidecar.getByTestId('reader-notes-open-document').filter({ hasText: title }).click();
 	await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(title);
 	await sidecar.getByRole('tab', { name: 'Markdown' }).click();
 	await expect(sidecar.getByTestId('reader-notes-sidecar-body-markdown')).toHaveValue(
@@ -924,12 +922,133 @@ test('a private note links inline Bible references and previews real text by hov
 	await page.getByRole('tab', { name: 'Visuell' }).click();
 	await reference.click();
 	await expect(page).toHaveURL(`/notes/${SEED_PRIVATE_NOTE_ID}`);
-	const opened = page.waitForEvent('popup');
+	const browserTabs = page.context().pages().length;
 	await preview.getByRole('link', { name: 'Bibelstelle öffnen' }).click();
-	const reader = await opened;
-	await expect(reader).toHaveURL((url) => url.pathname === '/Mt3,12');
-	await expect(reader.locator('[data-verse-key="40:3:12"]').first()).toContainText('Worfschaufel');
-	await reader.close();
+	await expect(page).toHaveURL((url) => url.pathname === '/Mt3,12');
+	await expect(page.locator('[data-verse-key="40:3:12"]').first()).toContainText('Worfschaufel');
+	await expect(page.getByTestId('reader-notes-sidecar-editor')).toBeVisible();
+	expect(page.context().pages()).toHaveLength(browserTabs);
+});
+
+for (const kind of ['note', 'sermon']) {
+	test(`the ${kind} returns to its workspace and opens sidecar references without reloading`, async ({
+		page
+	}) => {
+		await loginNewReader(page);
+		await page.goto('/notes/import');
+		await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles({
+			name: 'workspace.md',
+			mimeType: 'text/markdown',
+			buffer: Buffer.from(`---\ntitle: Workspace ${kind}\ntype: ${kind}\n---\nMt 3,12 und Joh 3,16`)
+		});
+		await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+		await page.getByRole('button', { name: 'Als privates Dokument importieren' }).click();
+		await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+$/);
+		const documentId = new URL(page.url()).pathname.split('/').at(-1)!;
+		const readerUrl =
+			'/Joh3,16?layout=columns-2&tab=1.1:SEEDDE:A:Joh3,16&tab=2.1:SEEDPLAIN:B:Joh3,16&active=1.1&active=2.1&focus=2';
+		await page.goto(`/notes/${documentId}?returnTo=${encodeURIComponent(readerUrl)}`);
+		await page.getByRole('button', { name: 'Im Arbeitsbereich öffnen', exact: true }).click();
+		const sidecar = page.getByTestId('reader-notes-sidecar');
+		await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(
+			`Workspace ${kind}`
+		);
+		const columns = page.locator('.flow-column');
+		await expect(columns).toHaveCount(2);
+		await expect(columns.nth(1).locator('[data-verse-key="43:3:16"]')).toBeVisible();
+		await columns.nth(1).evaluate((node) => node.setAttribute('data-preserved', 'yes'));
+		await sidecar
+			.getByTestId('document-editor')
+			.evaluate((node) => node.setAttribute('data-preserved', 'yes'));
+		const navigations: string[] = [];
+		page.on('request', (request) => {
+			if (request.isNavigationRequest() && request.resourceType() === 'document')
+				navigations.push(request.url());
+		});
+		const tabCount = page.context().pages().length;
+		await sidecar.getByTestId('reader-notes-sidecar-title').fill(`Gespeichert ${kind}`);
+		await sidecar.locator('a.bible-reference[data-reference="Mt3,12"]').hover();
+		await page
+			.getByTestId('bible-reference-preview')
+			.getByRole('link', { name: 'Bibelstelle öffnen' })
+			.click();
+		await expect(page).toHaveURL((url) => url.pathname === '/Mt3,12');
+		await expect(columns.first().locator('[data-verse-key="40:3:12"]')).toBeVisible();
+		await expect(columns.nth(1)).toHaveAttribute('data-preserved', 'yes');
+		await expect(columns.nth(1).locator('[data-verse-key="43:3:16"]')).toBeVisible();
+		await expect(sidecar.getByTestId('document-editor')).toHaveAttribute('data-preserved', 'yes');
+		expect(navigations).toEqual([]);
+		expect(page.context().pages()).toHaveLength(tabCount);
+		expect(
+			(await (await page.request.get(`/api/documents/${documentId}`)).json()).document.title
+		).toBe(`Gespeichert ${kind}`);
+		await page.reload();
+		await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(
+			`Gespeichert ${kind}`
+		);
+		expect(page.url()).not.toContain(documentId);
+		expect(await page.evaluate((id) => JSON.stringify(localStorage).includes(id), documentId)).toBe(
+			false
+		);
+
+		await sidecar.getByRole('link', { name: 'Im vollständigen Notiz-Editor öffnen' }).click();
+		await expect(page.getByTestId('document-workspace')).toBeVisible();
+		await page.getByRole('link', { name: 'Zurück zum Bibeltext', exact: true }).click();
+		await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(
+			`Gespeichert ${kind}`
+		);
+		await sidecar.getByRole('button', { name: /^Notizen für .* anzeigen$/ }).click();
+		await page.reload();
+		await expect(sidecar.getByTestId('reader-notes-sidecar-context')).toBeVisible();
+		await expect(sidecar.getByTestId('reader-notes-sidecar-editor')).toHaveCount(0);
+	});
+}
+
+test('a document reference adds a group A Bible when the workspace has no visible Bible', async ({
+	page
+}) => {
+	await loginAs(page, SEED_READER);
+	const readerUrl = '/Joh3,16?layout=single&tab=1.1:SEEDCOMMENTARY:B:Joh3,16&active=1.1&focus=1.1';
+	await page.goto(`/notes/${SEED_PRIVATE_NOTE_ID}?returnTo=${encodeURIComponent(readerUrl)}`);
+	await page.getByRole('button', { name: 'Im Arbeitsbereich öffnen', exact: true }).click();
+	const sidecar = page.getByTestId('reader-notes-sidecar');
+	await expect(page.locator('.flow-column[data-resource-id="SEEDCOMMENTARY"]')).toBeVisible();
+	await sidecar.locator('a.bible-reference[data-reference="Mt3,12"]').hover();
+	await page
+		.getByTestId('bible-reference-preview')
+		.getByRole('link', { name: 'Bibelstelle öffnen' })
+		.click();
+	await expect(page).toHaveURL((url) => url.pathname === '/Mt3,12');
+	await expect(page.locator('.flow-column [data-verse-key="40:3:12"]').first()).toBeVisible();
+	const tabs = new URL(page.url()).searchParams.getAll('tab');
+	expect(tabs).toContain('1.1:SEEDCOMMENTARY:B:Joh3,16');
+	expect(tabs.some((tab) => /^1\.2:SEEDDE:A:Mt3,12$/.test(tab))).toBe(true);
+	await expect(sidecar.getByTestId('reader-notes-sidecar-editor')).toBeVisible();
+});
+
+test('restoring a sidecar never grants access to a foreign document', async ({ page }) => {
+	await loginNewReader(page);
+	const ownId = await createNoteFromLibrary(page);
+	const { document } = await (await page.request.get(`/api/documents/${ownId}`)).json();
+	await page.evaluate(
+		({ userId, documentId }) => {
+			sessionStorage.setItem(
+				'reader-notes-sidecar-document',
+				JSON.stringify({ userId, documentId })
+			);
+			localStorage.setItem('reader-notes-sidecar-open', '1');
+		},
+		{ userId: document.userId, documentId: SEED_PRIVATE_NOTE_ID }
+	);
+	await page.goto('/Joh1');
+	const sidecar = page.getByTestId('reader-notes-sidecar');
+	await expect(sidecar.getByRole('alert')).toContainText('keinen Zugriff');
+	await expect(sidecar.getByTestId('reader-notes-sidecar-editor')).toHaveCount(0);
+	expect(
+		await page.evaluate(() => sessionStorage.getItem('reader-notes-sidecar-document'))
+	).toBeNull();
+	await sidecar.getByRole('button', { name: 'Notizübersicht öffnen' }).click();
+	await expect(sidecar.getByTestId('reader-notes-sidecar-context')).toBeVisible();
 });
 
 test('imported Bible links preview and contextual link actions preserve formatting through reload', async ({
