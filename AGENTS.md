@@ -206,6 +206,12 @@ gilt nur die Quellkachel als Gruppe. Mehrere Lexika werden nie zu einem Eintrag 
 
 Wichtige Scroll-Invarianten:
 
+- Beim Schließen eines Ressourcen-Tabs bestimmt der **danach fokussierte aktive Tab** die Zieladresse
+  der Action. Ein inaktiver Nachbar liefert niemals die Pfadstelle. Das Schließen sendet zusätzlich
+  den gerade sichtbaren Quell-Tab und dessen aktuelle Referenz, damit auch ein Scrollstand vor dem
+  URL-Debounce erhalten bleibt. Das Fortschreiben dieser Referenz darf den Fokus nicht auf eine andere
+  Kachel verschieben.
+
 - Nur echte Nutzerscrolls dürfen eine Spalte zur Quelle machen und die URL aktualisieren.
   Programmatische Ausrichtung läuft über `suppressProgrammaticFlowScroll(index)`. Die Sperre ist
   zwingend **pro Spalte**: Eine Interaktion darf nur die Sperre ihrer eigenen Spalte aufheben, weil

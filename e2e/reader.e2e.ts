@@ -1430,6 +1430,80 @@ test('opening another resource tab keeps the currently visible chapter', async (
 	await expect(column.locator('[data-chapter-key="1:2"]')).toBeAttached();
 });
 
+for (const width of [1280, 390]) {
+	test(`closing an inactive tab keeps the active Bible reference at width ${width}`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 780 });
+		await page.goto(
+			'/Joh3,16?layout=single&tab=1.1:SEEDDE:A:Joh3,16&tab=1.2:SEEDCOMMENTARY:B:1Mo1,3&tab=1.3:STRONGS_GREEK:B:1Mo1,3&active=1.1&focus=1'
+		);
+		await page.getByRole('button', { name: 'Kommentar schließen', exact: true }).click();
+		await expect(
+			page.getByRole('button', { name: 'Kommentar schließen', exact: true })
+		).toHaveCount(0);
+		await expectReaderPath(page, '/Joh3,16');
+		await expect(tabReference(page)).toHaveValue('Joh 3,16');
+		await expect(page.getByRole('tab', { selected: true })).toContainText('Testübersetzung');
+		expect(new URL(page.url()).searchParams.getAll('tab')).toContain('1.2:STRONGS_GREEK:B:1Mo1,3');
+		await page.reload();
+		await expect(tabReference(page)).toHaveValue('Joh 3,16');
+		await expect(
+			page.getByRole('button', { name: 'Kommentar schließen', exact: true })
+		).toHaveCount(0);
+	});
+}
+
+test('closing a tab in another tile preserves the focused Bible and its stream', async ({
+	page
+}) => {
+	await page.goto(
+		'/Joh3,16?layout=columns-2&tab=1.1:SEEDDE:A:Joh3,16&tab=2.1:SEEDCOMMENTARY:B:1Mo1,3&tab=2.2:STRONGS_GREEK:B:1Mo1,3&active=1.1&active=2.1&focus=1'
+	);
+	const bible = page.locator('.reader-tile').first().locator('.flow-column');
+	await bible.evaluate((element) => element.setAttribute('data-close-marker', 'retained'));
+	await page.getByRole('button', { name: 'Kommentar schließen', exact: true }).click();
+	await expect(
+		page
+			.locator('.reader-tile')
+			.nth(1)
+			.getByLabel(/Lexikoneintrag in/)
+	).toBeVisible();
+	await expectReaderPath(page, '/Joh3,16');
+	await expect(tabReference(page)).toHaveValue('Joh 3,16');
+	await expect(bible).toHaveAttribute('data-close-marker', 'retained');
+	expect(new URL(page.url()).searchParams.get('focus')).toBe('1');
+});
+
+test('closing an inactive tab preserves a scroll position before its URL debounce', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 900, height: 300 });
+	await page.goto(
+		'/Joh3,16?layout=columns-2&tab=1.1:SEEDDE:A:Joh3,16&tab=1.2:SEEDCOMMENTARY:B:1Mo1,3&tab=1.3:STRONGS_GREEK:B:1Mo1,3&active=1.1&focus=1'
+	);
+	const closing = page.waitForRequest(
+		(request) => request.method() === 'POST' && request.url().includes('/closeTab')
+	);
+	await page.locator('.flow-column').evaluate(async (element) => {
+		const target = element.querySelector<HTMLElement>('[data-verse-key="43:3:16"]')!;
+		element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		element.scrollTop +=
+			target.getBoundingClientRect().bottom - element.getBoundingClientRect().top - 23;
+		element.dispatchEvent(new Event('scroll'));
+		// Flush Svelte's hidden input update, but leave the 200 ms address timer pending.
+		await Promise.resolve();
+		document
+			.querySelector<HTMLButtonElement>('.reader-tile button[aria-label="Kommentar schließen"]')!
+			.click();
+	});
+	const request = await closing;
+	expect(new URL(request.url()).pathname).toBe('/Joh3,16');
+	expect(new URLSearchParams(request.postData() ?? '').get('currentReference')).toBe('Joh 3,17');
+	await expectReaderPath(page, '/Joh3,17');
+	await expect(tabReference(page)).toHaveValue('Joh 3,17');
+});
+
 test('a closed resource tab can be opened again', async ({ page }) => {
 	await page.goto('/Joh3');
 	const tile = page.locator('.reader-tile').first();

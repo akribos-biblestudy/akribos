@@ -92,11 +92,6 @@
 		return readerActionUrl(action, readerStateFromPage(page), page.data.activeSavedWorkspaceId);
 	}
 
-	function referenceAfterClose(ownerTile: ReaderTile, tabId: string): VerseRef | undefined {
-		const index = ownerTile.tabs.findIndex((tab) => tab.id === tabId);
-		return ownerTile.tabs[index + 1]?.reference ?? ownerTile.tabs[index - 1]?.reference;
-	}
-
 	function isSelected(ownerTile: ReaderTile, ownerTileIndex: number, tab: ReaderTab): boolean {
 		return (
 			tab.id === activeReaderTab(ownerTile)?.id && (!mobile || ownerTileIndex === selectedTileIndex)
@@ -240,13 +235,19 @@
 								{/if}
 							</button>
 						</form>
-						<form
-							method="POST"
-							action={actionUrl('closeTab')}
-							use:enhance={submitEnhancement(referenceAfterClose(ownerTile, tab.id))}
-						>
+						<form method="POST" action={actionUrl('closeTab')} use:enhance={submitEnhancement()}>
 							<input type="hidden" name="tileId" value={ownerTile.id} />
 							<input type="hidden" name="tabId" value={tab.id} />
+							<input
+								type="hidden"
+								name="currentTabId"
+								value={activeReaderTab(ownerTile)?.id ?? ''}
+							/>
+							<input
+								type="hidden"
+								name="currentReference"
+								value={formatReference(referenceForActiveTab(ownerTile))}
+							/>
 							<button type="submit" class="close-tab" aria-label={`${resource.tabTitle} schließen`}>
 								<Icon name="x" class="size-3" />
 							</button>
