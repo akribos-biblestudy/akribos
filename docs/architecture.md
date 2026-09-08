@@ -267,6 +267,14 @@ possible reference, so a bare book name remains a text search. Tab labels use th
 usage notes live behind the adjacent info button instead of taking permanent vertical space below the
 text.
 
+Each tab also keeps a client-side back/forward history for the current Reader session. Explicit
+references, searches (including book filter and page) and dictionary lookups are visits. Real scrolling
+adds one mutable endpoint after the explicit destination, so Back returns to that destination before
+the previous search; intermediate scroll verses never accumulate. Replaying history does not append
+visits. Structural action responses carry a `tabOrigins` map to preserve the history across URL
+coordinate changes, even when moving duplicate copies of one resource. Closed/replaced tabs discard
+their history; these private navigation trails never enter URLs, cookies or saved workspaces.
+
 Lexicons are first-class reader tabs and keep a separate `lookup` locator in the workspace. Their field
 resolves an exact Strong id or a lemma/transliteration prefix inside that one resource, so any number of
 lexicons can remain independently open. Clicking a Strong-tagged Bible word reuses the lexicon tab in

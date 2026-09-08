@@ -4,12 +4,7 @@
 	import { page } from '$app/state';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { bookById } from '$lib/bible/books';
-	import {
-		formatReference,
-		parseReference,
-		referencePath,
-		type VerseRef
-	} from '$lib/bible/reference';
+	import { formatReference, parseReference, type VerseRef } from '$lib/bible/reference';
 	import { READER_LINK_SETS, type ReaderLinkSet, type ReaderTab } from '$lib/reader/workspace';
 	import {
 		readerActionUrl,
@@ -32,7 +27,11 @@
 		studyResourceTitle = null,
 		onOpenResource,
 		onSearch,
-		onClearSearch
+		onOpenReference,
+		canGoBack = false,
+		canGoForward = false,
+		historyBusy = false,
+		onHistory
 	}: {
 		tileId: string;
 		tileIndex: number;
@@ -43,7 +42,11 @@
 		studyResourceTitle?: string | null;
 		onOpenResource: (tileId: string, tabId: string, anchor: HTMLElement) => void;
 		onSearch: (query: string) => void;
-		onClearSearch: () => void;
+		onOpenReference: (reference: VerseRef) => void;
+		canGoBack?: boolean;
+		canGoForward?: boolean;
+		historyBusy?: boolean;
+		onHistory: (direction: -1 | 1) => void;
 	} = $props();
 
 	let value = $state('');
@@ -88,20 +91,9 @@
 			cancel();
 			return;
 		}
-		return async ({ result, update }) => {
-			if (result.type === 'success') {
-				focused = false;
-				onClearSearch();
-				const state = readerStateFromActionData(result.data);
-				if (!state) return;
-				await goto(readerUrl(referencePath(parsed), state), {
-					invalidateAll: true,
-					noScroll: true
-				});
-				return;
-			}
-			await update({ reset: false, invalidateAll: true });
-		};
+		cancel();
+		focused = false;
+		onOpenReference(parsed);
 	};
 
 	const linkEnhancement: SubmitFunction = () => {
@@ -133,6 +125,26 @@
 <div class="tab-toolbar" data-testid="tab-toolbar">
 	<button
 		type="button"
+		class="history-button"
+		aria-label="Im Tab zurück"
+		title="Zurück"
+		disabled={!canGoBack || historyBusy}
+		onclick={() => onHistory(-1)}
+	>
+		<Icon name="chevron-left" class="size-4" />
+	</button>
+	<button
+		type="button"
+		class="history-button"
+		aria-label="Im Tab vor"
+		title="Vor"
+		disabled={!canGoForward || historyBusy}
+		onclick={() => onHistory(1)}
+	>
+		<Icon name="chevron-right" class="size-4" />
+	</button>
+	<button
+		type="button"
 		class="resource-button"
 		aria-label="{resource.selectionTitle} wechseln"
 		title="Werk wechseln"
@@ -162,6 +174,7 @@
 			name={resource.kind === 'lexicon' ? 'lookup' : 'reference'}
 			type="search"
 			bind:value
+			disabled={historyBusy}
 			placeholder={resource.kind === 'lexicon' ? 'Strong-Nummer oder Wort' : undefined}
 			autocomplete="off"
 			spellcheck="false"
@@ -275,6 +288,7 @@
 		border-bottom: 1px solid var(--line);
 		background: var(--surface);
 	}
+	.history-button,
 	.resource-button,
 	.link-button,
 	.info-button {
@@ -286,6 +300,7 @@
 		gap: 0.08rem;
 		color: var(--color-stone-500);
 	}
+	.history-button:hover:not(:disabled),
 	.resource-button:hover,
 	.info-button:hover {
 		background: var(--color-stone-100);
@@ -297,6 +312,14 @@
 	}
 	.info-button {
 		border-left: 1px solid var(--line);
+	}
+
+	.history-button {
+		width: 1.6rem;
+	}
+	.history-button:disabled {
+		opacity: 0.3;
+		cursor: default;
 	}
 
 	.reference-form {
@@ -371,6 +394,7 @@
 		color: var(--color-stone-400);
 	}
 	.link-label {
+		display: none;
 		font-size: 0.68rem;
 		font-weight: 550;
 		white-space: nowrap;

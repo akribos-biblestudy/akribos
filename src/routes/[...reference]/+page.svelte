@@ -61,6 +61,14 @@
 		readerUrl,
 		type ReaderSearchQueries
 	} from '$lib/reader/url-state';
+	import {
+		createTabHistory,
+		visitTabHistory,
+		moveTabHistory,
+		type TabHistory,
+		type TabHistoryLocation
+	} from '$lib/reader/tab-history';
+	import { TAB_HISTORY_MUTATION_EVENT } from '$lib/reader/tab-history-navigation';
 	import type { ReaderTabSearchResponse } from '$lib/reader/tab-search';
 	import {
 		readerDocumentsAt,
@@ -873,6 +881,9 @@
 			});
 			const target = data.workspace.tiles.findIndex((tile) => tile.id === result.data?.tileId);
 			if (target >= 0) mobileTile = target;
+			const targetColumn = data.columns.find((column) => column.tileId === result.data?.tileId);
+			if (targetColumn)
+				recordTabVisit(targetColumn, { kind: 'reference', reference: { ...reference } });
 			mobileReaderView = 'reading';
 			workspaceSaveError = '';
 			return true;
@@ -920,6 +931,8 @@
 			invalidateAll: true,
 			noScroll: true
 		});
+		const targetColumn = data.columns.find((column) => column.tileId === result.data?.tileId);
+		if (targetColumn) recordTabVisit(targetColumn, { kind: 'lookup', lookup });
 		if (
 			window.matchMedia('(max-width: 639px)').matches &&
 			result.data &&
@@ -932,28 +945,32 @@
 		}
 	}
 
-	async function lookupInLexicon(columnIndex: number, lookup: string): Promise<void> {
+	async function lookupInLexicon(columnIndex: number, lookup: string): Promise<boolean> {
 		const column = data.columns[columnIndex];
-		if (!column || column.resource.kind !== 'lexicon' || !lookup.trim()) return;
+		if (!column || column.resource.kind !== 'lexicon') return false;
+		await flushWorkspace();
 		const form = new FormData();
 		form.set('tileId', column.tileId);
 		form.set('tabId', column.activeTab.id);
 		form.set('lookup', lookup);
+		if (!lookup.trim()) form.set('clearLookup', 'true');
 		const response = await fetch(actionUrl('setTabLookup'), {
 			method: 'POST',
 			body: form,
 			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
 		});
-		if (!response.ok) return;
+		if (!response.ok) return false;
 		const result = deserialize(await response.text());
-		if (result.type !== 'success') return;
+		if (result.type !== 'success') return false;
 		const state = readerStateFromActionData(result.data);
-		if (!state) return;
+		if (!state) return false;
+		recordTabVisit(column, { kind: 'lookup', lookup: lookup.trim() || null });
 		await goto(readerUrl(window.location.pathname, state), {
 			replaceState: true,
 			invalidateAll: true,
 			noScroll: true
 		});
+		return true;
 	}
 
 	function openStrong(
@@ -1075,6 +1092,116 @@
 	const tabSearchRequests = new SvelteMap<string, AbortController>();
 	let restoredReaderState = $state('');
 
+	let tabHistories = $state<Record<string, { resourceId: string; history: TabHistory }>>({});
+	let historyBusy = $state(false);
+	let pendingHistoryOrigins: {
+		workspace: ReaderWorkspace;
+		origins: Record<string, string>;
+	} | null = null;
+	onMount(() => {
+		const rememberOrigins = (event: Event) => {
+			pendingHistoryOrigins = {
+				workspace: data.workspace,
+				origins: (event as CustomEvent<Record<string, string>>).detail
+			};
+		};
+		window.addEventListener(TAB_HISTORY_MUTATION_EVENT, rememberOrigins);
+		return () => window.removeEventListener(TAB_HISTORY_MUTATION_EVENT, rememberOrigins);
+	});
+
+	function historyLocation(column: (typeof data.columns)[number]): TabHistoryLocation {
+		if (column.resource.kind === 'lexicon')
+			return { kind: 'lookup', lookup: column.activeTab.lookup };
+		const search = tabSearchFor(column);
+		return search
+			? { kind: 'search', query: search.query, page: search.result?.page ?? 1, book: search.book }
+			: { kind: 'reference', reference: { ...toolbarReference(column) } };
+	}
+
+	$effect(() => {
+		const workspace = data.workspace;
+		const queries = data.searchQueries;
+		untrack(() => {
+			if (pendingHistoryOrigins && pendingHistoryOrigins.workspace !== workspace) {
+				const histories: typeof tabHistories = {};
+				for (const [newId, oldId] of Object.entries(pendingHistoryOrigins.origins)) {
+					const previous = tabHistories[oldId];
+					if (previous) histories[newId] = previous;
+				}
+				tabHistories = histories;
+				pendingHistoryOrigins = null;
+			}
+			const next: typeof tabHistories = {};
+			for (const tile of workspace.tiles)
+				for (const tab of tile.tabs) {
+					const previous = tabHistories[tab.id];
+					const resource = data.readerResources.find((resource) => resource.id === tab.resourceId);
+					next[tab.id] =
+						previous?.resourceId === tab.resourceId
+							? previous
+							: {
+									resourceId: tab.resourceId,
+									history: createTabHistory(
+										resource?.kind === 'lexicon'
+											? { kind: 'lookup', lookup: tab.lookup }
+											: queries[tab.id]
+												? { kind: 'search', query: queries[tab.id]!, page: 1, book: null }
+												: { kind: 'reference', reference: { ...tab.reference } }
+									)
+								};
+				}
+			tabHistories = next;
+		});
+	});
+
+	function recordTabVisit(
+		column: (typeof data.columns)[number],
+		location: TabHistoryLocation,
+		scroll = false
+	): void {
+		if (historyBusy) return;
+		const tabId = column.activeTab.id;
+		const previous = tabHistories[tabId];
+		const history =
+			previous?.resourceId === column.resource.id
+				? previous.history
+				: createTabHistory(historyLocation(column));
+		tabHistories[tabId] = {
+			resourceId: column.resource.id,
+			history: visitTabHistory(history, location, scroll)
+		};
+	}
+
+	async function navigateTabHistory(columnIndex: number, direction: -1 | 1): Promise<void> {
+		const column = data.columns[columnIndex];
+		const stored = column && tabHistories[column.activeTab.id];
+		if (!stored || historyBusy) return;
+		const next = moveTabHistory(stored.history, direction);
+		if (!next) return;
+		historyBusy = true;
+		try {
+			const location = next.entries[next.index]!.location;
+			let opened = true;
+			if (location.kind === 'reference')
+				opened = await openTabSearchReference(columnIndex, location.reference);
+			else if (location.kind === 'lookup')
+				opened = await lookupInLexicon(columnIndex, location.lookup ?? '');
+			else await runTabSearch(columnIndex, location.query, location.page, location.book);
+			if (opened) tabHistories[column.activeTab.id] = { ...stored, history: next };
+		} catch {
+			workspaceSaveError = 'Der Verlaufseintrag konnte nicht geöffnet werden.';
+		} finally {
+			historyBusy = false;
+		}
+	}
+
+	function closeTabSearch(columnIndex: number): void {
+		const column = data.columns[columnIndex];
+		if (!column) return;
+		recordTabVisit(column, { kind: 'reference', reference: { ...toolbarReference(column) } });
+		clearTabSearch(column.activeTab.id);
+	}
+
 	function currentSearchQueries(): ReaderSearchQueries {
 		return Object.fromEntries(
 			Object.entries(tabSearches).map(([tabId, state]) => [tabId, state.query])
@@ -1145,6 +1272,7 @@
 		const book =
 			requestedBook === undefined && sameSearch ? previous.book : (requestedBook ?? null);
 
+		if (updateUrl) recordTabVisit(column, { kind: 'search', query, page: pageNumber, book });
 		tabSearchRequests.get(tabId)?.abort();
 		const controller = new AbortController();
 		tabSearchRequests.set(tabId, controller);
@@ -1204,20 +1332,31 @@
 		const state = data.readerState;
 		if (state === restoredReaderState) return;
 		restoredReaderState = state;
-		for (const request of tabSearchRequests.values()) request.abort();
-		tabSearchRequests.clear();
-		tabSearches = {};
-		for (const column of data.columns) {
-			const query = data.searchQueries[column.activeTab.id];
-			// The server already supplied the complete canonical snapshot. Loading search results must
-			// not rebuild it before the chapter streams initialize their focus and visible references.
-			if (query) void runTabSearch(column.index, query, 1, undefined, { updateUrl: false });
-		}
+		untrack(() => {
+			for (const [tabId, search] of Object.entries(tabSearches)) {
+				if (data.searchQueries[tabId] !== search.query) {
+					tabSearchRequests.get(tabId)?.abort();
+					tabSearchRequests.delete(tabId);
+					delete tabSearches[tabId];
+				}
+			}
+			for (const column of data.columns) {
+				const query = data.searchQueries[column.activeTab.id];
+				const previous = tabSearchFor(column);
+				// Loading a canonical snapshot must not rewrite it before streams initialize.
+				if (query && previous?.query !== query)
+					void runTabSearch(column.index, query, 1, undefined, { updateUrl: false });
+			}
+		});
 	});
 
-	async function openTabSearchReference(columnIndex: number, reference: VerseRef): Promise<void> {
+	async function openTabSearchReference(
+		columnIndex: number,
+		reference: VerseRef
+	): Promise<boolean> {
 		const column = data.columns[columnIndex];
-		if (!column) return;
+		if (!column) return false;
+		await flushWorkspace();
 		const form = new FormData();
 		form.set('tileId', column.tileId);
 		form.set('tabId', column.activeTab.id);
@@ -1227,13 +1366,18 @@
 			body: form,
 			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
 		});
-		if (!response.ok) return;
+		if (!response.ok) return false;
 		const result = deserialize(await response.text());
-		if (result.type !== 'success') return;
+		if (result.type !== 'success') return false;
 		const state = readerStateFromActionData(result.data);
-		if (!state) return;
+		if (!state) return false;
+		recordTabVisit(column, { kind: 'reference', reference: { ...reference } });
 		clearTabSearch(column.activeTab.id);
 		await goto(readerUrl(referencePath(reference), state), { invalidateAll: true, noScroll: true });
+		// A history destination can equal the loaded route while the stream has scrolled away.
+		if (reference.verse)
+			scrollColumnToVerse(columnIndex, reference.book, reference.chapter, reference.verse);
+		return true;
 	}
 
 	function contextualReferenceUrl(columnIndex: number, reference: VerseRef): string {
@@ -1616,6 +1760,8 @@
 		// the actual address bar write stays debounced, since rewriting `history` on every settle would
 		// be needless churn.
 		const reference = { book, chapter, verse };
+		const historyColumn = data.columns[columnIndex];
+		if (historyColumn) recordTabVisit(historyColumn, { kind: 'reference', reference }, true);
 		visibleReferences[columnIndex] = reference;
 		readerLocation.reference = reference;
 		// Remember the exact verse synchronously, including leaving the Reader during the URL debounce.
@@ -2178,7 +2324,12 @@
 									column.resource.kind === 'lexicon'
 										? void lookupInLexicon(columnIndex, query)
 										: void runTabSearch(columnIndex, query)}
-								onClearSearch={() => clearTabSearch(column.activeTab.id)}
+								onOpenReference={(reference) => void openTabSearchReference(columnIndex, reference)}
+								canGoBack={(tabHistories[column.activeTab.id]?.history.index ?? 0) > 0}
+								canGoForward={(tabHistories[column.activeTab.id]?.history.index ?? 0) <
+									(tabHistories[column.activeTab.id]?.history.entries.length ?? 1) - 1}
+								{historyBusy}
+								onHistory={(direction) => void navigateTabHistory(columnIndex, direction)}
 							/>
 							<div class="tile-content">
 								{#if column.resource.kind === 'lexicon'}
@@ -2206,7 +2357,7 @@
 										resourceTitle={column.resource.selectionTitle}
 										language={column.resource.language}
 										direction={column.resource.direction}
-										onClose={() => clearTabSearch(column.activeTab.id)}
+										onClose={() => closeTabSearch(columnIndex)}
 										onSearch={(query, pageNumber, book) =>
 											void runTabSearch(columnIndex, query, pageNumber, book)}
 										onOpenReference={(reference) =>

@@ -1228,6 +1228,116 @@ test('a word typed into a tab field searches only the current resource', async (
 	await expect(results).not.toBeVisible();
 });
 
+test('tab history returns through the explicit hit, filtered search and final scroll position', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 900, height: 300 });
+	await page.goto('/Joh1');
+	const tile = page.locator('.reader-tile').first();
+	const back = tile.getByRole('button', { name: 'Im Tab zurück' });
+	const forward = tile.getByRole('button', { name: 'Im Tab vor' });
+	await expect(back).toBeDisabled();
+	await tabReference(page).fill('Gott');
+	await tabReference(page).press('Enter');
+	const results = tile.getByLabel('Suchergebnisse in Testübersetzung');
+	await results.getByRole('button', { name: /^1Mo:/ }).click();
+	await results.getByRole('link', { name: /1\.Mose 1,1/ }).click();
+	await expectReaderPath(page, '/1Mo1,1');
+	const column = tile.locator('.flow-column');
+	// Move past the first full text line to the next visible verse anchor.
+	await column.evaluate((element) => {
+		const target = element.querySelector<HTMLElement>('[data-verse-key="1:1:1"]')!;
+		element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		element.scrollTop +=
+			target.getBoundingClientRect().bottom - element.getBoundingClientRect().top - 23;
+		element.dispatchEvent(new Event('scroll'));
+	});
+	await expect(tabReference(page)).toHaveValue(/^1Mo 1,[23]$/);
+	const lastScrollReference = await tabReference(page).inputValue();
+	await back.click();
+	await expect(tabReference(page)).toHaveValue('1Mo 1,1');
+	await expect(column.locator('[data-verse-key="1:1:1"]')).toHaveClass(/highlighted/);
+	await back.click();
+	await expect(results).toBeVisible();
+	await expect(results.getByRole('button', { name: 'Buchfilter aufheben' })).toBeVisible();
+	await expect(results.getByRole('link', { name: /Johannes/ })).toHaveCount(0);
+	await forward.click();
+	await expect(tabReference(page)).toHaveValue('1Mo 1,1');
+	await forward.click();
+	await expect(tabReference(page)).toHaveValue(lastScrollReference);
+	await expect(forward).toBeDisabled();
+	await back.click();
+	await expect(tabReference(page)).toHaveValue('1Mo 1,1');
+	await expect(forward).toBeEnabled();
+	await tabReference(page).fill('Joh 3,16');
+	await tabReference(page).press('Enter');
+	await expectReaderPath(page, '/Joh3,16');
+	await expect(forward).toBeDisabled();
+});
+
+test('tab history remains with its tab and leaves an independent tile at its own location', async ({
+	page
+}) => {
+	await page.goto('/Joh3');
+	await selectLinkSet(page, 1, 'B');
+	await tabReference(page).fill('1Mo 1,3');
+	await tabReference(page).press('Enter');
+	await expectReaderPath(page, '/1Mo1,3');
+	await expect(tabReference(page, 1)).toHaveValue('Joh 3');
+	await addResourceTab(page, 0, 'SEEDCOMMENTARY', 'Kommentare');
+	const tile = page.locator('.reader-tile').first();
+	await expect(tile.getByRole('button', { name: 'Im Tab zurück' })).toBeDisabled();
+	await tile.getByRole('tab', { name: 'Testübersetzung A', exact: true }).click();
+	await tile.getByRole('button', { name: 'Im Tab zurück' }).click();
+	await expect(tabReference(page)).toHaveValue('Joh 3');
+	await expect(tabReference(page, 1)).toHaveValue('Joh 3');
+	await expect(
+		page.locator('.reader-tile').nth(1).getByRole('button', { name: 'Im Tab zurück' })
+	).toBeDisabled();
+});
+
+test('tab history restores previous dictionary lookups including the initial empty entry', async ({
+	page
+}) => {
+	await page.goto('/Joh3');
+	await addResourceTab(page, 1, 'STRONGS_GREEK', 'Wörterbuch');
+	const tile = page.locator('.reader-tile').nth(1);
+	for (const lookup of ['G25', 'G2316']) {
+		await lexiconLookup(page).fill(lookup);
+		await lexiconLookup(page).press('Enter');
+		await expect(tile.getByLabel(/Lexikoneintrag in/)).toContainText(lookup);
+	}
+	await tile.getByRole('button', { name: 'Im Tab zurück' }).click();
+	await expect(lexiconLookup(page)).toHaveValue('G25');
+	await tile.getByRole('button', { name: 'Im Tab zurück' }).click();
+	await expect(lexiconLookup(page)).toHaveValue('');
+	await tile.getByRole('button', { name: 'Im Tab vor' }).click();
+	await expect(lexiconLookup(page)).toHaveValue('G25');
+});
+
+test('tab history follows a moved tab even beside another copy of the same resource', async ({
+	page
+}) => {
+	await page.goto('/Joh3');
+	await addResourceTab(page, 0, 'SEEDPLAIN');
+	await selectLinkSet(page, 0, 'C');
+	await tabReference(page).fill('1Mo 1,3');
+	await tabReference(page).press('Enter');
+	await expectReaderPath(page, '/1Mo1,3');
+	await page
+		.locator('.reader-tile')
+		.first()
+		.getByRole('button', { name: 'Tab verschieben' })
+		.click();
+	await page.getByRole('menuitem', { name: 'Bereich 2' }).click();
+	const target = page.locator('.reader-tile').nth(1);
+	await expect(target.locator('.resource-tab')).toHaveCount(2);
+	await target.getByRole('button', { name: 'Im Tab zurück' }).click();
+	await expect(tabReference(page, 1)).toHaveValue('Joh 3');
+	await target.getByRole('tab').first().click();
+	await expect(target.getByRole('button', { name: 'Im Tab zurück' })).toBeDisabled();
+});
+
 test('a book name without a chapter number stays a tab-scoped text search', async ({ page }) => {
 	await page.goto('/Joh1');
 	await tabReference(page).fill('Judas');

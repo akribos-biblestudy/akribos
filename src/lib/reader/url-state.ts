@@ -398,6 +398,14 @@ function urlTileId(tileIndex: number): string {
 	return `url-tile-${tileIndex + 1}`;
 }
 
+export function readerTabOrigins(workspace: ReaderWorkspace): Record<string, string> {
+	return Object.fromEntries(
+		workspace.tiles.flatMap((tile, tileIndex) =>
+			tile.tabs.map((tab, tabIndex) => [urlTabId(tileIndex, tabIndex), tab.id])
+		)
+	);
+}
+
 function urlTabId(tileIndex: number, tabIndex: number): string {
 	return `url-tab-${tileIndex + 1}-${tabIndex + 1}`;
 }
