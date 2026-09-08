@@ -839,7 +839,9 @@ export const documentBodyReferenceIndexes = pgTable(
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
 		books: integer('books').array().notNull(),
-		ranges: jsonb('ranges').$type<DocumentBodyBibleReferenceRange[]>().notNull()
+		ranges: jsonb('ranges').$type<DocumentBodyBibleReferenceRange[]>().notNull(),
+		// Keep the legacy default: only the current parser may explicitly stamp its own version.
+		parserVersion: integer('parser_version').notNull().default(1)
 	},
 	(table) => [
 		foreignKey({

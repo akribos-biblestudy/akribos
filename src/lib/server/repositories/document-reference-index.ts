@@ -1,6 +1,19 @@
 /** Compact derived Bible-reference data used by large private document libraries. */
 
-import { and, desc, eq, exists, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import {
+	and,
+	desc,
+	eq,
+	exists,
+	gt,
+	ilike,
+	inArray,
+	isNotNull,
+	isNull,
+	lt,
+	or,
+	sql
+} from 'drizzle-orm';
 import { documentBodyBibleReferenceIndex } from '../../notes/document-markdown.ts';
 import {
 	NOTE_LIBRARY_TIME_ZONE,
@@ -18,6 +31,8 @@ import {
 } from '../db/schema.ts';
 
 const BACKFILL_BATCH_SIZE = 100;
+/** Increment whenever prose parsing changes so existing working copies are rescanned at startup. */
+export const DOCUMENT_REFERENCE_PARSER_VERSION = 2;
 
 /** Replace the projection in the same transaction that changes the authoritative document body. */
 export async function syncDocumentBodyReferenceIndex(
@@ -29,51 +44,80 @@ export async function syncDocumentBodyReferenceIndex(
 	const index = documentBodyBibleReferenceIndex(bodyHtml);
 	await db
 		.insert(documentBodyReferenceIndexes)
-		.values({ documentId, userId, books: index.books, ranges: index.ranges })
+		.values({ documentId, userId, ...index, parserVersion: DOCUMENT_REFERENCE_PARSER_VERSION })
 		.onConflictDoUpdate({
 			target: documentBodyReferenceIndexes.documentId,
-			set: { userId, books: index.books, ranges: index.ranges }
+			set: { userId, ...index, parserVersion: DOCUMENT_REFERENCE_PARSER_VERSION }
 		});
 }
 
-/** Idempotently indexes working copies created before the derived projection existed. */
-export async function backfillDocumentBodyReferenceIndexes(db: Database): Promise<number> {
+/** Refresh missing/outdated projections, including deleted notes and sermons, without editing bodies. */
+export async function backfillDocumentBodyReferenceIndexes(
+	db: Database,
+	options: { force?: boolean } = {}
+): Promise<number> {
 	let indexed = 0;
+	let afterId: string | undefined;
 	while (true) {
-		const missing = await db
-			.select({
-				id: documents.id,
-				userId: documents.userId,
-				bodyHtml: documents.bodyHtml
-			})
-			.from(documents)
-			.leftJoin(
-				documentBodyReferenceIndexes,
-				and(
-					eq(documentBodyReferenceIndexes.documentId, documents.id),
-					eq(documentBodyReferenceIndexes.userId, documents.userId)
-				)
-			)
-			.where(isNull(documentBodyReferenceIndexes.documentId))
-			.orderBy(documents.id)
-			.limit(BACKFILL_BATCH_SIZE);
-		if (missing.length === 0) return indexed;
-
-		await db
-			.insert(documentBodyReferenceIndexes)
-			.values(
-				missing.map((document) => {
-					const index = documentBodyBibleReferenceIndex(document.bodyHtml);
-					return {
-						documentId: document.id,
-						userId: document.userId,
-						books: index.books,
-						ranges: index.ranges
-					};
+		const batch = await db.transaction(async (tx) => {
+			const pending = await tx
+				.select({
+					id: documents.id,
+					userId: documents.userId,
+					bodyHtml: documents.bodyHtml
 				})
-			)
-			.onConflictDoNothing({ target: documentBodyReferenceIndexes.documentId });
-		indexed += missing.length;
+				.from(documents)
+				.leftJoin(
+					documentBodyReferenceIndexes,
+					and(
+						eq(documentBodyReferenceIndexes.documentId, documents.id),
+						eq(documentBodyReferenceIndexes.userId, documents.userId)
+					)
+				)
+				.where(
+					and(
+						afterId ? gt(documents.id, afterId) : undefined,
+						options.force
+							? undefined
+							: or(
+									isNull(documentBodyReferenceIndexes.documentId),
+									lt(documentBodyReferenceIndexes.parserVersion, DOCUMENT_REFERENCE_PARSER_VERSION)
+								)
+					)
+				)
+				.orderBy(documents.id)
+				.limit(BACKFILL_BATCH_SIZE)
+				// Body writes and deletions use the same document lock: a scan cannot overwrite newer text's index.
+				.for('update', { of: documents });
+			if (pending.length === 0) return pending;
+
+			await tx
+				.insert(documentBodyReferenceIndexes)
+				.values(
+					pending.map((document) => {
+						const index = documentBodyBibleReferenceIndex(document.bodyHtml);
+						return {
+							documentId: document.id,
+							userId: document.userId,
+							books: index.books,
+							ranges: index.ranges,
+							parserVersion: DOCUMENT_REFERENCE_PARSER_VERSION
+						};
+					})
+				)
+				.onConflictDoUpdate({
+					target: documentBodyReferenceIndexes.documentId,
+					set: {
+						books: sql`excluded.books`,
+						ranges: sql`excluded.ranges`,
+						parserVersion: DOCUMENT_REFERENCE_PARSER_VERSION
+					}
+				});
+			return pending;
+		});
+		if (batch.length === 0) return indexed;
+		indexed += batch.length;
+		afterId = batch.at(-1)!.id;
 	}
 }
 
@@ -92,7 +136,7 @@ export type DocumentLibraryIndexRow = {
 };
 
 /**
- * Returns only the compact reference projection and sorted ids. A missing projection is repaired in
+ * Returns only the compact reference projection and sorted ids. A missing/stale projection is repaired in
  * memory for correctness during a rolling deployment, without writing from a GET request.
  */
 export async function listDocumentLibraryIndex(
@@ -166,7 +210,8 @@ export async function listDocumentLibraryIndex(
 			documentBodyReferenceIndexes,
 			and(
 				eq(documentBodyReferenceIndexes.documentId, documents.id),
-				eq(documentBodyReferenceIndexes.userId, documents.userId)
+				eq(documentBodyReferenceIndexes.userId, documents.userId),
+				eq(documentBodyReferenceIndexes.parserVersion, DOCUMENT_REFERENCE_PARSER_VERSION)
 			)
 		)
 		.where(and(...conditions))

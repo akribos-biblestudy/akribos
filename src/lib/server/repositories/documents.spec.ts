@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { passageToDbEndpoints } from '../../bible/passage.ts';
 import { MAX_DOCUMENT_PASSAGES } from '../../notes/documents.ts';
@@ -27,6 +27,7 @@ import {
 import { listDocumentRelations } from './document-links.ts';
 import {
 	backfillDocumentBodyReferenceIndexes,
+	DOCUMENT_REFERENCE_PARSER_VERSION,
 	listDocumentLibraryIndex,
 	listDocumentLibrarySummaries
 } from './document-reference-index.ts';
@@ -256,6 +257,67 @@ describe.sequential('unified document repositories', () => {
 		expect(await storedLegacyIndex()).toEqual([{ books: [40] }]);
 		await backfillDocumentBodyReferenceIndexes(db);
 		expect(await storedLegacyIndex()).toEqual([{ books: [40] }]);
+	});
+
+	it('rescans outdated references across batches and owners without changing working copies', async () => {
+		const originals = await db
+			.insert(documents)
+			.values(
+				Array.from({ length: 105 }, (_, index) => ({
+					userId: index % 2 ? ownerId : adminId,
+					kind: index % 2 ? ('note' as const) : ('sermon' as const),
+					sermonStatus: index % 2 ? null : 'idea',
+					title: `Parser rescan ${index}`,
+					deletedAt: index % 3 ? null : new Date(),
+					...prepareDocumentBody(index === 0 ? 'Keine Stelle' : 'Siehe 2. Sam 9,2')
+				}))
+			)
+			.returning();
+		const ids = originals.map(({ id }) => id);
+		await db.insert(documentBodyReferenceIndexes).values(
+			originals.slice(0, -1).map((document) => ({
+				documentId: document.id,
+				userId: document.userId,
+				books: [9],
+				ranges: [{ startBook: 9, endBook: 9, startKey: 9009002, endKey: 9009002 }]
+				// The migration's default stamps existing rows with the old parser version.
+			}))
+		);
+
+		const visible = await listDocumentLibraryIndex(db, ownerId, { deleted: 'include' });
+		expect(
+			visible.filter((row) => ids.includes(row.id)).every((row) => row.books.join() === '10')
+		).toBe(true);
+		expect(visible.some((row) => row.id === originals[0]!.id)).toBe(false);
+		const stored = () =>
+			db
+				.select()
+				.from(documentBodyReferenceIndexes)
+				.where(inArray(documentBodyReferenceIndexes.documentId, ids));
+		// The read-only fallback corrects old results in memory without writing from a library GET.
+		expect(
+			(await stored()).every((row) => row.parserVersion === 1 && row.books.join() === '9')
+		).toBe(true);
+
+		expect(await backfillDocumentBodyReferenceIndexes(db)).toBeGreaterThanOrEqual(105);
+		const indexes = await stored();
+		expect(indexes).toHaveLength(105);
+		for (const original of originals) {
+			const empty = original.id === originals[0]!.id;
+			expect(indexes.find((row) => row.documentId === original.id)).toMatchObject({
+				userId: original.userId,
+				parserVersion: DOCUMENT_REFERENCE_PARSER_VERSION,
+				books: empty ? [] : [10],
+				ranges: empty ? [] : [{ startBook: 10, endBook: 10, startKey: 10009002, endKey: 10009002 }]
+			});
+		}
+		expect(await backfillDocumentBodyReferenceIndexes(db)).toBe(0);
+		expect(await backfillDocumentBodyReferenceIndexes(db, { force: true })).toBeGreaterThanOrEqual(
+			105
+		);
+		expect(
+			await db.select().from(documents).where(inArray(documents.id, ids)).orderBy(documents.id)
+		).toEqual(originals.sort((a, b) => a.id.localeCompare(b.id)));
 	});
 
 	it('atomically creates a working copy with its initial passage', async () => {

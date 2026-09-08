@@ -766,6 +766,47 @@ test('the note library exposes seeded tags, legacy notes and inclusive passage-o
 	await expect(page.getByText('Nur Testübersetzung', { exact: true })).toBeVisible();
 });
 
+test('numbered book references keep their number in notes and sermons after reload', async ({
+	page
+}) => {
+	await loginNewReader(page);
+	await page.goto('/notes/import');
+	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles(
+		['note', 'sermon'].map((kind) => ({
+			name: `${kind}.md`,
+			mimeType: 'text/markdown',
+			buffer: Buffer.from(`---\ntitle: Samuel ${kind}\ntype: ${kind}\n---\nSiehe 2. Sam 9,2; 10,1.`)
+		}))
+	);
+	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+	await page.getByRole('button', { name: 'Als privates Dokument importieren' }).click();
+	await expect(page).toHaveURL('/notes');
+
+	const matches = await (await page.request.get('/api/documents?passage=2Sam9,2')).json();
+	expect(matches.documents.map((document: { title: string }) => document.title).sort()).toEqual([
+		'Samuel note',
+		'Samuel sermon'
+	]);
+	expect(
+		(await (await page.request.get('/api/documents?passage=1Sam9,2')).json()).documents
+	).toEqual([]);
+	for (const document of matches.documents) {
+		await page.goto(`/notes/${document.id}`);
+		const editor = page.getByTestId('document-editor');
+		const reference = editor.locator('a.bible-reference[data-reference="2Sam9,2"]');
+		await expect(reference).toHaveText('2. Sam 9,2');
+		await expect(reference).toHaveAttribute('href', '/2Sam9,2');
+		await expect(editor.locator('a.bible-reference[data-reference="2Sam10,1"]')).toHaveText('10,1');
+		await page.reload();
+		await expect(reference).toHaveText('2. Sam 9,2');
+		await expect(reference).toHaveAttribute('href', '/2Sam9,2');
+	}
+	await page.goto('/notes?book=10');
+	await expect(page.getByRole('heading', { name: 'Samuel note', exact: true })).toBeVisible();
+	await page.goto('/notes?book=9');
+	await expect(page.getByRole('heading', { name: 'Samuel note', exact: true })).toHaveCount(0);
+});
+
 test('a private note links inline Bible references and previews real text by hover and focus', async ({
 	page
 }) => {

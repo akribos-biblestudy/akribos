@@ -136,7 +136,10 @@ The private library and editor live at `/notes`; its two-area navigation links o
 sermon area. The note library derives an owner-scoped 66-book facet from both passage rows and visible
 body references; its book filter and card/list view remain in the URL. Visible-body ranges are indexed
 atomically on document writes in `document_body_reference_indexes`, with an idempotent startup backfill
-for older rows; restoring an older backup runs the same backfill after its migrations. Library reads fetch the compact index for matching ids and load title/excerpt fields only
+for missing rows and outdated parser versions. The scan locks document rows in bounded batches and
+preserves bodies, revisions, dates, manual anchors and publication snapshots; restoring an older backup
+runs the same scan after its migrations. Library reads parse stale projections in memory without writes,
+fetch the compact index for matching ids and load title/excerpt fields only
 for the current 24-row page. `/sermons` is a status-oriented view over sermon
 documents, not separate storage. `/notes/published` and `/notes/published/[slug]` render snapshots. The reader receives
 only compact owner-scoped anchor summaries, not document bodies, and marks inclusive overlaps in active

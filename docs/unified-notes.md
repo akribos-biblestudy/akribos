@@ -41,7 +41,11 @@ import remains a contextual note action, while templates are contextual to sermo
 66-book distribution combines stored passage anchors with references in visible prose, counts each
 document once per book and filters through the `book` URL parameter without changing the chart totals.
 Visible-prose ranges are stored in the owner-scoped `document_body_reference_indexes` projection when a
-body changes; startup and post-restore migration backfill only missing legacy rows. Library requests read compact index rows first
+body changes. Each row records its parser version; startup and post-restore processing rescan missing
+and outdated rows, including trashed notes and sermons. Batches lock working copies so simultaneous
+autosaves cannot leave a stale projection. Text, revisions, dates, manual anchors and publication
+snapshots are preserved. `pnpm db:reindex-documents` forces a complete rescan. Library reads use the
+current parser in memory for missing/outdated rows without writing. Library requests read compact index rows first
 and fetch excerpt text only for the current 24-item page. The `view` parameter switches between card and
 compact list layouts.
 

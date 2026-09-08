@@ -33,6 +33,24 @@ No transactional-mail configuration is needed for notes, Markdown interchange, p
 When `BREVO_API_KEY` is absent, the existing authentication mail fallback logs messages as before; the
 two seeded accounts are already verified.
 
+## Re-scanning document Bible references
+
+Migration `0038_document_reference_parser_version.sql` marks existing derived indexes with the legacy
+parser version. On the next application start, the versioned backfill rebuilds every missing or outdated
+index with the corrected parser, including all owners' notes, sermons and trashed working copies.
+The same backfill runs after backup restoration. Subsequent starts skip current indexes.
+
+To force a full rescan against the configured `DATABASE_URL` after applying migrations:
+
+```sh
+pnpm db:reindex-documents
+```
+
+The command reports the number of scanned working copies. It processes 100 documents per transaction
+and locks their rows against simultaneous edits/deletions. It changes only the derived book/range
+index: Markdown, HTML, manual anchors, revisions, timestamps and publication snapshots remain intact.
+Automatic links in the editor and rendered documents use the corrected parser when displayed.
+
 ## Unified-document migration and recovery
 
 The feature has one generated schema migration and its matching snapshot:
