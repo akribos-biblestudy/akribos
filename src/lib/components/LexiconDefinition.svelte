@@ -23,7 +23,7 @@
 	</div>
 {/snippet}
 
-<div class="lexicon-definition">
+<div class="lexicon-definition" data-bible-id={bibleId ?? undefined}>
 	{#if entry.germanTranslation?.machineTranslated}
 		<p class="translation-note">{t('strong.machineTranslation')}</p>
 	{/if}

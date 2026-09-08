@@ -1079,6 +1079,7 @@
 	class:zen
 	bind:this={editorRoot}
 	data-document-editor
+	data-bible-id={bibleId ?? undefined}
 	data-testid="document-editor"
 >
 	<header class="border-b border-stone-200/80 px-4 py-4 sm:px-7 sm:py-5 dark:border-white/8">

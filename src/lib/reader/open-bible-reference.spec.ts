@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { openReaderBibleReference } from './open-bible-reference';
 import {
 	activeReaderTab,
+	addReaderTab,
 	changeReaderLayout,
 	setReaderTabLinkSet,
 	workspaceFromColumns
@@ -65,5 +66,74 @@ describe('opening a document reference in the Reader', () => {
 		expect(
 			openReaderBibleReference(workspace, resources.slice(0, 1), reference, () => 'new')
 		).toBeNull();
+	});
+
+	it('reuses an inactive Bible in the requested group and preserves other groups', () => {
+		let workspace = workspaceFromColumns(['bible', 'second']);
+		workspace = setReaderTabLinkSet(workspace, 'tile-2', 'tab-2', 'C');
+		workspace = addReaderTab(workspace, 'tile-2', 'comment', () => 'comment-tab');
+		workspace = setReaderTabLinkSet(workspace, 'tile-2', 'comment-tab', 'B');
+		const result = openReaderBibleReference(
+			workspace,
+			resources,
+			reference,
+			() => 'new',
+			null,
+			'C'
+		)!;
+		expect(result.tabId).toBe('tab-2');
+		expect(activeReaderTab(result.workspace.tiles[1]!)?.reference).toEqual(reference);
+		expect(result.workspace.tiles[0]).toEqual(workspace.tiles[0]);
+		expect(result.workspace.tiles[1]!.tabs[1]).toEqual(workspace.tiles[1]!.tabs[1]);
+		expect(result.workspace.tiles.flatMap((tile) => tile.tabs)).toHaveLength(3);
+	});
+
+	it('prefers a visible Bible over an earlier inactive Bible of the same group', () => {
+		let workspace = workspaceFromColumns(['bible', 'second']);
+		workspace = addReaderTab(workspace, 'tile-1', 'comment', () => 'comment-tab');
+		const result = openReaderBibleReference(
+			workspace,
+			resources,
+			reference,
+			() => 'new',
+			null,
+			'A'
+		)!;
+		expect(result.tabId).toBe('tab-2');
+		expect(result.workspace.tiles[0]!.activeTabId).toBe('comment-tab');
+		expect(
+			result.workspace.tiles
+				.flatMap((tile) => tile.tabs)
+				.every((tab) => JSON.stringify(tab.reference) === JSON.stringify(reference))
+		).toBe(true);
+	});
+
+	it('adds a Bible to a missing group once and reuses it on subsequent opens', () => {
+		const workspace = workspaceFromColumns(['bible', 'comment']);
+		const first = openReaderBibleReference(
+			workspace,
+			resources,
+			reference,
+			() => 'new',
+			'second',
+			'E'
+		)!;
+		const second = openReaderBibleReference(
+			first.workspace,
+			resources,
+			{ ...reference, verse: 13 },
+			() => 'duplicate',
+			null,
+			'E'
+		)!;
+		expect(first.workspace.tiles[0]!.tabs[1]).toMatchObject({
+			resourceId: 'second',
+			linkSet: 'E',
+			reference
+		});
+		expect(second.tabId).toBe('new');
+		expect(second.workspace.tiles.flatMap((tile) => tile.tabs)).toHaveLength(3);
+		expect(second.workspace.tiles[0]!.tabs[0]).toEqual(workspace.tiles[0]!.tabs[0]);
+		expect(second.workspace.tiles[1]).toEqual(workspace.tiles[1]);
 	});
 });

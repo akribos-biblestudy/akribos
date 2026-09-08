@@ -62,6 +62,8 @@
 							)
 						: null}
 				<li
+					data-reference={formatReference(reference)}
+					data-bible-id={data.resource?.id}
 					class="rounded-lg border border-stone-200 p-4 dark:border-stone-800"
 					style="border-left: 0.35rem solid {data.style.color}"
 				>

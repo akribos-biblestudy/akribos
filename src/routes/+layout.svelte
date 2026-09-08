@@ -6,6 +6,8 @@
 		READER_WORKSPACE_CONTEXT,
 		type ReaderWorkspaceCapture
 	} from '$lib/reader/saved-workspaces';
+	import ReferenceContextMenu from '$lib/components/ReferenceContextMenu.svelte';
+	import { REFERENCE_NAVIGATION, type ReferenceNavigation } from '$lib/reader/reference-navigation';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
 	import type { ReaderWorkspace } from '$lib/reader/workspace';
 	import {
@@ -16,6 +18,11 @@
 	let { children, data } = $props();
 	setContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT, { capture: null });
 	setContext<DocumentReaderNavigation>(DOCUMENT_READER_NAVIGATION, { pending: null });
+	setContext<ReferenceNavigation>(REFERENCE_NAVIGATION, {
+		open: null,
+		pending: null,
+		returnTo: null
+	});
 
 	/** Reader route signal and its persisted workspace. */
 	const reader = $derived(
@@ -59,3 +66,9 @@
 		{@render children()}
 	</div>
 {/if}
+
+<ReferenceContextMenu
+	userId={data.user?.id ?? null}
+	bibleId={data.defaultBibleId ?? data.previewBibleId}
+	resources={data.readerResources}
+/>

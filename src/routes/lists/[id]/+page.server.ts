@@ -86,6 +86,7 @@ export async function load({ params, locals, cookies }) {
 		},
 		isOwner: access.isOwner,
 		currentUserId: locals.user.id,
+		primaryBibleId: primary,
 		items,
 		comments,
 		members,

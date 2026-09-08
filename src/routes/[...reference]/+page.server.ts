@@ -474,6 +474,8 @@ export const actions = {
 
 	openBibleReference: async ({ request, cookies, locals, url }) => {
 		const form = await request.formData();
+		const linkSet = form.get('linkSet');
+		if (linkSet !== null && !isReaderLinkSet(linkSet)) return fail(400, { error: 'linkSet' });
 		const reference = parseReference(String(form.get('reference') ?? ''));
 		if (!reference || !isReferenceInCanon(reference)) return fail(400, { error: 'reference' });
 		const available = await listReaderResources(getDb());
@@ -483,7 +485,8 @@ export const actions = {
 			available,
 			reference,
 			randomUUID,
-			locals.user?.defaultBibleId
+			locals.user?.defaultBibleId,
+			linkSet ?? undefined
 		);
 		if (!target) return fail(400, { error: 'bible' });
 		delete current.searchQueries[target.tabId];

@@ -28,6 +28,7 @@ export async function load({ params, setHeaders }) {
 		items: await loadVerseListItems(db, list.id, primary, { redactEmail: true }),
 		comments: await loadCommentsForList(db, list.id, null),
 		title: list.title,
+		primaryBibleId: primary,
 		translation: bibles[0]?.tabTitle ?? null
 	};
 }

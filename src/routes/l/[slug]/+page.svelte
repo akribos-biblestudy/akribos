@@ -22,7 +22,7 @@
 	<ol class="space-y-5">
 		{#each data.items as item (item.id)}
 			{@const itemComments = data.comments[item.id] ?? []}
-			<li>
+			<li data-bible-id={data.primaryBibleId ?? undefined}>
 				<a
 					class="text-sm font-semibold text-accent-600 hover:underline dark:text-accent-400"
 					href={referencePath({ book: item.book, chapter: item.chapter, verse: item.verse })}
@@ -34,7 +34,10 @@
 				</a>
 
 				{#if item.segments}
-					<p class="scripture-sized font-serif leading-relaxed">
+					<p
+						class="scripture-sized font-serif leading-relaxed"
+						data-reference={formatReference(item)}
+					>
 						<VerseText segments={item.segments} />
 					</p>
 				{/if}

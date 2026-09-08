@@ -69,6 +69,11 @@
 		type TabHistoryLocation
 	} from '$lib/reader/tab-history';
 	import { TAB_HISTORY_MUTATION_EVENT } from '$lib/reader/tab-history-navigation';
+	import {
+		REFERENCE_NAVIGATION,
+		type ReferenceNavigation,
+		type ReferenceLinkSet
+	} from '$lib/reader/reference-navigation';
 	import type { ReaderTabSearchResponse } from '$lib/reader/tab-search';
 	import {
 		readerDocumentsAt,
@@ -91,6 +96,16 @@
 	let { data } = $props();
 	const workspaceCapture = getContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT);
 	const documentNavigation = getContext<DocumentReaderNavigation>(DOCUMENT_READER_NAVIGATION);
+	const referenceNavigation = getContext<ReferenceNavigation>(REFERENCE_NAVIGATION);
+	onMount(() => {
+		referenceNavigation.open = openBibleReference;
+		const pending = referenceNavigation.pending;
+		referenceNavigation.pending = null;
+		if (pending) void openBibleReference(pending.reference, pending.linkSet);
+		return () => {
+			if (referenceNavigation.open === openBibleReference) referenceNavigation.open = null;
+		};
+	});
 	onMount(() => {
 		workspaceCapture.capture = () => ({
 			readerState: encodeReaderUrlState(
@@ -165,7 +180,10 @@
 			});
 		return pendingViewSave;
 	}
-	onNavigate(() => flushWorkspace());
+	onNavigate(async () => {
+		await flushWorkspace();
+		referenceNavigation.returnTo = { url: currentReaderUrl(), userId: data.user?.id ?? null };
+	});
 	const notesFilters = $derived(
 		page.state.readerNotesFilters ?? readReaderNotesFilters(page.url.searchParams)
 	);
@@ -854,7 +872,8 @@
 			await tick();
 			if (cancelled) return;
 			if (documentId) await readerNotesSidecar?.openDocument(documentId);
-			if (!cancelled && handoff?.reference) await openBibleReference(handoff.reference);
+			if (!cancelled && handoff?.reference)
+				await openBibleReference(handoff.reference, handoff.linkSet);
 		})();
 		return () => {
 			cancelled = true;
@@ -862,11 +881,16 @@
 		};
 	});
 
-	async function openBibleReference(reference: VerseRef): Promise<boolean> {
+	async function openBibleReference(
+		reference: VerseRef,
+		linkSet?: ReferenceLinkSet
+	): Promise<boolean> {
 		try {
+			if (readerNotesSidecar && !(await readerNotesSidecar.flush())) return false;
 			await flushWorkspace();
 			const form = new FormData();
 			form.set('reference', formatReference(reference));
+			if (linkSet) form.set('linkSet', linkSet);
 			const response = await fetch(actionUrl('openBibleReference'), {
 				method: 'POST',
 				body: form,
@@ -2350,6 +2374,7 @@
 								{/if}
 								{#if tabSearch}
 									<ReaderTabSearchResults
+										resourceId={column.resource.id}
 										query={tabSearch.query}
 										result={tabSearch.result}
 										loading={tabSearch.loading}

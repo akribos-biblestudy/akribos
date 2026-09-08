@@ -2021,6 +2021,82 @@ test('the notes workspace remains operable on mobile, by keyboard and in dark mo
 	await expect(page.locator('html')).not.toHaveClass(/dark/);
 });
 
+test('reference context works in the Zen editor and keeps the saved document in the sidecar', async ({
+	page,
+	context
+}) => {
+	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+	await loginNewReader(page);
+	await page.goto('/notes/import');
+	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles({
+		name: 'context.md',
+		mimeType: 'text/markdown',
+		buffer: Buffer.from('---\ntitle: Kontext-Ausarbeitung\ntype: sermon\n---\nJoh 3,16 und Mt 3,12')
+	});
+	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+	await page.getByRole('button', { name: 'Als privates Dokument importieren' }).click();
+	await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+$/);
+	const id = new URL(page.url()).pathname.split('/').at(-1)!;
+	const readerUrl =
+		'/1Mo1,1?layout=columns-2&tab=1.1:SEEDDE:A:1Mo1,1&tab=2.1:SEEDPLAIN:B:1Mo2,1&active=1.1&active=2.1&focus=1';
+	await page.goto(`/notes/${id}?returnTo=${encodeURIComponent(readerUrl)}`);
+	await page
+		.getByTestId('document-editor')
+		.getByRole('button', { name: 'Zen-Modus', exact: true })
+		.click();
+	const zen = page.getByRole('dialog', { name: 'Zen-Modus', exact: true });
+	const reference = zen.locator('a.bible-reference[data-reference="Joh3,16"]');
+	await reference.click({ button: 'right' });
+	const contextMenu = page.getByRole('menu', { name: 'Bibelstelle öffnen oder kopieren' });
+	await expect(zen.getByRole('menu')).toBeVisible();
+	await contextMenu.getByRole('menuitem', { name: 'Vers kopieren', exact: true }).click();
+	await expect(contextMenu.getByRole('menuitem', { name: 'Kopiert', exact: true })).toBeVisible();
+	expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('Johannes 3,16\n');
+	await page.keyboard.press('Escape');
+	await expect(contextMenu).not.toBeVisible();
+	await expect(zen).toBeVisible();
+	await zen.locator('.document-prose').press('Control+End');
+	await page.keyboard.type(' Ungespeicherter Zusatz.');
+	await reference.click({ button: 'right' });
+	await contextMenu.getByRole('menuitem', { name: 'In Tabgruppe B öffnen' }).click();
+	const sidecar = page.getByTestId('reader-notes-sidecar');
+	await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(
+		'Kontext-Ausarbeitung'
+	);
+	await expect(
+		page
+			.locator('.reader-tile')
+			.nth(1)
+			.getByRole('searchbox', { name: /Bibelstelle oder Suche in/ })
+	).toHaveValue('Joh 3,16');
+	await expect(sidecar.locator('.document-prose')).toContainText('Ungespeicherter Zusatz.');
+	expect(
+		(await (await page.request.get(`/api/documents/${id}`)).json()).document.bodyMarkdown
+	).toContain('Ungespeicherter Zusatz.');
+	await sidecar
+		.getByTestId('document-editor')
+		.evaluate((node) => node.setAttribute('data-preserved', 'yes'));
+	const navigations: string[] = [];
+	page.on('request', (request) => {
+		if (request.isNavigationRequest() && request.resourceType() === 'document')
+			navigations.push(request.url());
+	});
+	await sidecar.locator('a.bible-reference[data-reference="Mt3,12"]').click({ button: 'right' });
+	await contextMenu.getByRole('menuitem', { name: 'In Tabgruppe A öffnen' }).click();
+	await expect(
+		page
+			.locator('.reader-tile')
+			.first()
+			.getByRole('searchbox', { name: /Bibelstelle oder Suche in/ })
+	).toHaveValue('Mt 3,12');
+	await expect(sidecar.getByTestId('document-editor')).toHaveAttribute('data-preserved', 'yes');
+	expect(navigations).toEqual([]);
+	await page.reload();
+	await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(
+		'Kontext-Ausarbeitung'
+	);
+});
+
 test('editor selection tools, outline, counts and Zen mode preserve the same document', async ({
 	page
 }) => {

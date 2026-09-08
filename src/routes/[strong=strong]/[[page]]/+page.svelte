@@ -222,6 +222,8 @@
 			<ol class="space-y-3" aria-label={t('strong.occurrences')}>
 				{#each data.occurrences.occurrences as occurrence (`${occurrence.book}-${occurrence.chapter}-${occurrence.verse}`)}
 					<li
+						data-reference={formatReference(occurrence)}
+						data-bible-id={data.resource?.id}
 						class="min-w-0 rounded-xl border border-stone-200 bg-[color:var(--surface)] p-4 shadow-sm
 						       sm:rounded-none sm:border-0 sm:border-l-2 sm:bg-transparent sm:py-0 sm:pr-0 sm:shadow-none
 						       dark:border-stone-700"

@@ -168,6 +168,17 @@ text. Cross-chapter references load at most 50 cached chapter responses; whole-c
 a tooltip. Inside `DocumentEditor`, the popup and `/bibel <reference>` command insert an ordinary
 Markdown-round-trippable blockquote containing fetched text and its translation/source label.
 
+One root-level `ReferenceContextMenu` delegates context-menu events from verse anchors, search cards,
+document decorations and internal Reader links. It copies text through the existing public Bible
+quotation loader, selecting the annotated source translation, and offers A–E destinations. The shared
+Reader action reuses an active Bible of the requested group, then an inactive one, or adds a Bible
+without closing existing tabs. Other groups keep their references. A per-layout navigation context
+connects Reader and editor handlers and carries pending destinations from other routes. Its transient
+return URL is bound to the account so switching accounts cannot reuse somebody else's searches. Editor
+navigation flushes autosave and retains the document in the sidecar. The shared menu supports pointer
+coordinates and temporarily joins a modal Zen dialog so it remains interactive above inert content;
+closing restores its original DOM parent. Disabled items are excluded from keyboard focus movement.
+
 The same caret-anchored assistant handles `/` block commands and owner-only `@` document search.
 Mentions remain ordinary `/notes/<uuid>` Markdown links. A derived `document_links` table indexes both
 directions with composite owner foreign keys and is replaced in the same transaction as a revisioned

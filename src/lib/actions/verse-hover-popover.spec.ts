@@ -48,4 +48,24 @@ describe('Bible quotation loading', () => {
 		);
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
+
+	it('copies a complete chapter with a chapter label instead of a synthetic verse range', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: RequestInfo | URL) =>
+				String(input) === '/api/v1/bibles/QUOTE-CHAPTER/1/1'
+					? Response.json({
+							verses: [
+								{ verse: 1, segments: ['Anfang'] },
+								{ verse: 2, segments: ['Erde'] }
+							]
+						})
+					: Response.json({ resources: [] })
+			)
+		);
+		await expect(loadBibleQuotation('QUOTE-CHAPTER', '1Mo 1')).resolves.toMatchObject({
+			reference: '1.Mose 1',
+			text: 'Anfang Erde'
+		});
+	});
 });
