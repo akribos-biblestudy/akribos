@@ -274,6 +274,9 @@ the previous search; intermediate scroll verses never accumulate. Replaying hist
 visits. Structural action responses carry a `tabOrigins` map to preserve the history across URL
 coordinate changes, even when moving duplicate copies of one resource. Closed/replaced tabs discard
 their history; these private navigation trails never enter URLs, cookies or saved workspaces.
+Closing a tab returns the reference of the resulting focused active tab as the canonical path. The
+close form includes its tile's visible tab and live reference, preserving reading before the URL
+debounce without transferring focus to that tile or navigating to an inactive neighbour's position.
 
 Lexicons are first-class reader tabs and keep a separate `lookup` locator in the workspace. Their field
 resolves an exact Strong id or a lemma/transliteration prefix inside that one resource, so any number of

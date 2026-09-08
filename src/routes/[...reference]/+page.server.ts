@@ -405,12 +405,27 @@ export const actions = {
 			undefined,
 			actionReference(params)
 		);
-		return finishWorkspaceMutation(
-			cookies,
-			locals.user,
-			current,
-			closeReaderTab(current.workspace, tileId, tabId)
-		);
+		let { workspace } = current;
+		const tile = workspace.tiles.find((tile) => tile.id === tileId);
+		if (!tile?.tabs.some((tab) => tab.id === tabId)) return fail(400, { error: 'tab' });
+		const visibleTab = activeReaderTab(tile);
+		const currentReference = parseReference(String(form.get('currentReference') ?? ''));
+		if (
+			visibleTab?.id === form.get('currentTabId') &&
+			currentReference &&
+			isReferenceInCanon(currentReference)
+		) {
+			const focusedTileId = workspace.focusedTileId;
+			workspace = setReaderTabReference(workspace, tileId, visibleTab.id, currentReference);
+			// Closing a tab in another tile must not transfer the workspace's focus there.
+			workspace.focusedTileId = focusedTileId;
+		}
+		const next = closeReaderTab(workspace, tileId, tabId);
+		const focused = next.tiles.find((tile) => tile.id === next.focusedTileId);
+		const active = focused && activeReaderTab(focused);
+		return finishWorkspaceMutation(cookies, locals.user, current, next, {
+			...(active ? { path: referencePath(active.reference) } : {})
+		});
 	},
 
 	moveTab: async ({ request, cookies, locals, params, url }) => {
