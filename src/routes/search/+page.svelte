@@ -78,7 +78,14 @@
 
 		<ol class="space-y-4">
 			{#each data.results.hits as hit (`${hit.book}-${hit.chapter}-${hit.verse}`)}
-				<li class="rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+				<li
+					data-reference={formatReference({
+						book: hit.book,
+						chapter: hit.chapter,
+						verse: hit.verse
+					})}
+					class="rounded-lg border border-stone-200 p-3 dark:border-stone-800"
+				>
 					<a
 						class="text-sm font-semibold text-accent-600 hover:underline dark:text-accent-400"
 						href={referencePath({ book: hit.book, chapter: hit.chapter, verse: hit.verse })}
@@ -92,7 +99,7 @@
 					<div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
 						{#each hit.cells as cell, index (index)}
 							{#if cell}
-								<div>
+								<div data-bible-id={data.columns[index]?.id}>
 									<p
 										class="text-[0.65rem] font-semibold tracking-wide uppercase"
 										class:text-accent-600={hit.matchedIn.includes(data.columns[index]?.id ?? '')}

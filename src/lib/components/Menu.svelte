@@ -44,6 +44,15 @@
 	let anchor: HTMLElement | null = null;
 	let open = $state(false);
 	let restoreFocusOnClose = true;
+	let anchorPoint: { x: number; y: number } | undefined;
+	let portalHome: { parent: Node; next: ChildNode | null } | null = null;
+
+	function restorePortal(): void {
+		if (!portalHome || !element) return;
+		const { parent, next } = portalHome;
+		parent.insertBefore(element, next?.parentNode === parent ? next : null);
+		portalHome = null;
+	}
 
 	/** Resolved on first use rather than at init, so this stays safe during server rendering. */
 	let popoverApi: boolean | undefined;
@@ -57,18 +66,36 @@
 	}
 
 	// A menu destroyed while open — a navigation, say — must not leave its own listeners behind.
-	$effect(() => () => detachDismiss());
+	$effect(() => () => {
+		detachDismiss();
+		restorePortal();
+	});
 
-	export function openAt(target: HTMLElement, { focus = true }: { focus?: boolean } = {}): void {
+	export function openAt(
+		target: HTMLElement,
+		{
+			focus = true,
+			point,
+			portalToDialog = false
+		}: { focus?: boolean; point?: { x: number; y: number }; portalToDialog?: boolean } = {}
+	): void {
 		if (!element) return;
 		const alreadyOpen = isShowing();
 		// The anchor is a toggle: clicking the same button a second time closes its menu. Native
 		// popovers only provide outside-click dismissal, so this small bit is ours.
-		if (alreadyOpen && anchor === target) {
+		if (alreadyOpen && anchor === target && !point) {
 			close();
 			return;
 		}
 		anchor = target;
+		anchorPoint = point;
+		const dialog = portalToDialog ? target.closest('dialog') : null;
+		if (dialog && !dialog.contains(element)) {
+			restorePortal();
+			if (element.parentNode)
+				portalHome = { parent: element.parentNode, next: element.nextSibling };
+			dialog.appendChild(element);
+		}
 		restoreFocusOnClose = focus;
 		// Placed off-screen first, so measuring it does not make the page jump.
 		element.style.left = '-9999px';
@@ -124,6 +151,8 @@
 		open = false;
 		const previous = anchor;
 		anchor = null;
+		anchorPoint = undefined;
+		restorePortal();
 		if (restoreFocusOnClose) previous?.focus();
 		restoreFocusOnClose = true;
 	}
@@ -156,7 +185,9 @@
 
 		const gap = 4;
 		const margin = 8;
-		const target = anchor.getBoundingClientRect();
+		const target = anchorPoint
+			? { left: anchorPoint.x, top: anchorPoint.y, bottom: anchorPoint.y }
+			: anchor.getBoundingClientRect();
 
 		// Scrolled past its anchor: clamping would leave the menu pinned to the viewport edge, pointing
 		// at nothing.
@@ -188,7 +219,7 @@
 			...(element?.querySelectorAll<HTMLElement>(
 				'[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]'
 			) ?? [])
-		].filter((item) => item.offsetParent !== null);
+		].filter((item) => item.offsetParent !== null && !item.matches(':disabled'));
 	}
 
 	/** The native path's own dismissal — an outside click, Escape — arrives only as this event. */

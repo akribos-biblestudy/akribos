@@ -487,6 +487,20 @@ Sidecar-Editor sowie unveränderte Kapitelstreams. Der eigenständige Editor üb
 optionale Zielstelle über einen pro Root-Layout erzeugten Kontext an den Reader. Sowohl die Vorschau
 als auch „Im Arbeitsbereich öffnen“ und der Rückkehrlink zum Bibeltext warten zuvor auf Autosave.
 
+Ein einziges `ReferenceContextMenu` im Root-Layout behandelt Rechtsklicks auf Bibelverse,
+Suchtreffer und Stellenlinks einschließlich Dokumenteditor und Lexika. Explizite `data-reference`-
+beziehungsweise `data-verse-key`-Attribute und interne Reader-Links liefern das Ziel;
+`data-bible-id` beziehungsweise `data-resource-id` bestimmen die öffentliche Quellübersetzung für
+„Vers kopieren“. Eingabefelder und fremde Links behalten ihr Browsermenü. A–E öffnen über
+`openBibleReference` zuerst eine aktive, ersatzweise die erste inaktive Bibel der gewählten Gruppe.
+Fehlt sie, wird eine Bibel ergänzt, bevorzugt in einer leeren oder zur Gruppe gehörenden Kachel.
+Andere Gruppen und vorhandene Tabs bleiben erhalten. Reader und Dokumenteditor registrieren ihren
+Öffner in einem pro Root-Layout erzeugten Kontext; andere Seiten übergeben das Ziel beim Wechsel zum
+Reader. Die letzte Reader-Adresse bleibt dafür kontogebunden im flüchtigen Root-Kontext.
+Ausstehende Dokumentänderungen werden vor dem Wechsel gespeichert. `Menu.openAt()` unterstützt
+für Rechtsklicks eine Mausposition und verschiebt das Menü bei Bedarf vorübergehend in den modalen
+Zen-Dialog; beim Schließen wird es zurückgesetzt. Tastaturnavigation überspringt deaktivierte Einträge.
+
 Der Dokumenteditor begrenzt seine Höhe auch eigenständig auf den Viewport; nur der Schreibbereich
 scrollt, Werkzeugleiste und Footer bleiben erreichbar. Die Zähler im Footer zählen den sichtbaren
 Dokumenttext ohne Titel und Markdown-Syntax: Wörter als Läufe ohne Leerraum, Zeichen als Unicode-Codepoints

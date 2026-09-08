@@ -1,9 +1,15 @@
+import type { ReferenceLinkSet } from './reference-navigation';
 import type { VerseRef } from '$lib/bible/reference';
 
 /** Root-layout context for a client-side handoff from a document to the Reader. */
 export const DOCUMENT_READER_NAVIGATION = Symbol('document-reader-navigation');
 export type DocumentReaderNavigation = {
-	pending: { userId: string; documentId: string; reference?: VerseRef } | null;
+	pending: {
+		userId: string;
+		documentId: string;
+		reference?: VerseRef;
+		linkSet?: ReferenceLinkSet;
+	} | null;
 };
 
 export const READER_DOCUMENT_SESSION_KEY = 'reader-notes-sidecar-document';

@@ -10,6 +10,7 @@
 			| 'book'
 			| 'book-open'
 			| 'code'
+			| 'copy'
 			| 'check'
 			| 'calendar'
 			| 'chevron-down'
@@ -89,6 +90,9 @@
 		<path d="M4 5v14M12 5v14M4 12h8M16 9h2.5a1.5 1.5 0 0 1 0 3H17v.01h2a1.5 1.5 0 0 1 0 3H16" />
 	{:else if name === 'code'}
 		<path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14" />
+	{:else if name === 'copy'}
+		<rect x="8" y="8" width="12" height="13" rx="2" />
+		<path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3" />
 	{:else if name === 'layout'}
 		<rect x="3" y="3.5" width="7" height="17" rx="1.5" />
 		<rect x="14" y="3.5" width="7" height="7" rx="1.5" />

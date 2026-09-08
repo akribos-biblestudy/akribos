@@ -10,8 +10,14 @@
 
 import { safeLinkHref } from '../notes/document-markdown.ts';
 import { segmentsToText, type VerseSegment } from '../bible/segments.ts';
-import { formatPassage, parsePassage, type Passage } from '../bible/passage.ts';
-import { formatReference, nextChapter, type VerseRef } from '../bible/reference.ts';
+import { formatPassage, parsePassage, MAX_PASSAGE_VERSE, type Passage } from '../bible/passage.ts';
+import {
+	formatReference,
+	nextChapter,
+	parseReference,
+	isReferenceInCanon,
+	type VerseRef
+} from '../bible/reference.ts';
 
 type ChapterVerseRow = { verse: number; verseEnd?: number; segments: VerseSegment[] };
 
@@ -73,7 +79,17 @@ export async function loadBibleQuotation(
 	bibleId: string,
 	reference: string
 ): Promise<BibleQuotation> {
-	const passage = parsePassage(reference);
+	const direct = parseReference(reference);
+	const chapter =
+		direct && direct.verse === undefined && isReferenceInCanon(direct) ? direct : null;
+	const passage =
+		parsePassage(reference) ??
+		(chapter
+			? {
+					start: { ...chapter, verse: 1 },
+					end: { ...chapter, verse: MAX_PASSAGE_VERSE }
+				}
+			: null);
 	if (!passage) throw new Error('invalid reference');
 	const chunks: string[] = [];
 	let cursor = { book: passage.start.book, chapter: passage.start.chapter };
@@ -104,7 +120,9 @@ export async function loadBibleQuotation(
 	}
 	const labels = await loadResourceLabels().catch(() => [] as ResourceLabel[]);
 	return {
-		reference: formatPassage(passage, { style: 'full' }) ?? reference,
+		reference: chapter
+			? formatReference(chapter, { style: 'full' })
+			: (formatPassage(passage, { style: 'full' }) ?? reference),
 		translation: labels.find((label) => label.id === bibleId)?.tabTitle ?? '',
 		text: chunks.join(' ')
 	};
@@ -273,6 +291,9 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 		text: string,
 		quotation?: BibleQuotation
 	): void {
+		box.dataset.reference = referenceLabel;
+		if (bibleId) box.dataset.bibleId = bibleId;
+		else delete box.dataset.bibleId;
 		box.replaceChildren();
 		const heading = ownerDocument.createElement('div');
 		heading.className = 'verse-hover-popup-ref';

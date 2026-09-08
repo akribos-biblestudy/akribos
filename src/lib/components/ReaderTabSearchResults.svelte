@@ -14,6 +14,7 @@
 		loading = false,
 		error = null,
 		resourceTitle,
+		resourceId,
 		language,
 		direction,
 		onClose,
@@ -26,6 +27,7 @@
 		loading?: boolean;
 		error?: string | null;
 		resourceTitle: string;
+		resourceId: string;
 		language: string;
 		direction: 'ltr' | 'rtl';
 		onClose: () => void;
@@ -70,6 +72,7 @@
 
 <section
 	class="tab-search-results"
+	data-bible-id={result?.kind === 'scripture' || result?.kind === 'strong' ? resourceId : undefined}
 	aria-label="Suchergebnisse in {resourceTitle}"
 	aria-live="polite"
 >
@@ -146,6 +149,7 @@
 				{#each result.hits as hit (`${hit.book}:${hit.chapter}:${hit.verse}`)}
 					<li>
 						<div
+							data-reference={formatReference(referenceFor(hit))}
 							class="result-card"
 							role="link"
 							tabindex="0"
@@ -165,6 +169,7 @@
 				{#each result.hits as hit (`${hit.book}:${hit.chapter}:${hit.verse}`)}
 					<li>
 						<div
+							data-reference={formatReference(referenceFor(hit))}
 							class="result-card strong-result"
 							role="link"
 							tabindex="0"
@@ -188,6 +193,7 @@
 				{#each result.hits as hit (hit.id)}
 					<li>
 						<div
+							data-reference={formatReference(referenceFor(hit))}
 							class="result-card commentary-result"
 							role="link"
 							tabindex="0"

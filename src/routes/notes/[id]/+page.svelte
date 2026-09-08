@@ -11,10 +11,15 @@
 		rememberReaderDocument,
 		type DocumentReaderNavigation
 	} from '$lib/reader/document-navigation';
+	import {
+		REFERENCE_NAVIGATION,
+		type ReferenceNavigation,
+		type ReferenceLinkSet
+	} from '$lib/reader/reference-navigation';
 	import { setReaderNotesSidecarOpen } from '$lib/reader/notes-sidecar';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
 	import { SERMON_FORMATS, sermonFormatLabel } from '$lib/notes/documents';
-	import { getContext, tick, untrack } from 'svelte';
+	import { getContext, onMount, tick, untrack } from 'svelte';
 	import DocumentEditor from '$lib/components/documents/DocumentEditor.svelte';
 	import DocumentAttachments from '$lib/components/documents/DocumentAttachments.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -23,6 +28,13 @@
 
 	let { data, form } = $props();
 	const documentNavigation = getContext<DocumentReaderNavigation>(DOCUMENT_READER_NAVIGATION);
+	const referenceNavigation = getContext<ReferenceNavigation>(REFERENCE_NAVIGATION);
+	onMount(() => {
+		referenceNavigation.open = openInWorkspace;
+		return () => {
+			if (referenceNavigation.open === openInWorkspace) referenceNavigation.open = null;
+		};
+	});
 	let openingWorkspace = $state(false);
 	let workspaceError = $state('');
 	const readerReturnTo = $derived.by(() => {
@@ -30,7 +42,10 @@
 		return reference && isReferenceInCanon(reference) ? data.returnTo : null;
 	});
 
-	async function openInWorkspace(reference?: VerseRef): Promise<boolean> {
+	async function openInWorkspace(
+		reference?: VerseRef,
+		linkSet?: ReferenceLinkSet
+	): Promise<boolean> {
 		if (openingWorkspace || !data.user) return false;
 		openingWorkspace = true;
 		workspaceError = '';
@@ -40,7 +55,7 @@
 			const documentId = workingDocument.id;
 			rememberReaderDocument(userId, documentId);
 			setReaderNotesSidecarOpen(true);
-			documentNavigation.pending = { userId, documentId, reference };
+			documentNavigation.pending = { userId, documentId, reference, linkSet };
 			await goto(readerReturnTo ?? '/');
 			return true;
 		} catch {

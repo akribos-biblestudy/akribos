@@ -136,7 +136,12 @@
 	}
 </script>
 
-<section class="lexicon-tab" aria-label="Lexikoneintrag in {resourceTitle}" aria-live="polite">
+<section
+	class="lexicon-tab"
+	aria-label="Lexikoneintrag in {resourceTitle}"
+	aria-live="polite"
+	data-bible-id={sourceResource?.id}
+>
 	{#if !lookup}
 		<p class="status">Gib oben eine Strong-Nummer oder ein Stichwort ein.</p>
 	{:else if !entry}
@@ -264,6 +269,7 @@
 							{#each study.occurrences.occurrences as occurrence (`${occurrence.book}:${occurrence.chapter}:${occurrence.verse}`)}
 								<div
 									class="occurrence"
+									data-reference={formatReference(occurrence)}
 									role="link"
 									tabindex="0"
 									onclick={(event) => openOccurrence(event, occurrence)}

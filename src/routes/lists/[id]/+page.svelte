@@ -102,6 +102,7 @@
 			{#each data.items as item (item.id)}
 				<li
 					id="note-{item.id}"
+					data-bible-id={data.primaryBibleId ?? undefined}
 					class="rounded-xl border border-stone-200 p-4 dark:border-stone-800"
 				>
 					<div class="mb-2 flex items-baseline justify-between gap-3">
@@ -134,7 +135,10 @@
 					</div>
 
 					{#if item.segments}
-						<p class="scripture-sized mb-1 font-serif leading-relaxed">
+						<p
+							class="scripture-sized mb-1 font-serif leading-relaxed"
+							data-reference={formatReference(item)}
+						>
 							<VerseText segments={item.segments} />
 						</p>
 					{/if}
