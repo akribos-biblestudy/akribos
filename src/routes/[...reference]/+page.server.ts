@@ -36,6 +36,7 @@ import {
 } from '$lib/reader/workspace';
 import {
 	decodeReaderUrlState,
+	readerTabOrigins,
 	encodeReaderUrlState,
 	readReaderNotesFilters,
 	type ReaderNotesFilters,
@@ -517,7 +518,7 @@ export const actions = {
 		const lookup = String(form.get('lookup') ?? '')
 			.trim()
 			.slice(0, 200);
-		if (!lookup) return fail(400, { error: 'lookup' });
+		if (!lookup && form.get('clearLookup') !== 'true') return fail(400, { error: 'lookup' });
 		const available = await listReaderResources(getDb());
 		const current = await currentWorkspace(
 			cookies,
@@ -1006,7 +1007,7 @@ async function finishWorkspaceMutation<T extends Record<string, unknown>>(
 	current: CurrentWorkspace,
 	next: ReaderWorkspace,
 	extra?: T
-): Promise<{ success: true; readerState: string } & T> {
+): Promise<{ success: true; readerState: string; tabOrigins: Record<string, string> } & T> {
 	await commitWorkspace(
 		cookies,
 		user,
@@ -1017,6 +1018,7 @@ async function finishWorkspaceMutation<T extends Record<string, unknown>>(
 	);
 	return {
 		success: true,
+		tabOrigins: readerTabOrigins(next),
 		readerState: encodeReaderUrlState(next, current.searchQueries, current.notesFilters),
 		...(extra ?? ({} as T))
 	};

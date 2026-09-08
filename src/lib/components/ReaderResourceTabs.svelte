@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { announceTabHistoryMutation } from '$lib/reader/tab-history-navigation';
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
@@ -61,6 +62,7 @@
 				if (result.type === 'success') {
 					const state = readerStateFromActionData(result.data);
 					if (!state) return;
+					announceTabHistoryMutation(result.data);
 					const path =
 						result.data &&
 						typeof result.data === 'object' &&

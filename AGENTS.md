@@ -175,6 +175,17 @@ Layout und Pfadstelle bleiben während der bloßen Suche unangetastet, der Suchb
 entfernt. Nur Eingaben mit einer Ziffer werden als mögliche Bibelstellen interpretiert; ein bloßer
 Buchname wie `Judas` (ebenso eine Anführungszeichen-Suche) bleibt deshalb eine Textsuche im Werk.
 
+Jeder Ressourcen-Tab besitzt während der laufenden Reader-Sitzung eine eigene Vor-/Zurück-Historie
+(`src/lib/reader/tab-history.ts`). Explizite Stellen, Suchansichten einschließlich Buchfilter/Ergebnisseite
+und Lexikon-Eingaben sind einzelne Schritte. Echte Nutzerscrolls ergänzen je Leseabschnitt genau einen
+veränderlichen Endpunkt hinter der expliziten Zielstelle; Zwischenverse und programmatische Ausrichtungen
+erzeugen keine weiteren Schritte. Zurück/Vor spielt vorhandene Einträge ab, eine neue Navigation verwirft
+den Vorwärtszweig. Die Historie bleibt clientseitig und wird weder geteilt noch im Konto gespeichert.
+Reader-Mutationen liefern `tabOrigins` als Zuordnung der neuen URL-Tab-IDs zu den bisherigen IDs zurück;
+die Komponenten melden strukturelle Mutationen vor der Navigation über `tab-history-navigation.ts`,
+damit Verschieben, Schließen und Layoutwechsel die Historie auch bei mehrfach geöffnetem selben Werk
+dem richtigen Tab zuordnen. Werkwechsel und Schließen verwerfen nur dessen Verlauf.
+
 Lexika sind normale Reader-Ressourcen und können mehrfach als eigenständige Tabs geöffnet werden, auch
 mehrfach innerhalb derselben Kachel. Dasselbe gilt für Bibeln, Kommentare und Parallelstellen; die
 Werkauswahl darf bereits in der Zielkachel geöffnete Ressourcen deshalb nicht ausblenden. Ihr

@@ -66,7 +66,10 @@ test('the tour walks through its signed-out steps with Weiter and can be finishe
 	await expect(page.getByRole('dialog', { name: 'Wortstudie' })).toBeVisible();
 
 	// Zurück returns to the previous step instead of advancing.
-	await page.getByRole('button', { name: 'Zurück' }).click();
+	await page
+		.getByRole('dialog', { name: 'Wortstudie' })
+		.getByRole('button', { name: 'Zurück', exact: true })
+		.click();
 	await expect(page.getByRole('dialog', { name: 'Stelle und Werk durchsuchen' })).toBeVisible();
 	await page.getByRole('button', { name: 'Weiter' }).click();
 
