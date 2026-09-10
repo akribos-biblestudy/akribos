@@ -335,3 +335,20 @@ is cached in-process for 30 seconds and invalidated on admin writes.
 - **No second client-side router for the reader.** SvelteKit still owns real navigation; shallow URL
   updates only mirror the focused tab's scrolling position between navigations.
 - **No verse-level HTML in the database.** Structure in, structure out.
+
+### Private resource previews
+
+`resource_user_grants` connects a resource and an account. A ready resource is readable if it is public
+or explicitly granted to the authenticated, enabled account. Grant edits lock the resource row and do
+not change public visibility or import status. Foreign keys remove grants when either side is deleted.
+The admin metadata form and grant form save independently.
+
+`readableResourceCondition(userId)` and the viewer-aware resource lists define this boundary for reader
+loads, actions, saved workspaces, search, lexicon lookup, Strong statistics, and preview/quotation
+preferences. Only anonymous public lists use the shared process cache. Grants are queried on each
+private request, so revocation applies immediately to subsequent reads. A copied workspace URL does
+not confer access. Public document/list pages and the sitemap still select public resources.
+
+Versioned APIs resolve a session or personal-scope key; public-scope keys never inherit private grants.
+The request hook marks both session and personal-key responses `private, no-store`. Already delivered
+content cannot be recalled from a browser after revocation. Backups include the grant table automatically.

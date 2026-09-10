@@ -30,7 +30,7 @@ export const actions: Actions = {
 		const db = getDb();
 		const saved = await getSavedReaderWorkspace(db, locals.user.id, params.id);
 		if (!saved) error(404, 'Arbeitsbereich nicht gefunden.');
-		const resources = await listReaderResources(db);
+		const resources = await listReaderResources(db, locals.user?.id);
 		const restored = restoreSavedWorkspace(
 			saved.snapshot,
 			resources.map((resource) => resource.id)

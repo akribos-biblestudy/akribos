@@ -1,3 +1,4 @@
+import { resourceViewerId } from '$lib/server/api/identity';
 import { json } from '@sveltejs/kit';
 import { getDb } from '$lib/server/db';
 import { listBibles } from '$lib/server/repositories/resources';
@@ -32,7 +33,7 @@ export async function GET({ params, url, locals }) {
 		return apiError(404, 'list_not_found', 'No verse list with this id.');
 	}
 
-	const bibles = await listBibles(db);
+	const bibles = await listBibles(db, resourceViewerId(locals));
 	const requestedBible = url.searchParams.get('bible');
 	const bible = requestedBible
 		? (bibles.find((candidate) => candidate.id === requestedBible) ?? bibles[0])

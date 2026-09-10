@@ -42,6 +42,27 @@ Die Abhängigkeitsrichtung ist wichtig: `src/lib/bible` importiert niemals aus `
 wird als sichere strukturierte Segmente plus flacher Suchtext gespeichert. Die UI rendert Segmente mit
 `VerseText.svelte`; importiertes HTML darf nicht ungeprüft in den Bibeltext gelangen.
 
+## Private Ressourcenfreigaben
+
+`resource_user_grants` erteilt einzelnen Konten Zugriff auf nicht öffentliche Werke. Nur fertige
+Ressourcen (`status = ready`) sind lesbar; ein Grant veröffentlicht kein Werk und umgeht keine
+Importsperre. Administration und Ressourcenlöschung erhalten keine implizite Reader-Freigabe.
+Die Admin-Seite speichert Freigaben separat von Metadaten und serialisiert Änderungen je Ressource;
+gesperrte oder unbekannte Konten werden abgewiesen. Konto- und Ressourcenlöschung entfernen ihre Grants.
+
+`readableResourceCondition(userId)` prüft öffentliche Sichtbarkeit oder einen expliziten Grant eines
+aktiven Kontos. Kontenabfragen werden nicht im globalen Ressourcencache gespeichert: Widerruf wirkt bei
+der nächsten Serveranfrage, auch für Kapitel, Suche, Lexikon, Strong-Statistik und gespeicherte
+Arbeitsbereiche. Standardbibel und private Dokumentanker dürfen ebenfalls freigegebene Bibeln verwenden.
+Öffentliche Notiz-/Sammlungsseiten und Sitemap wählen weiter nur öffentliche Bibeln. Ein geteilter
+Reader-Link erteilt keine Rechte; nicht verfügbare Tabs werden beim Öffnen herausgefiltert.
+
+Die Ressourcen-/Kapitel-/Such-API berücksichtigt nur die Session oder einen Schlüssel mit `personal`-
+Scope. Ein `public`-Schlüssel übernimmt nie die Grants seines Besitzers; Origin-Header allein sind keine
+Berechtigung. Personalisierte Antworten einschließlich aller Antworten auf persönliche API-Schlüssel
+sind `private, no-store`. Bereits vom Berechtigten geladener Text lässt sich durch Widerruf nicht aus
+seinem Browser zurückholen; weitere Serverabfragen prüfen die Freigabe erneut.
+
 ## Reader-Architektur
 
 Der zentrale Reader ist `src/routes/[...reference]/+page.svelte`; sein Server-Load und seine Form Actions
@@ -105,7 +126,7 @@ einem anderen löschen. Namen sind pro Konto eindeutig; höchstens 100 Einträge
 `/workspaces/[id]` ist ein schreibfreier Öffnungs-GET. Erst nach dieser Navigation (und damit nach dem
 Flush ausstehender Dokumentänderungen) aktiviert eine Form Action den Eintrag und übernimmt dessen
 Stand atomar als Konto-Arbeitsbereich. Vorladen verändert keine Präferenz. Speichern und Öffnen prüfen
-Ressourcen erneut gegen die öffentlichen, fertigen Werke; weggefallene Tabs und Kontexte werden beim
+Ressourcen erneut gegen die für das Konto verfügbaren, fertigen Werke; weggefallene Tabs und Kontexte werden beim
 Öffnen bereinigt und bei der nächsten Änderung fortgeschrieben.
 Das Wiederherstellen offener Tab-Suchen lädt nur deren Ergebnisse und schreibt die bereits
 kanonisierte URL nicht erneut: Vor der Initialisierung der Kapitelstreams wären Fokus und sichtbare
@@ -164,7 +185,7 @@ Das kompakte Feld in `ReaderTabToolbar.svelte` ist Stellenwahl und ressourcenbez
 Eine Bibelstelle navigiert den Tab, Wörter und Strong-Nummern öffnen dagegen keine andere Route, sondern
 eine Ergebnisansicht innerhalb genau dieses Tabs. `tabSearches` in der Reader-Seite hält diesen
 vorübergehenden Zustand nach Tab-ID; der zugrunde liegende Kapitelstream und sein Scrollstand bleiben
-dabei im DOM erhalten. `/api/reader/search` verlangt immer eine öffentliche Reader-Ressource und liefert
+dabei im DOM erhalten. `/api/reader/search` verlangt immer eine für den Leser verfügbare Reader-Ressource und liefert
 für Bibeln entweder Volltexttreffer oder Strong-Vorkommen, für Kommentare Treffer aus
 `commentary_entries`. Wort- und Strong-Suchen liefern zusätzlich die ungefilterte Buchverteilung;
 Strong-Suchen außerdem Statistik und Übersetzungsformen des aktuellen Bibelwerks. `book` filtert nur
@@ -194,7 +215,7 @@ innerhalb genau der Tab-Ressource aufgelöst: Strong-Nummern exakt, Lemma/Umschr
 als Präfix. Lexikon-Tabs nehmen nicht am Kapitel-Endless-Scroll teil. Ein Klick auf ein Strong-Wort öffnet
 die vollständige Wortstudie im Lexikon-Tab; eine separate Seitenleiste existiert nicht mehr. Der Tab
 speichert Quellübersetzung, Klickstelle und Wort als `studyContext`. Grammatik wird unabhängig vom
-gewählten Lexikon aus einem öffentlichen hebräischen beziehungsweise griechischen Ausgangstext ergänzt;
+gewählten Lexikon aus einem verfügbaren hebräischen beziehungsweise griechischen Ausgangstext ergänzt;
 bei mehreren Quellen gewinnt ein tatsächlich vorhandener Morphologiecode und danach `sortOrder`;
 Vorkommen, Buchverteilung und „Übersetzt als“ stammen dagegen exakt aus der Quellübersetzung, die auch im
 Toolbar-Badge genannt wird. Existiert in derselben nicht-leeren A–E-Tabgruppe schon ein zur
@@ -386,7 +407,7 @@ Revision ist nur optimistisches Locking, keine abrufbare Versionshistorie.
 
 `document_passages` speichert inklusive, kanonisch sortierte Bereiche, die Kapitel- und Buchgrenzen
 überschreiten dürfen. `resource_id IS NULL` bedeutet einen translationsunabhängigen kanonischen Anker;
-eine gesetzte ID bindet die Beobachtung an genau diese öffentliche, fertige Bibel. Reader und Bibliothek
+eine gesetzte ID bindet die Beobachtung an genau diese für den Eigentümer verfügbare, fertige Bibel. Reader und Bibliothek
 suchen per Intervallüberschneidung (`start <= queryEnd AND end >= queryStart`), nicht nur nach gleichen
 Endpunkten. Beim Löschen einer Bibel verschiebt `deleteResource()` im selben Transaktionsblock sowohl
 `verse_comments` als auch alle translationsspezifischen Dokumentanker auf die Pflicht-Ersatzbibel und
@@ -829,7 +850,7 @@ Typwechsel zu Notizen lassen die Verknüpfungen ruhen, gelöschte Sammlungen ent
 Die Vorbereitung zeigt alle verknüpften Sammlungen samt Stellen direkt neben dem Editor.
 
 `users.default_bible_id` speichert die persönliche Standardübersetzung für alle Bibelvorschauen und
-„Bibeltext einfügen“ (auch im Reader-Sidecar). Nur öffentliche, fertige Bibeln sind auswählbar; der
+„Bibeltext einfügen“ (auch im Reader-Sidecar). Nur verfügbare, fertige Bibeln sind auswählbar; der
 globale Server-Load validiert die gespeicherte Auswahl erneut gegen die verfügbaren Bibeln. Ohne
 explizite gültige Auswahl gilt im Reader dessen erste sichtbare Bibel und außerhalb die erste
 sortierte Bibel. Eine Ressourcenlöschung setzt die Präferenz per Fremdschlüssel auf NULL. Die

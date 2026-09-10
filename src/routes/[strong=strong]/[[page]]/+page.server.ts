@@ -19,7 +19,7 @@ import {
  * keep working. Unlike the embedded tab study this is server-rendered, because it is a page people link to and
  * search engines index.
  */
-export async function load({ params, setHeaders, url }) {
+export async function load({ params, setHeaders, url, locals }) {
 	const strong = normalizeStrongId(params.strong);
 	if (!strong) error(404, 'Unbekannte Strong-Nummer');
 
@@ -35,16 +35,16 @@ export async function load({ params, setHeaders, url }) {
 	const gloss = (url.searchParams.get('gloss') ?? '').trim().slice(0, 200) || undefined;
 
 	const db = getDb();
-	const bibles = await listBibles(db);
+	const bibles = await listBibles(db, locals.user?.id);
 	const columns = bibles.map((bible) => bible.id);
-	const statisticsResource = await pickStatisticsResource(db, columns, strong);
+	const statisticsResource = await pickStatisticsResource(db, columns, strong, locals.user?.id);
 
 	if (!statisticsResource) {
 		error(503, 'Es ist noch keine Übersetzung mit Strong-Nummern importiert.');
 	}
 
 	const [entry, statistics, bookCounts, glosses, occurrences] = await Promise.all([
-		loadStrongEntry(db, strong),
+		loadStrongEntry(db, strong, locals.user?.id),
 		loadStrongStatistics(db, strong, statisticsResource),
 		loadStrongBookCounts(db, strong, statisticsResource),
 		loadStrongGlosses(db, strong, statisticsResource, 20),

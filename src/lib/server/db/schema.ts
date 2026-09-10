@@ -353,6 +353,24 @@ export const users = pgTable(
 	]
 );
 
+/** Explicit preview access; public visibility and import readiness remain independent. */
+export const resourceUserGrants = pgTable(
+	'resource_user_grants',
+	{
+		resourceId: text('resource_id')
+			.notNull()
+			.references(() => resources.id, { onDelete: 'cascade' }),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => [
+		primaryKey({ columns: [table.resourceId, table.userId] }),
+		index('resource_user_grants_user_idx').on(table.userId)
+	]
+);
+
 export const savedReaderWorkspaces = pgTable(
 	'saved_reader_workspaces',
 	{

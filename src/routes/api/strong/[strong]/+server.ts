@@ -26,12 +26,12 @@ import { listReaderResources } from '$lib/server/repositories/resources';
  *   page       page of the occurrence list
  *   book       optional canonical book filter for the occurrence list
  */
-export async function GET({ params, url, setHeaders }) {
+export async function GET({ params, url, setHeaders, locals }) {
 	const strong = normalizeStrongId(params.strong);
 	if (!strong) error(404, 'Unbekannte Strong-Nummer');
 
 	const db = getDb();
-	const available = await listReaderResources(db);
+	const available = await listReaderResources(db, locals.user?.id);
 	const requestedResourceId = url.searchParams.get('resource')?.trim() ?? '';
 	const requestedResource = available.find(
 		(resource) => resource.id === requestedResourceId && resource.kind === 'bible'
@@ -43,7 +43,8 @@ export async function GET({ params, url, setHeaders }) {
 		.filter(Boolean);
 
 	const statisticsResource =
-		requestedResource?.id ?? (await pickStatisticsResource(db, resourceIds, strong));
+		requestedResource?.id ??
+		(await pickStatisticsResource(db, resourceIds, strong, locals.user?.id));
 	const reference = parseReference(url.searchParams.get('ref') ?? '');
 	const page = Number(url.searchParams.get('page') ?? '1') || 1;
 	const requestedBook = Number(url.searchParams.get('book') ?? '');
@@ -58,7 +59,9 @@ export async function GET({ params, url, setHeaders }) {
 	if (lexiconId && !lexicon) error(400, 'Unbekanntes Lexikon');
 
 	const [entry, statistics, bookCounts, glosses, occurrences, original] = await Promise.all([
-		lexicon ? findLexiconEntry(db, lexicon.id, strong) : loadStrongEntry(db, strong),
+		lexicon
+			? findLexiconEntry(db, lexicon.id, strong, locals.user?.id)
+			: loadStrongEntry(db, strong, locals.user?.id),
 		statisticsResource
 			? loadStrongStatistics(db, strong, statisticsResource)
 			: Promise.resolve({ occurrences: 0, verseCount: 0 }),
@@ -72,7 +75,8 @@ export async function GET({ params, url, setHeaders }) {
 					strong,
 					book: reference.book,
 					chapter: reference.chapter,
-					verse: reference.verse
+					verse: reference.verse,
+					userId: locals.user?.id
 				})
 			: Promise.resolve(undefined)
 	]);

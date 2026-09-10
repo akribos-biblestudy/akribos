@@ -10,7 +10,7 @@ export async function load({ params, locals, cookies }) {
 	}
 
 	const db = getDb();
-	const bibles = await listBibles(db);
+	const bibles = await listBibles(db, locals.user?.id);
 	const primary =
 		resolveColumns(cookies, bibles, locals.user.readerColumns)[0] ?? bibles[0]?.id ?? null;
 	const result = await listHighlightedVerses(db, locals.user.id, params.style, primary);

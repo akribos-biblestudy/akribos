@@ -1,3 +1,4 @@
+import { readableResourceCondition } from './resources.ts';
 /**
  * Account queries.
  */
@@ -318,7 +319,7 @@ export async function setUserDisabled(
 		.where(eq(users.id, userId));
 }
 
-/** Only a public, ready Bible can become an account's preview/quotation preference. */
+/** Only an accessible, ready Bible can become an account's preview/quotation preference. */
 export async function updateDefaultBible(
 	db: Database,
 	userId: string,
@@ -333,7 +334,7 @@ export async function updateDefaultBible(
 					eq(resources.id, bibleId),
 					eq(resources.kind, 'bible'),
 					eq(resources.status, 'ready'),
-					eq(resources.isPublic, true)
+					readableResourceCondition(userId)
 				)
 			)
 			.limit(1);

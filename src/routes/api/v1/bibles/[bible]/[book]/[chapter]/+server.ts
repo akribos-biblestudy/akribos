@@ -1,3 +1,4 @@
+import { resourceViewerId } from '$lib/server/api/identity';
 import { json } from '@sveltejs/kit';
 import { bookById } from '$lib/bible/books';
 import { getDb } from '$lib/server/db';
@@ -6,7 +7,7 @@ import { listBibles } from '$lib/server/repositories/resources';
 import { apiError } from '$lib/server/api/errors';
 
 /** One translation's text for one chapter. `book` is the canonical id from `GET /books`. */
-export async function GET({ params, setHeaders }) {
+export async function GET({ params, setHeaders, locals }) {
 	const book = Number(params.book);
 	const chapter = Number(params.chapter);
 	if (!bookById(book)) return apiError(404, 'unknown_book', `No book with id ${params.book}.`);
@@ -15,7 +16,7 @@ export async function GET({ params, setHeaders }) {
 	}
 
 	const db = getDb();
-	const bibles = await listBibles(db);
+	const bibles = await listBibles(db, resourceViewerId(locals));
 	const bible = bibles.find((candidate) => candidate.id === params.bible);
 	if (!bible) return apiError(404, 'unknown_bible', `No bible with id "${params.bible}".`);
 

@@ -17,7 +17,7 @@ export const PUT: RequestHandler = async (event) => {
 		.pick({ snapshot: true })
 		.safeParse(await readWorkspaceJson(event.request));
 	if (!parsed.success || !parsed.data.snapshot) error(400, 'Ungültiger Arbeitsbereich.');
-	const snapshot = await validateWorkspaceSnapshot(parsed.data.snapshot);
+	const snapshot = await validateWorkspaceSnapshot(parsed.data.snapshot, userId);
 	const saved = await saveActiveWorkspaceView(getDb(), userId, event.params.id, snapshot);
 	return json({ saved });
 };

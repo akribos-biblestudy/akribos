@@ -180,7 +180,10 @@ export const actions = {
 		if (resourceId && !endpoints) return fail(400, { error: 'passage' as const });
 
 		const db = getDb();
-		if (resourceId && !(await listBibles(db)).some((bible) => bible.id === resourceId)) {
+		if (
+			resourceId &&
+			!(await listBibles(db, locals.user?.id)).some((bible) => bible.id === resourceId)
+		) {
 			return fail(400, { error: 'invalidResource' as const, resourceId });
 		}
 

@@ -1,3 +1,4 @@
+import { readableResourceCondition } from './resources.ts';
 /**
  * Everything a Strong word study shows for a Strong's number.
  *
@@ -61,7 +62,8 @@ export type StrongBookCount = {
 /** The dictionary entry, from whichever lexicon covers the number. */
 export async function loadStrongEntry(
 	db: Database,
-	strong: StrongId
+	strong: StrongId,
+	userId?: string | null
 ): Promise<StrongEntry | undefined> {
 	const [row] = await db
 		.select({
@@ -80,7 +82,7 @@ export async function loadStrongEntry(
 		})
 		.from(lexiconEntries)
 		.innerJoin(resources, eq(resources.id, lexiconEntries.resourceId))
-		.where(and(eq(lexiconEntries.strong, strong), eq(resources.isPublic, true)))
+		.where(and(eq(lexiconEntries.strong, strong), readableResourceCondition(userId)))
 		.orderBy(asc(resources.sortOrder))
 		.limit(1);
 
@@ -95,7 +97,8 @@ export async function loadStrongEntry(
 export async function findLexiconEntry(
 	db: Database,
 	resourceId: string,
-	rawLookup: string
+	rawLookup: string,
+	userId?: string | null
 ): Promise<StrongEntry | undefined> {
 	const lookup = rawLookup.trim().slice(0, 200);
 	if (!lookup) return undefined;
@@ -129,7 +132,7 @@ export async function findLexiconEntry(
 		.where(
 			and(
 				eq(lexiconEntries.resourceId, resourceId),
-				eq(resources.isPublic, true),
+				readableResourceCondition(userId),
 				eq(resources.status, 'ready'),
 				strong ? eq(lexiconEntries.strong, strong) : wordMatch
 			)
@@ -288,7 +291,13 @@ export async function loadStrongOccurrences(
  */
 export async function loadOriginalWord(
 	db: Database,
-	options: { strong: StrongId; book: number; chapter: number; verse: number }
+	options: {
+		strong: StrongId;
+		book: number;
+		chapter: number;
+		verse: number;
+		userId?: string | null;
+	}
 ): Promise<
 	{ word: string; morph: string | null; lemma: string | null; resourceId: string } | undefined
 > {
@@ -311,7 +320,7 @@ export async function loadOriginalWord(
 				eq(verses.chapter, options.chapter),
 				eq(verses.verse, options.verse),
 				eq(resources.language, language),
-				eq(resources.isPublic, true)
+				readableResourceCondition(options.userId)
 			)
 		)
 		// Several original-language resources may cover the verse. Prefer an actual morphology code,
@@ -335,7 +344,8 @@ export async function loadOriginalWord(
 export async function pickStatisticsResource(
 	db: Database,
 	resourceIds: string[],
-	strong: StrongId
+	strong: StrongId,
+	userId?: string | null
 ): Promise<string | undefined> {
 	if (resourceIds.length === 0) return undefined;
 
@@ -344,7 +354,14 @@ export async function pickStatisticsResource(
 	const rows = await db
 		.select({ id: resources.id, canon: resources.canon })
 		.from(resources)
-		.where(and(inArray(resources.id, resourceIds), eq(resources.hasStrongs, true)))
+		.where(
+			and(
+				inArray(resources.id, resourceIds),
+				eq(resources.hasStrongs, true),
+				eq(resources.kind, 'bible'),
+				readableResourceCondition(userId)
+			)
+		)
 		.orderBy(asc(resources.sortOrder));
 
 	const preferred = resourceIds.find((id) =>
@@ -361,7 +378,7 @@ export async function pickStatisticsResource(
 			and(
 				eq(resources.hasStrongs, true),
 				eq(resources.kind, 'bible'),
-				eq(resources.isPublic, true),
+				readableResourceCondition(userId),
 				inArray(resources.canon, [canon, 'both'])
 			)
 		)

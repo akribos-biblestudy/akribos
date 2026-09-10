@@ -1,3 +1,4 @@
+import { readableResourceCondition } from './resources.ts';
 /**
  * Private document working copies and their Bible passage anchors.
  *
@@ -598,9 +599,10 @@ function validatePassage(passage: DocumentPassageInput): void {
 	}
 }
 
-async function invalidPublicBible(
+async function invalidReadableBible(
 	db: Pick<Database, 'select'>,
-	resourceIds: string[]
+	resourceIds: string[],
+	userId?: string
 ): Promise<string | undefined> {
 	if (resourceIds.length === 0) return undefined;
 	const rows = await db
@@ -610,7 +612,7 @@ async function invalidPublicBible(
 			and(
 				inArray(resources.id, resourceIds),
 				eq(resources.kind, 'bible'),
-				eq(resources.isPublic, true),
+				readableResourceCondition(userId),
 				eq(resources.status, 'ready')
 			)
 		);
@@ -634,7 +636,7 @@ async function invalidExistingBible(
 
 /**
  * Replaces all anchors in one transaction and increments the working-copy revision. Non-null
- * resources must be public, ready Bible resources; `null` deliberately means translation-neutral.
+ * resources must be ready Bible resources available to the document owner; `null` deliberately means translation-neutral.
  */
 export async function replaceDocumentPassages(
 	db: Database,
@@ -658,7 +660,7 @@ export async function replaceDocumentPassages(
 			return { ok: false, reason: 'conflict', currentRevision };
 		}
 
-		const invalidResource = await invalidPublicBible(tx, resourceIds);
+		const invalidResource = await invalidReadableBible(tx, resourceIds, userId);
 		if (invalidResource) {
 			return { ok: false, reason: 'invalidResource', resourceId: invalidResource };
 		}
@@ -972,7 +974,7 @@ export async function createDocumentFromLegacyVerseComment(
 	return db.transaction(async (tx) => {
 		// Migration 0025 preserves every existing verse comment, including comments whose historical
 		// Bible was hidden after writing. The resumable backfill follows that same fidelity policy;
-		// only a genuinely missing/non-Bible resource is an error. New anchors remain public+ready-only.
+		// only a genuinely missing/non-Bible resource is an error. New anchors require ready resources available to the document owner.
 		const invalidResource = await invalidExistingBible(tx, [input.resourceId]);
 		if (invalidResource) {
 			return { ok: false, reason: 'invalidResource', resourceId: invalidResource };

@@ -240,7 +240,7 @@ export async function load({ locals, url, setHeaders }) {
 		maxFiles: MAX_OBSIDIAN_IMPORT_FILES,
 		maxArchiveBytes: MAX_OBSIDIAN_ARCHIVE_BYTES,
 		limitations: MARKDOWN_ROUND_TRIP_LIMITATIONS.map(localizeImportMessage),
-		bibles: await listBibles(getDb())
+		bibles: await listBibles(getDb(), locals.user?.id)
 	};
 }
 
@@ -311,7 +311,9 @@ export const actions = {
 			const total = sources.reduce((sum, source) => sum + source.bytes.byteLength, 0);
 			if (total > MAX_OBSIDIAN_DECOMPRESSED_BYTES)
 				throw new ObsidianArchiveError('archive_too_large');
-			const validBibleIds = new Set((await listBibles(getDb())).map((bible) => bible.id));
+			const validBibleIds = new Set(
+				(await listBibles(getDb(), locals.user?.id)).map((bible) => bible.id)
+			);
 			const prepared = [];
 			let markdownBytes = 0;
 			const fileErrors: Array<{ filename: string; error: string; message: string }> = [];
@@ -422,7 +424,7 @@ export const actions = {
 		}
 
 		const db = getDb();
-		const validBibleIds = new Set((await listBibles(db)).map((bible) => bible.id));
+		const validBibleIds = new Set((await listBibles(db, locals.user?.id)).map((bible) => bible.id));
 		const inspected = previews.map((preview) => inspectImport(preview, validBibleIds));
 		const issues = inspected.flatMap((item) => item.issues);
 		if (issues.length > 0) {

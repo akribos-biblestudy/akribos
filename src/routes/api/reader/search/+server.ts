@@ -15,7 +15,7 @@ import {
 const PAGE_SIZE = 25;
 
 /** Resource-scoped search payload for the result view embedded in one reader tab. */
-export async function GET({ url, setHeaders }) {
+export async function GET({ url, setHeaders, locals }) {
 	const query = (url.searchParams.get('q') ?? '').trim().slice(0, 300);
 	const resourceId = (url.searchParams.get('resource') ?? '').trim();
 	const page = Math.max(1, Number.parseInt(url.searchParams.get('page') ?? '1', 10) || 1);
@@ -24,7 +24,9 @@ export async function GET({ url, setHeaders }) {
 	if (!query) error(400, 'Leere Suchanfrage');
 
 	const db = getDb();
-	const resource = (await listReaderResources(db)).find((candidate) => candidate.id === resourceId);
+	const resource = (await listReaderResources(db, locals.user?.id)).find(
+		(candidate) => candidate.id === resourceId
+	);
 	if (!resource) error(404, 'Unbekannte Ressource');
 
 	let response: ReaderTabSearchResponse;

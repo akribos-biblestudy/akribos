@@ -100,7 +100,7 @@ export async function load({ locals, url, setHeaders }) {
 	const deletedMode = deleted ? 'only' : 'exclude';
 	const [tagTree, bibles, referenceIndex, anchorIndex] = await Promise.all([
 		listDocumentTagTreeWithCounts(db, user.id, deleted ? 'only' : 'exclude'),
-		listBibles(db),
+		listBibles(db, locals.user?.id),
 		listDocumentLibraryIndex(db, user.id, {
 			kind: 'note',
 			query: q || undefined,
@@ -244,7 +244,7 @@ export const actions = {
 		if (resourceId && !endpoints) return fail(400, { error: 'passage' as const });
 		const db = getDb();
 		if (resourceId) {
-			const bibles = await listBibles(db);
+			const bibles = await listBibles(db, locals.user?.id);
 			if (!bibles.some((bible) => bible.id === resourceId)) {
 				return fail(400, { error: 'invalidResource' as const, resourceId });
 			}
