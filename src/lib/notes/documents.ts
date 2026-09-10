@@ -40,7 +40,7 @@ export function sermonFormatLabel(value: SermonFormat): string {
 	return SERMON_FORMAT_LABELS[value];
 }
 
-export const DOCUMENT_SOURCES = ['native', 'obsidian', 'legacy-verse-comment'] as const;
+export const DOCUMENT_SOURCES = ['native', 'obsidian', 'legacy-verse-comment', 'word'] as const;
 export type DocumentSource = (typeof DOCUMENT_SOURCES)[number];
 
 export const MAX_DOCUMENT_TITLE_LENGTH = 200;

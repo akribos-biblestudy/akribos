@@ -50,7 +50,7 @@ export function isSafeObsidianArchivePath(filename: string): boolean {
 }
 
 /** Reads the central directory before inflation, blocking traversal, links and ZIP bombs. */
-function preflight(bytes: Uint8Array): Map<string, number> {
+function preflight(bytes: Uint8Array, word = false): Map<string, number> {
 	if (bytes.byteLength === 0 || bytes.byteLength > MAX_OBSIDIAN_ARCHIVE_BYTES) {
 		throw new ObsidianArchiveError('archive_too_large');
 	}
@@ -122,8 +122,11 @@ function preflight(bytes: Uint8Array): Map<string, number> {
 		if ((unixMode & 0xf000) === 0xa000) {
 			throw new ObsidianArchiveError('unsafe_archive', filename);
 		}
-		if (!filename.endsWith('/') && /\.md$/iu.test(filename)) {
-			if (uncompressed === 0 || uncompressed > MAX_OBSIDIAN_IMPORT_BYTES)
+		if (!filename.endsWith('/') && (word || /\.md$/iu.test(filename))) {
+			if (
+				(!word && uncompressed === 0) ||
+				uncompressed > (word ? MAX_OBSIDIAN_DECOMPRESSED_BYTES : MAX_OBSIDIAN_IMPORT_BYTES)
+			)
 				throw new ObsidianArchiveError('archive_too_large', filename);
 			if (markdown.has(filename)) throw new ObsidianArchiveError('unsafe_archive', filename);
 			total += uncompressed;
@@ -134,23 +137,42 @@ function preflight(bytes: Uint8Array): Map<string, number> {
 		cursor = nextCursor;
 	}
 	if (cursor !== centralOffset + centralSize) throw new ObsidianArchiveError('unsafe_archive');
-	if (markdown.size === 0) throw new ObsidianArchiveError('no_markdown');
-	if (markdown.size > MAX_OBSIDIAN_IMPORT_FILES) throw new ObsidianArchiveError('too_many_files');
+	if (markdown.size === 0) throw new ObsidianArchiveError(word ? 'unsafe_archive' : 'no_markdown');
+	if (!word && markdown.size > MAX_OBSIDIAN_IMPORT_FILES)
+		throw new ObsidianArchiveError('too_many_files');
 	return markdown;
 }
 
-export function extractObsidianMarkdownArchive(bytes: Uint8Array): ObsidianMarkdownSource[] {
-	const expected = preflight(bytes);
+/** Word validates and bounds every ZIP part before a converter can read it. */
+export function extractBoundedDocumentArchive(
+	bytes: Uint8Array,
+	word = false
+): Record<string, Uint8Array> {
+	const expected = preflight(bytes, word);
 	let extracted: Record<string, Uint8Array>;
 	try {
-		extracted = unzipSync(bytes);
+		extracted = unzipSync(bytes, {
+			filter: (entry) => {
+				const size = expected.get(entry.name);
+				if (size === undefined) return false;
+				if (entry.originalSize !== size) throw new ObsidianArchiveError('unsafe_archive');
+				return true;
+			}
+		});
 	} catch {
 		throw new ObsidianArchiveError('unsafe_archive');
 	}
-	const sources: ObsidianMarkdownSource[] = [];
 	for (const [filename, size] of expected) {
 		const data = extracted[filename];
 		if (!data || data.byteLength !== size) throw new ObsidianArchiveError('unsafe_archive');
+	}
+	return extracted;
+}
+
+export function extractObsidianMarkdownArchive(bytes: Uint8Array): ObsidianMarkdownSource[] {
+	const extracted = extractBoundedDocumentArchive(bytes);
+	const sources: ObsidianMarkdownSource[] = [];
+	for (const [filename, data] of Object.entries(extracted)) {
 		sources.push({ filename: filename.split('/').at(-1)!, archivePath: filename, bytes: data });
 	}
 	return sources.sort((left, right) => left.filename.localeCompare(right.filename, 'de'));

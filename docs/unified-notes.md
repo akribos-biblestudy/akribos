@@ -130,7 +130,7 @@ the standalone editor and Reader sidecar via its button or Ctrl/Cmd+Shift+F whil
 Escape exits it. The existing editor moves into a modal dialog, preserving undo history and autosave.
 Bible previews join that same dialog so their buttons remain usable in the browser's modal top layer.
 
-Import accepts one or more UTF-8 `.md` files, or exactly one ZIP containing Markdown files, and always
+Import accepts Word `.docx` and UTF-8 `.md` files, or exactly one ZIP containing Markdown files, and always
 presents one shared side-effect-free preview before creation. Each document has at most 1 MiB of
 Markdown and 64 KiB of YAML frontmatter. A batch has at most 100 Markdown files; the upload and relevant
 decompressed Markdown are each bounded to 16 MiB. ZIP metadata is checked before inflation: encrypted
@@ -147,6 +147,15 @@ paths have at most eight levels, and comma/backslash are invalid in segments. Ta
 books or chapters deliberately remain tags and do not implicitly create passage anchors.
 Preview reports each invalid Markdown source with its filename (or ZIP entry path). Exceeding the
 loose-file count reports the actual count and limit, rather than suggesting that one file is corrupt.
+
+Word files use [Mammoth](https://github.com/mwilliamson/mammoth.js) to convert semantic headings,
+lists, emphasis and links to HTML, followed by the existing allow-list and Markdown conversion.
+Every DOCX ZIP part is bounded (16 MiB total expanded data), XML rejects DTDs and nesting beyond 100
+elements, and external file access and embedded style maps are disabled. Images, attachments, comments
+and page layout are omitted with a visible notice. Confirmation reparses the original Base64-encoded
+DOCX, and the new private note retains `source = word` and its original filename. Legacy `.doc` files
+must first be saved as `.docx`. Word's rendered export metadata does not set import ownership or
+publication state. ZIP uploads still contain Markdown only.
 
 Exports are owner-only and available as deterministic UTF-8 Markdown, editable Word `.docx` and A4 PDF.
 Markdown carries YAML frontmatter for title, kind, tags, passages, sermon metadata, delivery history and

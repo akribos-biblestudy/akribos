@@ -2,6 +2,10 @@ import { t, type MessageKey } from '$lib/i18n';
 import type { DocumentMarkdownErrorCode } from '$lib/notes/document-markdown';
 
 const STATIC_MESSAGE_KEYS = new Map<string, MessageKey>([
+	[
+		'Word layout, images, attachments and comments are not imported.',
+		'documents.import.wordLimitations'
+	],
 	['Raw HTML, media, embeds and attributes are removed.', 'documents.import.limitation.rawHtml'],
 	[
 		'Heading levels deeper than three are folded into level three.',

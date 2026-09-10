@@ -562,8 +562,13 @@ Sidecar, wenn JavaScript aktiv ist; der normale Form-Redirect bleibt der funktio
 Notizen erzeugen keine Icons oder Unterstreichungen im Bibeltext; der Sidecar und das Versmenü
 bleiben die Zugänge zu persönlichen Dokumenten.
 
-Der Obsidian-Austausch unter `/notes/import` akzeptiert eine oder mehrere UTF-8-`.md`-Dateien oder genau
-ein ZIP mit Markdown. Pro Datei gelten 1 MiB Markdown plus 64 KiB YAML; pro Stapel höchstens 100 Dateien
+Der Dokumentimport unter `/notes/import` akzeptiert Word-`.docx`- und UTF-8-`.md`-Dateien oder genau
+ein ZIP mit Markdown. Word wird mit Mammoth im Speicher in bereinigtes Markdown umgewandelt;
+alle ZIP-Bestandteile werden vorab auf Pfade und insgesamt 16 MiB entpackte Größe geprüft, XML
+verbietet DTDs und mehr als 100 Verschachtelungen. Externe Dateien und eingebettete Style-Maps sind
+deaktiviert. Bestätigen prüft das Base64-kodierte DOCX erneut; `source = word` und der Originaldateiname
+bleiben als Herkunft erhalten. Bilder, Anlagen, Kommentare und Seitenlayout werden mit Hinweis
+ausgelassen; alte `.doc`-Dateien müssen zuvor als `.docx` gespeichert werden. Pro Markdown-Datei gelten 1 MiB Markdown plus 64 KiB YAML; pro Stapel höchstens 100 Dateien
 und je 16 MiB Upload sowie relevante entpackte Daten. Die Vorschau meldet Inhaltsfehler gesammelt mit
 Dateiname beziehungsweise ZIP-Eintragspfad; eine zu große lose Dateiauswahl nennt Anzahl und Grenze
 als Stapelfehler. Das ZIP-Zentralverzeichnis wird vor dem Entpacken
