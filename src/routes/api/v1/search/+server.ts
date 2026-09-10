@@ -1,3 +1,4 @@
+import { resourceViewerId } from '$lib/server/api/identity';
 import { json } from '@sveltejs/kit';
 import { isValidBookId } from '$lib/bible/books';
 import { getDb } from '$lib/server/db';
@@ -14,7 +15,7 @@ import { apiError } from '$lib/server/api/errors';
  *   book    restrict to one canonical book id
  *   page    page of results (default 1)
  */
-export async function GET({ url, setHeaders }) {
+export async function GET({ url, setHeaders, locals }) {
 	const query = (url.searchParams.get('q') ?? '').trim();
 	if (!query) return apiError(400, 'missing_query', 'The "q" query parameter is required.');
 
@@ -23,7 +24,7 @@ export async function GET({ url, setHeaders }) {
 		.split(',')
 		.map((id) => id.trim())
 		.filter(Boolean);
-	const bibles = await listBibles(db);
+	const bibles = await listBibles(db, resourceViewerId(locals));
 	const resourceIds =
 		requestedBibles.length > 0
 			? bibles.filter((bible) => requestedBibles.includes(bible.id)).map((bible) => bible.id)

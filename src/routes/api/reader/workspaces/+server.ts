@@ -23,7 +23,7 @@ export const POST: RequestHandler = async (event) => {
 	const parsed = savedWorkspaceInput.safeParse(await readWorkspaceJson(event.request));
 	if (!parsed.success || !parsed.data.snapshot)
 		error(400, 'Name und Arbeitsbereich sind erforderlich.');
-	const snapshot = await validateWorkspaceSnapshot(parsed.data.snapshot);
+	const snapshot = await validateWorkspaceSnapshot(parsed.data.snapshot, userId);
 	return workspaceMutationResponse(
 		await changeSavedReaderWorkspace(getDb(), userId, {
 			action: 'create',

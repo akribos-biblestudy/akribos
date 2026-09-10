@@ -16,6 +16,7 @@ const publicBible = { id: 'PUBLIC' };
 
 function event(params: { bible: string; book?: string; chapter?: string }) {
 	return {
+		locals: { user: null, apiAuth: null },
 		params: {
 			bible: params.bible,
 			book: params.book ?? '40',
@@ -71,7 +72,7 @@ describe('public Bible chapter API', () => {
 			],
 			headings: [[12, 'Die kommende Ernte']]
 		});
-		expect(mocks.listBibles).toHaveBeenCalledWith(mocks.db);
+		expect(mocks.listBibles).toHaveBeenCalledWith(mocks.db, null);
 		expect(mocks.loadChapter).toHaveBeenCalledWith(mocks.db, {
 			resourceIds: ['PUBLIC'],
 			book: 40,

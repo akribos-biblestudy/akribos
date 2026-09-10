@@ -1,3 +1,4 @@
+import { resourceViewerId } from '$lib/server/api/identity';
 import { json } from '@sveltejs/kit';
 import { normalizeStrongId, otherLanguageId } from '$lib/bible/strong';
 import { parseMorphology } from '$lib/bible/morphology';
@@ -23,7 +24,7 @@ import {
  *   resources  translation ids, comma separated, to compute the rendering statistics from
  *   page       page of the occurrence list (default 1)
  */
-export async function GET({ params, url, setHeaders }) {
+export async function GET({ params, url, setHeaders, locals }) {
 	const strong = normalizeStrongId(params.strong);
 	if (!strong)
 		return apiError(404, 'invalid_strong_id', `"${params.strong}" is not a Strong's id.`);
@@ -34,7 +35,12 @@ export async function GET({ params, url, setHeaders }) {
 		.map((id) => id.trim())
 		.filter(Boolean);
 
-	const statisticsResource = await pickStatisticsResource(db, resourceIds, strong);
+	const statisticsResource = await pickStatisticsResource(
+		db,
+		resourceIds,
+		strong,
+		resourceViewerId(locals)
+	);
 	const reference = parseReference(url.searchParams.get('ref') ?? '');
 	const page = Number(url.searchParams.get('page') ?? '1') || 1;
 	const requestedBook = Number.parseInt(url.searchParams.get('book') ?? '', 10);
@@ -42,7 +48,7 @@ export async function GET({ params, url, setHeaders }) {
 	const gloss = (url.searchParams.get('gloss') ?? '').trim().slice(0, 200) || undefined;
 
 	const [entry, statistics, bookCounts, glosses, occurrences, original] = await Promise.all([
-		loadStrongEntry(db, strong),
+		loadStrongEntry(db, strong, resourceViewerId(locals)),
 		statisticsResource
 			? loadStrongStatistics(db, strong, statisticsResource)
 			: Promise.resolve({ occurrences: 0, verseCount: 0 }),
@@ -56,7 +62,8 @@ export async function GET({ params, url, setHeaders }) {
 					strong,
 					book: reference.book,
 					chapter: reference.chapter,
-					verse: reference.verse
+					verse: reference.verse,
+					userId: resourceViewerId(locals)
 				})
 			: Promise.resolve(undefined)
 	]);

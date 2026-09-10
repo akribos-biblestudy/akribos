@@ -31,7 +31,7 @@ export async function load({ url, cookies, setHeaders, locals }) {
 	if (reference) redirect(303, referencePath(reference));
 
 	const db = getDb();
-	const bibles = await listBibles(db);
+	const bibles = await listBibles(db, locals.user?.id);
 	const columnIds = resolveColumns(cookies, bibles, locals.user?.readerColumns);
 	const byId = new Map(bibles.map((bible) => [bible.id, bible]));
 

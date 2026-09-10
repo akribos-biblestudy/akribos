@@ -18,7 +18,7 @@ export async function GET({ params, url, locals, setHeaders }) {
 	}
 
 	const db = getDb();
-	const readerResources = await listReaderResources(db);
+	const readerResources = await listReaderResources(db, locals.user?.id);
 	const resource = readerResources.find(
 		(candidate) => candidate.id === url.searchParams.get('resource')
 	);

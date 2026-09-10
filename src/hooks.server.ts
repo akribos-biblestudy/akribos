@@ -109,6 +109,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// a shared cache. Keeping this final guard in the request pipeline makes the privacy invariant apply
 	// to new routes automatically instead of relying on every page author to remember it.
 	protectAuthenticatedResponse(event.locals.user, response);
+	if (event.locals.apiAuth?.kind === 'key' && event.locals.apiAuth.apiKey.scope === 'personal') {
+		response.headers.set('cache-control', 'private, no-store');
+	}
 
 	if (duration > 500) {
 		logger.warn({ path: event.url.pathname, duration, status: response.status }, 'slow request');

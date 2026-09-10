@@ -113,7 +113,7 @@ export async function load({ params, locals, url, setHeaders }) {
 		listDocumentPassages(db, user.id, documentId),
 		listDocumentTags(db, user.id, documentId),
 		listDocumentTagTree(db, user.id),
-		listBibles(db),
+		listBibles(db, locals.user?.id),
 		getOwnedDocumentPublication(db, user.id, documentId),
 		document.kind === 'sermon' ? listSermonDeliveries(db, user.id, documentId) : [],
 		document.kind === 'sermon' ? listDocumentCollections(db, user.id, documentId) : [],
@@ -217,7 +217,10 @@ export const actions = {
 
 		const resourceId = String(form.get('resourceId') ?? form.get('resource') ?? '').trim() || null;
 		const db = getDb();
-		if (resourceId && !(await listBibles(db)).some((bible) => bible.id === resourceId)) {
+		if (
+			resourceId &&
+			!(await listBibles(db, locals.user?.id)).some((bible) => bible.id === resourceId)
+		) {
 			return fail(400, { error: 'invalidResource' as const, resourceId });
 		}
 

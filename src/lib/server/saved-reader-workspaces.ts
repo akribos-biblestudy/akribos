@@ -42,11 +42,14 @@ export async function readWorkspaceJson(request: Request): Promise<unknown> {
 	}
 }
 
-export async function validateWorkspaceSnapshot(input: {
-	readerState: string;
-	layoutSizes?: unknown;
-}) {
-	const resources = await listReaderResources(getDb());
+export async function validateWorkspaceSnapshot(
+	input: {
+		readerState: string;
+		layoutSizes?: unknown;
+	},
+	userId: string
+) {
+	const resources = await listReaderResources(getDb(), userId);
 	const restored = restoreSavedWorkspace(
 		input,
 		resources.map((resource) => resource.id)

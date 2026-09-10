@@ -8,7 +8,13 @@
 
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
-import { resourceBooks, resources, type Resource } from '../db/schema.ts';
+import {
+	resourceBooks,
+	resources,
+	resourceUserGrants,
+	users,
+	type Resource
+} from '../db/schema.ts';
 
 export type ReadableResource = Pick<
 	Resource,
@@ -39,9 +45,27 @@ export function invalidateResourceCache(): void {
 	cache = undefined;
 }
 
-/** Every public, ready resource, in display order. */
-export async function listResources(db: Database): Promise<ReadableResource[]> {
-	if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.resources;
+/** Apply to a query joined to resources. Grants are checked in the database on every private read. */
+export function readableResourceCondition(userId?: string | null) {
+	return and(
+		eq(resources.status, 'ready'),
+		userId
+			? sql`(${resources.isPublic} = true or exists (
+       select 1 from ${resourceUserGrants}
+       inner join ${users} on ${users.id} = ${resourceUserGrants.userId}
+       where ${resourceUserGrants.resourceId} = ${resources.id}
+       and ${resourceUserGrants.userId} = ${userId} and ${users.disabledAt} is null
+     ))`
+			: eq(resources.isPublic, true)
+	);
+}
+
+/** Public and explicitly granted ready resources, in display order. */
+export async function listResources(
+	db: Database,
+	userId?: string | null
+): Promise<ReadableResource[]> {
+	if (!userId && cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.resources;
 
 	const rows = await db
 		.select({
@@ -65,29 +89,38 @@ export async function listResources(db: Database): Promise<ReadableResource[]> {
 			usageNotesHtml: resources.usageNotesHtml
 		})
 		.from(resources)
-		.where(and(eq(resources.isPublic, true), eq(resources.status, 'ready')))
+		.where(readableResourceCondition(userId))
 		.orderBy(asc(resources.sortOrder), asc(resources.name));
 
-	cache = { at: Date.now(), resources: rows };
+	if (!userId) cache = { at: Date.now(), resources: rows };
 	return rows;
 }
 
-/** The public translations, which are what the reader offers as columns. */
-export async function listBibles(db: Database): Promise<ReadableResource[]> {
-	return (await listResources(db)).filter((resource) => resource.kind === 'bible');
+/** Translations available to this viewer. */
+export async function listBibles(
+	db: Database,
+	userId?: string | null
+): Promise<ReadableResource[]> {
+	return (await listResources(db, userId)).filter((resource) => resource.kind === 'bible');
 }
 
-/** Public resources that can be opened as workspace tabs. */
-export async function listReaderResources(db: Database): Promise<ReadableResource[]> {
-	return (await listResources(db)).filter((resource) =>
+/** Resources this viewer can open as workspace tabs. */
+export async function listReaderResources(
+	db: Database,
+	userId?: string | null
+): Promise<ReadableResource[]> {
+	return (await listResources(db, userId)).filter((resource) =>
 		(['bible', 'commentary', 'xrefs', 'lexicon'] as const).includes(
 			resource.kind as 'bible' | 'commentary' | 'xrefs' | 'lexicon'
 		)
 	);
 }
 
-export async function listLexicons(db: Database): Promise<ReadableResource[]> {
-	return (await listResources(db)).filter((resource) => resource.kind === 'lexicon');
+export async function listLexicons(
+	db: Database,
+	userId?: string | null
+): Promise<ReadableResource[]> {
+	return (await listResources(db, userId)).filter((resource) => resource.kind === 'lexicon');
 }
 
 /**

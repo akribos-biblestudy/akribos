@@ -49,7 +49,7 @@ export async function load({ params, locals, cookies }) {
 	const access = await findListAccess(db, params.id, locals.user.id);
 	if (!access) error(404, 'Stellensammlung nicht gefunden');
 
-	const bibles = await listBibles(db);
+	const bibles = await listBibles(db, locals.user?.id);
 	const primary =
 		resolveColumns(cookies, bibles, locals.user.readerColumns)[0] ?? bibles[0]?.id ?? null;
 

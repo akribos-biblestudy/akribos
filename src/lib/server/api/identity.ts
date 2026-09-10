@@ -13,3 +13,9 @@ export function resolveApiIdentity(locals: App.Locals): ApiIdentity {
 	}
 	return { userId: locals.user?.id ?? null, scope: 'personal' };
 }
+
+/** Public-scope keys never inherit their owner's private resource grants. */
+export function resourceViewerId(locals: App.Locals): string | null {
+	const identity = resolveApiIdentity(locals);
+	return identity.scope === 'personal' ? identity.userId : null;
+}

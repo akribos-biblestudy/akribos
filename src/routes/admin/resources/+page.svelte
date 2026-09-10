@@ -387,6 +387,50 @@
 					</div>
 				</form>
 
+				<form
+					method="POST"
+					action={`?/grants&resource=${encodeURIComponent(selectedResource.id)}`}
+					use:enhance
+					class="border-t border-stone-200 p-4 sm:p-5 dark:border-stone-800"
+				>
+					<input type="hidden" name="id" value={selectedResource.id} />
+					<fieldset>
+						<legend class="font-semibold">Private Freigabe</legend>
+						<p class="mt-1 text-sm text-stone-500">
+							Diese Konten können das fertig importierte Werk auch lesen, wenn „Öffentlich sichtbar“
+							ausgeschaltet ist. Geteilte Links erteilen keinen Zugriff.
+						</p>
+						<div class="mt-3 grid max-h-64 gap-2 overflow-y-auto">
+							{#each data.accounts as account (account.id)}
+								<label class="flex items-center gap-2 text-sm">
+									<input
+										type="checkbox"
+										name="userIds"
+										value={account.id}
+										checked={selectedResource.grantedUserIds.includes(account.id)}
+										class="size-4"
+									/>
+									<span
+										>{account.displayName ? `${account.displayName} · ` : ''}{account.email}</span
+									>
+								</label>
+							{/each}
+						</div>
+						<button
+							type="submit"
+							class="mt-3 rounded-lg bg-accent-600 px-4 py-2 text-sm font-semibold text-white hover:bg-accent-700"
+							>Private Freigaben speichern</button
+						>
+						{#if form?.granted === selectedResource.id}<p role="status" class="mt-2 text-sm">
+								Private Freigaben gespeichert.
+							</p>{/if}
+						{#if form?.error === 'grants'}<p role="alert" class="mt-2 text-sm text-red-700">
+								Die Freigaben konnten nicht gespeichert werden. Bitte lade die Seite neu und wähle
+								gültige Konten.
+							</p>{/if}
+					</fieldset>
+				</form>
+
 				<div class="border-t border-stone-200 px-4 py-3 sm:px-5 dark:border-stone-800">
 					<button
 						type="button"

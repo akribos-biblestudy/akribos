@@ -1,3 +1,4 @@
+import { resourceViewerId } from '$lib/server/api/identity';
 import { json } from '@sveltejs/kit';
 import { getDb } from '$lib/server/db';
 import { apiError } from '$lib/server/api/errors';
@@ -32,7 +33,7 @@ export async function GET({ url, locals }) {
 		);
 	}
 
-	const bibles = await listBibles(db);
+	const bibles = await listBibles(db, resourceViewerId(locals));
 	const requestedResource = url.searchParams.get('resource')?.trim();
 	const resource = requestedResource
 		? bibles.find((bible) => bible.id === requestedResource)

@@ -131,12 +131,12 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 	if (canonical !== `/${input}`) redirect(301, `${canonical}${url.search}`);
 
 	const db = getDb();
-	const bibles = await listBibles(db);
+	const bibles = await listBibles(db, locals.user?.id);
 	if (bibles.length === 0) {
 		error(503, 'Es ist noch keine Bibelübersetzung importiert.');
 	}
 
-	const readerResources = await listReaderResources(db);
+	const readerResources = await listReaderResources(db, locals.user?.id);
 	const persistedWorkspace = resolveReaderWorkspace(
 		cookies,
 		readerResources,
@@ -236,7 +236,7 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 					locals.user?.id ?? null
 				),
 				column.resource.kind === 'lexicon' && column.activeTab.lookup
-					? findLexiconEntry(db, column.resource.id, column.activeTab.lookup)
+					? findLexiconEntry(db, column.resource.id, column.activeTab.lookup, locals.user?.id)
 					: Promise.resolve(undefined)
 			]);
 			return { ...column, initialChapter, lexiconEntry: lexiconEntry ?? null };
@@ -301,7 +301,7 @@ export const actions = {
 		const form = await request.formData();
 		const tileId = String(form.get('tileId') ?? '');
 		const resourceId = String(form.get('resource') ?? '');
-		const available = await listReaderResources(getDb());
+		const available = await listReaderResources(getDb(), locals.user?.id);
 		if (!available.some((resource) => resource.id === resourceId)) {
 			return fail(400, { error: 'resource' });
 		}
@@ -329,7 +329,7 @@ export const actions = {
 		const tileId = String(form.get('tileId') ?? '');
 		const tabId = String(form.get('tabId') ?? '');
 		const resourceId = String(form.get('resource') ?? '');
-		const available = await listReaderResources(getDb());
+		const available = await listReaderResources(getDb(), locals.user?.id);
 		if (!available.some((resource) => resource.id === resourceId)) {
 			return fail(400, { error: 'resource' });
 		}
@@ -478,7 +478,7 @@ export const actions = {
 		if (linkSet !== null && !isReaderLinkSet(linkSet)) return fail(400, { error: 'linkSet' });
 		const reference = parseReference(String(form.get('reference') ?? ''));
 		if (!reference || !isReferenceInCanon(reference)) return fail(400, { error: 'reference' });
-		const available = await listReaderResources(getDb());
+		const available = await listReaderResources(getDb(), locals.user?.id);
 		const current = await currentWorkspace(cookies, locals.user, url, available);
 		const target = openReaderBibleReference(
 			current.workspace,
@@ -537,7 +537,7 @@ export const actions = {
 			.trim()
 			.slice(0, 200);
 		if (!lookup && form.get('clearLookup') !== 'true') return fail(400, { error: 'lookup' });
-		const available = await listReaderResources(getDb());
+		const available = await listReaderResources(getDb(), locals.user?.id);
 		const current = await currentWorkspace(
 			cookies,
 			locals.user,
@@ -578,7 +578,7 @@ export const actions = {
 		const lexiconLanguage = strongLanguage(lookup) === 'hebrew' ? 'hbo' : 'grc';
 
 		const db = getDb();
-		const available = await listReaderResources(db);
+		const available = await listReaderResources(db, locals.user?.id);
 		const current = await currentWorkspace(cookies, locals.user, url, available);
 		let { workspace } = current;
 		let sourceTile = workspace.tiles.find((tile) => tile.id === sourceTileId);
@@ -627,7 +627,13 @@ export const actions = {
 			});
 		}
 
-		const lexicon = await firstLexiconForLookup(db, available, lookup, lexiconLanguage);
+		const lexicon = await firstLexiconForLookup(
+			db,
+			available,
+			lookup,
+			lexiconLanguage,
+			locals.user?.id
+		);
 		if (!lexicon) return fail(404, { error: 'lexicon' });
 
 		// A–E define a real cross-tile group, so a visible peer is the most useful home for the
@@ -703,7 +709,7 @@ export const actions = {
 		const reference = parseReference(String(form.get('reference') ?? ''));
 		const resourceId = String(form.get('resourceId') ?? '');
 		if (!reference?.verse) return fail(400, { error: 'reference' });
-		const bibles = await listBibles(getDb());
+		const bibles = await listBibles(getDb(), locals.user?.id);
 		if (!bibles.some((bible) => bible.id === resourceId)) {
 			return fail(400, { error: 'resource' });
 		}
@@ -851,13 +857,14 @@ async function firstLexiconForLookup(
 	db: ReturnType<typeof getDb>,
 	available: Awaited<ReturnType<typeof listReaderResources>>,
 	lookup: string,
-	language: 'grc' | 'hbo'
+	language: 'grc' | 'hbo',
+	userId?: string
 ) {
 	for (const candidate of available) {
 		if (
 			candidate.kind === 'lexicon' &&
 			candidate.language === language &&
-			(await findLexiconEntry(db, candidate.id, lookup))
+			(await findLexiconEntry(db, candidate.id, lookup, userId))
 		) {
 			return candidate;
 		}
@@ -932,7 +939,7 @@ async function currentWorkspace(
 	available?: Awaited<ReturnType<typeof listReaderResources>>,
 	reference?: { book: number; chapter: number; verse?: number }
 ): Promise<CurrentWorkspace> {
-	const resources = available ?? (await listReaderResources(getDb()));
+	const resources = available ?? (await listReaderResources(getDb(), user?.id));
 	const persistedWorkspace = resolveReaderWorkspace(
 		cookies,
 		resources,

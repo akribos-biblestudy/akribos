@@ -25,11 +25,11 @@ import { readTourGuestDone } from '$lib/server/tour-preferences';
  */
 export async function load({ cookies, locals }) {
 	const db = getDb();
-	const bibles = await listBibles(db);
+	const bibles = await listBibles(db, locals.user?.id);
 	const defaultBibleId = bibles.some((bible) => bible.id === locals.user?.defaultBibleId)
 		? locals.user!.defaultBibleId
 		: null;
-	const readerResources = await listReaderResources(db);
+	const readerResources = await listReaderResources(db, locals.user?.id);
 	const workspace = resolveReaderWorkspace(
 		cookies,
 		readerResources,

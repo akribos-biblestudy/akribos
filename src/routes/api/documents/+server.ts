@@ -46,7 +46,7 @@ export async function GET({ locals, url, setHeaders }) {
 	const db = getDb();
 	const [tags, bibles] = await Promise.all([
 		listDocumentTagTreeWithCounts(db, locals.user.id),
-		resourceId ? listBibles(db) : Promise.resolve([])
+		resourceId ? listBibles(db, locals.user?.id) : Promise.resolve([])
 	]);
 	if (resourceId && !bibles.some((bible) => bible.id === resourceId)) {
 		return responseError(400, 'resource');

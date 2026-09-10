@@ -1,7 +1,9 @@
+import { z } from 'zod';
+import { replaceResourceUserGrants } from '$lib/server/repositories/resource-grants';
 import { fail } from '@sveltejs/kit';
-import { asc, count, eq, sql } from 'drizzle-orm';
+import { asc, count, eq, sql, isNull } from 'drizzle-orm';
 import { getDb } from '$lib/server/db';
-import { resources, verseComments } from '$lib/server/db/schema';
+import { resources, verseComments, resourceUserGrants, users } from '$lib/server/db/schema';
 import { invalidateResourceCache } from '$lib/server/repositories/resources';
 import { deleteResource } from '$lib/server/import';
 import { refreshStrongStatistics } from '$lib/server/db/statistics';
@@ -15,7 +17,7 @@ import { refreshStrongStatistics } from '$lib/server/db/statistics';
 export async function load() {
 	const db = getDb();
 
-	const [rows, counts] = await Promise.all([
+	const [rows, counts, grants, accounts] = await Promise.all([
 		db
 			.select()
 			.from(resources)
@@ -23,19 +25,38 @@ export async function load() {
 		db
 			.select({ resourceId: verseComments.resourceId, value: count() })
 			.from(verseComments)
-			.groupBy(verseComments.resourceId)
+			.groupBy(verseComments.resourceId),
+		db.select().from(resourceUserGrants),
+		db
+			.select({ id: users.id, email: users.email, displayName: users.displayName })
+			.from(users)
+			.where(isNull(users.disabledAt))
+			.orderBy(asc(users.email))
 	]);
 	const countByResource = new Map(counts.map((entry) => [entry.resourceId, entry.value]));
 
 	return {
+		accounts,
 		resources: rows.map((resource) => ({
 			...resource,
+			grantedUserIds: grants
+				.filter((grant) => grant.resourceId === resource.id)
+				.map((grant) => grant.userId),
 			commentCount: countByResource.get(resource.id) ?? 0
 		}))
 	};
 }
 
 export const actions = {
+	grants: async ({ request }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const parsed = z.array(z.string().uuid()).max(10000).safeParse(form.getAll('userIds'));
+		if (!id || !parsed.success) return fail(400, { error: 'grants' });
+		const result = await replaceResourceUserGrants(getDb(), id, parsed.data);
+		if (result !== 'saved') return fail(400, { error: 'grants' });
+		return { granted: id };
+	},
 	save: async ({ request }) => {
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');
