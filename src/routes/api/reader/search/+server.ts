@@ -86,7 +86,7 @@ export async function GET({ url, setHeaders }) {
 				})
 			};
 		}
-	} else if (resource.kind === 'commentary') {
+	} else if (resource.kind === 'commentary' || resource.kind === 'xrefs') {
 		const result = await searchCommentary(db, resource.id, query, {
 			page,
 			pageSize: PAGE_SIZE,

@@ -558,6 +558,33 @@ try {
 		sourceFormat: 'commentary-csv',
 		overrides: { id: 'SEEDCOMMENTARY', name: 'Testkommentar', abbrev: 'Kommentar' }
 	});
+	await ingestCommentary(
+		db,
+		(async function* () {
+			yield {
+				type: 'metadata' as const,
+				metadata: {
+					id: 'TSK',
+					name: 'Treasury of Scripture Knowledge',
+					abbrev: 'TSK',
+					language: 'en'
+				}
+			};
+			yield {
+				type: 'commentaryEntry' as const,
+				entry: {
+					book: 43,
+					chapter: 3,
+					verseStart: 16,
+					verseEnd: 16,
+					title: 'For God',
+					bodyHtml:
+						'<p>God loved the world. <a class="verse-ref" href="/1Mo1,1">1. Mose 1,1</a></p>'
+				}
+			};
+		})(),
+		{ sourceFormat: 'sword-commentary', overrides: { id: 'SEEDTSK' } }
+	);
 
 	// Deterministic column order, so the end-to-end tests can rely on which column is which.
 	await db.update(resources).set({ sortOrder: 10 }).where(eq(resources.id, 'SEEDDE'));

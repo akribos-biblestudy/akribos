@@ -11,6 +11,7 @@ import { cleanStaleStagedFiles, failInterruptedBackupJobs } from '$lib/server/ba
 import { startBackupScheduler } from '$lib/server/backup/scheduler';
 import { backfillHebrewTranslations } from '$lib/server/import/backfill-hebrew-translations';
 import { backfillDocumentBodyReferenceIndexes } from '$lib/server/repositories/document-reference-index';
+import { backfillTskResourceKind } from '$lib/server/import/backfill-tsk-kind';
 
 /**
  * Runs once when the server starts.
@@ -20,6 +21,12 @@ import { backfillDocumentBodyReferenceIndexes } from '$lib/server/repositories/d
  */
 export const init: ServerInit = async () => {
 	const db = getDb();
+	try {
+		const reclassified = await backfillTskResourceKind(db);
+		if (reclassified) logger.info({ reclassified }, 'TSK cross-reference category corrected');
+	} catch (error) {
+		logger.warn({ err: error }, 'TSK category backfill skipped');
+	}
 	try {
 		await failInterruptedJobs(db);
 		await failInterruptedBackupJobs(db);

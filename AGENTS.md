@@ -779,6 +779,13 @@ Die Ressourcensprache bleibt `hbo`. Startup und Backup-Wiederherstellung ergänz
 und andere Lexika bleiben erhalten. GETs schreiben nicht. Schema, Herkunft, Reproduktion und
 Prüfbedarf stehen in `docs/hebrew-lexicon.md`.
 
+TSK wird trotz SWORD-Kommentartreiber als `xrefs` eingeordnet. Seine beschrifteten Parallelstellen
+bleiben verlustfrei in `commentary_entries`; Reader und Tab-Suche lesen diese Texte auch für
+Parallelstellenwerke. CSV/TSV-Parallelstellen bleiben in `cross_references`. Startup und
+Backup-Wiederherstellung korrigieren bestehende fertige SWORD-TSK-Ressourcen idempotent anhand von
+ID, Kürzel oder Originaltitel; IDs, Text, Sichtbarkeit, Darstellung und Workspace-Verweise bleiben
+erhalten. Neue Importe bestimmen die Kategorie aus den Originalmetadaten vor Admin-Überschreibungen.
+
 SWORD-Module werden über `diatheke` **buchweise** gelesen (`-k <osisId>`). Das angefragte Buch ist
 damit die maßgebliche Zuordnung, nicht der Buchname in der Ausgabe: den schreibt SWORD in der Locale,
 die es gerade auflöst, standardmäßig mit römischen Zahlen (`II Thessalonians`, `Revelation of John`).

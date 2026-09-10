@@ -5,6 +5,12 @@ boundaries. The resource pipeline below is administrative and can replace a publ
 pipeline at `/notes/import` is owner-scoped, creates only private working copies, and never calls the
 resource ingesters.
 
+TSK (Treasury of Scripture Knowledge) uses a SWORD commentary driver but is classified as a
+cross-reference work. Its labelled links and explanatory text remain in `commentary_entries` and
+are rendered and searched there without converting them into an unlabelled list. Existing ready
+SWORD TSK resources are reclassified at startup and after backup restoration, preserving their IDs,
+content, visibility and display settings. New imports recognise TSK before applying metadata overrides.
+
 ## Obsidian and Markdown documents
 
 The document importer accepts one or more safe `.md` files containing valid UTF-8, or exactly one ZIP

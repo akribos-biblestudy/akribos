@@ -1,6 +1,28 @@
 import { expect, test, type Page } from '@playwright/test';
 import { lastMailLinkTo } from './lib/mail-outbox.ts';
 
+test('TSK opens as a cross-reference work with its annotated links and searchable text', async ({
+	page
+}) => {
+	await page.goto('/Joh3,16');
+	await addResourceTab(page, 1, 'SEEDTSK', 'Parallelstellen');
+	const column = page.locator('.flow-column[data-resource-id="SEEDTSK"]');
+	await expect(column.getByRole('heading', { name: 'For God' })).toBeVisible();
+	await expect(column).toContainText('God loved the world.');
+	const resourceList = await page.evaluate(async () => (await fetch('/api/v1/resources')).json());
+	expect(
+		resourceList.resources.find((resource: { id: string }) => resource.id === 'SEEDTSK').kind
+	).toBe('xrefs');
+	const search = await (
+		await page.request.get('/api/reader/search?resource=SEEDTSK&q=loved')
+	).json();
+	expect(search.total).toBe(1);
+	await column.getByRole('link', { name: '1. Mose 1,1', exact: true }).click();
+	await expectReaderPath(page, '/1Mo1,1');
+	await page.reload();
+	await expect(page.locator('.flow-column[data-resource-id="SEEDTSK"]')).toBeVisible();
+});
+
 /**
  * Reader, tab-scoped search and embedded lexicon study.
  *
