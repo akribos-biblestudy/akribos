@@ -14,6 +14,7 @@ import type {
 } from '../../bible/parse/types.ts';
 import type { Database } from '../db/client.ts';
 import { commentaryEntries, crossReferences, resources } from '../db/schema.ts';
+import { isSwordTsk } from '../../bible/parse/resource-kind.ts';
 
 export type SimpleIngestOptions = {
 	sourceFormat: string;
@@ -26,6 +27,7 @@ export type SimpleIngestOptions = {
 
 export type SimpleIngestResult = {
 	resourceId: string;
+	kind: 'commentary' | 'xrefs';
 	count: number;
 	warnings: string[];
 };
@@ -101,6 +103,7 @@ async function ingest(
 ): Promise<SimpleIngestResult> {
 	const warnings: string[] = [];
 	let resourceId: string | undefined;
+	let kind = handler.kind;
 	let count = 0;
 	let batch: unknown[] = [];
 	/**
@@ -124,6 +127,11 @@ async function ingest(
 		}
 
 		if (event.type === 'metadata') {
+			kind =
+				handler.kind === 'commentary' &&
+				isSwordTsk({ ...event.metadata, sourceFormat: options.sourceFormat })
+					? 'xrefs'
+					: handler.kind;
 			const metadata = { ...event.metadata, ...options.overrides };
 			resourceId = metadata.id;
 
@@ -131,7 +139,7 @@ async function ingest(
 				.insert(resources)
 				.values({
 					id: resourceId,
-					kind: handler.kind,
+					kind,
 					name: metadata.name,
 					abbrev: metadata.abbrev,
 					language: metadata.language,
@@ -143,7 +151,7 @@ async function ingest(
 				.onConflictDoUpdate({
 					target: resources.id,
 					set: {
-						kind: handler.kind,
+						kind,
 						sourceFormat: options.sourceFormat,
 						sourceFile: options.sourceFile ?? null,
 						status: 'importing',
@@ -182,5 +190,5 @@ async function ingest(
 		.set({ wordCount: count, status: 'ready', updatedAt: new Date() })
 		.where(eq(resources.id, resourceId));
 
-	return { resourceId, count, warnings };
+	return { resourceId, kind, count, warnings };
 }

@@ -138,7 +138,7 @@ export async function runImport(db: Database, options: RunImportOptions): Promis
 
 			return {
 				resourceId: result.resourceId,
-				kind,
+				kind: result.kind,
 				count: result.count,
 				warnings: result.warnings
 			};

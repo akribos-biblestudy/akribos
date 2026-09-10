@@ -21,6 +21,7 @@ import { backupJobs, type BackupJob } from '../db/schema.ts';
 import { refreshStrongStatisticsBlocking } from '../db/statistics.ts';
 import { backfillHebrewTranslations } from '../import/backfill-hebrew-translations.ts';
 import { backfillDocumentBodyReferenceIndexes } from '../repositories/document-reference-index.ts';
+import { backfillTskResourceKind } from '../import/backfill-tsk-kind.ts';
 import { invalidateResourceCache } from '../repositories/resources.ts';
 import { pruneExpiredSessions } from '../auth/session.ts';
 import { dumpToFile, isCustomFormatDump, restoreFromFile } from './pg.ts';
@@ -464,6 +465,7 @@ async function executeRestore(
 			await migrate(db, { migrationsFolder: './drizzle' });
 			await backfillDocumentBodyReferenceIndexes(db);
 			await backfillHebrewTranslations(db);
+			await backfillTskResourceKind(db);
 			// Materialized view *data* is not part of a dump; without this, search and Strong's
 			// statistics come back empty.
 			await refreshStrongStatisticsBlocking(db);

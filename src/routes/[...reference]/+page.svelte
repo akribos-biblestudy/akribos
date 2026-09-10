@@ -2610,7 +2610,7 @@
 															/>
 														</span>
 													</p>
-												{:else if column.resource.kind === 'commentary'}
+												{:else if column.resource.kind === 'commentary' || (column.resource.kind === 'xrefs' && commentaryAt(stream.referenceResources, column.resource.id, row.verse).length > 0)}
 													{@const entries = commentaryAt(
 														stream.referenceResources,
 														column.resource.id,
