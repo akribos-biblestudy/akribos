@@ -744,6 +744,43 @@ test('the visible reference advances when a verse enters the top fade', async ({
 	await expect(tabReference(page)).toHaveValue('Joh 3,17');
 });
 
+test('a verse starting mid-line becomes the reference when its line reaches the top fade', async ({
+	page
+}) => {
+	// Keep chapter requests pending: repeatedly aborting them toggles the loading indicator and
+	// creates native scroll anchoring events that prevent the synchronization debounce from settling.
+	await page.route('**/api/reader/**', () => {});
+	await page.setViewportSize({ width: 900, height: 300 });
+	await page.goto('/Joh3');
+	const column = page.locator('.flow-column').first();
+	await page.waitForTimeout(120);
+	const position = await column.evaluate((element) => {
+		const previous = element.querySelector<HTMLElement>('[data-verse-key="43:3:16"]')!;
+		const next = element.querySelector<HTMLElement>('[data-verse-key="43:3:17"]')!;
+		const first = next.getClientRects()[0]!;
+		const previousLines = [...previous.getClientRects()];
+		const top = element.getBoundingClientRect().top;
+		const distance = first.top - (top + 24 - 2);
+		element.dispatchEvent(
+			new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: distance / 0.55 })
+		);
+		element.dispatchEvent(new Event('scroll'));
+		return {
+			previousLineCount: new Set(previousLines.map((rect) => Math.round(rect.top))).size,
+			midlineOffset: first.left - Math.min(...previousLines.map((rect) => rect.left)),
+			sameLine: Math.abs(first.top - previousLines.at(-1)!.top),
+			previousBottom: previous.getBoundingClientRect().bottom - top
+		};
+	});
+	expect(position.previousLineCount).toBeGreaterThan(1);
+	expect(position.midlineOffset).toBeGreaterThan(20);
+	expect(position.sameLine).toBeLessThan(2);
+	expect(position.previousBottom).toBeGreaterThan(24);
+	await expect(tabReference(page)).toHaveValue('Joh 3,17');
+	await expect(tabReference(page, 1)).toHaveValue('Joh 3,17');
+	await expectReaderPath(page, '/Joh3,17');
+});
+
 test('a delayed follower scroll event cannot steal a rapidly reused source column', async ({
 	page
 }) => {
