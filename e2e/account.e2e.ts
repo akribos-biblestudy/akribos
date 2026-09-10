@@ -406,7 +406,7 @@ test('an admin can see and edit resources', async ({ page }) => {
 	const tabTitle = page.locator('#tab-SEEDDE');
 	await tabTitle.fill('Umbenannt');
 	await page
-		.locator('form[action="?/save"]')
+		.locator('form[action^="?/save"]')
 		.filter({ has: tabTitle })
 		.getByRole('button', { name: 'Speichern' })
 		.click();
@@ -419,11 +419,87 @@ test('an admin can see and edit resources', async ({ page }) => {
 	await page.goto('/admin/resources');
 	await page.locator('#tab-SEEDDE').fill('Testübersetzung');
 	await page
-		.locator('form[action="?/save"]')
+		.locator('form[action^="?/save"]')
 		.filter({ has: page.locator('#tab-SEEDDE') })
 		.getByRole('button', { name: 'Speichern' })
 		.click();
 });
+
+for (const javaScriptEnabled of [true, false]) {
+	test(`saving a selected resource preserves its editor with JavaScript ${javaScriptEnabled}`, async ({
+		browser
+	}) => {
+		const databaseUrl =
+			process.env.E2E_DATABASE_URL ??
+			testDatabaseUrl(
+				process.env.DATABASE_URL ?? 'postgres://strongs:strongs@localhost:5432/strongs'
+			);
+		const { client, db } = createDb(databaseUrl, { max: 1 });
+		const id = `SAVE_${randomUUID()}`;
+		const context = await browser.newContext({
+			javaScriptEnabled,
+			baseURL: 'http://localhost:4173'
+		});
+		const page = await context.newPage();
+		try {
+			await db.insert(resources).values({
+				id,
+				kind: 'commentary',
+				name: 'ZZ Auswahltest',
+				abbrev: 'Auswahltest',
+				language: 'de',
+				status: 'ready',
+				isPublic: false,
+				sortOrder: 99999
+			});
+			await page.goto('/login');
+			await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
+			await page.getByLabel('Passwort', { exact: true }).fill('seed-admin-password');
+			await page.getByRole('button', { name: 'Anmelden' }).click();
+			await page.goto(javaScriptEnabled ? '/admin/resources' : `/admin/resources?resource=${id}`);
+			if (javaScriptEnabled) {
+				await page.getByLabel('Ressourcen durchsuchen').fill(id);
+				await page.getByRole('button', { name: `${id} bearbeiten` }).click();
+				await page.evaluate(() => {
+					document.documentElement.dataset.resourceSaveProbe = 'kept';
+				});
+			}
+			for (const title of ['Erste Speicherung', 'Zweite Speicherung']) {
+				await page.getByLabel('Cover-Titel', { exact: true }).fill(title);
+				const saved = page.waitForResponse(
+					(response) => response.request().method() === 'POST' && response.url().includes('?/save')
+				);
+				await page.getByRole('button', { name: 'Änderungen speichern' }).click();
+				await saved;
+				await expect(
+					page.getByRole('status').filter({ hasText: `${id} wurde gespeichert.` })
+				).toBeVisible();
+				await expect(page.getByRole('button', { name: `${id} bearbeiten` })).toHaveAttribute(
+					'aria-pressed',
+					'true'
+				);
+				await expect(page.getByLabel('Cover-Titel', { exact: true })).toHaveValue(title);
+				await expect(page).toHaveURL((url) => url.searchParams.get('resource') === id);
+				if (javaScriptEnabled) {
+					await expect(page.locator('html')).toHaveAttribute('data-resource-save-probe', 'kept');
+					await expect(page.getByLabel('Ressourcen durchsuchen')).toHaveValue(id);
+				}
+			}
+			await page.reload();
+			await expect(page.getByLabel('Cover-Titel', { exact: true })).toHaveValue(
+				'Zweite Speicherung'
+			);
+			await expect(page.getByRole('button', { name: `${id} bearbeiten` })).toHaveAttribute(
+				'aria-pressed',
+				'true'
+			);
+		} finally {
+			await context.close();
+			await db.delete(resources).where(eq(resources.id, id));
+			await client.end();
+		}
+	});
+}
 
 test('deleting a Bible transfers every comment without overwriting collisions', async ({
 	page
