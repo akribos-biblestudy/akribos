@@ -8,6 +8,7 @@
 		{ href: '/admin/resources', label: 'Ressourcen', hint: 'Werke und Darstellung' },
 		{ href: '/admin/import', label: 'Importieren', hint: 'Neue Daten einlesen' },
 		{ href: '/admin/users', label: 'Nutzer', hint: 'Konten verwalten' },
+		{ href: '/admin/analytics', label: 'Umami', hint: 'Freiwillige Nutzungsanalyse' },
 		{ href: '/admin/backup', label: 'Backup', hint: 'Sichern und wiederherstellen' }
 	];
 

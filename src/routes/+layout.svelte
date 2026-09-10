@@ -1,5 +1,6 @@
 <script lang="ts">
 	import './layout.css';
+	import Analytics from '$lib/components/Analytics.svelte';
 	import { page } from '$app/state';
 	import { setContext } from 'svelte';
 	import {
@@ -43,6 +44,7 @@
 <svelte:head>
 	<title>Akribos - Die Bibel präzise studieren</title>
 	<link rel="icon" href="/icon.png" />
+	{#if data.analytics.enabled}<meta name="referrer" content="no-referrer" />{/if}
 </svelte:head>
 
 {#if standalonePage}
@@ -72,3 +74,5 @@
 	bibleId={data.defaultBibleId ?? data.previewBibleId}
 	resources={data.readerResources}
 />
+
+<Analytics config={data.analytics} />

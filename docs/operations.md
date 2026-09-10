@@ -284,3 +284,22 @@ Logs are JSON on stdout, collected by Coolify.
 - `"import failed"` — with the reason.
 - `"backup failed"` / `"restore failed"` — with the reason; check `/admin/backup` for the full error.
 - `"mail not sent: BREVO_API_KEY is not configured"` — password resets are silently not arriving.
+
+## Umami konfigurieren
+
+Unter **Verwaltung → Umami** lassen sich eine vorhandene Umami-Instanz (ab Version 2.18), die HTTPS-
+Skriptadresse und die Website-ID eintragen. Betreiber, Link zu dessen Datenschutzhinweisen und eine
+Beschreibung von Hosting-Ort, Speicherfristen und gegebenenfalls Drittlandübermittlungen erscheinen
+in der Akribos-Datenschutzerklärung. Die Angaben konfigurieren keine Löschregeln im Umami-Server;
+diese müssen dort zu den angegebenen Fristen passen. Ohne vollständige Angaben bleibt die Aktivierung
+abgewiesen. Neue Installationen starten deaktiviert; die Einstellung ist Teil der Datenbankbackups.
+
+Besucher erlauben oder verweigern das Laden des Skripts. Die Entscheidung kann auf `/datenschutz`
+widerrufen werden. Es werden ausschließlich allgemeine Seitenkategorien gezählt. Private Seiten,
+konkrete Bibelstellen, Suchbegriffe, Referrer und Nutzer-/Dokumentkennungen werden nicht übermittelt.
+DNT/GPC werden respektiert; Änderungen an Empfänger oder Datenschutzhinweisen erfordern eine neue
+Entscheidung. Nach Abschalten laden neue Seitenaufrufe keinen Tracker mehr.
+
+Die Einbindung verwendet die offiziellen [Tracker-Einstellungen](https://docs.umami.is/docs/tracker-configuration)
+(`data-auto-track=false`, `data-before-send`) und [manuelle Seitenaufrufe](https://docs.umami.is/docs/tracker-functions).
+Die Einwilligungsinformationen berücksichtigen [§ 25 TDDDG](https://www.gesetze-im-internet.de/ttdsg/__25.html).

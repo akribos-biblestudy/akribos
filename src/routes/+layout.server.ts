@@ -1,3 +1,4 @@
+import { readAnalyticsSettings } from '$lib/server/analytics/settings';
 import { getDb } from '$lib/server/db';
 import {
 	ensureDefaultReaderWorkspace,
@@ -50,6 +51,7 @@ export async function load({ cookies, locals }) {
 
 	const savedWorkspaces = locals.user ? await listSavedReaderWorkspaces(db, locals.user.id) : [];
 	return {
+		analytics: await readAnalyticsSettings(db),
 		savedWorkspaces,
 		activeSavedWorkspaceId: savedWorkspaces.find((entry) => entry.isActive)?.id ?? null,
 		bibles,

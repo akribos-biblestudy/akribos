@@ -856,3 +856,29 @@ explizite gültige Auswahl gilt im Reader dessen erste sichtbare Bibel und auße
 sortierte Bibel. Eine Ressourcenlöschung setzt die Präferenz per Fremdschlüssel auf NULL. Die
 Einstellung ist unabhängig von den offenen Reader-Ressourcen und wird über die Session auf allen
 Geräten angewendet.
+
+## Freiwillige Umami-Analyse
+
+Die Admin-Seite `/admin/analytics` speichert Umami unter `settings[analytics.umami]`, standardmäßig
+abgeschaltet. Aktivierung verlangt eine HTTPS-Skriptadresse ohne Zugangsdaten, eine Website-UUID,
+Betreiber, Datenschutzhinweis-URL und Angaben zu Verarbeitung/Speicherfristen. Diese Angaben werden
+als Text in `/datenschutz` ausgegeben. Die eigentliche Aufbewahrung wird beim Analysebetreiber gepflegt.
+
+`Analytics.svelte` lädt das Skript ausschließlich nach Einwilligung und nur in erlaubten öffentlichen
+Seitenbereichen. DNT/GPC verhindern das Laden. Das notwendige Cookie `analytics-consent` speichert für
+180 Tage die Entscheidung und den Hash der Konfiguration, keine Konto- oder Besucherkennung. Ändern
+sich Empfänger, Adresse oder Datenschutzhinweise, gilt die alte Entscheidung nicht mehr. Widerruf
+stoppt weitere Aufrufe; die Datenschutzerklärung bietet die Einstellmöglichkeit dauerhaft an.
+
+Automatik, Klicktracking und zusätzliche Umami-Funktionen bleiben mit `data-auto-track=false` aus.
+Analyseereignisse enthalten nur `website`, den festen Titel `Akribos` und die Kategorie aus
+`analyticsPage(routeId)`. Technische Umami-Header können zusätzlich den Hostnamen und einen
+flüchtigen Sitzungs-Cache enthalten; eine Kontoverknüpfung wird nicht angelegt.
+Der Reader wird als `/reader` gezählt, niemals mit Lesestelle, Ressourcen, Suchbegriff oder Parametern.
+Konto-, Dokument-, Freigabe- und Admin-Routen sind ausgeschlossen. `data-before-send` prüft die Freigabe
+nochmals und verwirft weitere Eigenschaften. Eine späte Skriptantwort darf nach Widerruf keinen Aufruf
+senden. Bei aktivierter Integration verhindert `Referrer-Policy: no-referrer` per Meta-Tag auch HTTP-
+Referrer beim Laden und beim Versand. Die Einbindung verlangt Umami >= 2.18.
+
+Der Analytics-E2E-Test verwendet eine eigene temporäre Datenbank und einen zweiten Produktionsserver,
+damit die globale Aktivierung keinen Einwilligungsdialog in parallel laufende Reader-Tests einblendet.
