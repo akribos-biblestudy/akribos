@@ -2841,8 +2841,8 @@
 	.sidecar-resize-handle {
 		position: absolute;
 		top: 50%;
-		/* Centre the grip in the narrow gutter between Reader content and the sidecar border. */
-		left: -0.5625rem;
+		/* The Reader frame uses sm:px-3; place the grip halfway across that gutter. */
+		left: calc(var(--spacing) * -1.5);
 		z-index: 20;
 		display: flex;
 		width: 18px;
