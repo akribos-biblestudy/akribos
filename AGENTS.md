@@ -737,7 +737,10 @@ erreichbar.
 Die Ressourcenadministration ist bewusst eine Master-Detail-Ansicht: Die linke, höhenbegrenzte Liste
 filtert clientseitig nach Kategorie und Suchtext, rechts wird immer nur eine Ressource bearbeitet. Die
 Auswahl steht als `resource`-Queryparameter in der URL, damit sie nach Speichern oder Sortieren erhalten
-bleibt. Auf schmalen Bildschirmen scrollt die Auswahl zum einzelnen Editor statt alle Formulare
+bleibt. Speicher-, Sortier- und Statistikformulare führen diese Auswahl ausdrücklich in ihrer
+Action-Adresse mit; `?/save` allein würde sie bei einem normalen POST ersetzen. Mit JavaScript sind
+die Formulare erweitert und aktualisieren die Daten ohne Dokumentneuladung, sodass Auswahl und
+Listenfilter erhalten bleiben. Auf schmalen Bildschirmen scrollt die Auswahl zum einzelnen Editor statt alle Formulare
 untereinander zu rendern.
 
 Die Produkt-Tour (`ProductTour.svelte`, Schritte in `src/lib/tour/steps.ts`, Laufzustand in

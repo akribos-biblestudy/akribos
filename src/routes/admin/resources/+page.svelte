@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { tick } from 'svelte';
@@ -59,6 +60,10 @@
 	});
 
 	const kindLabel = (kind: string) => t(`resource.kind.${kind}` as MessageKey);
+	const resourceAction = (action: 'save' | 'move' | 'refresh') =>
+		selectedResource
+			? `?/${action}&resource=${encodeURIComponent(selectedResource.id)}`
+			: `?/${action}`;
 
 	async function selectResource(id: string): Promise<void> {
 		selectedId = id;
@@ -89,7 +94,7 @@
 		>
 			Ressource importieren
 		</a>
-		<form method="POST" action="?/refresh">
+		<form method="POST" action={resourceAction('refresh')} use:enhance>
 			<button
 				type="submit"
 				class="rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium hover:bg-stone-50 dark:border-stone-700 dark:hover:bg-stone-800"
@@ -225,7 +230,7 @@
 									</span>
 								</button>
 								<div class="flex w-8 shrink-0 flex-col justify-center gap-0.5 pr-1">
-									<form method="POST" action="?/move">
+									<form method="POST" action={resourceAction('move')} use:enhance>
 										<input type="hidden" name="id" value={resource.id} /><input
 											type="hidden"
 											name="direction"
@@ -239,7 +244,7 @@
 											>↑</button
 										>
 									</form>
-									<form method="POST" action="?/move">
+									<form method="POST" action={resourceAction('move')} use:enhance>
 										<input type="hidden" name="id" value={resource.id} /><input
 											type="hidden"
 											name="direction"
@@ -291,7 +296,12 @@
 					</div>
 				</div>
 
-				<form method="POST" action="?/save" class="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
+				<form
+					method="POST"
+					action={resourceAction('save')}
+					use:enhance
+					class="grid gap-4 p-4 sm:grid-cols-2 sm:p-5"
+				>
 					<input type="hidden" name="id" value={selectedResource.id} />
 					<div>
 						<label class="mb-1 block text-xs font-medium" for="cover-{selectedResource.id}"
