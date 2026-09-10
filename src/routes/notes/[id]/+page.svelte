@@ -101,6 +101,7 @@
 
 	function sourceLabel(source: string): string {
 		if (source === 'obsidian') return t('documents.details.obsidian');
+		if (source === 'word') return t('documents.details.word');
 		if (source === 'legacy-verse-comment') return t('documents.details.legacy');
 		return t('documents.details.native');
 	}

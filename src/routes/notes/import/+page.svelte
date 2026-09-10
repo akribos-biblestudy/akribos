@@ -38,7 +38,7 @@
 
 	<header class="mt-5">
 		<p class="text-xs font-bold tracking-[0.16em] text-accent-700 uppercase dark:text-accent-300">
-			Obsidian
+			Dokumentimport
 		</p>
 		<h1 class="mt-1 font-serif text-3xl font-semibold tracking-tight">
 			{t('documents.import.title')}
@@ -67,7 +67,7 @@
 						name="file"
 						required
 						multiple
-						accept=".md,.zip,text/markdown,text/plain,application/zip"
+						accept=".docx,.md,.zip,text/markdown,text/plain,application/zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 						class="block w-full rounded-xl border border-dashed border-stone-300 bg-stone-50 p-4 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-accent-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-accent-800 hover:border-accent-400 dark:border-stone-700 dark:bg-white/3 dark:file:bg-accent-900/45 dark:file:text-accent-200"
 					/>
 				</label>
@@ -210,6 +210,7 @@
 			</h2>
 			<p class="mt-3 text-xs leading-relaxed text-stone-500 dark:text-stone-400">
 				{t('documents.import.limitations')}
+				{t('documents.import.wordLimitations')}
 			</p>
 			<ul
 				class="mt-4 list-disc space-y-2 pl-4 text-xs leading-relaxed text-stone-500 dark:text-stone-400"

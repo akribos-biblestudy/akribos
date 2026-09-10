@@ -50,13 +50,18 @@ import {
 	RequestBodyTooLargeError
 } from '$lib/server/http/bounded-form-data';
 import { localizeImportError, localizeImportMessage } from './import-messages';
+import {
+	decodeWordSource,
+	previewWordDocument,
+	WordImportError
+} from '$lib/server/documents/word-import';
 
 const MAX_IMPORT_MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 const MAX_IMPORT_PREVIEW_REQUEST_BYTES =
 	MAX_OBSIDIAN_ARCHIVE_BYTES + MAX_IMPORT_MULTIPART_OVERHEAD_BYTES;
 // Browsers may normalise every textarea LF to CRLF inside the confirmation multipart body.
 const MAX_IMPORT_CONFIRM_REQUEST_BYTES =
-	MAX_OBSIDIAN_DECOMPRESSED_BYTES * 2 + MAX_IMPORT_MULTIPART_OVERHEAD_BYTES;
+	MAX_OBSIDIAN_DECOMPRESSED_BYTES * 4 + MAX_IMPORT_MULTIPART_OVERHEAD_BYTES;
 
 type ImportIssue =
 	| { code: 'invalidPassage'; reference: string }
@@ -197,7 +202,7 @@ function sourcePackage(value: unknown): Array<{ filename: string; source: string
 	const encoder = new TextEncoder();
 	if (
 		typeof value !== 'string' ||
-		encoder.encode(value).byteLength > MAX_OBSIDIAN_DECOMPRESSED_BYTES * 2
+		encoder.encode(value).byteLength > MAX_OBSIDIAN_DECOMPRESSED_BYTES * 4
 	) {
 		return null;
 	}
@@ -211,7 +216,9 @@ function sourcePackage(value: unknown): Array<{ filename: string; source: string
 			const candidate = item as Record<string, unknown>;
 			if (typeof candidate.filename !== 'string' || typeof candidate.source !== 'string')
 				throw new Error('invalid package');
-			totalBytes += encoder.encode(candidate.source).byteLength;
+			totalBytes += /\.docx$/iu.test(candidate.filename)
+				? decodeWordSource(candidate.source).byteLength
+				: encoder.encode(candidate.source).byteLength;
 			return { filename: candidate.filename, source: candidate.source };
 		});
 		if (totalBytes > MAX_OBSIDIAN_DECOMPRESSED_BYTES) return null;
@@ -238,7 +245,7 @@ export async function load({ locals, url, setHeaders }) {
 }
 
 export const actions = {
-	/** Parse and sanitise Markdown uploads or one ZIP without writing document state. */
+	/** Parse Markdown/Word uploads or one Markdown ZIP without writing document state. */
 	preview: async ({ request, locals, url }) => {
 		requireDocumentUser(locals.user, url);
 		let form: FormData;
@@ -306,17 +313,32 @@ export const actions = {
 				throw new ObsidianArchiveError('archive_too_large');
 			const validBibleIds = new Set((await listBibles(getDb())).map((bible) => bible.id));
 			const prepared = [];
+			let markdownBytes = 0;
 			const fileErrors: Array<{ filename: string; error: string; message: string }> = [];
 			for (const { filename, archivePath, bytes } of sources) {
 				try {
-					const preview = previewObsidianMarkdown(filename, bytes);
+					const word = /\.docx$/iu.test(filename);
+					const preview = word
+						? await previewWordDocument(filename, bytes)
+						: previewObsidianMarkdown(filename, bytes);
 					const inspected = inspectImport(preview, validBibleIds);
+					markdownBytes += new TextEncoder().encode(preview.markdown).byteLength;
+					if (markdownBytes > MAX_OBSIDIAN_DECOMPRESSED_BYTES)
+						throw new DocumentMarkdownError('file_too_large', 'Import text exceeds 16 MiB.');
 					prepared.push({
 						preview: { ...preview, warnings: inspected.warnings },
 						inspected,
-						source: decodedSource(bytes)
+						source: word ? Buffer.from(bytes).toString('base64') : decodedSource(bytes)
 					});
 				} catch (caught) {
+					if (caught instanceof WordImportError || caught instanceof ObsidianArchiveError) {
+						fileErrors.push({
+							filename,
+							error: 'invalid_word',
+							message: t('documents.import.error.invalidWord')
+						});
+						continue;
+					}
 					if (caught instanceof DocumentMarkdownError) {
 						fileErrors.push({
 							filename: archivePath ?? filename,
@@ -376,10 +398,24 @@ export const actions = {
 		if (!sources) return fail(400, { error: 'previewRequired' as const });
 
 		const previews: ObsidianDocumentPreview[] = [];
+		let markdownBytes = 0;
 		for (const { filename, source } of sources) {
 			try {
-				previews.push(previewObsidianMarkdown(filename, source));
+				previews.push(
+					/\.docx$/iu.test(filename)
+						? await previewWordDocument(filename, decodeWordSource(source))
+						: previewObsidianMarkdown(filename, source)
+				);
+				markdownBytes += new TextEncoder().encode(previews.at(-1)!.markdown).byteLength;
+				if (markdownBytes > MAX_OBSIDIAN_DECOMPRESSED_BYTES)
+					throw new DocumentMarkdownError('file_too_large', 'Import text exceeds 16 MiB.');
 			} catch (caught) {
+				if (caught instanceof WordImportError || caught instanceof ObsidianArchiveError)
+					return fail(400, {
+						error: 'invalid_word',
+						filename,
+						message: t('documents.import.error.invalidWord')
+					});
 				if (caught instanceof DocumentMarkdownError) return markdownFailure(caught, filename);
 				throw caught;
 			}
@@ -433,7 +469,7 @@ export const actions = {
 						kind: preview.kind,
 						title: preview.title,
 						visibility: 'private',
-						source: 'obsidian',
+						source: /\.docx$/iu.test(preview.sourceFilename) ? 'word' : 'obsidian',
 						sourceFilename: preview.sourceFilename,
 						sermonStatus:
 							preview.kind === 'sermon'

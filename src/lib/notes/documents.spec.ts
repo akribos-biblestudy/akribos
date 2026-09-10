@@ -36,7 +36,7 @@ describe('document vocabulary', () => {
 		expect(DOCUMENT_KINDS).toEqual(['note', 'sermon']);
 		expect(DOCUMENT_VISIBILITIES).toEqual(['private', 'unlisted']);
 		expect(SERMON_WORKFLOW_STATES).toEqual(['idea', 'research', 'outline', 'ready', 'delivered']);
-		expect(DOCUMENT_SOURCES).toEqual(['native', 'obsidian', 'legacy-verse-comment']);
+		expect(DOCUMENT_SOURCES).toEqual(['native', 'obsidian', 'legacy-verse-comment', 'word']);
 
 		expect(isDocumentKind('sermon')).toBe(true);
 		expect(isDocumentKind('blog')).toBe(false);

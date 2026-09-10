@@ -1,12 +1,78 @@
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { strToU8, zipSync } from 'fflate';
+import { Document, HeadingLevel, Packer, Paragraph, TextRun } from 'docx';
 import { createDb } from '../src/lib/server/db/client.ts';
 import { users } from '../src/lib/server/db/schema.ts';
 import { hashPassword } from '../src/lib/server/auth/password.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
 
 const PASSWORD = 'ein-sicheres-passwort';
+
+test('Word import previews formatted text and confirms a private editable note', async ({
+	page
+}) => {
+	await loginNewReader(page);
+	const title = 'Meine Word Notiz';
+	const buffer = await Packer.toBuffer(
+		new Document({
+			sections: [
+				{
+					children: [
+						new Paragraph({ text: 'Gottes Liebe', heading: HeadingLevel.HEADING_1 }),
+						new Paragraph({
+							children: [
+								new TextRun({ text: 'Joh 3,16', bold: true }),
+								new TextRun(' bleibt im Text.')
+							]
+						}),
+						new Paragraph({ text: 'Ein Listenpunkt', bullet: { level: 0 } })
+					]
+				}
+			]
+		})
+	);
+	await page.goto('/notes/import');
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles({
+		name: `${title}.docx`,
+		mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+		buffer
+	});
+	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
+	const preview = page.getByTestId('import-preview');
+	await expect(preview.getByRole('heading', { name: 'Gottes Liebe', exact: true })).toBeVisible();
+	await expect(preview.locator('ul').getByText('Ein Listenpunkt')).toBeVisible();
+	await expect(preview).toContainText('Bilder, Anlagen und Kommentare werden ausgelassen');
+	const before = await (await page.request.get('/api/documents?q=Meine%20Word%20Notiz')).json();
+	expect(before.documents).toHaveLength(0);
+	const tamperedStatus = await page.evaluate(async () => {
+		const form = document.querySelector<HTMLFormElement>('form[action="?/confirm"]')!;
+		const payload = new FormData(form);
+		payload.set(
+			'sourcePackage',
+			JSON.stringify([{ filename: 'Manipuliert.docx', source: btoa('invalid ZIP') }])
+		);
+		return (
+			await fetch(form.action, { method: 'POST', body: payload, headers: { accept: 'text/html' } })
+		).status;
+	});
+	expect(tamperedStatus).toBe(400);
+	await preview.getByRole('button', { name: 'Als privates Dokument importieren' }).click();
+	await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+/u);
+	await expect(page.getByText('Aus Word importiert')).toBeVisible();
+	const id = new URL(page.url()).pathname.split('/').at(-1)!;
+	const saved = await (await page.request.get(`/api/documents/${id}`)).json();
+	expect(saved.document).toMatchObject({
+		title,
+		kind: 'note',
+		visibility: 'private',
+		source: 'word',
+		sourceFilename: `${title}.docx`
+	});
+	expect(saved.document.bodyMarkdown).toContain('# Gottes Liebe');
+	await page.reload();
+	await expect(page.locator('.tiptap')).toContainText('Joh 3,16 bleibt im Text.');
+});
 
 test('personal board columns can be managed, used in the editor, exported and deleted without losing cards', async ({
 	page,
@@ -90,7 +156,7 @@ test('personal board columns can be managed, used in the editor, exported and de
 		expect(await foreignMove.json()).toMatchObject({ type: 'failure', status: 400 });
 		await other.goto('/notes/import');
 		await other
-			.getByLabel('Markdown-Dateien oder ZIP-Archiv')
+			.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv')
 			.setInputFiles({ name: 'team.md', mimeType: 'text/markdown', buffer: Buffer.from(exported) });
 		await other.getByRole('button', { name: 'Importvorschau erstellen' }).click();
 		await other.getByRole('button', { name: 'Als privates Dokument importieren' }).click();
@@ -185,7 +251,7 @@ test('note pagination limits cards and preserves filters while tag search reveal
 }) => {
 	await loginNewReader(page);
 	await page.goto('/notes/import');
-	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles(
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles(
 		Array.from({ length: 25 }, (_, index) => ({
 			name: `seite-${index}.md`,
 			mimeType: 'text/markdown',
@@ -342,7 +408,7 @@ test('the current-passage library finds imported notes and sermons by body refer
 	await loginNewReader(page);
 	const titles = ['Fließtextnotiz', 'Fließtextpredigt', 'Nur Code', 'Anderer Vers'] as const;
 	await page.goto('/notes/import');
-	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles([
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles([
 		{
 			name: 'notiz.md',
 			mimeType: 'text/markdown',
@@ -769,7 +835,7 @@ test('numbered book references keep their number in notes and sermons after relo
 }) => {
 	await loginNewReader(page);
 	await page.goto('/notes/import');
-	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles(
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles(
 		['note', 'sermon'].map((kind) => ({
 			name: `${kind}.md`,
 			mimeType: 'text/markdown',
@@ -819,7 +885,7 @@ test('verse shorthand survives import and reload in notes and sermons with exact
 		'Joh 7,12c'
 	];
 	await page.goto('/notes/import');
-	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles(
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles(
 		['note', 'sermon'].map((kind) => ({
 			name: `${kind}.md`,
 			mimeType: 'text/markdown',
@@ -936,7 +1002,7 @@ for (const kind of ['note', 'sermon']) {
 	}) => {
 		await loginNewReader(page);
 		await page.goto('/notes/import');
-		await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles({
+		await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles({
 			name: 'workspace.md',
 			mimeType: 'text/markdown',
 			buffer: Buffer.from(`---\ntitle: Workspace ${kind}\ntype: ${kind}\n---\nMt 3,12 und Joh 3,16`)
@@ -1057,7 +1123,7 @@ test('imported Bible links preview and contextual link actions preserve formatti
 }) => {
 	await loginAs(page, SEED_READER);
 	await page.goto('/notes/import');
-	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles({
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles({
 		name: 'bibel-links.md',
 		mimeType: 'text/markdown',
 		buffer: Buffer.from(
@@ -1139,7 +1205,7 @@ test('import preview names each invalid file and explains an oversized selection
 }) => {
 	await loginAs(page, SEED_READER);
 	await page.goto('/notes/import');
-	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles([
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles([
 		{ name: 'gut.md', mimeType: 'text/markdown', buffer: Buffer.from('Gültig') },
 		{
 			name: 'defekt.md',
@@ -1156,7 +1222,7 @@ test('import preview names each invalid file and explains an oversized selection
 	await expect(page.getByRole('alert')).toContainText('defekt.md');
 	await expect(page.getByRole('alert')).toContainText('kaputt.md');
 	await expect(page.getByRole('alert')).not.toContainText('gut.md');
-	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles(
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles(
 		Array.from({ length: 101 }, (_, index) => ({
 			name: `${index}.md`,
 			mimeType: 'text/markdown',
@@ -1333,7 +1399,7 @@ Ein Link zu [[Gebet und Antwort|einer anderen Notiz]].
 `;
 
 	await page.goto('/notes/import');
-	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles({
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles({
 		name: `obsidian-${RUN_ID}.md`,
 		mimeType: 'text/markdown',
 		buffer: Buffer.from(source)
@@ -1401,7 +1467,7 @@ test('Obsidian import accepts multiple Markdown files and safe ZIP archives', as
 	const secondTitle = `Mehrfachimport Zwei ${RUN_ID}`;
 	await page.goto('/notes/import');
 	const brokenFilename = `defekt-${RUN_ID}.md`;
-	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles([
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles([
 		{
 			name: `gueltig-${RUN_ID}.md`,
 			mimeType: 'text/markdown',
@@ -1416,7 +1482,7 @@ test('Obsidian import accepts multiple Markdown files and safe ZIP archives', as
 	await page.getByRole('button', { name: 'Importvorschau erstellen' }).click();
 	await expect(page.getByRole('alert')).toContainText(brokenFilename);
 
-	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles([
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles([
 		{
 			name: `multi-one-${RUN_ID}.md`,
 			mimeType: 'text/markdown',
@@ -1446,7 +1512,7 @@ test('Obsidian import accepts multiple Markdown files and safe ZIP archives', as
 		'Anlagen/ignoriert.txt': strToU8('Kein Dokument')
 	});
 	await page.goto('/notes/import');
-	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles({
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles({
 		name: `obsidian-${RUN_ID}.zip`,
 		mimeType: 'application/zip',
 		buffer: Buffer.from(archive)
@@ -2028,7 +2094,7 @@ test('reference context works in the Zen editor and keeps the saved document in 
 	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 	await loginNewReader(page);
 	await page.goto('/notes/import');
-	await page.getByLabel('Markdown-Dateien oder ZIP-Archiv').setInputFiles({
+	await page.getByLabel('Word-/Markdown-Dateien oder ZIP-Archiv').setInputFiles({
 		name: 'context.md',
 		mimeType: 'text/markdown',
 		buffer: Buffer.from('---\ntitle: Kontext-Ausarbeitung\ntype: sermon\n---\nJoh 3,16 und Mt 3,12')

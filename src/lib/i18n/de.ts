@@ -278,10 +278,15 @@ export const de = {
 	'documents.export.title': 'Export',
 	'documents.export.hint':
 		'Markdown enthält portables YAML-Frontmatter; Word und PDF sind direkt lesbare Ausgaben.',
-	'documents.import.title': 'Obsidian-Markdown importieren',
+	'documents.details.word': 'Aus Word importiert',
+	'documents.import.error.invalidWord':
+		'Die Word-Datei ist ungültig, beschädigt oder überschreitet die Grenze von 16 MiB entpacktem Inhalt.',
+	'documents.import.wordLimitations':
+		'Word (.docx): Text, Überschriften, Listen und Links werden übernommen. Seitenlayout, Bilder, Anlagen und Kommentare werden ausgelassen. Alte .doc-Dateien bitte zuerst als .docx speichern.',
+	'documents.import.title': 'Word und Markdown importieren',
 	'documents.import.subtitle':
 		'Die Datei wird zuerst sicher geprüft. Erst deine Bestätigung legt eine private Arbeitskopie an.',
-	'documents.import.file': 'Markdown-Dateien oder ZIP-Archiv',
+	'documents.import.file': 'Word-/Markdown-Dateien oder ZIP-Archiv',
 	'documents.import.previewSingle': 'Ein Dokument in der Vorschau',
 	'documents.import.previewCount': '{count} Dokumente in der Vorschau',
 	'documents.import.preview': 'Importvorschau erstellen',
@@ -366,7 +371,7 @@ export const de = {
 		'Die Importanfrage ist größer als der zulässige, begrenzte Dateiumschlag.',
 	'documents.import.error.invalidForm': 'Die Importanfrage enthält keine gültigen Formulardaten.',
 	'documents.import.error.fileCount':
-		'Wähle eine oder mehrere Markdown-Dateien oder genau ein ZIP-Archiv aus.',
+		'Wähle Word-Dateien (.docx), Markdown-Dateien (.md) oder genau ein Markdown-ZIP aus.',
 	'documents.import.error.fileCountExceeded':
 		'Du hast {count} Dateien ausgewählt. Pro Import sind höchstens {maximum} Dateien erlaubt. Bitte teile die Auswahl auf.',
 	'documents.import.error.mixedArchive':
@@ -376,11 +381,11 @@ export const de = {
 	'documents.import.error.archive_too_large':
 		'Das Archiv oder sein entpackter Markdown-Inhalt überschreitet 16 MiB.',
 	'documents.import.error.too_many_files':
-		'Es können höchstens 100 Markdown-Dateien auf einmal importiert werden.',
+		'Es können höchstens 100 Dateien auf einmal importiert werden.',
 	'documents.import.error.no_markdown': 'Das ZIP-Archiv enthält keine Markdown-Datei.',
-	'documents.import.error.emptyFile': 'Die Markdown-Datei ist leer.',
+	'documents.import.error.emptyFile': 'Die Datei ist leer.',
 	'documents.import.error.invalidFilename':
-		'Es kann nur eine pfadfreie Datei mit der Endung „.md“ importiert werden.',
+		'Verwende pfadfreie .md- oder .docx-Dateien. Ältere .doc-Dateien bitte in Word als .docx speichern.',
 	'documents.import.error.invalidEncoding': 'Die Markdown-Datei ist kein gültiges UTF-8.',
 	'documents.import.error.binaryFile': 'Binärdaten können nicht als Markdown importiert werden.',
 	'documents.import.error.fileTooLarge':
