@@ -1922,9 +1922,23 @@
 	function firstVisibleVerse(source: HTMLElement): HTMLElement | undefined {
 		const sourceTop = source.getBoundingClientRect().top + FLOW_EDGE_FADE_PX;
 		const verses = [...source.querySelectorAll<HTMLElement>('[data-verse-key]')];
-		return (
-			verses.find((verse) => verse.getBoundingClientRect().bottom > sourceTop) ?? verses.at(-1)
+		const index = verses.findIndex((verse) => verse.getBoundingClientRect().bottom > sourceTop);
+		const first = verses[index];
+		if (!first) return verses.at(-1);
+		const fragments = [...first.getClientRects()].filter(
+			(rect) => rect.width > 0 && rect.height > 0
 		);
+		const visibleLine = fragments.find((rect) => rect.bottom > sourceTop);
+		// Inline verses can share a line. If only the previous verse's continuation remains on the
+		// first visible line, prefer the next verse starting there. A bounding box alone keeps choosing
+		// the old verse until that entire shared line has disappeared. Block/ranged entries stay intact.
+		if (visibleLine && fragments[0] && fragments[0].top < visibleLine.top - 1) {
+			const next = verses[index + 1];
+			const nextStart =
+				next && [...next.getClientRects()].find((rect) => rect.width > 0 && rect.height > 0);
+			if (nextStart && Math.abs(nextStart.top - visibleLine.top) <= 1) return next;
+		}
+		return first;
 	}
 
 	/** Aligns a loaded verse after navigation; false lets the caller handle a missing verse. */
@@ -1998,6 +2012,10 @@
 			// same element keeps being found here and nothing happens. That is what lets a long comment be
 			// read on its own without dragging the Bible text along, and vice versa: the target only jumps
 			// once the reader actually crosses into the next range.
+			const [book, chapter] = anchor.dataset.verseKey.split(':').map(Number);
+			if (trackAddress && book && chapter) {
+				visibleReferences[index] = { book, chapter, verse: anchorVerse };
+			}
 			if (lastAlignedElement[index] === target) continue;
 			lastAlignedElement[index] = target;
 
@@ -2005,10 +2023,6 @@
 			const next = column.scrollTop + target.getBoundingClientRect().top - columnTop;
 			suppressProgrammaticFlowScroll(index);
 			column.scrollTop = next;
-			const [book, chapter] = anchor.dataset.verseKey.split(':').map(Number);
-			if (trackAddress && book && chapter) {
-				visibleReferences[index] = { book, chapter, verse: anchorVerse };
-			}
 		}
 	}
 

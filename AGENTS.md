@@ -206,6 +206,15 @@ gilt nur die Quellkachel als Gruppe. Mehrere Lexika werden nie zu einem Eintrag 
 
 Wichtige Scroll-Invarianten:
 
+- Wenn in der ersten sichtbaren Textzeile nur noch das Ende eines vorher begonnenen Verses steht,
+  bestimmt der erste auf derselben Zeile neu beginnende Vers die Lesestelle. `firstVisibleVerse()`
+  prüft dafür die tatsächlichen Inline-Fragmente aus `getClientRects()`; eine gemeinsame Bounding-Box
+  würde den vorherigen Vers bis zum Verschwinden der ganzen Zeile festhalten. Beginnt der bisherige
+  Vers selbst auf dieser ersten sichtbaren Zeile, bleibt er die Quelle. Block- und Bereichseinträge
+  behalten ihre bisherige Ankerlogik.
+  Ein echter Quellscroll aktualisiert auch das Stellenfeld bereits ausgerichteter Zielkacheln;
+  `lastAlignedElement` darf nur erneutes Scrollen überspringen, nicht diese sichtbare Referenz.
+
 - Beim Schließen eines Ressourcen-Tabs bestimmt der **danach fokussierte aktive Tab** die Zieladresse
   der Action. Ein inaktiver Nachbar liefert niemals die Pfadstelle. Das Schließen sendet zusätzlich
   den gerade sichtbaren Quell-Tab und dessen aktuelle Referenz, damit auch ein Scrollstand vor dem
