@@ -1,0 +1,1 @@
+CREATE INDEX "api_requests_requested_at_idx" ON "api_requests" USING btree ("requested_at");

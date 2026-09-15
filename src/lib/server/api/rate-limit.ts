@@ -8,7 +8,7 @@
  * recorded itself.
  */
 
-import { and, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { apiRequests } from '../db/schema.ts';
 
@@ -50,7 +50,22 @@ export async function checkApiRateLimit(
 	};
 }
 
-/** Drops rows outside the window; called opportunistically from the gate, not on a schedule. */
-export async function pruneApiRequests(db: Database): Promise<void> {
-	await db.delete(apiRequests).where(lt(apiRequests.requestedAt, new Date(Date.now() - WINDOW_MS)));
+export const API_REQUEST_PRUNE_BATCH_SIZE = 5000;
+
+/** One indexed batch per transaction; the maintenance loop also cleans inactive subjects. */
+export async function pruneApiRequests(
+	db: Database,
+	cutoff = new Date(Date.now() - WINDOW_MS)
+): Promise<number> {
+	const expired = db
+		.select({ id: apiRequests.id })
+		.from(apiRequests)
+		.where(lt(apiRequests.requestedAt, cutoff))
+		.orderBy(apiRequests.requestedAt)
+		.limit(API_REQUEST_PRUNE_BATCH_SIZE);
+	const removed = await db
+		.delete(apiRequests)
+		.where(inArray(apiRequests.id, expired))
+		.returning({ id: apiRequests.id });
+	return removed.length;
 }

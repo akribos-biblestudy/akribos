@@ -288,6 +288,13 @@
       "when": 1789479002542,
       "tag": "0040_email_login",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1789491815485,
+      "tag": "0041_api_request_retention",
+      "breakpoints": true
     }
   ]
 }

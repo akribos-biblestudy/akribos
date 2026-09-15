@@ -21,6 +21,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { config } from '../config.ts';
 import type { Database } from '../db/client.ts';
 import { apiKeys, users, type ApiKey } from '../db/schema.ts';
+import { logger } from '../logger.ts';
 
 export type ApiAuth =
 	{ kind: 'trusted' } | { kind: 'key'; apiKey: Pick<ApiKey, 'id' | 'userId' | 'scope'> };
@@ -63,9 +64,12 @@ export async function authenticateApiRequest(
 		.limit(1);
 	if (!row) return { ok: false, status: 401, code: 'invalid_api_key' };
 
-	// Best-effort: a reader only cares that this eventually reflects recent use, not that it is
-	// perfectly synchronous with the request it came from.
-	void db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, id));
+	// Awaiting executes Drizzle's lazy query; a statistics failure must not deny a valid reader.
+	await db
+		.update(apiKeys)
+		.set({ lastUsedAt: new Date() })
+		.where(eq(apiKeys.id, id))
+		.catch((error) => logger.warn({ err: error }, 'could not record API key usage'));
 
 	return {
 		ok: true,
