@@ -3,6 +3,8 @@ import {
 	AlignmentType,
 	Document as WordDocument,
 	HeadingLevel,
+	ExternalHyperlink,
+	type IRunStylePropertiesOptions,
 	Packer,
 	Paragraph,
 	TextRun
@@ -15,6 +17,7 @@ import { formatPassage, passageFromDbEndpoints } from '$lib/bible/passage';
 import { formatGermanCalendarDate } from '$lib/notes/calendar-date';
 import {
 	documentContentDisposition,
+	decodeHtmlEntities,
 	safeLinkHref,
 	safeDocumentFilename,
 	type DocumentMarkdownPassage
@@ -72,7 +75,7 @@ export function pdfInlineRuns(markdown: string): PdfInlineRun[] {
 				case 'text': {
 					const text = token as Tokens.Text;
 					if (text.tokens?.length) visit(text.tokens, inheritedHref);
-					else appendProse(text.text, inheritedHref);
+					else appendProse(decodeHtmlEntities(text.text), inheritedHref);
 					break;
 				}
 				case 'strong':
@@ -148,38 +151,173 @@ function metadataLines(data: OwnedDocumentExport): string[] {
 	return lines;
 }
 
-function markdownParagraphs(markdown: string): Paragraph[] {
-	return markdown
-		.replace(/\r\n?/gu, '\n')
-		.split('\n')
-		.map((line) => {
-			const heading = /^(#{1,3})\s+(.+)$/u.exec(line);
-			if (heading) {
-				return new Paragraph({
-					text: heading[2],
-					heading:
-						heading[1]!.length === 1
-							? HeadingLevel.HEADING_1
-							: heading[1]!.length === 2
-								? HeadingLevel.HEADING_2
-								: HeadingLevel.HEADING_3
-				});
+type MarkdownExportBlock = {
+	kind: 'text' | 'code' | 'rule';
+	text: string;
+	heading?: number;
+	indent: number;
+	prefix?: string;
+};
+
+/** Parse block structure once so literal code is never interpreted as prose or inline Markdown. */
+function markdownExportBlocks(markdown: string): MarkdownExportBlock[] {
+	const blocks: MarkdownExportBlock[] = [];
+	const visit = (tokens: Token[], indent = 0) => {
+		for (const token of tokens) {
+			switch (token.type) {
+				case 'space':
+					break;
+				case 'code':
+					blocks.push({ kind: 'code', text: (token as Tokens.Code).text, indent });
+					break;
+				case 'hr':
+					blocks.push({ kind: 'rule', text: '', indent });
+					break;
+				case 'heading':
+					blocks.push({
+						kind: 'text',
+						text: (token as Tokens.Heading).text,
+						heading: (token as Tokens.Heading).depth,
+						indent
+					});
+					break;
+				case 'blockquote':
+					visit((token as Tokens.Blockquote).tokens, indent + 1);
+					break;
+				case 'list': {
+					const list = token as Tokens.List;
+					for (const [index, item] of list.items.entries()) {
+						const start = blocks.length;
+						visit(item.tokens, indent + 1);
+						if (blocks[start])
+							blocks[start].prefix = item.task
+								? item.checked
+									? '[x] '
+									: '[ ] '
+								: list.ordered
+									? `${Number(list.start) + index}. `
+									: '• ';
+					}
+					break;
+				}
+				case 'table': {
+					const table = token as Tokens.Table;
+					for (const row of [table.header, ...table.rows])
+						blocks.push({ kind: 'text', text: row.map((cell) => cell.text).join(' | '), indent });
+					break;
+				}
+				case 'paragraph':
+				case 'text':
+					blocks.push({
+						kind: 'text',
+						text: (token as Tokens.Paragraph | Tokens.Text).text,
+						indent
+					});
+					break;
 			}
-			const bullet = /^[-*+]\s+(.+)$/u.exec(line);
-			if (bullet) return new Paragraph({ text: bullet[1], bullet: { level: 0 } });
-			const numbered = /^\d+[.)]\s+(.+)$/u.exec(line);
-			if (numbered)
-				return new Paragraph({
-					text: numbered[1],
-					numbering: { reference: 'document-list', level: 0 }
-				});
-			const quote = /^>\s?(.*)$/u.exec(line);
-			const text = (quote?.[1] ?? line).replace(/\*\*([^*]+)\*\*/gu, '$1').replace(/[*_`~]/gu, '');
-			return new Paragraph({ text, ...(quote ? { indent: { left: 500 } } : {}) });
-		});
+		}
+	};
+	visit(Lexer.lex(markdown, { gfm: true }));
+	return blocks;
 }
 
-export async function createDocxExport(data: OwnedDocumentExport): Promise<{
+function wordInlineRuns(markdown: string, baseUrl: string): Array<TextRun | ExternalHyperlink> {
+	const runs: Array<TextRun | ExternalHyperlink> = [];
+	const append = (
+		text: string,
+		style: IRunStylePropertiesOptions,
+		href?: string,
+		lineBreak = false
+	) => {
+		const run = new TextRun({ text, ...style, ...(lineBreak ? { break: 1 } : {}) });
+		runs.push(
+			href
+				? new ExternalHyperlink({
+						link: href.startsWith('/') || href.startsWith('#') ? new URL(href, baseUrl).href : href,
+						children: [run]
+					})
+				: run
+		);
+	};
+	const visit = (tokens: Token[], style: IRunStylePropertiesOptions = {}, href?: string) => {
+		for (const token of tokens) {
+			switch (token.type) {
+				case 'link': {
+					const link = token as Tokens.Link;
+					visit(link.tokens, style, safeLinkHref(link.href) ?? undefined);
+					break;
+				}
+				case 'strong':
+					visit((token as Tokens.Strong).tokens, { ...style, bold: true }, href);
+					break;
+				case 'em':
+					visit((token as Tokens.Em).tokens, { ...style, italics: true }, href);
+					break;
+				case 'del':
+					visit((token as Tokens.Del).tokens, { ...style, strike: true }, href);
+					break;
+				case 'text': {
+					const text = token as Tokens.Text;
+					if (text.tokens?.length) visit(text.tokens, style, href);
+					else append(decodeHtmlEntities(text.text).replace(/\n/gu, ' '), style, href);
+					break;
+				}
+				case 'escape':
+					append((token as Tokens.Escape).text, style, href);
+					break;
+				case 'codespan':
+					append((token as Tokens.Codespan).text, { ...style, font: 'Courier New' }, href);
+					break;
+				case 'br':
+					append('', style, href, true);
+					break;
+				case 'image':
+					append((token as Tokens.Image).text, style, href);
+					break;
+			}
+		}
+	};
+	visit(Lexer.lexInline(markdown, { gfm: true }));
+	return runs;
+}
+
+function markdownParagraphs(markdown: string, baseUrl: string): Paragraph[] {
+	const headings = [
+		HeadingLevel.HEADING_1,
+		HeadingLevel.HEADING_2,
+		HeadingLevel.HEADING_3,
+		HeadingLevel.HEADING_4,
+		HeadingLevel.HEADING_5,
+		HeadingLevel.HEADING_6
+	];
+	return markdownExportBlocks(markdown).map(
+		(block) =>
+			new Paragraph({
+				children:
+					block.kind === 'code'
+						? block.text
+								.split('\n')
+								.map(
+									(text, index) =>
+										new TextRun({ text, font: 'Courier New', ...(index ? { break: 1 } : {}) })
+								)
+						: block.kind === 'rule'
+							? [new TextRun('────────')]
+							: [
+									...(block.prefix ? [new TextRun(block.prefix)] : []),
+									...wordInlineRuns(block.text, baseUrl)
+								],
+				...(block.heading ? { heading: headings[block.heading - 1] } : {}),
+				...(block.indent ? { indent: { left: block.indent * 360 } } : {}),
+				spacing: { after: 120 }
+			})
+	);
+}
+
+export async function createDocxExport(
+	data: OwnedDocumentExport,
+	options: { baseUrl?: string } = {}
+): Promise<{
 	filename: string;
 	contentDisposition: string;
 	buffer: Buffer;
@@ -195,7 +333,7 @@ export async function createDocxExport(data: OwnedDocumentExport): Promise<{
 				new Paragraph({ children: [new TextRun({ text: line, color: '666666', size: 18 })] })
 		),
 		new Paragraph({ text: '' }),
-		...markdownParagraphs(data.document.bodyMarkdown)
+		...markdownParagraphs(data.document.bodyMarkdown, options.baseUrl ?? 'https://akribos.de')
 	];
 	const file = new WordDocument({
 		numbering: {
@@ -329,7 +467,7 @@ export async function createPdfExport(
 			pdf.text('AKRIBOS', margins.left, 29, { lineBreak: false });
 			pdf
 				.fillColor('#777777')
-				.text(data.document.kind === 'sermon' ? 'PREDIGT' : 'NOTIZ', margins.left + 55, 29, {
+				.text(data.document.kind === 'sermon' ? 'AUSARBEITUNG' : 'NOTIZ', margins.left + 55, 29, {
 					lineBreak: false
 				});
 			pdf
@@ -361,13 +499,12 @@ export async function createPdfExport(
 	pdf.moveDown(0.5).fontSize(9).fillColor('#666666');
 	for (const line of metadataLines(data)) writeText(line);
 	pdf.moveDown().fillColor('#222222').fontSize(11);
-	for (const line of data.document.bodyMarkdown.replace(/\r\n?/gu, '\n').split('\n')) {
-		const heading = /^(#{1,3})\s+(.+)$/u.exec(line);
-		if (heading) {
-			pdf.moveDown(heading[1]!.length === 1 ? 0.9 : 0.55).fontSize(18 - heading[1]!.length * 2);
-			writeInlineMarkdown(heading[2]!);
-			pdf.moveDown(0.25).fontSize(11);
-		} else if (/^\s*(?:---+|___+|\*\*\*+)\s*$/u.test(line)) {
+	for (const block of markdownExportBlocks(data.document.bodyMarkdown)) {
+		if (block.kind === 'code') {
+			pdf.moveDown(0.3);
+			writeText(block.text, { indent: 14 + block.indent * 14, paragraphGap: 5 });
+			pdf.moveDown(0.3);
+		} else if (block.kind === 'rule') {
 			pdf.moveDown(0.45);
 			pdf
 				.moveTo(pdf.x, pdf.y)
@@ -377,18 +514,19 @@ export async function createPdfExport(
 				.stroke();
 			pdf.moveDown(0.45);
 		} else {
-			const bullet = /^\s*[-*+]\s+(.+)$/u.exec(line);
-			const numbered = /^\s*(\d+[.)])\s+(.+)$/u.exec(line);
-			const quote = /^>\s?(.*)$/u.exec(line);
-			const body = bullet?.[1] ?? numbered?.[2] ?? quote?.[1] ?? line;
-			const prefix = bullet ? '• ' : numbered ? `${numbered[1]} ` : '';
-			if (prefix) writeText(prefix, {}, true);
-			writeInlineMarkdown(body, {
-				paragraphGap: line ? 2 : 5,
-				...(quote ? { indent: 14 } : {})
+			if (block.heading)
+				pdf
+					.moveDown(block.heading === 1 ? 0.9 : 0.55)
+					.fontSize(Math.max(11, 18 - block.heading * 2));
+			if (block.prefix) writeText(block.prefix, {}, true);
+			writeInlineMarkdown(block.text, {
+				paragraphGap: 5,
+				...(block.indent ? { indent: block.indent * 14 } : {})
 			});
+			if (block.heading) pdf.moveDown(0.25).fontSize(11);
 		}
 	}
+
 	addPageFurniture();
 	pdf.end();
 	const filename = safeDocumentFilename(data.document.title, 'pdf');

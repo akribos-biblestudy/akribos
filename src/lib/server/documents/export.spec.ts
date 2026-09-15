@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { unzipSync, strFromU8 } from 'fflate';
+import PDFDocument from 'pdfkit';
+import { describe, expect, it, vi } from 'vitest';
 import type { OwnedDocumentExport } from './export';
 import { createDocxExport, createPdfExport, pdfInlineRuns } from './export';
 
@@ -38,6 +40,54 @@ describe('portable rich document exports', () => {
 			{ text: 'Joh 3,16', bibleReference: true },
 			{ text: ' und Mt 5,3.' }
 		]);
+	});
+
+	it('preserves literal symbols, code and links in DOCX while retaining actual formatting', async () => {
+		const markdown =
+			'## **Überschrift**\n\n2 * 3 = 6, a_b und ~Wert; `x_y*z` und https://example.test/a_b?q=c_d. Fish &amp; Chips.\n\n[Interne Notiz](/notes/example)\n\n~~~text\n# Keine Überschrift\na_b *= 2\n  [literal](https://example.test/code)\n~~~';
+		const result = await createDocxExport(
+			{ ...fixture, document: { ...fixture.document, bodyMarkdown: markdown } },
+			{ baseUrl: 'https://reader.example.test' }
+		);
+		const zip = unzipSync(result.buffer);
+		const xml = strFromU8(zip['word/document.xml']!);
+		const text = [...xml.matchAll(/<w:t(?: [^>]*)?>([\s\S]*?)<\/w:t>/gu)]
+			.map((match) => match[1]!.replace(/&amp;/gu, '&'))
+			.join('');
+		expect(text).toContain('2 * 3 = 6, a_b und ~Wert; x_y*z');
+		expect(text).toContain('https://example.test/a_b?q=c_d');
+		expect(text).toContain('Fish & Chips.');
+		expect(text).toContain('# Keine Überschrifta_b *= 2  [literal](https://example.test/code)');
+		expect(xml).toContain('<w:b/>');
+		expect(xml).toContain('<w:br/>');
+		const relations = strFromU8(zip['word/_rels/document.xml.rels']!);
+		expect(relations).toContain('https://reader.example.test/notes/example');
+		expect(relations).toContain('https://example.test/a_b?q=c_d');
+		expect(relations).not.toContain('https://example.test/code');
+	});
+
+	it('sends fenced and indented code literally to PDFKit without creating links or Bible highlights', async () => {
+		const code =
+			'# Keine Überschrift\nx_y *= 2\n  [literal](https://example.test/code) Joh 3,16 &amp;';
+		const text = vi.spyOn(PDFDocument.prototype, 'text');
+		try {
+			const result = await createPdfExport(
+				{
+					...fixture,
+					document: {
+						...fixture.document,
+						bodyMarkdown: `~~~text\n${code}\n~~~\n\n    a_b * c\n    # eingerückt`
+					}
+				},
+				{ compress: false }
+			);
+			const written = text.mock.calls.map(([value]) => value).join('');
+			expect(written).toContain(code);
+			expect(written).toContain('a_b * c\n# eingerückt');
+			expect(result.buffer.toString('latin1')).not.toContain('/URI (https://example.test/code)');
+		} finally {
+			text.mockRestore();
+		}
 	});
 
 	it('creates a real DOCX archive with a safe attachment name', async () => {

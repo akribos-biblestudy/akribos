@@ -11,7 +11,7 @@ export async function GET({ params, locals, url, setHeaders }) {
 	if (!isUuid(params.id)) error(404, 'Dokument nicht gefunden');
 	const data = await loadOwnedDocumentExport(getDb(), user.id, params.id);
 	if (!data) error(404, 'Dokument nicht gefunden');
-	const exported = await createDocxExport(data);
+	const exported = await createDocxExport(data, { baseUrl: url.origin });
 	return new Response(new Uint8Array(exported.buffer), {
 		headers: {
 			'content-type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

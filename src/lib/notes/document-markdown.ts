@@ -1363,7 +1363,7 @@ function escapeHtmlAttribute(input: string): string {
 	return escapeHtml(input);
 }
 
-function decodeHtmlEntities(input: string): string {
+export function decodeHtmlEntities(input: string): string {
 	return input.replace(
 		/&(?:#(\d{1,7})|#x([\da-f]{1,6})|amp|lt|gt|quot|apos|colon|tab|newline);/gi,
 		(entity, decimal: string | undefined, hexadecimal: string | undefined) => {

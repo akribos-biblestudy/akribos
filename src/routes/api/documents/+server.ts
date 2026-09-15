@@ -1,16 +1,19 @@
 import { json } from '@sveltejs/kit';
-import { parseReference } from '$lib/bible/reference';
+import { isReferenceInCanon, parseReference } from '$lib/bible/reference';
 import { MAX_PASSAGE_VERSE, parsePassage, passageToDbEndpoints } from '$lib/bible/passage';
 import { isDocumentKind } from '$lib/notes/documents';
-import { documentBodyOverlapsPassage } from '$lib/notes/document-markdown';
 import { MAX_DOCUMENT_QUERY_LENGTH, setPrivateNoStore } from '$lib/server/documents/application';
 import { getDb } from '$lib/server/db';
 import {
 	InvalidTagPathError,
-	listDocumentsByTag,
+	normalizeTagPath,
 	listDocumentTagTreeWithCounts
 } from '$lib/server/repositories/document-tags';
-import { findDocumentsOverlappingPassage, listDocuments } from '$lib/server/repositories/documents';
+import {
+	listDocumentLibraryIndex,
+	listDocumentAnchorReferenceIndex,
+	listDocumentLibrarySummaries
+} from '$lib/server/repositories/document-reference-index';
 import { listBibles } from '$lib/server/repositories/resources';
 
 const READER_LIBRARY_LIMIT = 100;
@@ -52,51 +55,73 @@ export async function GET({ locals, url, setHeaders }) {
 		return responseError(400, 'resource');
 	}
 
-	let rows: Awaited<ReturnType<typeof listDocuments>>;
+	let normalizedTagPath: string | undefined;
 	try {
-		rows = tag
-			? await listDocumentsByTag(db, locals.user.id, tag, { kind, query: query || undefined })
-			: await listDocuments(db, locals.user.id, { kind, query: query || undefined });
+		if (tag) normalizedTagPath = normalizeTagPath(tag).normalizedPath;
 	} catch (caught) {
 		if (caught instanceof InvalidTagPathError) return responseError(400, 'tag');
 		throw caught;
 	}
-
+	let endpoints: ReturnType<typeof passageToDbEndpoints> = null;
 	if (passageText) {
 		const reference = parseReference(passageText);
 		const passage =
 			parsePassage(passageText) ??
-			(reference && reference.verse === undefined
-				? {
-						start: { ...reference, verse: 1 },
-						end: { ...reference, verse: MAX_PASSAGE_VERSE }
-					}
+			(reference && isReferenceInCanon(reference) && reference.verse === undefined
+				? { start: { ...reference, verse: 1 }, end: { ...reference, verse: MAX_PASSAGE_VERSE } }
 				: null);
-		const endpoints = passage && passageToDbEndpoints(passage);
+		endpoints = passage && passageToDbEndpoints(passage);
 		if (!endpoints) return responseError(400, 'passage');
-		const overlapping = await findDocumentsOverlappingPassage(db, locals.user.id, {
-			startKey: endpoints.startKey,
-			endKey: endpoints.endKey,
-			resourceId,
-			kind
-		});
-		const overlappingIds = new Set(overlapping.map((document) => document.id));
+	}
+	let rows = await listDocumentLibraryIndex(db, locals.user.id, {
+		kind,
+		query: query || undefined,
+		normalizedTagPath,
+		order: 'updated'
+	});
+	if (endpoints) {
+		const range = endpoints;
+		const anchors = await listDocumentAnchorReferenceIndex(db, locals.user.id, { kind });
+		const overlappingIds = new Set(
+			anchors
+				.filter(
+					(anchor) =>
+						anchor.startKey <= range.endKey &&
+						anchor.endKey >= range.startKey &&
+						(!resourceId || anchor.resourceId === null || anchor.resourceId === resourceId)
+				)
+				.map((anchor) => anchor.documentId)
+		);
 		rows = rows.filter(
 			(document) =>
-				overlappingIds.has(document.id) || documentBodyOverlapsPassage(document.bodyHtml, endpoints)
+				overlappingIds.has(document.id) ||
+				document.ranges.some(
+					(reference) => reference.startKey <= range.endKey && reference.endKey >= range.startKey
+				)
 		);
 	}
 
 	const truncated = rows.length > READER_LIBRARY_LIMIT;
+	const ids = rows.slice(0, READER_LIBRARY_LIMIT).map((row) => row.id);
+	const summaries = new Map(
+		(await listDocumentLibrarySummaries(db, locals.user.id, ids)).map((row) => [row.id, row])
+	);
 	return json({
-		documents: rows.slice(0, READER_LIBRARY_LIMIT).map((document) => ({
-			id: document.id,
-			kind: document.kind,
-			title: document.title,
-			excerpt: excerpt(document.plainText),
-			source: document.source,
-			updatedAt: document.updatedAt
-		})),
+		documents: ids.flatMap((id) => {
+			const document = summaries.get(id);
+			return document
+				? [
+						{
+							id: document.id,
+							kind: document.kind,
+							title: document.title,
+							excerpt: excerpt(document.plainText),
+							source: document.source,
+							updatedAt: document.updatedAt
+						}
+					]
+				: [];
+		}),
 		tags: tags
 			.filter((tagEntry) => tagEntry.documentCount > 0)
 			.map((tagEntry) => ({ id: tagEntry.id, path: tagEntry.path })),
