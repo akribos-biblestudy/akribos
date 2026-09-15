@@ -102,6 +102,38 @@ test('Umami settings, consent, private URL filtering and revocation work togethe
 		await admin.reload();
 		await expect(admin.getByLabel('Umami aktivieren')).toBeChecked();
 
+		// Analytics must preserve the Origin header of native forms, including without JavaScript.
+		// A document-wide no-referrer policy turns it into "null" and SvelteKit rejects the login.
+		for (const javaScriptEnabled of [true, false]) {
+			const loginContext = await browser.newContext({ baseURL: origin, javaScriptEnabled });
+			try {
+				const loginPage = await loginContext.newPage();
+				await loginPage.goto('/login');
+				await loginPage.getByLabel('E-Mail-Adresse').fill('admin@example.com');
+				await loginPage.getByLabel('Passwort').fill('seed-admin-password');
+				const [response] = await Promise.all([
+					loginPage.waitForResponse(
+						(response) =>
+							response.request().method() === 'POST' &&
+							new URL(response.url()).pathname === '/login'
+					),
+					loginPage.getByRole('button', { name: 'Anmelden', exact: true }).click()
+				]);
+				expect(response.status()).toBe(303);
+				expect(await response.request().headerValue('origin')).toBe(origin);
+				await expect(loginPage).toHaveURL(/\/account$/);
+			} finally {
+				await loginContext.close();
+			}
+		}
+		for (const untrustedOrigin of ['null', 'https://untrusted.example.test']) {
+			const response = await guestContext.request.post('/login?/login', {
+				headers: { origin: untrustedOrigin },
+				form: { email: '', password: '' }
+			});
+			expect(response.status()).toBe(403);
+		}
+
 		await guestContext.route('https://stats.example.test/**', async (route) => {
 			const request = route.request();
 			if (request.method() === 'OPTIONS') {

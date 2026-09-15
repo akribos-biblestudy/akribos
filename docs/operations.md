@@ -300,6 +300,12 @@ konkrete Bibelstellen, Suchbegriffe, Referrer und Nutzer-/Dokumentkennungen werd
 DNT/GPC werden respektiert; Änderungen an Empfänger oder Datenschutzhinweisen erfordern eine neue
 Entscheidung. Nach Abschalten laden neue Seitenaufrufe keinen Tracker mehr.
 
+Bei aktivierter Analyse setzt das Root-Layout `Referrer-Policy: same-origin` per Meta-Tag, damit
+externe Analyseanfragen keine Referrer erhalten und native Formulare ihre eigene Herkunft weiterhin
+mitsenden. Kein globales `no-referrer` setzen: Dadurch senden Login-, Registrierungs- und andere
+native POST-Formulare `Origin: null` und werden vom CSRF-Schutz abgewiesen. Der Skript-Download
+verwendet zusätzlich sein eigenes `no-referrer`; SvelteKits CSRF-Schutz bleibt aktiviert.
+
 Die Einbindung verwendet die offiziellen [Tracker-Einstellungen](https://docs.umami.is/docs/tracker-configuration)
 (`data-auto-track=false`, `data-before-send`) und [manuelle Seitenaufrufe](https://docs.umami.is/docs/tracker-functions).
 Die Einwilligungsinformationen berücksichtigen [§ 25 TDDDG](https://www.gesetze-im-internet.de/ttdsg/__25.html).

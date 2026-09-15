@@ -877,8 +877,12 @@ flüchtigen Sitzungs-Cache enthalten; eine Kontoverknüpfung wird nicht angelegt
 Der Reader wird als `/reader` gezählt, niemals mit Lesestelle, Ressourcen, Suchbegriff oder Parametern.
 Konto-, Dokument-, Freigabe- und Admin-Routen sind ausgeschlossen. `data-before-send` prüft die Freigabe
 nochmals und verwirft weitere Eigenschaften. Eine späte Skriptantwort darf nach Widerruf keinen Aufruf
-senden. Bei aktivierter Integration verhindert `Referrer-Policy: no-referrer` per Meta-Tag auch HTTP-
-Referrer beim Laden und beim Versand. Die Einbindung verlangt Umami >= 2.18.
+senden. Bei aktivierter Integration verhindert `Referrer-Policy: same-origin` per Meta-Tag HTTP-
+Referrer an externe Analyseziele; das Skript selbst wird zusätzlich mit `no-referrer` geladen.
+Die dokumentweite Richtlinie darf nicht `no-referrer` sein: Native Formular-POSTs senden sonst
+`Origin: null`, wodurch SvelteKits CSRF-Schutz auch die Anmeldung abweist. Der CSRF-Schutz bleibt
+aktiv; der Analytics-E2E-Test prüft die Anmeldung mit und ohne JavaScript bei eingeschalteter Analyse
+sowie die Abweisung fremder und `null`-Origins. Die Einbindung verlangt Umami >= 2.18.
 
 Der Analytics-E2E-Test verwendet eine eigene temporäre Datenbank und einen zweiten Produktionsserver,
 damit die globale Aktivierung keinen Einwilligungsdialog in parallel laufende Reader-Tests einblendet.
