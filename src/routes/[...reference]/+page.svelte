@@ -932,10 +932,8 @@
 		form.set('tileId', column.tileId);
 		form.set('tabId', column.activeTab.id);
 		form.set('lookup', lookup);
-		form.set(
-			'currentReference',
-			formatReference(reference ?? visibleReferences[columnIndex] ?? column.activeTab.reference)
-		);
+		form.set('currentReference', formatReference(toolbarReference(column)));
+		if (reference) form.set('sourceReference', formatReference(reference));
 		if (word) form.set('word', word);
 		const response = await fetch(actionUrl('openLexiconTab'), {
 			method: 'POST',
@@ -1073,6 +1071,7 @@
 		const currentColumn = data.columns.find((column) => column.tileId === tileId);
 		if (currentColumn?.activeTab.id === tab.id) return toolbarReference(currentColumn);
 		if (!tab.linkSet) return tab.reference;
+		if (currentColumn?.activeTab.linkSet === tab.linkSet) return toolbarReference(currentColumn);
 
 		const visiblePeer = data.columns.find(
 			(column) => column.tileId !== tileId && column.activeTab.linkSet === tab.linkSet
