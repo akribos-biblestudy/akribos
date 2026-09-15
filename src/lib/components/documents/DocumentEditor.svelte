@@ -90,6 +90,8 @@
 	let saveQueue: Promise<void> = Promise.resolve();
 	let destroyed = false;
 	let applyingContent = false;
+	let visualDirty = false;
+	let countTimer: ReturnType<typeof setTimeout> | undefined;
 	let resumingNavigation = false;
 	let pendingNavigation = false;
 	let quotationState = $state<'idle' | 'loading' | 'error'>('idle');
@@ -254,7 +256,7 @@
 			canRedo: current?.can().redo() ?? false
 		};
 	});
-	const countText = $derived(documentMarkdownToHtml(markdown).plainText.trim());
+	let countText = $state(untrack(() => documentMarkdownToHtml(markdown).plainText.trim()));
 	const wordCount = $derived(countText ? countText.split(/\s+/u).length : 0);
 	const characterCount = $derived(Array.from(countText).length);
 	const headings = $derived.by(() => {
@@ -684,7 +686,7 @@
 	}
 
 	function markDirty(): void {
-		if (signature(title, markdown) === lastSavedSignature) {
+		if (!visualDirty && signature(title, markdown) === lastSavedSignature) {
 			saveState = 'saved';
 			return;
 		}
@@ -710,6 +712,13 @@
 
 	async function persistLatest(): Promise<void> {
 		while (!destroyed && saveState !== 'conflict') {
+			try {
+				syncMarkdownFromVisual();
+			} catch (error) {
+				saveState = 'error';
+				saveMessage = error instanceof Error ? error.message : String(error);
+				return;
+			}
 			const saveSignature = signature(title, markdown);
 			if (saveSignature === lastSavedSignature) {
 				saveState = 'saved';
@@ -763,7 +772,7 @@
 				void loadRelations();
 				// If typing continued during the request, loop immediately with the new revision so flush()
 				// cannot return before the newest title/body is durable.
-				if (signature(title, markdown) === lastSavedSignature) {
+				if (!visualDirty && signature(title, markdown) === lastSavedSignature) {
 					saveState = 'saved';
 					return;
 				}
@@ -781,7 +790,7 @@
 		return saveState === 'saved';
 	}
 
-	/** Reserve the autosave queue for file mutations, including time spent uploading the bytes. */
+	/** Reserve the autosave queue for metadata and file mutations, including slow requests. */
 	export function withRevision(operation: (revision: number) => Promise<number>): Promise<boolean> {
 		const run = async () => {
 			await persistLatest();
@@ -790,7 +799,7 @@
 			// Typing may continue during an upload. Persist that text with the new revision before
 			// releasing the queue to another upload, a metadata form or a navigation flush.
 			await persistLatest();
-			return true;
+			return saveState === 'saved';
 		};
 		const pending = saveQueue.then(run, run);
 		saveQueue = pending.then(
@@ -800,19 +809,36 @@
 		return pending;
 	}
 
+	function syncMarkdownFromVisual(): void {
+		if (!editor || !visualDirty) return;
+		markdown = documentHtmlToMarkdown(editor.isEmpty ? '' : editor.getHTML());
+		visualDirty = false;
+	}
+
 	function updateFromVisual(): void {
 		if (!editor || applyingContent) return;
-		markdown = documentHtmlToMarkdown(editor.isEmpty ? '' : editor.getHTML());
+		// Keep the editor document authoritative while typing; serialize only for save/mode switch.
+		visualDirty = true;
+		countText = editor.getText({ blockSeparator: ' ' }).replace(/\s+/gu, ' ').trim();
 		markDirty();
+	}
+
+	function updateFromMarkdown(): void {
+		markDirty();
+		if (countTimer) clearTimeout(countTimer);
+		countTimer = setTimeout(() => {
+			if (mode === 'markdown') countText = documentMarkdownToHtml(markdown).plainText.trim();
+		}, 200);
 	}
 
 	function switchMode(nextMode: Mode): void {
 		if (nextMode === mode) return;
 		if (nextMode === 'markdown') {
-			updateFromVisual();
+			syncMarkdownFromVisual();
 		} else if (editor) {
 			applyingContent = true;
-			const { html } = documentMarkdownToHtml(markdown);
+			const { html, plainText } = documentMarkdownToHtml(markdown);
+			countText = plainText.trim();
 			editor.commands.setContent(html, { emitUpdate: false });
 			applyingContent = false;
 		}
@@ -872,7 +898,7 @@
 	}
 
 	function onBeforeUnload(event: BeforeUnloadEvent): void {
-		if (signature(title, markdown) === lastSavedSignature) return;
+		if (!visualDirty && signature(title, markdown) === lastSavedSignature) return;
 		event.preventDefault();
 		event.returnValue = '';
 	}
@@ -882,7 +908,7 @@
 			resumingNavigation = false;
 			return;
 		}
-		if (!to?.url || signature(title, markdown) === lastSavedSignature) return;
+		if (!to?.url || (!visualDirty && signature(title, markdown) === lastSavedSignature)) return;
 
 		cancel();
 		if (pendingNavigation) return;
@@ -1053,6 +1079,7 @@
 
 		return () => {
 			destroyed = true;
+			if (countTimer) clearTimeout(countTimer);
 			if (debounceTimer) clearTimeout(debounceTimer);
 			window.document.removeEventListener('visibilitychange', onVisibilityChange);
 			window.document.removeEventListener('scroll', queuePlacement, true);
@@ -1571,7 +1598,7 @@
 				id="document-markdown"
 				data-testid={compact ? 'reader-notes-sidecar-body-markdown' : undefined}
 				bind:value={markdown}
-				oninput={markDirty}
+				oninput={updateFromMarkdown}
 				spellcheck="true"
 				class="min-h-[32rem] w-full resize-y rounded-sm bg-transparent font-mono text-[0.9rem] leading-7 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-500"
 			></textarea>

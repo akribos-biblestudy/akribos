@@ -2495,3 +2495,90 @@ test('the account default Bible controls preview and inserted quotations inside 
 	expect((await sidecarLoad).ok()).toBe(true);
 	await expect(preview).toContainText('Schlicht');
 });
+
+test('workflow metadata and continued visual typing share the autosave revision queue', async ({
+	page
+}) => {
+	await loginNewReader(page);
+	await page.goto('/sermons');
+	await page.getByLabel('Titel', { exact: true }).fill('Workflow und Schreiben');
+	await page.getByRole('button', { name: 'Erstellen', exact: true }).click();
+	await expect(page).toHaveURL(/\/notes\/[0-9a-f-]+/u);
+	const id = new URL(page.url()).pathname.split('/').at(-1)!;
+	const visual = page.getByRole('textbox', { name: 'Schreibe deine Gedanken …', exact: true });
+	const workflow = page.getByTestId('sermon-workflow');
+	await workflow.getByLabel('Arbeitsstand').selectOption('research');
+	await workflow.getByLabel('Reihe').fill('Während des Schreibens');
+	let release!: () => void;
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	let metadataReceived = false;
+	const statuses: number[] = [];
+	page.on('response', (response) => {
+		if (response.url().endsWith(`/api/documents/${id}`) && response.request().method() === 'PATCH')
+			statuses.push(response.status());
+	});
+	await page.route(`**/api/documents/${id}`, async (route) => {
+		if (route.request().method() !== 'PATCH' || !route.request().postDataJSON().sermonStatus)
+			return route.continue();
+		const response = await route.fetch();
+		metadataReceived = true;
+		await held;
+		await route.fulfill({ response });
+	});
+	await workflow.getByRole('button', { name: 'Arbeitsstand speichern' }).click();
+	await expect.poll(() => metadataReceived).toBe(true);
+	try {
+		await expect(workflow.getByRole('button', { name: /speicher/i })).toBeDisabled();
+		await visual.press('Control+End');
+		await visual.press('Enter');
+		await visual.pressSequentially('Text während langsamer Metadatenantwort');
+		await visual.press('Control+s');
+		// Hold the metadata response past the 650 ms autosave debounce to exercise overlapping saves.
+		await page.waitForTimeout(900);
+	} finally {
+		release();
+	}
+	await expect(workflow.getByRole('status')).toHaveText('Gespeichert');
+	await expect(page.locator('.save-status')).toHaveText('Gespeichert');
+	const result = await (await page.request.get(`/api/documents/${id}`)).json();
+	expect(result.document).toMatchObject({
+		sermonStatus: 'research',
+		sermonSeries: 'Während des Schreibens'
+	});
+	expect(result.document.bodyMarkdown).toContain('Text während langsamer Metadatenantwort');
+	expect(statuses).toEqual([200, 200]);
+	await page.reload();
+	await expect(visual).toContainText('Text während langsamer Metadatenantwort');
+});
+
+test('pending visual text survives immediate save, mode switches and navigation', async ({
+	page
+}) => {
+	await loginNewReader(page);
+	const id = await createNoteFromLibrary(page);
+	const visual = page.getByRole('textbox', { name: 'Schreibe deine Gedanken …', exact: true });
+	await visual.pressSequentially('Sofort speichern Joh 3,16');
+	const saved = page.waitForResponse(
+		(response) =>
+			response.url().endsWith(`/api/documents/${id}`) && response.request().method() === 'PATCH'
+	);
+	await visual.press('Control+s');
+	expect((await saved).ok()).toBe(true);
+	await expect(page.locator('.save-status')).toHaveText('Gespeichert');
+	await visual.pressSequentially(' und Moduswechsel');
+	await visual.press('Control+m');
+	const markdown = page.getByRole('textbox', { name: 'Markdown', exact: true });
+	await expect(markdown).toHaveValue('Sofort speichern Joh 3,16 und Moduswechsel\n');
+	await markdown.fill('**Sofort speichern** Joh 3,16 und Moduswechsel');
+	await markdown.press('Control+m');
+	await expect(visual.locator('strong')).toHaveText('Sofort speichern');
+	await visual.press('Control+End');
+	await visual.pressSequentially(' vor Navigation');
+	await page.getByRole('link', { name: 'Zur Notizbibliothek', exact: true }).click();
+	await expect(page).toHaveURL(/\/notes$/u);
+	await page.goto(`/notes/${id}`);
+	await expect(visual).toContainText('Sofort speichern Joh 3,16 und Moduswechsel vor Navigation');
+	await expect(visual.locator('a[data-reference="Joh3,16"]')).toHaveCount(1);
+});
