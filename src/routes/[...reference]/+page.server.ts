@@ -302,6 +302,7 @@ export const actions = {
 			actionReference(params)
 		);
 		return finishWorkspaceMutation(
+			request,
 			cookies,
 			locals.user,
 			current,
@@ -329,6 +330,7 @@ export const actions = {
 			return fail(400, { error: 'tile' });
 		}
 		return finishWorkspaceMutation(
+			request,
 			cookies,
 			locals.user,
 			current,
@@ -362,6 +364,7 @@ export const actions = {
 		}
 		delete current.searchQueries[tabId];
 		return finishWorkspaceMutation(
+			request,
 			cookies,
 			locals.user,
 			current,
@@ -401,7 +404,7 @@ export const actions = {
 		}
 		const next = activateReaderTab(workspace, tileId, tabId);
 		const active = activeReaderTab(next.tiles.find((tile) => tile.id === tileId) ?? next.tiles[0]!);
-		return finishWorkspaceMutation(cookies, locals.user, current, next, {
+		return finishWorkspaceMutation(request, cookies, locals.user, current, next, {
 			...(active ? { path: referencePath(active.reference) } : {})
 		});
 	},
@@ -435,7 +438,7 @@ export const actions = {
 		const next = closeReaderTab(workspace, tileId, tabId);
 		const focused = next.tiles.find((tile) => tile.id === next.focusedTileId);
 		const active = focused && activeReaderTab(focused);
-		return finishWorkspaceMutation(cookies, locals.user, current, next, {
+		return finishWorkspaceMutation(request, cookies, locals.user, current, next, {
 			...(active ? { path: referencePath(active.reference) } : {})
 		});
 	},
@@ -455,6 +458,7 @@ export const actions = {
 			actionReference(params)
 		);
 		return finishWorkspaceMutation(
+			request,
 			cookies,
 			locals.user,
 			current,
@@ -477,6 +481,7 @@ export const actions = {
 			actionReference(params)
 		);
 		return finishWorkspaceMutation(
+			request,
 			cookies,
 			locals.user,
 			current,
@@ -502,7 +507,7 @@ export const actions = {
 		);
 		if (!target) return fail(400, { error: 'bible' });
 		delete current.searchQueries[target.tabId];
-		return finishWorkspaceMutation(cookies, locals.user, current, target.workspace, {
+		return finishWorkspaceMutation(request, cookies, locals.user, current, target.workspace, {
 			path: referencePath(reference),
 			tileId: target.tileId
 		});
@@ -533,6 +538,7 @@ export const actions = {
 		}
 		delete current.searchQueries[tabId];
 		return finishWorkspaceMutation(
+			request,
 			cookies,
 			locals.user,
 			current,
@@ -565,6 +571,7 @@ export const actions = {
 			return fail(400, { error: 'tab' });
 		}
 		return finishWorkspaceMutation(
+			request,
 			cookies,
 			locals.user,
 			current,
@@ -632,7 +639,7 @@ export const actions = {
 				reference: studyReference,
 				word: clickedWord || null
 			});
-			return finishWorkspaceMutation(cookies, locals.user, current, next, {
+			return finishWorkspaceMutation(request, cookies, locals.user, current, next, {
 				tileId: existing.tile.id,
 				tabId: existing.tab.id,
 				reused: true
@@ -675,7 +682,7 @@ export const actions = {
 			reference: studyReference,
 			word: clickedWord || null
 		});
-		return finishWorkspaceMutation(cookies, locals.user, current, next, {
+		return finishWorkspaceMutation(request, cookies, locals.user, current, next, {
 			tileId: targetTile.id,
 			tabId: added.id,
 			reused: false
@@ -1039,25 +1046,37 @@ async function commitWorkspace(
 }
 
 async function finishWorkspaceMutation<T extends Record<string, unknown>>(
+	request: Request,
 	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
 	user: App.Locals['user'],
 	current: CurrentWorkspace,
 	next: ReaderWorkspace,
 	extra?: T
-): Promise<{ success: true; readerState: string; tabOrigins: Record<string, string> } & T> {
-	await commitWorkspace(
-		cookies,
-		user,
-		next,
-		current.persist,
-		current.guard,
-		encodeReaderUrlState(next, current.searchQueries, current.notesFilters)
-	);
+): Promise<
+	{ success: true; readerState: string; path: string; tabOrigins: Record<string, string> } & T
+> {
+	const focused =
+		next.tiles.find((tile) => tile.id === next.focusedTileId && activeReaderTab(tile)) ??
+		next.tiles.find((tile) => activeReaderTab(tile));
+	const active = focused ? activeReaderTab(focused) : null;
+	const path =
+		typeof extra?.path === 'string'
+			? extra.path
+			: referencePath(active?.reference ?? { book: 43, chapter: 1 });
+	const readerState = encodeReaderUrlState(next, current.searchQueries, current.notesFilters);
+	await commitWorkspace(cookies, user, next, current.persist, current.guard, readerState);
+	if (
+		request.headers.get('accept')?.includes('text/html') &&
+		request.headers.get('x-sveltekit-action') !== 'true'
+	) {
+		redirect(303, readerUrl(path, readerState));
+	}
 	return {
 		success: true,
 		tabOrigins: readerTabOrigins(next),
-		readerState: encodeReaderUrlState(next, current.searchQueries, current.notesFilters),
-		...(extra ?? ({} as T))
+		readerState,
+		...(extra ?? ({} as T)),
+		path
 	};
 }
 

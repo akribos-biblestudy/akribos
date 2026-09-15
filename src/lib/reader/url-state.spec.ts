@@ -11,7 +11,7 @@ import {
 import { workspaceFromColumns } from './workspace';
 
 describe('reader URL state', () => {
-	it('round-trips layout, tabs, active positions, references, link groups, lookup and active search', () => {
+	it('round-trips layout, tabs, active positions, references, link groups, lookup and searches in active and inactive tabs', () => {
 		const workspace = workspaceFromColumns(['bible', 'commentary', 'lexicon'], {
 			book: 43,
 			chapter: 3,
@@ -35,7 +35,7 @@ describe('reader URL state', () => {
 
 		const encoded = encodeReaderUrlState(workspace, {
 			'second-tab': '  Liebe  ',
-			[workspace.tiles[0]!.tabs[0]!.id]: 'not visible after another tab becomes active'
+			[workspace.tiles[0]!.tabs[0]!.id]: 'Glaube'
 		});
 		expect(encoded).toContain('layout=columns-3');
 		expect(encoded).toContain('tab=1.2:lexicon:C:1Mo2');
@@ -64,7 +64,7 @@ describe('reader URL state', () => {
 			}
 		});
 		expect(value.layoutSizes).toEqual({});
-		expect(decoded.searchQueries).toEqual({ 'url-tab-1-2': 'Liebe' });
+		expect(decoded.searchQueries).toEqual({ 'url-tab-1-1': 'Glaube', 'url-tab-1-2': 'Liebe' });
 	});
 
 	it('compares the URL-owned state without persisted ids or personal divider sizes', () => {

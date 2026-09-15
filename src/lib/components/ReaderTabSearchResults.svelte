@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { readerContentLinks } from '$lib/actions/reader-content-links';
 	import { formatReference, type VerseRef } from '$lib/bible/reference';
 	import { formatNumber } from '$lib/i18n';
 	import type { ReaderTabSearchResponse } from '$lib/reader/tab-search';
@@ -20,6 +21,7 @@
 		onClose,
 		onSearch,
 		onOpenReference,
+		referenceHref,
 		onStrongClick
 	}: {
 		query: string;
@@ -33,6 +35,7 @@
 		onClose: () => void;
 		onSearch: (query: string, page?: number, book?: number | null) => void;
 		onOpenReference: (reference: VerseRef) => void;
+		referenceHref: (reference: VerseRef) => string;
 		onStrongClick: (strong: string, word: string, reference: VerseRef) => void;
 	} = $props();
 
@@ -203,8 +206,13 @@
 							<strong>{referenceLabel(hit)}</strong>
 							{#if hit.title}<h3>{hit.title}</h3>{/if}
 							<!-- Commentary HTML is sanitized by every importer before it reaches the database. -->
-							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-							<div class="commentary-body">{@html hit.bodyHtml}</div>
+							<div
+								class="commentary-body"
+								use:readerContentLinks={{ onReference: onOpenReference, referenceHref }}
+							>
+								<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+								{@html hit.bodyHtml}
+							</div>
 						</div>
 					</li>
 				{/each}

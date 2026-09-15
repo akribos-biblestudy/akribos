@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { t } from '$lib/i18n';
 	import {
+		readerPathFromActionData,
 		readerStateFromActionData,
 		readerUrl as readerUrlWithState
 	} from '$lib/reader/url-state';
@@ -203,7 +204,10 @@
 										const state = readerStateFromActionData(result.data);
 										if (!state) return;
 										announceTabHistoryMutation(result.data);
-										const path = new URL(readerUrl, window.location.origin).pathname;
+										const path = readerPathFromActionData(
+											result.data,
+											new URL(readerUrl, window.location.origin).pathname
+										);
 										await goto(readerUrlWithState(path, state), {
 											replaceState: true,
 											invalidateAll: true

@@ -1,4 +1,4 @@
-import type { VerseRef } from '$lib/bible/reference';
+import { isReferenceInCanon, parseReference, type VerseRef } from '$lib/bible/reference';
 import { normalizeStrongId } from '$lib/bible/strong';
 
 type ReaderContentLinkOptions = {
@@ -22,7 +22,17 @@ export function readerContentLinks(node: HTMLElement, options: ReaderContentLink
 		const book = Number(anchor.dataset.book);
 		const chapter = Number(anchor.dataset.chapter);
 		const verse = Number(anchor.dataset.verse);
-		return book && chapter && verse ? { book, chapter, verse } : null;
+		if (book && chapter && verse) return { book, chapter, verse };
+		// Search results may contain sanitized legacy links without the reader loader's data fields.
+		// Their canonical local href still identifies the passage for both clicking and copying.
+		try {
+			const url = new URL(anchor.href, window.location.href);
+			if (url.origin !== window.location.origin) return null;
+			const reference = parseReference(decodeURIComponent(url.pathname.slice(1)));
+			return reference && isReferenceInCanon(reference) ? reference : null;
+		} catch {
+			return null;
+		}
 	}
 
 	/** Makes copy-link and modified clicks just as contextual as an ordinary in-app click. */

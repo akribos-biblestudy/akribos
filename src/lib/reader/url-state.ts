@@ -140,10 +140,8 @@ export function encodeReaderUrlState(
 					parts.push(`word=${coordinate}:${encodePart(tab.studyContext.word)}`);
 				}
 			}
-			if (tab.id === tile.activeTabId) {
-				const search = searchQueries[tab.id]?.trim().slice(0, 200);
-				if (search) parts.push(`search=${coordinate}:${encodePart(search)}`);
-			}
+			const search = searchQueries[tab.id]?.trim().slice(0, 200);
+			if (search) parts.push(`search=${coordinate}:${encodePart(search)}`);
 		});
 
 		const activeIndex = tile.tabs.findIndex((tab) => tab.id === tile.activeTabId);
@@ -272,6 +270,13 @@ export function readerActionUrl(
 
 export function readerUrl(path: string, state: string): string {
 	return `${path}?${state}`;
+}
+
+/** Workspace mutations decide their destination after focus and tab membership have changed. */
+export function readerPathFromActionData(data: unknown, fallback: string): string {
+	return data && typeof data === 'object' && 'path' in data && typeof data.path === 'string'
+		? data.path
+		: fallback;
 }
 
 export function readerStateFromActionData(data: unknown): string | null {

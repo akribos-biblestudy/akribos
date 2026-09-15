@@ -56,6 +56,7 @@
 		withReaderNotesFilters,
 		type ReaderNotesFilters,
 		readerActionUrl,
+		readerPathFromActionData,
 		readerStateFromActionData,
 		readerStateFromPage,
 		readerUrl,
@@ -950,7 +951,7 @@
 		if (result.type !== 'success') return;
 		const state = readerStateFromActionData(result.data);
 		if (!state) return;
-		await goto(readerUrl(window.location.pathname, state), {
+		await goto(readerUrl(readerPathFromActionData(result.data, window.location.pathname), state), {
 			replaceState: true,
 			invalidateAll: true,
 			noScroll: true
@@ -989,7 +990,7 @@
 		const state = readerStateFromActionData(result.data);
 		if (!state) return false;
 		recordTabVisit(column, { kind: 'lookup', lookup: lookup.trim() || null });
-		await goto(readerUrl(window.location.pathname, state), {
+		await goto(readerUrl(readerPathFromActionData(result.data, window.location.pathname), state), {
 			replaceState: true,
 			invalidateAll: true,
 			noScroll: true
@@ -1364,11 +1365,29 @@
 					delete tabSearches[tabId];
 				}
 			}
+			// Inactive searches remain part of the snapshot even before their results have ever
+			// been loaded in this browser. Keep lightweight state until their tab is activated.
+			for (const tile of data.workspace.tiles)
+				for (const tab of tile.tabs) {
+					const query = data.searchQueries[tab.id];
+					if (query && !tabSearches[tab.id])
+						tabSearches[tab.id] = {
+							resourceId: tab.resourceId,
+							query,
+							book: null,
+							loading: false,
+							result: null,
+							error: null
+						};
+				}
 			for (const column of data.columns) {
 				const query = data.searchQueries[column.activeTab.id];
 				const previous = tabSearchFor(column);
 				// Loading a canonical snapshot must not rewrite it before streams initialize.
-				if (query && previous?.query !== query)
+				if (
+					query &&
+					(previous?.query !== query || (!previous.result && !previous.loading && !previous.error))
+				)
 					void runTabSearch(column.index, query, 1, undefined, { updateUrl: false });
 			}
 		});
@@ -1429,7 +1448,12 @@
 			lookup
 		);
 		return readerUrl(
-			window.location.pathname,
+			referencePath(
+				workspace.tiles
+					.find((tile) => tile.id === column.tileId)
+					?.tabs.find((tab) => tab.id === column.activeTab.id)?.reference ??
+					column.activeTab.reference
+			),
 			encodeReaderUrlState(workspace, currentSearchQueries(), notesFilters)
 		);
 	}
@@ -2388,6 +2412,7 @@
 								{/if}
 								{#if tabSearch}
 									<ReaderTabSearchResults
+										referenceHref={(reference) => contextualReferenceUrl(columnIndex, reference)}
 										resourceId={column.resource.id}
 										query={tabSearch.query}
 										result={tabSearch.result}
