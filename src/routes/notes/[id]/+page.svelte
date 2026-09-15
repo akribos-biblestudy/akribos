@@ -187,33 +187,35 @@
 
 	async function saveSermonWorkflow(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
-		const target = event.currentTarget as HTMLFormElement;
-		const values = new FormData(target);
-		if (!(await editor?.flush())) return;
+		if (sermonSaving || !editor) return;
+		const values = new FormData(event.currentTarget as HTMLFormElement);
 		sermonSaving = true;
 		sermonMessage = '';
 
 		try {
-			const response = await fetch(`/api/documents/${encodeURIComponent(workingDocument.id)}`, {
-				method: 'PATCH',
-				headers: { 'content-type': 'application/json', accept: 'application/json' },
-				body: JSON.stringify({
-					revision: currentRevision,
-					title: workingDocument.title,
-					markdown: workingDocument.bodyMarkdown,
-					sermonStatus: values.get('sermonStatus'),
-					sermonDate: values.get('sermonDate') || null,
-					sermonSeries: values.get('sermonSeries') || null,
-					sermonFormat: values.get('sermonFormat')
-				})
+			const saved = await editor.withRevision(async (revision) => {
+				const response = await fetch(`/api/documents/${encodeURIComponent(workingDocument.id)}`, {
+					method: 'PATCH',
+					headers: { 'content-type': 'application/json', accept: 'application/json' },
+					body: JSON.stringify({
+						revision,
+						title: workingDocument.title,
+						markdown: workingDocument.bodyMarkdown,
+						sermonStatus: values.get('sermonStatus'),
+						sermonDate: values.get('sermonDate') || null,
+						sermonSeries: values.get('sermonSeries') || null,
+						sermonFormat: values.get('sermonFormat')
+					})
+				});
+				const result = (await response.json().catch(() => ({}))) as {
+					document?: typeof data.document;
+					error?: string;
+				};
+				if (!response.ok || !result.document) throw new Error(result.error ?? response.statusText);
+				onEditorSaved(result.document);
+				return result.document.revision;
 			});
-			const result = (await response.json().catch(() => ({}))) as {
-				document?: typeof data.document;
-				error?: string;
-			};
-			if (!response.ok || !result.document) throw new Error(result.error ?? response.statusText);
-			onEditorSaved(result.document);
-			sermonMessage = t('documents.editor.saved');
+			sermonMessage = t(saved ? 'documents.editor.saved' : 'documents.editor.saveError');
 		} catch {
 			sermonMessage = t('documents.editor.saveError');
 		} finally {

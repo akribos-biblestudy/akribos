@@ -580,7 +580,13 @@ für Rechtsklicks eine Mausposition und verschiebt das Menü bei Bedarf vorüber
 Zen-Dialog; beim Schließen wird es zurückgesetzt. Tastaturnavigation überspringt deaktivierte Einträge.
 
 Der Dokumenteditor begrenzt seine Höhe auch eigenständig auf den Viewport; nur der Schreibbereich
-scrollt, Werkzeugleiste und Footer bleiben erreichbar. Die Zähler im Footer zählen den sichtbaren
+scrollt, Werkzeugleiste und Footer bleiben erreichbar. Visuelle Änderungen bleiben bis zum entprellten Speichern, expliziten Flush oder Wechsel zu Markdown
+im ProseMirror-Dokument maßgeblich. Der Dirty-Status umfasst auch noch nicht serialisierten Text;
+Navigation, Metadatenänderungen und während einer Antwort weitergetippter Text dürfen ihn nicht
+überspringen. Arbeitsstand-/Formatänderungen verwenden wie Anlagen `withRevision()` und reservieren
+damit dieselbe serielle Queue wie Autosave. Bibelstellen-Dekorationen werden durch Transaktionen
+verschoben und nur in den tatsächlich geänderten Textblöcken neu erkannt; Code und explizite Links
+behalten ihre bisherigen Regeln. Die Zähler im Footer zählen den sichtbaren
 Dokumenttext ohne Titel und Markdown-Syntax: Wörter als Läufe ohne Leerraum, Zeichen als Unicode-Codepoints
 inklusive innerem Leerraum. Die Inhaltsübersicht wird aus H1–H6 im Editor abgeleitet, ohne IDs oder
 andere Metadaten in Markdown zu schreiben. Am rechten Rand zeigt sie im Ruhezustand nur schmale Striche

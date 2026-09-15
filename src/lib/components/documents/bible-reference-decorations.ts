@@ -7,7 +7,7 @@
  */
 import { Extension } from '@tiptap/core';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import {
 	bibleReferenceAttributes,
@@ -21,13 +21,15 @@ const EXCLUDED_MARKS = new Set(['code', 'link']);
 
 export type BibleReferenceDecorationOptions = { tooltipId?: string };
 
-export function createBibleReferenceDecorations(
+function collectBibleReferenceDecorations(
 	document: ProseMirrorNode,
-	options: BibleReferenceDecorationOptions = {}
-): DecorationSet {
+	options: BibleReferenceDecorationOptions,
+	from = 0,
+	to = document.content.size
+): Decoration[] {
 	const decorations: Decoration[] = [];
 
-	document.descendants((node, position) => {
+	document.nodesBetween(from, to, (node, position) => {
 		if (EXCLUDED_BLOCKS.has(node.type.name)) return false;
 		if (node.isTextblock) {
 			let run = '';
@@ -80,7 +82,42 @@ export function createBibleReferenceDecorations(
 		return true;
 	});
 
-	return DecorationSet.create(document, decorations);
+	return decorations;
+}
+
+export function createBibleReferenceDecorations(
+	document: ProseMirrorNode,
+	options: BibleReferenceDecorationOptions = {}
+): DecorationSet {
+	return DecorationSet.create(document, collectBibleReferenceDecorations(document, options));
+}
+
+export function updateBibleReferenceDecorations(
+	transaction: Transaction,
+	current: DecorationSet,
+	options: BibleReferenceDecorationOptions = {}
+): DecorationSet {
+	const document = transaction.doc;
+	const mapped = current.map(transaction.mapping, document);
+	if (!transaction.docChanged) return mapped;
+	const start = transaction.before.content.findDiffStart(document.content);
+	// Replacing the whole document with equal content (e.g. a mode switch) may map every
+	// decoration away, although all original positions and marks are still valid.
+	if (start === null) return current;
+	const end = transaction.before.content.findDiffEnd(document.content)?.b ?? start;
+	// Include either side of a split/join, and rescan whole textblocks: an edit can extend or
+	// invalidate a reference before the cursor. Untouched paragraphs retain their mapped links.
+	let from = Math.max(0, start - 1);
+	let to = Math.min(document.content.size, Math.max(start, end) + 1);
+	document.nodesBetween(from, to, (node, position) => {
+		if (!node.isTextblock) return true;
+		from = Math.min(from, position);
+		to = Math.max(to, position + node.nodeSize);
+		return false;
+	});
+	return mapped
+		.remove(mapped.find(from, to))
+		.add(document, collectBibleReferenceDecorations(document, options, from, to));
 }
 
 export const BibleReferenceDecorations = Extension.create<BibleReferenceDecorationOptions>({
@@ -94,10 +131,8 @@ export const BibleReferenceDecorations = Extension.create<BibleReferenceDecorati
 				key: pluginKey,
 				state: {
 					init: (_configuration, state) => createBibleReferenceDecorations(state.doc, options),
-					apply: (transaction, current, _oldState, newState) =>
-						transaction.docChanged
-							? createBibleReferenceDecorations(newState.doc, options)
-							: current.map(transaction.mapping, transaction.doc)
+					apply: (transaction, current) =>
+						updateBibleReferenceDecorations(transaction, current, options)
 				},
 				props: {
 					decorations: (state) => pluginKey.getState(state) ?? null
