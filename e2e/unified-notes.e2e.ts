@@ -1176,6 +1176,13 @@ test('imported Bible links preview and contextual link actions preserve formatti
 	await external.close();
 	await page.getByRole('button', { name: 'Abbrechen', exact: true }).click();
 	await prose.getByText('Formatierung', { exact: true }).click();
+	// ProseMirror observes the browser's selection asynchronously. Wait for the toolbar to reflect
+	// leaving the link before selectOption dispatches its synthetic formatting change.
+	await expect(
+		page
+			.getByRole('toolbar', { name: 'Text formatieren', exact: true })
+			.getByRole('button', { name: 'Link bearbeiten', exact: true })
+	).not.toHaveClass(/\bactive\b/);
 	await page.getByLabel('Überschrift', { exact: true }).selectOption('6');
 	await expect(prose.locator('h6')).toHaveText('Formatierung');
 	await prose.locator('h6').selectText();

@@ -840,6 +840,14 @@ Wechsel ihre Position; auch ohne Seitenaktionen bleibt deren Platz auf schmalen 
 
 ## Daten, Suche und Sicherheit
 
+Eine Backup-Wiederherstellung gleicht nach der Migration zuerst ihre Laufhistorie ab: Im Dump
+enthaltene `queued`-/`running`-Jobs sind historische Zustände und werden als unterbrochen markiert.
+Die aktuelle Sicherheitskopie und der aktuelle Restore werden aus ihrem vor `pg_restore` erfassten
+Stand wieder eingesetzt; fehlt ihr Ersteller im älteren Dump, wird `created_by` NULL. Erst nach den
+weiteren Reparaturen wird der aktuelle Restore abgeschlossen. So bleiben Verlauf und Freigabe für
+spätere Backups auch ohne Serverneustart korrekt. Der reale Wiederherstellungstest verwendet eine
+eigene temporäre Datenbank und prüft zwei aufeinanderfolgende Restores.
+
 Die kanonischen 66 Bücher und Referenzregeln liegen in Code unter `src/lib/bible/`. `verses.segments`
 enthält die Darstellung, `verses.text` die Suche. Strong-Wörter sind zusätzlich normalisiert in
 `verse_words`; Statistiken und Suchbegriffe werden materialisiert und nach Imports aktualisiert.

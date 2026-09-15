@@ -238,6 +238,12 @@ before a schema change restores the old schema), the Strong's statistics materia
 refreshed (their data is not part of a dump), and caches are invalidated. The admin's own session may
 no longer exist in the restored data — a fresh login can be necessary afterwards.
 
+Restored job rows marked queued or running describe the old snapshot, not current work. Restore marks
+these rows interrupted and reinserts its own current safety-backup and restore records before the
+remaining repairs run. If the initiating account is absent from the older dump, these records retain
+their history with an empty creator. A successful restore therefore releases the job gate immediately;
+another backup or restore does not require a server restart.
+
 Only logical dumps are covered here (no point-in-time recovery). If the acceptable data-loss window
 ever needs to be tighter than "since the last scheduled dump", the upgrade path is continuous WAL
 archiving (`pgBackRest`/`wal-g`) — a bigger change, out of scope for now.

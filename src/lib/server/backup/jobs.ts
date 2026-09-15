@@ -17,7 +17,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { config } from '../config.ts';
 import { logger } from '../logger.ts';
 import type { Database } from '../db/client.ts';
-import { backupJobs, type BackupJob } from '../db/schema.ts';
+import { backupJobs, users, type BackupJob } from '../db/schema.ts';
 import { refreshStrongStatisticsBlocking } from '../db/statistics.ts';
 import { backfillHebrewTranslations } from '../import/backfill-hebrew-translations.ts';
 import { backfillDocumentBodyReferenceIndexes } from '../repositories/document-reference-index.ts';
@@ -408,6 +408,36 @@ export async function runRestore(
 	return { safetyJob, job };
 }
 
+/** Restore is a new operation: dump snapshots cannot describe the jobs running now. */
+async function reconcileRestoredBackupJobs(db: Database, currentJobs: BackupJob[]): Promise<void> {
+	await db.transaction(async (tx) => {
+		await tx
+			.update(backupJobs)
+			.set({
+				state: 'failed',
+				error: 'Der Vorgang stammt aus einer wiederhergestellten Sicherung und läuft nicht mehr.',
+				finishedAt: new Date(),
+				updatedAt: new Date()
+			})
+			.where(inArray(backupJobs.state, ['queued', 'running']));
+		const ownerIds = currentJobs.flatMap((job) => (job.createdBy ? [job.createdBy] : []));
+		const owners = ownerIds.length
+			? await tx.select({ id: users.id }).from(users).where(inArray(users.id, ownerIds))
+			: [];
+		const existingOwners = new Set(owners.map((owner) => owner.id));
+		for (const job of currentJobs) {
+			const { id, ...values } = {
+				...job,
+				createdBy: job.createdBy && existingOwners.has(job.createdBy) ? job.createdBy : null
+			};
+			await tx
+				.insert(backupJobs)
+				.values({ id, ...values })
+				.onConflictDoUpdate({ target: backupJobs.id, set: values });
+		}
+	});
+}
+
 async function executeRestore(
 	db: Database,
 	options: { safetyJobId: string; jobId: string; path: string }
@@ -453,8 +483,13 @@ async function executeRestore(
 			return;
 		}
 
+		let currentJobs: BackupJob[] = [];
 		try {
 			await markRunning(db, options.jobId);
+			currentJobs = await db
+				.select()
+				.from(backupJobs)
+				.where(inArray(backupJobs.id, [options.safetyJobId, options.jobId]));
 			const { ignoredErrors } = await restoreFromFile({
 				databaseUrl: config().DATABASE_URL,
 				path: options.path
@@ -463,6 +498,7 @@ async function executeRestore(
 			// A dump taken before a schema change restores the old schema plus the old migration
 			// history table, so pending migrations must be re-applied for the running code to match.
 			await migrate(db, { migrationsFolder: './drizzle' });
+			await reconcileRestoredBackupJobs(db, currentJobs);
 			await backfillDocumentBodyReferenceIndexes(db);
 			await backfillHebrewTranslations(db);
 			await backfillTskResourceKind(db);
@@ -480,6 +516,12 @@ async function executeRestore(
 			});
 			logger.info({ jobId: options.jobId, ignoredErrors }, 'restore finished');
 		} catch (error) {
+			// pg_restore may already have replaced the job table when a later repair fails.
+			if (currentJobs.length) {
+				await reconcileRestoredBackupJobs(db, currentJobs).catch((historyError) => {
+					logger.error({ err: historyError }, 'could not recover restore job history');
+				});
+			}
 			await failBackupJob(db, options.jobId, error);
 			logger.error({ err: error, jobId: options.jobId }, 'restore failed');
 		}
