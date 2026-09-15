@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { readerContentLinks } from '$lib/actions/reader-content-links';
+	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
+	import { linkBibleReferences, rewriteBibleReferenceLinks } from '$lib/bible/link-references';
 	import { formatReference, type VerseRef } from '$lib/bible/reference';
 	import { formatNumber } from '$lib/i18n';
 	import type { ReaderTabSearchResponse } from '$lib/reader/tab-search';
@@ -16,6 +18,7 @@
 		error = null,
 		resourceTitle,
 		resourceId,
+		bibleId = null,
 		language,
 		direction,
 		onClose,
@@ -30,6 +33,7 @@
 		error?: string | null;
 		resourceTitle: string;
 		resourceId: string;
+		bibleId?: string | null;
 		language: string;
 		direction: 'ltr' | 'rtl';
 		onClose: () => void;
@@ -122,7 +126,7 @@
 				<GlossChart
 					glosses={result.glosses}
 					occurrenceTotal={result.statistics.occurrences}
-					groupBelowPercent={3}
+					groupBelowPercent={0.5}
 					centerLabel
 				/>
 			</section>
@@ -208,10 +212,11 @@
 							<!-- Commentary HTML is sanitized by every importer before it reaches the database. -->
 							<div
 								class="commentary-body"
+								use:verseHoverPopover={{ bibleId }}
 								use:readerContentLinks={{ onReference: onOpenReference, referenceHref }}
 							>
 								<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-								{@html hit.bodyHtml}
+								{@html linkBibleReferences(rewriteBibleReferenceLinks(hit.bodyHtml))}
 							</div>
 						</div>
 					</li>

@@ -237,7 +237,7 @@
 							glosses={study.glosses}
 							occurrenceTotal={study.statistics.occurrences}
 							centerLabel
-							groupBelowPercent={2}
+							groupBelowPercent={0.5}
 						/>
 					</section>
 				{/if}

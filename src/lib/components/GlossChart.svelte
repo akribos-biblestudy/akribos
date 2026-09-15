@@ -3,28 +3,20 @@
 		ArcElement,
 		Chart,
 		DoughnutController,
-		Legend,
 		Tooltip,
 		type ChartConfiguration,
 		type Plugin
 	} from 'chart.js';
 	import { formatNumber, t } from '$lib/i18n';
 
-	Chart.register(DoughnutController, ArcElement, Legend, Tooltip);
+	Chart.register(DoughnutController, ArcElement, Tooltip);
 
-	/**
-	 * How often a translation renders a word each way, as a donut chart.
-	 *
-	 * One series, ranked by frequency — a single accent hue, light-to-dark by rank, is what a
-	 * sequential (magnitude) encoding calls for. Rendered with Chart.js rather than hand-drawn SVG, so
-	 * layout, legend wrapping and hover tooltips stay correct at any width — including narrow reader
-	 * tiles, where a hand-rolled leader-line layout has no room to breathe.
-	 */
+	/** Ranked renderings with outside labels, plus the ungrouped accessible table and filters. */
 	let {
 		glosses,
-		groupBelowPercent,
+		groupBelowPercent = 0.5,
 		occurrenceTotal,
-		centerLabel = false,
+		centerLabel = true,
 		hrefForGloss,
 		activeGloss = null
 	}: {
@@ -40,7 +32,7 @@
 		activeGloss?: string | null;
 	} = $props();
 
-	const SHADES = ['700', '600', '500', '400', '300', '200', '100', '50'];
+	const SHADES = ['#ffc400', '#aa9129', '#807443', '#676246', '#56554a', '#494b44'];
 
 	const listedTotal = $derived(glosses.reduce((sum, gloss) => sum + gloss.occurrences, 0));
 	const total = $derived(Math.max(listedTotal, occurrenceTotal ?? listedTotal));
@@ -61,8 +53,9 @@
 		}
 
 		const threshold = (groupBelowPercent / 100) * total;
-		const kept = glosses.filter((gloss) => gloss.occurrences >= threshold);
-		const grouped = glosses.filter((gloss) => gloss.occurrences < threshold);
+		const ranked = [...glosses].sort((a, b) => b.occurrences - a.occurrences);
+		const kept = ranked.filter((gloss) => gloss.occurrences >= threshold).slice(0, 8);
+		const grouped = ranked.filter((gloss) => !kept.includes(gloss));
 		const result = kept.map((gloss) => ({ ...gloss, other: false }));
 		if (grouped.length > 0) {
 			result.push({
@@ -82,6 +75,7 @@
 	});
 
 	let canvas: HTMLCanvasElement | undefined = $state();
+	let compact = $state(false);
 	let chart: Chart | undefined;
 
 	function cssVar(name: string): string {
@@ -92,31 +86,100 @@
 		return document.documentElement.classList.contains('dark');
 	}
 
-	function centerLabelPlugin(): Plugin<'doughnut'> {
+	function labelPadding(width: number) {
+		if (width <= 360) return { left: 18, right: 18, top: 18, bottom: 18 };
+		const ctx = canvas?.getContext('2d');
+		ctx?.save();
+		if (ctx) ctx.font = '11px system-ui, sans-serif';
+		let angle = -Math.PI / 2;
+		let left = 24;
+		let right = 24;
+		for (const [index, gloss] of chartGlosses.entries()) {
+			const arc = total ? (gloss.occurrences / total) * Math.PI * 2 : 0;
+			const middle = index === 0 && gloss.occurrences > total / 2 ? -Math.PI / 4 : angle + arc / 2;
+			const text = `${gloss.display} | ${formatNumber(gloss.occurrences)}x`;
+			const needed = Math.min(220, (ctx?.measureText(text).width ?? text.length * 6) + 24);
+			if (Math.cos(middle) < 0) left = Math.max(left, needed);
+			else right = Math.max(right, needed);
+			angle += arc;
+		}
+		ctx?.restore();
+		const scale = Math.min(1, Math.max(0, width - 120) / (left + right));
+		return { left: left * scale, right: right * scale, top: 18, bottom: 18 };
+	}
+
+	function outsideLabelsPlugin(): Plugin<'doughnut'> {
 		return {
-			id: 'glossCenterLabel',
-			afterDraw(instance) {
-				if (!centerLabel) return;
-				const { ctx, chartArea } = instance;
-				const cx = (chartArea.left + chartArea.right) / 2;
-				const cy = (chartArea.top + chartArea.bottom) / 2;
-				const dark = isDark();
-
+			id: 'gloss-outside-labels',
+			afterDatasetsDraw(instance) {
+				const { ctx, width, height } = instance;
+				const labels = instance.getDatasetMeta(0).data.flatMap((element, index) => {
+					const gloss = chartGlosses[index];
+					if (!(element instanceof ArcElement) || !gloss?.occurrences) return [];
+					const angle =
+						index === 0 && gloss.occurrences > total / 2
+							? -Math.PI / 4
+							: (element.startAngle + element.endAngle) / 2;
+					const side = Math.cos(angle) >= 0 ? 1 : -1;
+					return [
+						{
+							gloss,
+							side,
+							x: element.x + Math.cos(angle) * element.outerRadius,
+							y: element.y + Math.sin(angle) * element.outerRadius,
+							labelY: element.y + Math.sin(angle) * (element.outerRadius + 16),
+							edge: element.x + side * (element.outerRadius + 12)
+						}
+					];
+				});
+				const firstArc = instance.getDatasetMeta(0).data[0];
+				if (firstArc instanceof ArcElement && instance.canvas.parentElement) {
+					instance.canvas.parentElement.style.setProperty('--chart-center-x', `${firstArc.x}px`);
+					instance.canvas.parentElement.style.setProperty(
+						'--chart-hole-width',
+						`${firstArc.innerRadius * 1.8}px`
+					);
+				}
+				if (width <= 360) return;
 				ctx.save();
-				ctx.textAlign = 'center';
-				ctx.textBaseline = 'middle';
-				ctx.fillStyle = dark ? cssVar('--color-stone-100') : cssVar('--color-stone-800');
-				ctx.font = '700 26px var(--font-serif), Georgia, serif';
-				ctx.fillText(formatNumber(total), cx, cy - 12);
-
-				ctx.fillStyle = dark ? cssVar('--color-stone-400') : cssVar('--color-stone-500');
 				ctx.font = '11px system-ui, sans-serif';
-				ctx.fillText(t('strong.glossCenterWord'), cx, cy + 8);
-				ctx.fillText(
-					t('strong.glossCenterHint', { count: formatNumber(glosses.length) }),
-					cx,
-					cy + 22
-				);
+				ctx.textBaseline = 'middle';
+				ctx.lineWidth = 1;
+				ctx.strokeStyle = cssVar(isDark() ? '--color-stone-500' : '--color-stone-400');
+				for (const side of [-1, 1]) {
+					const group = labels
+						.filter((label) => label.side === side)
+						.sort((a, b) => a.labelY - b.labelY);
+					// Keep adjacent labels apart, then shift overflow back into the canvas.
+					for (let i = 0; i < group.length; i++) {
+						group[i]!.labelY = Math.max(group[i]!.labelY, i ? group[i - 1]!.labelY + 17 : 12);
+					}
+					for (let i = group.length - 1; i >= 0; i--) {
+						group[i]!.labelY = Math.min(
+							group[i]!.labelY,
+							i < group.length - 1 ? group[i + 1]!.labelY - 17 : height - 12
+						);
+					}
+					for (const label of group) {
+						ctx.beginPath();
+						ctx.moveTo(label.x, label.y);
+						ctx.lineTo(label.edge, label.labelY);
+						ctx.lineTo(label.edge + side * 5, label.labelY);
+						ctx.stroke();
+						ctx.textAlign = side === 1 ? 'left' : 'right';
+						ctx.fillStyle = cssVar(isDark() ? '--color-stone-200' : '--color-stone-700');
+						const textX = label.edge + side * 8;
+						const available = Math.max(0, side === 1 ? width - textX - 2 : textX - 2);
+						const count = ` | ${formatNumber(label.gloss.occurrences)}x`;
+						let name = label.gloss.display;
+						if (ctx.measureText(name + count).width > available) {
+							while (name.length > 1 && ctx.measureText(name + '…' + count).width > available)
+								name = name.slice(0, -1);
+							name += '…';
+						}
+						ctx.fillText(name + count, textX, label.labelY, available);
+					}
+				}
 				ctx.restore();
 			}
 		};
@@ -124,7 +187,6 @@
 
 	function buildConfig(): ChartConfiguration<'doughnut'> {
 		const dark = isDark();
-		const textColor = dark ? cssVar('--color-stone-300') : cssVar('--color-stone-600');
 		const surface = dark ? cssVar('--color-stone-900') : '#ffffff';
 		const otherColor = dark ? cssVar('--color-stone-700') : cssVar('--color-stone-300');
 
@@ -136,9 +198,7 @@
 					{
 						data: chartGlosses.map((gloss) => gloss.occurrences),
 						backgroundColor: chartGlosses.map((gloss, index) =>
-							gloss.other
-								? otherColor
-								: cssVar(`--color-accent-${SHADES[Math.min(index, SHADES.length - 1)]}`)
+							gloss.other ? otherColor : SHADES[Math.min(index, SHADES.length - 1)]!
 						),
 						borderColor: surface,
 						borderWidth: 2,
@@ -150,18 +210,17 @@
 				responsive: true,
 				maintainAspectRatio: false,
 				cutout: '68%',
-				animation: { duration: 200 },
+				animation: false,
+				layout: { padding: labelPadding(canvas?.parentElement?.clientWidth ?? 400) },
+				onResize(instance, size) {
+					compact = size.width <= 360;
+					instance.options.layout = {
+						...instance.options.layout,
+						padding: labelPadding(size.width)
+					};
+				},
 				plugins: {
-					legend: {
-						position: 'bottom',
-						labels: {
-							color: textColor,
-							font: { size: 11 },
-							boxWidth: 10,
-							boxHeight: 10,
-							padding: 8
-						}
-					},
+					legend: { display: false },
 					tooltip: {
 						callbacks: {
 							label: (item) => `${item.label}: ${formatNumber(item.parsed)}`
@@ -169,7 +228,7 @@
 					}
 				}
 			},
-			plugins: [centerLabelPlugin()]
+			plugins: [outsideLabelsPlugin()]
 		};
 	}
 
@@ -197,10 +256,28 @@
 	$effect(() => () => chart?.destroy());
 </script>
 
-<div class="donut-chart">
-	<div class="canvas-wrap">
+<div class="donut-chart" class:compact>
+	<div class="canvas-wrap" style:height={`${Math.max(290, chartGlosses.length * 17 + 24)}px`}>
 		<canvas bind:this={canvas} aria-label={t('strong.translations')}></canvas>
+		{#if centerLabel}
+			<div class="chart-summary">
+				<strong>{formatNumber(glosses.length)}{unlistedOccurrences > 0 ? '+' : ''}</strong>
+				<span>Übersetzungen in<br />{formatNumber(total)} Vorkommen</span>
+			</div>
+		{/if}
 	</div>
+	<ul class="compact-gloss-labels" aria-hidden="true">
+		{#each chartGlosses as gloss, index (gloss.display)}
+			<li>
+				<i
+					style:background={gloss.other
+						? 'var(--color-stone-400)'
+						: SHADES[Math.min(index, SHADES.length - 1)]}
+				></i>
+				<span>{gloss.display}</span><small>{formatNumber(gloss.occurrences)}x</small>
+			</li>
+		{/each}
+	</ul>
 
 	<table class="sr-only">
 		<caption>{t('strong.translations')}</caption>
@@ -247,6 +324,58 @@
 	.canvas-wrap {
 		position: relative;
 		height: 290px;
+	}
+
+	.chart-summary {
+		position: absolute;
+		top: 50%;
+		left: var(--chart-center-x, 50%);
+		transform: translate(-50%, -50%);
+		width: var(--chart-hole-width, 34%);
+		max-width: 9rem;
+		text-align: center;
+		pointer-events: none;
+		line-height: 1.3;
+		font-size: 0.6875rem;
+	}
+
+	.chart-summary strong {
+		display: block;
+		font-size: 2rem;
+		font-weight: 500;
+		line-height: 1.2;
+		margin-bottom: 0.25rem;
+	}
+
+	.compact-gloss-labels {
+		display: none;
+	}
+	.donut-chart.compact .compact-gloss-labels {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.35rem 0.75rem;
+		margin: 0.25rem 0 0;
+		padding: 0;
+		list-style: none;
+		font-size: 0.7rem;
+	}
+	.donut-chart.compact .compact-gloss-labels li {
+		display: flex;
+		align-items: baseline;
+		gap: 0.3rem;
+		min-width: 0;
+	}
+	.donut-chart.compact .compact-gloss-labels i {
+		flex: 0 0 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+	}
+	.donut-chart.compact .compact-gloss-labels span {
+		overflow-wrap: anywhere;
+	}
+	.donut-chart.compact .compact-gloss-labels small {
+		flex-shrink: 0;
+		color: var(--color-stone-500);
 	}
 
 	.sr-only {
