@@ -993,3 +993,12 @@ sowie die Abweisung fremder und `null`-Origins. Die Einbindung verlangt Umami >=
 
 Der Analytics-E2E-Test verwendet eine eigene temporäre Datenbank und einen zweiten Produktionsserver,
 damit die globale Aktivierung keinen Einwilligungsdialog in parallel laufende Reader-Tests einblendet.
+
+### Begrenzte Arbeit bei Kommentar- und Sammlungsabfragen
+
+`commentary_entries.search_vector` ist eine von PostgreSQL gespeicherte generierte Spalte mit GIN-Index.
+Importe und Bearbeitungen halten sie automatisch aktuell. Die Kommentarsuche nutzt diesen Index für
+Treffer, Anzahl und Buchverteilung; nur wörtliche Phrasen prüfen zusätzlich den bereinigten HTML-Text.
+Sammlungsübersichten und Reader-Markierungen grenzen zuerst über die Vereinigung eigener und geteilter
+Sammlungs-IDs ein. Erst danach werden Einträge gezählt oder Verse gelesen; Mitgliedschaften bleiben
+anfragebezogen und werden nicht gecacht.

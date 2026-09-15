@@ -9,7 +9,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { and, asc, eq, max, or, sql } from 'drizzle-orm';
+import { and, asc, eq, max, sql, type SQL } from 'drizzle-orm';
 import type { VerseSegment } from '../../bible/segments.ts';
 import type { Database } from '../db/client.ts';
 import {
@@ -46,6 +46,12 @@ export type VerseListItemWithText = {
 	segments: VerseSegment[] | null;
 };
 
+/** Restrict item work to the small set of owned/shared lists before joining or counting items. */
+function accessibleListIds(userId: string): SQL {
+	return sql`select id from verse_lists where user_id = ${userId}
+		union select list_id from verse_list_members where user_id = ${userId}`;
+}
+
 /** Every list the caller owns or has been invited into, newest first. */
 export async function listVerseLists(db: Database, userId: string): Promise<VerseListSummary[]> {
 	const rows = await db.execute<{
@@ -65,9 +71,8 @@ export async function listVerseLists(db: Database, userId: string): Promise<Vers
 			case when l.user_id = ${userId} then null else coalesce(owner.display_name, owner.email) end as owner_name
 		from verse_lists l
 		left join verse_list_items i on i.list_id = l.id
-		left join verse_list_members m on m.list_id = l.id and m.user_id = ${userId}
 		join users owner on owner.id = l.user_id
-		where l.user_id = ${userId} or m.user_id is not null
+		where l.id in (${accessibleListIds(userId)})
 		group by l.id, owner.display_name, owner.email
 		order by l.updated_at desc
 	`);
@@ -328,14 +333,9 @@ export async function markedVersesByList(
 	return db
 		.select({ listId: verseListItems.listId, verse: verseListItems.verse })
 		.from(verseListItems)
-		.innerJoin(verseLists, eq(verseLists.id, verseListItems.listId))
-		.leftJoin(
-			verseListMembers,
-			and(eq(verseListMembers.listId, verseLists.id), eq(verseListMembers.userId, userId))
-		)
 		.where(
 			and(
-				or(eq(verseLists.userId, userId), sql`${verseListMembers.id} is not null`),
+				sql`${verseListItems.listId} in (${accessibleListIds(userId)})`,
 				eq(verseListItems.bookId, book),
 				eq(verseListItems.chapter, chapter)
 			)

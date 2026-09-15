@@ -1,0 +1,2 @@
+ALTER TABLE "commentary_entries" ADD COLUMN "search_vector" "tsvector" GENERATED ALWAYS AS (to_tsvector('german_unaccent', coalesce(title, '') || ' ' || regexp_replace(body_html, '<[^>]*>', ' ', 'g'))) STORED;--> statement-breakpoint
+CREATE INDEX "commentary_entries_search_idx" ON "commentary_entries" USING gin ("search_vector");

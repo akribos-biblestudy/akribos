@@ -120,12 +120,7 @@ function buildPredicate(
 	};
 }
 
-/**
- * Full-text search within one commentary resource. Commentary imports store safe HTML rather than a
- * second flattened text column, so the allowed tags are stripped inside the query before building a
- * PostgreSQL search vector. This keeps tab-scoped searching available without duplicating imported
- * content or introducing another migration merely for the first iteration of commentary search.
- */
+/** Search commentary through its stored vector; phrase checks inspect only candidate text. */
 export async function searchCommentary(
 	db: Database,
 	resourceId: string,
@@ -150,7 +145,7 @@ export async function searchCommentary(
 	const { include, exclude, phrases } = buildPredicate(query, searchableText);
 	if (!include) return empty;
 
-	const vector = sql`to_tsvector(${SEARCH_CONFIG}, ${searchableText})`;
+	const vector = sql`search_vector`;
 	const conditions = [sql`${vector} @@ (${include})`, ...phrases];
 	if (exclude) conditions.push(sql`not (${vector} @@ (${exclude}))`);
 	const baseMatches = sql.join(conditions, sql` and `);
@@ -201,7 +196,7 @@ export async function searchCommentary(
 	return {
 		query,
 		hits: rows.map((row) => ({
-			id: row.id,
+			id: Number(row.id),
 			book: row.book_id,
 			chapter: row.chapter,
 			verseStart: row.verse_start,

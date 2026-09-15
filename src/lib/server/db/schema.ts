@@ -281,9 +281,14 @@ export const commentaryEntries = pgTable(
 		verseStart: integer('verse_start'),
 		verseEnd: integer('verse_end'),
 		title: text('title'),
-		bodyHtml: text('body_html').notNull()
+		bodyHtml: text('body_html').notNull(),
+		/** Updated by PostgreSQL on every import or edit; readers never rebuild this vector. */
+		searchVector: tsvector('search_vector').generatedAlwaysAs(
+			sql`to_tsvector('german_unaccent', coalesce(title, '') || ' ' || regexp_replace(body_html, '<[^>]*>', ' ', 'g'))`
+		)
 	},
 	(table) => [
+		index('commentary_entries_search_idx').using('gin', table.searchVector),
 		index('commentary_entries_ref_idx').on(
 			table.resourceId,
 			table.bookId,
