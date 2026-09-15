@@ -25,6 +25,8 @@
 	import { readerLocation } from '$lib/reader-location.svelte';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
 	import { readerContentLinks } from '$lib/actions/reader-content-links';
+	import { strongHover } from '$lib/actions/strong-hover';
+	import { chapterWindow } from '$lib/reader/chapter-window';
 	import { t } from '$lib/i18n';
 	import Icon from '$lib/components/Icon.svelte';
 	import ReaderLexiconTab from '$lib/components/ReaderLexiconTab.svelte';
@@ -918,12 +920,6 @@
 		}
 	}
 
-	/**
-	 * Strong's number currently under the mouse. Cleared again on pointer leave; see
-	 * `VerseText.svelte` for why this uses pointer events rather than `mouseenter`/`mouseleave`.
-	 */
-	let hoverStrong = $state<string | null>(null);
-
 	async function openLexiconForLookup(
 		columnIndex: number,
 		lookup: string,
@@ -1601,6 +1597,21 @@
 	const streamsByTab = new SvelteMap<string, ColumnStream>();
 	const referencesByTab = new SvelteMap<string, VerseRef>();
 	const scrollTopsByTab = new SvelteMap<string, number>();
+	function cacheStream(key: string, stream: ColumnStream) {
+		// Map insertion order records recent tab use, without retaining an unbounded history of DOM data.
+		streamsByTab.delete(key);
+		streamsByTab.set(key, stream);
+	}
+
+	function pruneInactiveStreams() {
+		const inactive = [...streamsByTab.keys()].filter((key) => !activeStreamKeys.includes(key));
+		for (const key of inactive.slice(0, Math.max(0, inactive.length - 8))) {
+			streamsByTab.delete(key);
+			referencesByTab.delete(key);
+			scrollTopsByTab.delete(key);
+		}
+	}
+
 	/**
 	 * Columns whose next scroll events were caused by our own alignment/prepend compensation.
 	 *
@@ -1642,7 +1653,7 @@
 			const stream = columnStreams[index];
 			const reference = visibleReferences[index];
 			const flowColumn = flowColumns[index];
-			if (stream) streamsByTab.set(key, stream);
+			if (stream) cacheStream(key, stream);
 			if (reference) referencesByTab.set(key, { ...reference });
 			if (flowColumn) scrollTopsByTab.set(key, flowColumn.scrollTop);
 		}
@@ -1661,10 +1672,11 @@
 			const stream = cached && containsTarget ? cached : columnStreamFromInitial(column);
 			stream.loadingPrevious = false;
 			stream.loadingNext = false;
-			streamsByTab.set(key, stream);
+			cacheStream(key, stream);
 			return stream;
 		});
 		activeStreamKeys = nextStreamKeys;
+		pruneInactiveStreams();
 		visibleReferences = data.columns.map((column) => ({ ...column.activeTab.reference }));
 		visibleReferenceTabKeys = data.columns.map((column) => columnReferenceKey(column));
 		activeFlowSource = Math.max(
@@ -1728,6 +1740,35 @@
 		return (await response.json()) as StreamChapter;
 	}
 
+	async function trimStream(columnIndex: number, stream: ColumnStream) {
+		const column = flowColumns[columnIndex];
+		if (!column || stream.chapters.length <= 5) return;
+		const sections = [...column.querySelectorAll<HTMLElement>('[data-chapter-key]')];
+		const bounds = column.getBoundingClientRect();
+		const visible = sections
+			.map((section, index) => ({ index, rect: section.getBoundingClientRect() }))
+			.filter(({ rect }) => rect.bottom > bounds.top && rect.top < bounds.bottom);
+		if (!visible.length) return;
+		const window = chapterWindow(sections.length, visible[0]!.index, visible.at(-1)!.index);
+		if (window.start === 0 && window.end === stream.chapters.length) return;
+		const anchor = sections[visible[0]!.index]!;
+		const oldTop = anchor.getBoundingClientRect().top;
+		const generation = stream.generation;
+		stream.chapters = stream.chapters.slice(window.start, window.end);
+		await tick();
+		if (
+			generation !== stream.generation ||
+			columnStreams[columnIndex] !== stream ||
+			!anchor.isConnected
+		)
+			return;
+		suppressProgrammaticFlowScroll(columnIndex);
+		// Restore the same visible pixel even if native scroll anchoring already changed scrollTop.
+		column.scrollTop = column.scrollTop + anchor.getBoundingClientRect().top - oldTop;
+		lastAlignedElement[columnIndex] = null;
+		updateFlowEdgeState(columnIndex, column);
+	}
+
 	async function loadStreamPrevious(columnIndex: number) {
 		if (data.columns[columnIndex]?.resource.kind === 'lexicon') return;
 		const stream = columnStreams[columnIndex];
@@ -1753,6 +1794,7 @@
 			if (generation !== stream.generation) return;
 			suppressProgrammaticFlowScroll(columnIndex);
 			column.scrollTop = oldScrollTop + column.scrollHeight - oldHeight;
+			await trimStream(columnIndex, stream);
 		} finally {
 			if (generation === stream.generation) stream.loadingPrevious = false;
 		}
@@ -1770,6 +1812,8 @@
 			if (generation !== stream.generation) return;
 			stream.chapters.push(chapter);
 			await tick();
+			if (generation !== stream.generation) return;
+			await trimStream(columnIndex, stream);
 			if (generation !== stream.generation) return;
 			syncFlowColumns(activeFlowSource);
 		} finally {
@@ -2172,6 +2216,7 @@
 
 <div
 	bind:this={readerWorkspaceShell}
+	use:strongHover
 	class="reader-workspace-shell min-h-0 flex-1"
 	class:sidecar-open={readerNotesSidecarOpen}
 	style:--reader-notes-sidecar-width={`${readerNotesSidecarWidth}px`}
@@ -2622,8 +2667,6 @@
 																			columnIndex
 																		)}
 																	highlights={partial}
-																	{hoverStrong}
-																	onStrongHover={(strong) => (hoverStrong = strong)}
 																/></span
 															></span
 														><span
@@ -2644,8 +2687,6 @@
 																	)}
 																highlights={partial}
 																wordOffset={leadWordCount}
-																{hoverStrong}
-																onStrongHover={(strong) => (hoverStrong = strong)}
 															/>
 														</span>
 													</p>

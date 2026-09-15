@@ -1100,12 +1100,12 @@ test('hovering a tagged word highlights every occurrence without opening a tab',
 	const verse16Word = page.locator('#Joh3_16 button.strong[data-strong="G2316"]').first();
 	const verse17Word = page.locator('#Joh3_17 button.strong[data-strong="G2316"]').first();
 
-	await expect(verse16Word).not.toHaveClass(/active/);
-	await expect(verse17Word).not.toHaveClass(/active/);
+	await expect(verse16Word).not.toHaveClass(/strong-hover/);
+	await expect(verse17Word).not.toHaveClass(/strong-hover/);
 
 	await verse16Word.hover();
-	await expect(verse16Word).toHaveClass(/active/);
-	await expect(verse17Word).toHaveClass(/active/);
+	await expect(verse16Word).toHaveClass(/strong-hover/);
+	await expect(verse17Word).toHaveClass(/strong-hover/);
 
 	// A hover is a pure visual highlight: no lexicon tab and no URL/history change.
 	await expect(page.getByRole('tab', { name: /^Strong Griechisch/ })).toHaveCount(0);
@@ -1113,8 +1113,8 @@ test('hovering a tagged word highlights every occurrence without opening a tab',
 
 	// Moving away removes the highlight again.
 	await page.getByTestId('layout-picker').hover();
-	await expect(verse16Word).not.toHaveClass(/active/);
-	await expect(verse17Word).not.toHaveClass(/active/);
+	await expect(verse16Word).not.toHaveClass(/strong-hover/);
+	await expect(verse17Word).not.toHaveClass(/strong-hover/);
 });
 
 test('tapping a tagged word on a touch device does not leave a stray hover highlight behind', async ({
@@ -1132,8 +1132,8 @@ test('tapping a tagged word on a touch device does not leave a stray hover highl
 	await verse16Word.tap();
 	await expect(page.getByLabel('Lexikoneintrag in Strong')).toContainText('G2316');
 	// A synthetic touch hover must not remain after the lexicon tab has opened.
-	await expect(verse16Word).not.toHaveClass(/active/);
-	await expect(verse17Word).not.toHaveClass(/active/);
+	await expect(verse16Word).not.toHaveClass(/strong-hover/);
+	await expect(verse17Word).not.toHaveClass(/strong-hover/);
 
 	await context.close();
 });

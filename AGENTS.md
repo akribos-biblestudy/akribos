@@ -1002,3 +1002,17 @@ Treffer, Anzahl und Buchverteilung; nur wörtliche Phrasen prüfen zusätzlich d
 Sammlungsübersichten und Reader-Markierungen grenzen zuerst über die Vereinigung eigener und geteilter
 Sammlungs-IDs ein. Erst danach werden Einträge gezählt oder Verse gelesen; Mitgliedschaften bleiben
 anfragebezogen und werden nicht gecacht.
+
+### Begrenzter Reader-Speicher und Strong-Hover
+
+Kapitelstreams halten ein Fenster von normalerweise fünf Kapiteln. Sind mehr kurze Kapitel gleichzeitig
+sichtbar, bleiben alle sichtbaren Kapitel und je ein Nachbarkapitel erhalten. Entfernen außerhalb des
+Fensters bewahrt den sichtbaren Pixelanker; vorherige Kapitel werden beim Zurückscrollen erneut geladen.
+Zusätzlich zu aktiven Tabs bleiben höchstens acht inaktive Kapitelstreams nach letzter Nutzung im Cache.
+Ein verdrängter Tab behält seine gespeicherte Stelle und seinen Verlauf, lädt seinen Text aber erneut.
+Die Voranstell-Kompensation erfolgt weiterhin vor dem Verkleinern des Fensters.
+
+Strong-Hover wird durch `strongHover` am Reader delegiert. Ein DOM-Index aktualisiert nur Wörter mit der
+passenden primären oder zusätzlichen Strong-Nummer, ohne alle Verse reaktiv neu zu bewerten. Maus und
+schwebender Stift unterstützen Hover; Stiftkontakt und Touch löschen ihn. Ausgewählte Suchtreffer nutzen
+weiter separat `activeStrong`.

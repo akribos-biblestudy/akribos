@@ -18,40 +18,21 @@
 	let {
 		segments,
 		onStrongClick,
-		onStrongHover,
 		activeStrong = null,
-		hoverStrong = null,
 		highlights = [],
 		wordOffset = 0
 	}: {
 		segments: VerseSegment[];
 		/** Called when a tagged word is activated; the reader opens its linked lexicon tab. */
 		onStrongClick?: (strong: string, word: string) => void;
-		/**
-		 * Called with a Strong's number while the mouse hovers a tagged word, and with `null` once it
-		 * leaves. Only real mouse hovers are reported (see `isMouseHover` below), so a tap on touch
-		 * devices never leaves a highlight stuck on until something else is tapped.
-		 */
-		onStrongHover?: (strong: string | null) => void;
 		/** Highlights a selected Strong's number, e.g. inside a result or occurrence list. */
 		activeStrong?: string | null;
-		/** Highlights every occurrence of the Strong's number currently hovered, same as `activeStrong`. */
-		hoverStrong?: string | null;
 		/** Translation-specific highlighted word ranges to paint within `segments`, if any. */
 		highlights?: HighlightRange[];
 		/** Global word index of `segments[0]`, so a verse split into a lead and a remainder (see
 		 *  `splitVerseLead`) keeps `highlights` ranges aligned across both calls. */
 		wordOffset?: number;
 	} = $props();
-
-	/**
-	 * Pointer events (not `mouseenter`/`mouseleave`) carry `pointerType`, which is what lets a tap on
-	 * touch devices be told apart from an actual mouse hover. Without this check a tap would set the
-	 * hover highlight and nothing would ever clear it, since there is no "leave" for a tap.
-	 */
-	function isMouseHover(event: PointerEvent) {
-		return event.pointerType === 'mouse';
-	}
 
 	function matchesStrong(segment: Extract<VerseSegment, { kind: 'w' }>, strong: string | null) {
 		return (
@@ -110,19 +91,14 @@
 		<button
 			type="button"
 			class="strong"
-			class:active={matchesStrong(item.segment, activeStrong) ||
-				matchesStrong(item.segment, hoverStrong)}
+			class:active={matchesStrong(item.segment, activeStrong)}
 			class:has-highlight={item.color}
 			data-strong={item.segment.strong}
+			data-strongs={item.segment.strongs?.join(' ')}
 			title={item.segment.morph ?? undefined}
 			style:background-color={item.color}
 			onclick={() => onStrongClick?.(item.segment.strong, item.segment.text)}
-			onpointerenter={(event) => {
-				if (isMouseHover(event)) onStrongHover?.(item.segment.strong);
-			}}
-			onpointerleave={(event) => {
-				if (isMouseHover(event)) onStrongHover?.(null);
-			}}>{item.segment.text}</button
+			>{item.segment.text}</button
 		>
 	{:else if item.kind === 'em'}
 		<em class:has-highlight={item.color} style:background-color={item.color}>{item.text}</em>
@@ -181,7 +157,8 @@
 		text-decoration-color: var(--color-accent-500);
 	}
 
-	.strong.active {
+	.strong.active,
+	.strong:global(.strong-hover) {
 		background-color: color-mix(in oklab, var(--color-accent-500) 22%, transparent);
 		border-radius: 0.2rem;
 	}
