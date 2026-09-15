@@ -9,7 +9,7 @@
 	import type { ReaderCreatedDocument } from '$lib/reader/document-notes';
 	import type { ReaderNotesContext } from './ReaderNotesPanel.svelte';
 	import Icon from './Icon.svelte';
-	import DocumentEditor from './documents/DocumentEditor.svelte';
+	import type DocumentEditor from './documents/DocumentEditor.svelte';
 
 	type SidecarDocument = {
 		id: string;
@@ -53,6 +53,7 @@
 	let activeDocumentId = $state<string | null>(null);
 	let loadedDocument = $state<SidecarDocument | null>(null);
 	let editor = $state<DocumentEditor>();
+	let EditorComponent = $state<typeof import('./documents/DocumentEditor.svelte').default>();
 	let loadState = $state<'empty' | 'loading' | 'ready' | 'error'>('empty');
 	let errorMessage = $state('');
 	let requestGeneration = 0;
@@ -204,10 +205,13 @@
 		errorMessage = '';
 
 		try {
-			const response = await fetch(`/api/documents/${encodeURIComponent(id)}`, {
-				headers: { accept: 'application/json' },
-				signal: request.signal
-			});
+			const [response, editorModule] = await Promise.all([
+				fetch(`/api/documents/${encodeURIComponent(id)}`, {
+					headers: { accept: 'application/json' },
+					signal: request.signal
+				}),
+				import('./documents/DocumentEditor.svelte')
+			]);
 			const result = (await response.json().catch(() => ({}))) as {
 				document?: SidecarDocument;
 			};
@@ -220,6 +224,7 @@
 				return false;
 			}
 
+			EditorComponent = editorModule.default;
 			loadedDocument = result.document;
 			rememberReaderDocument(userId, result.document.id);
 			loadState = 'ready';
@@ -331,10 +336,10 @@
 			<button type="button" onclick={retry}>Erneut versuchen</button>
 			<button type="button" onclick={() => void showContext()}>Notizübersicht öffnen</button>
 		</div>
-	{:else if loadState === 'ready' && loadedDocument}
+	{:else if loadState === 'ready' && loadedDocument && EditorComponent}
 		<div class="sidecar-editor" data-testid="reader-notes-sidecar-editor">
 			{#key loadedDocument.id}
-				<DocumentEditor
+				<EditorComponent
 					bind:this={editor}
 					document={loadedDocument}
 					{bibleId}

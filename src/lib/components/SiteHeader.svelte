@@ -70,9 +70,23 @@
 	<div class="flex h-[var(--header-height)] w-full items-center gap-2 px-3 pt-0.5 sm:gap-5 sm:px-5">
 		<a href="/" class="group shrink-0 focus-visible:rounded-sm" aria-label="Akribos – Startseite">
 			{#if readerPreferences}
-				<img src="/logo.png" alt="Akribos" class="h-8 w-auto sm:h-10" />
+				<img
+					src="/logo-140.png"
+					srcset="/logo-280.png 2x, /logo-420.png 3x"
+					width="140"
+					height="40"
+					alt="Akribos"
+					class="h-8 w-auto sm:h-10"
+				/>
 			{:else}
-				<img src="/logo.png" alt="Akribos" class="hidden h-10 w-auto sm:block" />
+				<img
+					src="/logo-140.png"
+					srcset="/logo-280.png 2x, /logo-420.png 3x"
+					width="140"
+					height="40"
+					alt="Akribos"
+					class="hidden h-10 w-auto sm:block"
+				/>
 				<img src="/icon.png" alt="" class="size-9 rounded-sm sm:hidden" />
 			{/if}
 		</a>
