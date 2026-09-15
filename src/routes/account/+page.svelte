@@ -125,19 +125,26 @@
 					</form>
 				</Card>
 
-				<Card title={t('account.security')} description={t('account.securityHint')}>
+				<Card
+					title={data.hasPassword ? t('account.security') : t('account.setPassword')}
+					description={data.hasPassword ? t('account.securityHint') : t('account.setPasswordHint')}
+				>
 					{#if form?.passwordSaved}
 						<p class="mb-3 text-sm text-stone-600 dark:text-stone-300">{t('account.saved')}</p>
 					{/if}
 					<form method="POST" action="?/password" use:enhance class="max-w-sm space-y-3">
-						<TextField
-							name="currentPassword"
-							type="password"
-							label={t('auth.passwordCurrent')}
-							autocomplete="current-password"
-							error={form?.passwordError === 'current' ? (passwordMessage ?? undefined) : undefined}
-							required
-						/>
+						{#if data.hasPassword}
+							<TextField
+								name="currentPassword"
+								type="password"
+								label={t('auth.passwordCurrent')}
+								autocomplete="current-password"
+								error={form?.passwordError === 'current'
+									? (passwordMessage ?? undefined)
+									: undefined}
+								required
+							/>
+						{/if}
 						<TextField
 							name="password"
 							type="password"

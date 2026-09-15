@@ -1,3 +1,4 @@
+import { registerWithPassword } from './lib/auth.ts';
 import { expect, test, type Page } from '@playwright/test';
 import { lastMailLinkTo } from './lib/mail-outbox.ts';
 
@@ -16,17 +17,7 @@ function uniqueEmail(name: string): string {
 }
 
 async function register(page: Page, email: string, displayName: string): Promise<void> {
-	await page.goto('/register');
-	await page.getByLabel('E-Mail-Adresse').fill(email);
-	await page.getByLabel('Anzeigename').fill(displayName);
-	await page.getByLabel('Passwort', { exact: true }).fill(PASSWORD);
-	await page.getByLabel('Passwort wiederholen').fill(PASSWORD);
-	await page.getByRole('button', { name: 'Konto erstellen' }).click();
-	await expect(page).toHaveURL(/\/register\/check-email$/);
-
-	await page.goto(await lastMailLinkTo(email));
-	await page.getByRole('button', { name: 'Konto aktivieren' }).click();
-	await expect(page).toHaveURL(/\/account$/);
+	await registerWithPassword(page, email, PASSWORD, displayName);
 }
 
 test('sharing a list by email: adding a verse, replying to a comment, and reacting with an emoji', async ({

@@ -1,5 +1,5 @@
+import { registerWithPassword } from './lib/auth.ts';
 import { expect, test } from '@playwright/test';
-import { lastMailLinkTo } from './lib/mail-outbox.ts';
 
 /**
  * The product tour: automatic for a first-time reader (signed out and signed in), restartable from
@@ -24,17 +24,7 @@ function uniqueEmail(): string {
 const PASSWORD = 'ein-sicheres-passwort';
 
 async function register(page: import('@playwright/test').Page, email: string): Promise<void> {
-	await page.goto('/register');
-	await page.getByLabel('E-Mail-Adresse').fill(email);
-	await page.getByLabel('Anzeigename').fill('E2E');
-	await page.getByLabel('Passwort', { exact: true }).fill(PASSWORD);
-	await page.getByLabel('Passwort wiederholen').fill(PASSWORD);
-	await page.getByRole('button', { name: 'Konto erstellen' }).click();
-	await expect(page).toHaveURL(/\/register\/check-email$/);
-
-	await page.goto(await lastMailLinkTo(email));
-	await page.getByRole('button', { name: 'Konto aktivieren' }).click();
-	await expect(page).toHaveURL(/\/account$/);
+	await registerWithPassword(page, email, PASSWORD, 'E2E');
 }
 
 test('a new guest sees the product tour automatically and it stays closed once dismissed', async ({

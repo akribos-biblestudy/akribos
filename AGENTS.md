@@ -64,6 +64,30 @@ Berechtigung. Personalisierte Antworten einschließlich aller Antworten auf pers
 sind `private, no-store`. Bereits vom Berechtigten geladener Text lässt sich durch Widerruf nicht aus
 seinem Browser zurückholen; weitere Serverabfragen prüfen die Freigabe erneut.
 
+## Anmeldung und Registrierung
+
+`/login` fragt zuerst nur die normalisierte E-Mail-Adresse ab; `/register` führt in denselben Ablauf.
+Ein vorhandener `users.password_hash` zeigt danach das Passwortformular. `NULL` bedeutet Anmeldung
+per E-Mail. Neue Konten entstehen erst nach erfolgreicher Bestätigung, einschließlich der erstmaligen
+Bootstrap-Admin-Zuordnung. Bestehende Aktivierungslinks für Passwortkonten bleiben gültig.
+
+`email_logins` verbindet einen zufälligen Link und einen sechsstelligen Code mit derselben 15 Minuten
+gültigen Anmeldung. Nur der Link-Hash und ein mit `SESSION_SECRET` geschützter Code-HMAC werden
+gespeichert. Der Code gehört zum zufälligen HttpOnly-Cookie `email-login`, nicht zu einer frei
+änderbaren E-Mail-Adresse im Bestätigungsformular. Nach fünf Fehlversuchen sind beide Wege gesperrt;
+erneuter Versand ersetzt beide. Versand und Einstiegsabfragen sind je Adresse und IP begrenzt.
+Die bewusst unterschiedliche Passwort-/Code-Oberfläche verrät den Anmeldeweg einer Adresse.
+
+Link-GETs lesen nur und zeigen die zu bestätigende Adresse. Erst ein expliziter POST verbraucht die
+Anmeldung; Mail-Vorschauabrufe dürfen weder Konto noch Session anlegen. Verbrauch, Kontoerstellung
+und Session schreiben in einer Transaktion. E-Mail-Sperren serialisieren Verbrauch, erneuten Versand
+und Passwortsetzung; geänderte Passwörter, gelöschte oder gesperrte Konten werden erneut geprüft.
+Passwortsetzung verlangt nur bei vorhandenem Passwort dessen Bestätigung und prüft den zuvor
+gelesenen Hash erneut, damit parallele Formulare kein inzwischen gesetztes Passwort überschreiben.
+Ausstehende E-Mail-Anmeldungen werden dabei ungültig. Anmeldeseiten sind `private, no-store` und
+`noindex`; Anmeldelinks werden in langsamen Request-Logs geschwärzt. Weiterleitungsziele bleiben
+lokale Pfade. Die globale Referrer-Regel bleibt `same-origin`, damit native POSTs funktionieren.
+
 ## Reader-Architektur
 
 Der zentrale Reader ist `src/routes/[...reference]/+page.svelte`; sein Server-Load und seine Form Actions

@@ -20,6 +20,18 @@ export async function lastMailLinkTo(email: string): Promise<string> {
 	throw new Error(`no mail to ${email} appeared in the e2e outbox in time`);
 }
 
+export async function lastMailCodeTo(email: string): Promise<string> {
+	const content = await readFile(MAIL_TEST_OUTBOX, 'utf8');
+	for (const line of content.trim().split('\n').reverse()) {
+		const mail = JSON.parse(line) as SentMail;
+		if (mail.to === email) {
+			const code = mail.text.match(/Dein Anmeldecode: (\d{6})/);
+			if (code) return code[1]!;
+		}
+	}
+	throw new Error(`No sign-in code for ${email}`);
+}
+
 async function findLink(email: string): Promise<string | null> {
 	let content: string;
 	try {

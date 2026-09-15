@@ -114,7 +114,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	if (duration > 500) {
-		logger.warn({ path: event.url.pathname, duration, status: response.status }, 'slow request');
+		const path = event.url.pathname.replace(/^\/login\/verify\/[^/]+/, '/login/verify/[token]');
+		logger.warn({ path, duration, status: response.status }, 'slow request');
 	}
 
 	return response;

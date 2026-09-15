@@ -1,5 +1,5 @@
+import { registerWithPassword } from './lib/auth.ts';
 import { expect, test, type Page } from '@playwright/test';
-import { lastMailLinkTo } from './lib/mail-outbox.ts';
 
 test('TSK opens as a cross-reference work with its annotated links and searchable text', async ({
 	page
@@ -104,20 +104,14 @@ async function selectLinkSet(page: Page, tileIndex: number, linkSet: string): Pr
 async function loginAsAdmin(page: Page): Promise<void> {
 	await page.goto('/login');
 	await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
+	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort').fill('seed-admin-password');
 	await page.getByRole('button', { name: 'Anmelden' }).click();
 }
 
 async function registerReader(page: Page): Promise<void> {
 	const email = `reader-url-${Math.random().toString(36).slice(2, 10)}@example.com`;
-	await page.goto('/register');
-	await page.getByLabel('E-Mail-Adresse').fill(email);
-	await page.getByLabel('Anzeigename').fill('URL Reader');
-	await page.getByLabel('Passwort', { exact: true }).fill('ein-sicheres-passwort');
-	await page.getByLabel('Passwort wiederholen').fill('ein-sicheres-passwort');
-	await page.getByRole('button', { name: 'Konto erstellen' }).click();
-	await page.goto(await lastMailLinkTo(email));
-	await page.getByRole('button', { name: 'Konto aktivieren' }).click();
+	await registerWithPassword(page, email, 'ein-sicheres-passwort', 'URL Reader');
 	await page.evaluate(() => fetch('/api/tour', { method: 'POST' }));
 }
 

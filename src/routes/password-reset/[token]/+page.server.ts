@@ -22,7 +22,8 @@ export const actions = {
 		const reset = await consumePasswordReset(db, params.token);
 		if (!reset) return fail(400, { error: 'token' as const });
 
-		await updatePassword(db, reset.userId, password);
+		if (!(await updatePassword(db, reset.userId, password)))
+			return fail(400, { error: 'token' as const });
 		// Every other session is dropped: a password reset is also how someone locks an intruder out.
 		await destroyAllSessions(db, reset.userId);
 		await createSession(db, cookies, reset.userId, request.headers.get('user-agent') ?? undefined);

@@ -9,6 +9,9 @@
 		autocomplete,
 		hint,
 		minlength,
+		inputmode,
+		pattern,
+		maxlength,
 		readonly = false,
 		error
 	}: {
@@ -20,6 +23,9 @@
 		autocomplete?: HTMLInputElement['autocomplete'];
 		hint?: string;
 		minlength?: number;
+		inputmode?: 'text' | 'numeric' | 'email';
+		pattern?: string;
+		maxlength?: number;
 		readonly?: boolean;
 		/** Validation message shown under the field and announced. */
 		error?: string;
@@ -33,6 +39,9 @@
 		{type}
 		{required}
 		{minlength}
+		{inputmode}
+		{pattern}
+		{maxlength}
 		{autocomplete}
 		{readonly}
 		id={name}

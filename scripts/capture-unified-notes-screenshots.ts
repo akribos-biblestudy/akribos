@@ -10,6 +10,7 @@ const outputDirectory = new URL('../docs/screenshots/unified-notes/', import.met
 async function signIn(page: Page, account: { email: string; password: string }): Promise<void> {
 	await page.goto(`${baseUrl}/login`);
 	await page.getByLabel('E-Mail-Adresse').fill(account.email);
+	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort').fill(account.password);
 	await page.getByRole('button', { name: 'Anmelden' }).click();
 	await page.waitForURL((url) => url.pathname !== '/login');

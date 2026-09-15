@@ -1,7 +1,21 @@
 import { describe, expect, test } from 'vitest';
-import { emailVerificationMail, passwordResetMail, verseListInviteMail } from './templates.ts';
+import {
+	emailLoginMail,
+	emailVerificationMail,
+	passwordResetMail,
+	verseListInviteMail
+} from './templates.ts';
 
 describe('transactional mail templates', () => {
+	test('includes the same sign-in link and six-digit code in text and HTML', () => {
+		const link = 'https://akribos.de/login/verify/test-token';
+		const mail = emailLoginMail(link, '001234');
+		for (const content of [mail.text, mail.html]) {
+			expect(content).toContain('001234');
+			expect(content).toContain(link);
+			expect(content).toContain('15 Minuten');
+		}
+	});
 	test('renders a branded account-verification HTML mail with a text fallback', () => {
 		const link = 'https://akribos.de/register/verify/test-token';
 		const mail = emailVerificationMail(link);

@@ -1,10 +1,10 @@
+import { registerWithPassword } from './lib/auth.ts';
 import { expect, test } from '@playwright/test';
 import { and, eq, inArray } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { createDb } from '../src/lib/server/db/client.ts';
 import { documents, resources, users, verseComments } from '../src/lib/server/db/schema.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
-import { lastMailLinkTo } from './lib/mail-outbox.ts';
 
 /**
  * Accounts, verse lists and notes, and the admin area.
@@ -26,17 +26,7 @@ const PASSWORD = 'ein-sicheres-passwort';
  * (see register.e2e.ts for tests of that step).
  */
 async function register(page: import('@playwright/test').Page, email: string): Promise<void> {
-	await page.goto('/register');
-	await page.getByLabel('E-Mail-Adresse').fill(email);
-	await page.getByLabel('Anzeigename').fill('E2E');
-	await page.getByLabel('Passwort', { exact: true }).fill(PASSWORD);
-	await page.getByLabel('Passwort wiederholen').fill(PASSWORD);
-	await page.getByRole('button', { name: 'Konto erstellen' }).click();
-	await expect(page).toHaveURL(/\/register\/check-email$/);
-
-	await page.goto(await lastMailLinkTo(email));
-	await page.getByRole('button', { name: 'Konto aktivieren' }).click();
-	await expect(page).toHaveURL(/\/account$/);
+	await registerWithPassword(page, email, PASSWORD, 'E2E');
 
 	// Every test in this file cares about lists, notes, highlights and the admin area, not the product
 	// tour — which would otherwise auto-open the first time this fresh account visits the reader and
@@ -73,6 +63,7 @@ test('registration, sign out and sign in again', async ({ page }) => {
 	await expect(page).toHaveURL(/\/login/);
 
 	await page.getByLabel('E-Mail-Adresse').fill(email);
+	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort').fill(PASSWORD);
 	await page.getByRole('button', { name: 'Anmelden' }).click();
 	await expect(page).toHaveURL(/\/account$/);
@@ -187,6 +178,7 @@ test('a wrong password is refused', async ({ page }) => {
 
 	await page.goto('/login');
 	await page.getByLabel('E-Mail-Adresse').fill(email);
+	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort').fill('falsches-passwort');
 	await page.getByRole('button', { name: 'Anmelden' }).click();
 
@@ -386,6 +378,7 @@ test('an admin can see and edit resources', async ({ page }) => {
 	// The seed script creates this account.
 	await page.goto('/login');
 	await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
+	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort').fill('seed-admin-password');
 	await page.getByRole('button', { name: 'Anmelden' }).click();
 
@@ -454,6 +447,7 @@ for (const javaScriptEnabled of [true, false]) {
 			});
 			await page.goto('/login');
 			await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
+			await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 			await page.getByLabel('Passwort', { exact: true }).fill('seed-admin-password');
 			await page.getByRole('button', { name: 'Anmelden' }).click();
 			await page.goto(javaScriptEnabled ? '/admin/resources' : `/admin/resources?resource=${id}`);
@@ -577,6 +571,7 @@ test('deleting a Bible transfers every comment without overwriting collisions', 
 
 		await page.goto('/login');
 		await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
+		await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 		await page.getByLabel('Passwort').fill('seed-admin-password');
 		await page.getByRole('button', { name: 'Anmelden' }).click();
 		await page.goto('/admin/resources');

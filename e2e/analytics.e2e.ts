@@ -65,6 +65,7 @@ test('Umami settings, consent, private URL filtering and revocation work togethe
 		).toBeVisible();
 		await admin.goto('/login');
 		await admin.getByLabel('E-Mail-Adresse').fill('admin@example.com');
+		await admin.getByRole('button', { name: 'Weiter', exact: true }).click();
 		await admin.getByLabel('Passwort').fill('seed-admin-password');
 		await admin.getByRole('button', { name: 'Anmelden', exact: true }).click();
 		await expect(admin).toHaveURL(/\/account$/);
@@ -110,6 +111,7 @@ test('Umami settings, consent, private URL filtering and revocation work togethe
 				const loginPage = await loginContext.newPage();
 				await loginPage.goto('/login');
 				await loginPage.getByLabel('E-Mail-Adresse').fill('admin@example.com');
+				await loginPage.getByRole('button', { name: 'Weiter', exact: true }).click();
 				await loginPage.getByLabel('Passwort').fill('seed-admin-password');
 				const [response] = await Promise.all([
 					loginPage.waitForResponse(

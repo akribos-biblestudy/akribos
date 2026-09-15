@@ -33,6 +33,31 @@ No transactional-mail configuration is needed for notes, Markdown interchange, p
 When `BREVO_API_KEY` is absent, the existing authentication mail fallback logs messages as before; the
 two seeded accounts are already verified.
 
+## Email-first sign-in
+
+`/login` first asks for an email address; `/register` redirects to the same entry point. Existing
+password accounts then enter their password. New addresses and passwordless accounts receive a Brevo
+transactional email containing a one-time link and a six-digit code. Accounts are created and verified
+only when the recipient confirms the link or enters the code. A password can subsequently be set in
+the account settings. Existing password-account activation links remain supported.
+
+Migration `0040_email_login.sql` makes `users.password_hash` nullable and adds `email_logins`; existing
+hashes and sessions remain unchanged. The container applies this migration before serving traffic.
+`BREVO_API_KEY`, `MAIL_FROM` and `MAIL_FROM_NAME` use the existing mail configuration. Production needs
+working transactional delivery; without the key, production rejects email sign-in with a visible
+delivery error. The development fallback only logs messages. Keep
+`SESSION_SECRET` stable: it protects stored code hashes, and rotating it invalidates pending codes.
+
+Link and code expire together after 15 minutes, share a five-guess limit and are invalidated together
+on use or resend. Sending is limited to three emails per destination and 50 per client address per
+15 minutes. Opening a link is read-only; the confirmation button submits a same-origin POST. Login
+destinations are restricted to local paths. Auth pages are private and not indexed, and slow-request
+logs redact the link token. Never log or forward live login links/codes during troubleshooting.
+
+The token generation, expiry, single-use and rate-limit design follows the applicable guidance in
+the [OWASP token and PIN recommendations](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html#general-security-practices).
+The requested password/code step intentionally reveals which sign-in method an address uses.
+
 ## Re-scanning document Bible references
 
 Migration `0038_document_reference_parser_version.sql` marks existing derived indexes with the legacy

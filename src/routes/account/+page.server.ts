@@ -37,12 +37,14 @@ export async function load({ locals, url }) {
 	if (url.searchParams.get('tab') === 'lists') redirect(303, '/lists');
 
 	const db = getDb();
-	const [apiKeys, highlightStyles] = await Promise.all([
+	const [apiKeys, highlightStyles, account] = await Promise.all([
 		listApiKeys(db, locals.user.id),
-		listHighlightStyles(db, locals.user.id)
+		listHighlightStyles(db, locals.user.id),
+		findUserByEmail(db, locals.user.email)
 	]);
 
 	return {
+		hasPassword: Boolean(account?.passwordHash),
 		readerFontScale: locals.user.readerFontScale,
 		minPasswordLength: MIN_PASSWORD_LENGTH,
 		apiKeys,
@@ -89,13 +91,18 @@ export const actions = {
 
 		const db = getDb();
 		const user = await findUserByEmail(db, locals.user.email);
-		if (!user || !(await verifyPassword(user.passwordHash, current))) {
+		if (
+			!user ||
+			user.disabledAt ||
+			(user.passwordHash !== null && !(await verifyPassword(user.passwordHash, current)))
+		) {
 			return fail(400, { passwordError: 'current' as const });
 		}
 		if (next !== repeat) return fail(400, { passwordError: 'mismatch' as const });
 		if (checkPasswordStrength(next)) return fail(400, { passwordError: 'weak' as const });
 
-		await updatePassword(db, user.id, next);
+		if (!(await updatePassword(db, user.id, next, user.passwordHash)))
+			return fail(400, { passwordError: 'current' as const });
 		// Other devices are signed out, then this one is signed back in.
 		await destroyAllSessions(db, user.id);
 		await createSession(db, cookies, user.id, request.headers.get('user-agent') ?? undefined);

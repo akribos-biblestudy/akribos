@@ -1,9 +1,9 @@
+import { registerWithPassword } from './lib/auth.ts';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { eq } from 'drizzle-orm';
 import { createDb } from '../src/lib/server/db/client.ts';
 import { highlightStyles, users, verseHighlights } from '../src/lib/server/db/schema.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
-import { lastMailLinkTo } from './lib/mail-outbox.ts';
 
 /**
  * Marking verses from a verse number's menu, which is the only way to do it: selecting text marks
@@ -28,17 +28,7 @@ const JOHN_17 = '43:3:17';
 const FIRST_SWATCH_COLOR = 'rgb(255, 241, 198)';
 
 async function register(page: Page, email: string): Promise<void> {
-	await page.goto('/register');
-	await page.getByLabel('E-Mail-Adresse').fill(email);
-	await page.getByLabel('Anzeigename').fill('E2E');
-	await page.getByLabel('Passwort', { exact: true }).fill(PASSWORD);
-	await page.getByLabel('Passwort wiederholen').fill(PASSWORD);
-	await page.getByRole('button', { name: 'Konto erstellen' }).click();
-	await expect(page).toHaveURL(/\/register\/check-email$/);
-
-	await page.goto(await lastMailLinkTo(email));
-	await page.getByRole('button', { name: 'Konto aktivieren' }).click();
-	await expect(page).toHaveURL(/\/account$/);
+	await registerWithPassword(page, email, PASSWORD, 'E2E');
 
 	// The product tour auto-opens the first time a fresh account visits the reader and sits on top of
 	// the verse text and verse numbers these tests use. Marking it done is the same request the tour

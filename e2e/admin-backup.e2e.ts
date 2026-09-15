@@ -1,10 +1,10 @@
+import { registerWithPassword } from './lib/auth.ts';
 import { open } from 'node:fs/promises';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { lastMailLinkTo } from './lib/mail-outbox.ts';
 
 /**
  * Admin backup and restore.
@@ -63,23 +63,14 @@ function uniqueEmail(): string {
 const PASSWORD = 'ein-sicheres-passwort';
 
 async function register(page: import('@playwright/test').Page, email: string): Promise<void> {
-	await page.goto('/register');
-	await page.getByLabel('E-Mail-Adresse').fill(email);
-	await page.getByLabel('Anzeigename').fill('E2E');
-	await page.getByLabel('Passwort', { exact: true }).fill(PASSWORD);
-	await page.getByLabel('Passwort wiederholen').fill(PASSWORD);
-	await page.getByRole('button', { name: 'Konto erstellen' }).click();
-	await expect(page).toHaveURL(/\/register\/check-email$/);
-
-	await page.goto(await lastMailLinkTo(email));
-	await page.getByRole('button', { name: 'Konto aktivieren' }).click();
-	await expect(page).toHaveURL(/\/account$/);
+	await registerWithPassword(page, email, PASSWORD, 'E2E');
 }
 
 async function loginAsAdmin(page: import('@playwright/test').Page): Promise<void> {
 	// The seed script creates this account.
 	await page.goto('/login');
 	await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
+	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort').fill('seed-admin-password');
 	await page.getByRole('button', { name: 'Anmelden' }).click();
 }

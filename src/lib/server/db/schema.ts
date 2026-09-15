@@ -304,7 +304,8 @@ export const users = pgTable(
 		id: uuid('id').primaryKey().defaultRandom(),
 		/** Stored lower-cased; uniqueness is enforced on that form. */
 		email: text('email').notNull(),
-		passwordHash: text('password_hash').notNull(),
+		/** Null means sign-in by emailed one-time link/code, until the owner sets a password. */
+		passwordHash: text('password_hash'),
 		role: text('role', { enum: USER_ROLES }).notNull().default('user'),
 		displayName: text('display_name'),
 		/** Reader translation ids in the user's preferred order; empty adopts the current device. */
@@ -397,6 +398,30 @@ export const savedReaderWorkspaces = pgTable(
 			sql`char_length(btrim(${table.name})) between 1 and 80`
 		),
 		check('saved_reader_workspaces_revision_check', sql`${table.revision} > 0`)
+	]
+);
+
+/** A link and numeric code share one expiring, single-use sign-in attempt. */
+export const emailLogins = pgTable(
+	'email_logins',
+	{
+		id: text('id').primaryKey(),
+		email: text('email').notNull(),
+		userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+		tokenHash: text('token_hash').notNull(),
+		/** Keyed hash: the six-digit code cannot be brute-forced from a database dump alone. */
+		codeHash: text('code_hash').notNull(),
+		attempts: integer('attempts').notNull().default(0),
+		redirectTo: text('redirect_to').notNull(),
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		usedAt: timestamp('used_at', { withTimezone: true }),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => [
+		uniqueIndex('email_logins_token_idx').on(table.tokenHash),
+		index('email_logins_email_idx').on(table.email),
+		index('email_logins_expiry_idx').on(table.expiresAt),
+		check('email_logins_attempts_check', sql`${table.attempts} between 0 and 5`)
 	]
 );
 

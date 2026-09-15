@@ -16,6 +16,7 @@ import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
 async function login(page: Page, email: string) {
 	await page.goto('/login');
 	await page.getByLabel('E-Mail-Adresse').fill(email);
+	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort').fill('seed-admin-password');
 	await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
 	await expect(page).toHaveURL(/\/account$/);

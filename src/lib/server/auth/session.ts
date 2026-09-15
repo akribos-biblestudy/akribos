@@ -39,7 +39,7 @@ function tokenToId(token: string): string {
 
 /** Creates a session and sets the cookie. Returns the token, for tests. */
 export async function createSession(
-	db: Database,
+	db: Pick<Database, 'insert'>,
 	cookies: Cookies,
 	userId: string,
 	userAgent?: string

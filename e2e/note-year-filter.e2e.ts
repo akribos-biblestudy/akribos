@@ -61,6 +61,7 @@ test('filters notes by creation year before pagination and preserves the year ac
 	}
 	await page.goto('/login');
 	await page.getByLabel('E-Mail-Adresse').fill(email);
+	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort', { exact: true }).fill(password);
 	await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
 	await expect(page).toHaveURL(/\/account$/);

@@ -535,6 +535,9 @@ export const de = {
 	'account.profile': 'Profil',
 	'account.profileHint': 'Dein Name erscheint auf geteilten Stellensammlungen.',
 	'account.security': 'Passwort ändern',
+	'account.setPassword': 'Passwort festlegen',
+	'account.setPasswordHint':
+		'Du meldest dich bisher per E-Mail an. Mit einem Passwort kannst du dich künftig direkt anmelden. Andere Geräte werden beim Speichern abgemeldet.',
 	'account.securityHint': 'Nach dem Ändern werden alle anderen Geräte abgemeldet.',
 	'account.appearance': 'Darstellung',
 	'account.appearanceHint': 'Lesedarstellung und persönliche Voreinstellungen.',
@@ -578,6 +581,24 @@ export const de = {
 	'highlights.versesTitle': 'Markierte Verse: {name}',
 	'highlights.versesEmpty': 'Mit dieser Farbe ist noch kein Vers markiert.',
 	'auth.login.title': 'Anmelden',
+	'auth.login.continue': 'Weiter',
+	'auth.login.emailIntro':
+		'Gib deine E-Mail-Adresse ein. Du kannst dich damit anmelden oder ein neues Konto erstellen.',
+	'auth.login.emailInvalid': 'Bitte gib eine gültige E-Mail-Adresse ein.',
+	'auth.login.codeTitle': 'E-Mail prüfen',
+	'auth.login.codeLabel': 'Anmeldecode',
+	'auth.login.codeSent':
+		'Wir haben dir einen Anmeldelink und einen sechsstelligen Code gesendet. Öffne den Link oder gib den Code hier ein. Prüfe gegebenenfalls auch deinen Spam-Ordner.',
+	'auth.login.codeHint': 'Link und Code sind 15 Minuten gültig und nur einmal verwendbar.',
+	'auth.login.codeInvalid':
+		'Der Anmeldelink oder Code ist ungültig, abgelaufen oder bereits verwendet. Bitte versuche es erneut oder fordere eine neue E-Mail an.',
+	'auth.login.mailFailed':
+		'Die Anmelde-E-Mail konnte gerade nicht gesendet werden. Bitte versuche es später erneut.',
+	'auth.login.unavailable': 'Die Anmeldung ist mit dieser Adresse derzeit nicht möglich.',
+	'auth.login.changeEmail': 'Andere E-Mail-Adresse verwenden',
+	'auth.login.resend': 'Anmelde-E-Mail erneut senden',
+	'auth.login.requestNew': 'Neue Anmelde-E-Mail anfordern',
+	'auth.login.confirmLink': 'Bestätige die Anmeldung für diese E-Mail-Adresse:',
 	'auth.login.submit': 'Anmelden',
 	'auth.login.failed': 'E-Mail-Adresse oder Passwort ist falsch.',
 	'auth.login.throttled': 'Zu viele Versuche. Bitte warte einen Moment.',

@@ -13,6 +13,7 @@ type TemplateContent = {
 	link: string;
 	expires: string;
 	ignoreNote: string;
+	code?: string;
 };
 
 const colors = {
@@ -70,6 +71,7 @@ function renderHtml(content: TemplateContent): string {
                 <tr>
                   <td style="padding:0 48px 34px;">
                     <p style="margin:0 0 28px; color:${colors.muted}; font-size:16px; line-height:1.7;">${escapeHtml(content.intro)}</p>
+                    ${content.code ? `<p style="margin:0 0 8px; font-size:14px;">Dein Anmeldecode:</p><p style="margin:0 0 28px; font-family:monospace; font-size:32px; letter-spacing:6px; font-weight:700;">${escapeHtml(content.code)}</p>` : ''}
                     <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                       <tr>
                         <td style="border-radius:7px; background:${colors.green};">
@@ -114,6 +116,7 @@ function renderText(content: TemplateContent): string {
 		content.intro,
 		'',
 		`${content.buttonLabel}: ${content.link}`,
+		...(content.code ? ['', `Dein Anmeldecode: ${content.code}`] : []),
 		'',
 		content.expires,
 		content.ignoreNote,
@@ -179,5 +182,22 @@ export function passwordResetMail(link: string): TransactionalMail {
 		expires: 'Dieser Link ist eine Stunde gültig und kann nur einmal verwendet werden.',
 		ignoreNote:
 			'Du hast das Zurücksetzen nicht angefordert? Dann ignoriere diese E-Mail – dein bisheriges Passwort bleibt unverändert.'
+	});
+}
+
+export function emailLoginMail(link: string, code: string): TransactionalMail {
+	return transactionalMail('Akribos: Dein Anmeldelink und Einmalcode', {
+		preheader: 'Melde dich mit deinem einmaligen Link oder deinem sechsstelligen Code an.',
+		eyebrow: 'Deine Anmeldung',
+		title: 'Bei Akribos anmelden',
+		intro:
+			'Gib diesen Code auf der Anmeldeseite ein oder öffne den Link. Wenn du neu bei Akribos bist, wird dabei dein Konto erstellt.',
+		buttonLabel: 'Anmelden',
+		link,
+		code,
+		expires:
+			'Link und Code sind 15 Minuten gültig. Sobald du einen davon verwendest, werden beide ungültig.',
+		ignoreNote:
+			'Du hast diese Anmeldung nicht angefordert? Ignoriere diese E-Mail und gib den Code nicht weiter. Es ändert sich nichts an deinem Konto.'
 	});
 }

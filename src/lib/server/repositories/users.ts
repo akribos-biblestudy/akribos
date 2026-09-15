@@ -7,7 +7,15 @@ import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { config } from '../config.ts';
 import type { Database } from '../db/client.ts';
-import { emailVerifications, passwordResets, resources, users, type User } from '../db/schema.ts';
+import {
+	emailLogins,
+	emailVerifications,
+	passwordResets,
+	resources,
+	users,
+	type User
+} from '../db/schema.ts';
+import { lockLoginEmail } from '../auth/email-login.ts';
 import { hashPassword } from '../auth/password.ts';
 import { normalizeFontScale } from '../reader-preferences.ts';
 import type { ReaderWorkspace } from '../../reader/workspace.ts';
@@ -52,6 +60,7 @@ export async function createUser(
 			displayName: input.displayName?.trim() || null,
 			role: bootstrapAdmin && bootstrapAdmin === email ? 'admin' : 'user'
 		})
+		.onConflictDoNothing({ target: users.email })
 		.returning();
 
 	// A concurrent registration with the same address loses the unique index race.
@@ -67,12 +76,39 @@ export async function recordLogin(db: Database, userId: string): Promise<void> {
 export async function updatePassword(
 	db: Database,
 	userId: string,
-	password: string
-): Promise<void> {
-	await db
-		.update(users)
-		.set({ passwordHash: await hashPassword(password), updatedAt: new Date() })
-		.where(eq(users.id, userId));
+	password: string,
+	expectedHash?: string | null
+): Promise<boolean> {
+	const passwordHash = await hashPassword(password);
+	return db.transaction(async (tx) => {
+		const [account] = await tx
+			.select({ email: users.email })
+			.from(users)
+			.where(eq(users.id, userId));
+		if (!account) return false;
+		await lockLoginEmail(tx, account.email);
+		const [updated] = await tx
+			.update(users)
+			.set({ passwordHash, updatedAt: new Date() })
+			.where(
+				and(
+					eq(users.id, userId),
+					isNull(users.disabledAt),
+					expectedHash === undefined
+						? undefined
+						: expectedHash === null
+							? isNull(users.passwordHash)
+							: eq(users.passwordHash, expectedHash)
+				)
+			)
+			.returning({ id: users.id });
+		if (!updated) return false;
+		await tx
+			.update(emailLogins)
+			.set({ usedAt: new Date() })
+			.where(and(eq(emailLogins.email, account.email), isNull(emailLogins.usedAt)));
+		return true;
+	});
 }
 
 export async function updateProfile(

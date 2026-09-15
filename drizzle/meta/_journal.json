@@ -281,6 +281,13 @@
       "when": 1789034344517,
       "tag": "0039_mysterious_pretty_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789479002542,
+      "tag": "0040_email_login",
+      "breakpoints": true
     }
   ]
 }

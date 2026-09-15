@@ -619,15 +619,18 @@
 					<article>
 						<h3>Registrierung</h3>
 						<p>
-							Gib Anzeigenamen, E-Mail-Adresse und Passwort ein. Öffne anschließend den
-							Bestätigungslink aus der E-Mail. Erst danach ist das Konto aktiv.
+							Gib deine E-Mail-Adresse ein. Du erhältst einen Anmeldelink und einen sechsstelligen
+							Code, die 15 Minuten gültig sind. Bestätige den Link oder gib den Code ein, um dein
+							Konto zu erstellen. Ein Passwort ist dafür nicht nötig.
 						</p>
 						<a href="/register">Zur Registrierung →</a>
 					</article>
 					<article>
 						<h3>Profil & Sicherheit</h3>
 						<p>
-							Ändere deinen Anzeigenamen oder dein Passwort unter „Profil & Sicherheit“. Die
+							Lege unter „Profil & Sicherheit“ ein Passwort fest oder ändere dein vorhandenes
+							Passwort und deinen Anzeigenamen. Mit Passwort fragt die Anmeldung nach der
+							E-Mail-Adresse dein Passwort ab; ansonsten erhältst du eine Anmelde-E-Mail. Die
 							E-Mail-Adresse ist die feste Kennung deines Kontos.
 						</p>
 						<a href="/account">Kontoeinstellungen →</a>

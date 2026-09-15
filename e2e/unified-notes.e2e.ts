@@ -511,6 +511,7 @@ async function loginNewReader(page: import('@playwright/test').Page): Promise<vo
 	}
 	await page.goto('/login');
 	await page.getByLabel('E-Mail-Adresse').fill(email);
+	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort', { exact: true }).fill(PASSWORD);
 	await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
 	await expect(page).toHaveURL(/\/account$/);
@@ -694,6 +695,7 @@ async function loginAs(
 ): Promise<void> {
 	await page.goto('/login');
 	await page.getByLabel('E-Mail-Adresse').fill(account.email);
+	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort').fill(account.password);
 	await page.getByRole('button', { name: 'Anmelden' }).click();
 	await expect(page).toHaveURL(/\/account$/);

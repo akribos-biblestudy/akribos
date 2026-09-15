@@ -1,5 +1,5 @@
+import { registerWithPassword } from './lib/auth.ts';
 import { expect, test } from '@playwright/test';
-import { lastMailLinkTo } from './lib/mail-outbox.ts';
 
 /**
  * The public API: the domain gate and rate limiting (`hooks.server.ts` + `lib/server/api/`), and the
@@ -22,17 +22,7 @@ async function registerAndCreateKey(
 	scope: 'public' | 'personal'
 ): Promise<string> {
 	const email = uniqueEmail();
-	await page.goto('/register');
-	await page.getByLabel('E-Mail-Adresse').fill(email);
-	await page.getByLabel('Anzeigename').fill('E2E');
-	await page.getByLabel('Passwort', { exact: true }).fill('ein-sicheres-passwort');
-	await page.getByLabel('Passwort wiederholen').fill('ein-sicheres-passwort');
-	await page.getByRole('button', { name: 'Konto erstellen' }).click();
-	await expect(page).toHaveURL(/\/register\/check-email$/);
-
-	await page.goto(await lastMailLinkTo(email));
-	await page.getByRole('button', { name: 'Konto aktivieren' }).click();
-	await expect(page).toHaveURL(/\/account$/);
+	await registerWithPassword(page, email, 'ein-sicheres-passwort', 'E2E');
 
 	await page.getByLabel('Name', { exact: true }).fill(`E2E ${scope}`);
 	if (scope === 'personal') {
@@ -181,17 +171,7 @@ test('/api/docs renders the interactive API reference from the OpenAPI document'
 
 test('a signed-in session reads its own lists and notes through the API', async ({ page }) => {
 	const email = uniqueEmail();
-	await page.goto('/register');
-	await page.getByLabel('E-Mail-Adresse').fill(email);
-	await page.getByLabel('Anzeigename').fill('E2E');
-	await page.getByLabel('Passwort', { exact: true }).fill('ein-sicheres-passwort');
-	await page.getByLabel('Passwort wiederholen').fill('ein-sicheres-passwort');
-	await page.getByRole('button', { name: 'Konto erstellen' }).click();
-	await expect(page).toHaveURL(/\/register\/check-email$/);
-
-	await page.goto(await lastMailLinkTo(email));
-	await page.getByRole('button', { name: 'Konto aktivieren' }).click();
-	await expect(page).toHaveURL(/\/account$/);
+	await registerWithPassword(page, email, 'ein-sicheres-passwort', 'E2E');
 
 	// A real in-page fetch, not the request fixture: only a browser attaches the session cookie and
 	// the same-origin signal this endpoint's "trusted" path checks for.
