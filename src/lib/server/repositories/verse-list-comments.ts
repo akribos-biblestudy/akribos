@@ -7,7 +7,7 @@
  * owner's ability to remove any collaborator's verse); anyone else may only delete their own.
  */
 
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { COMMENT_REACTION_EMOJIS, type CommentReactionEmoji } from '../../notes/reactions.ts';
 import { sanitizeNoteHtml } from '../../notes/sanitize.ts';
 import type { Database } from '../db/client.ts';
@@ -200,6 +200,39 @@ export async function addComment(
 		})
 		.returning({ id: verseListItemComments.id });
 
+	return row ?? null;
+}
+
+/** Continues an already submitted draft, restricted to its author, item, parent and list. */
+export async function updateCommentDraft(
+	db: Database,
+	listId: string,
+	commentId: string,
+	options: { itemId: string; parentCommentId: string | null; authorUserId: string; html: string }
+): Promise<{ id: string } | null> {
+	const clean = sanitizeNoteHtml(options.html);
+	if (!clean) return null;
+	const [row] = await db
+		.update(verseListItemComments)
+		.set({ bodyHtml: clean, updatedAt: new Date() })
+		.where(
+			and(
+				eq(verseListItemComments.id, commentId),
+				eq(verseListItemComments.itemId, options.itemId),
+				eq(verseListItemComments.authorUserId, options.authorUserId),
+				options.parentCommentId
+					? eq(verseListItemComments.parentCommentId, options.parentCommentId)
+					: isNull(verseListItemComments.parentCommentId),
+				inArray(
+					verseListItemComments.itemId,
+					db
+						.select({ id: verseListItems.id })
+						.from(verseListItems)
+						.where(eq(verseListItems.listId, listId))
+				)
+			)
+		)
+		.returning({ id: verseListItemComments.id });
 	return row ?? null;
 }
 

@@ -223,3 +223,119 @@ test('a member can leave a shared list, landing back on their own lists tab', as
 	await ownerContext.close();
 	await memberContext.close();
 });
+
+async function createAuditList(page: Page): Promise<void> {
+	await register(page, uniqueEmail('list-regression'), 'Regression');
+	await page.goto('/lists');
+	await page.getByPlaceholder('Neue Stellensammlung').fill('Regressionen');
+	await page.getByRole('button', { name: 'Neue Stellensammlung' }).click();
+	await expect(page).toHaveURL(/\/lists\//);
+}
+
+test('a collection rejects noncanonical chapters and retains every verse of an entered range', async ({
+	page
+}) => {
+	await createAuditList(page);
+	await page.getByPlaceholder('Joh 3,16').fill('Joh999,1');
+	await page.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
+	await expect(page.getByRole('alert')).toContainText('gültige Bibelstelle');
+	await expect(page.getByRole('link', { name: 'Johannes 999,1' })).toHaveCount(0);
+	await page.getByPlaceholder('Joh 3,16').fill('Joh3,16-18');
+	await page.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
+	for (const verse of [16, 17, 18])
+		await expect(
+			page.getByRole('link', { name: `Johannes 3,${verse}`, exact: true })
+		).toBeVisible();
+	await page.reload();
+	for (const verse of [16, 17, 18])
+		await expect(
+			page.getByRole('link', { name: `Johannes 3,${verse}`, exact: true })
+		).toBeVisible();
+});
+
+test('a slow comment response prevents duplicate submissions and preserves a continued draft', async ({
+	page
+}) => {
+	await createAuditList(page);
+	await page.getByPlaceholder('Joh 3,16').fill('Joh3,16');
+	await page.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
+	await page.getByRole('button', { name: 'Kommentar hinzufügen' }).click();
+	const editor = page.getByRole('textbox', { name: 'Kommentar', exact: true });
+	const form = page.locator('form[action="?/comment"]');
+	await editor.fill('Gesendeter Anfang.');
+	let release!: () => void;
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	let received = false,
+		posts = 0;
+	await page.route(
+		(url) => url.pathname.startsWith('/lists/') && url.searchParams.has('/comment'),
+		async (route) => {
+			if (route.request().method() !== 'POST') return route.continue();
+			posts++;
+			if (posts > 1) return route.continue();
+			const response = await route.fetch();
+			received = true;
+			await held;
+			await route.fulfill({ response });
+		}
+	);
+	await form.evaluate((element) => {
+		(element as HTMLFormElement).requestSubmit();
+		(element as HTMLFormElement).requestSubmit();
+	});
+	await expect.poll(() => received).toBe(true);
+	try {
+		await expect(form.locator('button[type="submit"]')).toBeDisabled();
+		await editor.press('Control+End');
+		await editor.pressSequentially(' Danach geschriebener Nachtrag.');
+		await editor.press('Control+Enter');
+		expect(posts).toBe(1);
+	} finally {
+		release();
+	}
+	await expect(page.locator('.comment-body')).toHaveText('Gesendeter Anfang.');
+	await expect(editor).toContainText('Danach geschriebener Nachtrag.');
+	await expect(form.getByRole('button', { name: 'Speichern', exact: true })).toBeEnabled();
+	await form.getByRole('button', { name: 'Speichern', exact: true }).click();
+	await expect(editor).toHaveCount(0);
+	await page.reload();
+	await expect(page.locator('.comment-body')).toHaveCount(1);
+	await expect(page.locator('.comment-body')).toHaveText(
+		'Gesendeter Anfang. Danach geschriebener Nachtrag.'
+	);
+	expect(posts).toBe(2);
+});
+
+test('a failed comment request keeps the draft and permits saving it again', async ({ page }) => {
+	await createAuditList(page);
+	await page.getByPlaceholder('Joh 3,16').fill('Joh3,16');
+	await page.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();
+	await page.getByRole('button', { name: 'Kommentar hinzufügen' }).click();
+	const editor = page.getByRole('textbox', { name: 'Kommentar', exact: true });
+	const form = page.locator('form[action="?/comment"]');
+	await editor.fill('Nach Netzwerkfehler erhalten.');
+	let fail = true;
+	await page.route(
+		(url) => url.pathname.startsWith('/lists/') && url.searchParams.has('/comment'),
+		async (route) => {
+			if (
+				fail &&
+				route.request().method() === 'POST' &&
+				route.request().url().includes('?/comment')
+			) {
+				fail = false;
+				return route.abort('failed');
+			}
+			return route.continue();
+		}
+	);
+	await form.getByRole('button', { name: 'Speichern', exact: true }).click();
+	await expect(form.getByRole('alert')).toBeVisible();
+	await expect(editor).toHaveText('Nach Netzwerkfehler erhalten.');
+	await form.getByRole('button', { name: 'Speichern', exact: true }).click();
+	await expect(editor).toHaveCount(0);
+	await page.reload();
+	await expect(page.locator('.comment-body')).toHaveText('Nach Netzwerkfehler erhalten.');
+});

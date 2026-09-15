@@ -387,6 +387,15 @@ Mausauswahl darf `selectionchange` das Menü dagegen nie öffnen; erst `mouseup`
 Auswahl abgeschlossen ist. Die Unterscheidung folgt dem tatsächlichen `PointerEvent.pointerType`,
 nicht allein einem Media Query, damit auch Touchscreen-Desktops mit Maus korrekt funktionieren.
 
+Stellensammlungen prüfen eingegebene Kapitel gegen den kanonischen Buchumfang. Ein Versbereich
+innerhalb eines Kapitels wird vollständig und atomar übernommen; bereits vorhandene Verse bleiben
+erhalten. Die Zeile der Sammlung serialisiert die Positionsvergabe bei parallelen Ergänzungen.
+`NoteEditor` sendet höchstens eine Anfrage gleichzeitig und bestätigt nur deren HTML-Momentaufnahme.
+Später getippter Text bleibt sichtbar und ungespeichert. Die Kommentar-Action liefert dafür die
+angelegte Kommentar-ID zurück; ein weiterer Save aktualisiert nur diesen Kommentar des gleichen
+Autors, derselben Sammlung, desselben Vers-Eintrags und desselben Elternkommentars. Fehler erhalten
+den Entwurf und erlauben erneutes Speichern.
+
 `verse_comments` bleibt als Kompatibilitätstabelle und für `GET /api/v1/notes` erhalten, wird im Reader
 aber nicht mehr geladen oder als grüne Inline-Bubble dargestellt. Auch die alte Kommentar-Erstellung im
 `VerseMenu` ist entfernt; neue persönliche Gedanken sind ausschließlich einheitliche Dokumente. Der

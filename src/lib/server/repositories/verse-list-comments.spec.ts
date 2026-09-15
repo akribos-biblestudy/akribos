@@ -7,6 +7,7 @@ import { createUser } from './users.ts';
 import { addVerseToList, createVerseList, loadVerseListItems } from './verse-lists.ts';
 import {
 	addComment,
+	updateCommentDraft,
 	deleteComment,
 	isCommentReactionEmoji,
 	loadCommentsForList,
@@ -61,6 +62,37 @@ describe('verse list comments', () => {
 			await db.delete(users).where(eq(users.id, id));
 		}
 		await closeDb();
+	});
+
+	it('continues only the author-owned submitted draft in the same item, list and parent', async () => {
+		const owner = await makeUser(),
+			other = await makeUser();
+		const first = await makeItem(owner),
+			second = await makeItem(owner);
+		const options = {
+			itemId: first.itemId,
+			parentCommentId: null,
+			authorUserId: owner,
+			html: '<p>Anfang</p>'
+		};
+		const comment = (await addComment(db, first.listId, options))!;
+		expect(
+			await updateCommentDraft(db, first.listId, comment.id, {
+				...options,
+				html: '<p>Anfang und Nachtrag</p>'
+			})
+		).toEqual(comment);
+		for (const [listId, changed] of [
+			[first.listId, { ...options, authorUserId: other }],
+			[second.listId, options],
+			[first.listId, { ...options, itemId: second.itemId }],
+			[first.listId, { ...options, parentCommentId: comment.id }]
+		] as const) {
+			expect(await updateCommentDraft(db, listId, comment.id, changed)).toBeNull();
+		}
+		const result = await loadCommentsForList(db, first.listId, owner);
+		expect(result[first.itemId]).toHaveLength(1);
+		expect(result[first.itemId]![0]!.bodyHtml).toBe('<p>Anfang und Nachtrag</p>');
 	});
 
 	it('adds a top-level comment and a reply, nested under its parent', async () => {

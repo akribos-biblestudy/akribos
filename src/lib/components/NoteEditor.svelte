@@ -37,6 +37,9 @@
 	let editorState = $state<{ editor: Editor | null }>({ editor: null });
 	let dirty = $state(false);
 	let saved = $state(false);
+	let sending = $state(false);
+	let saveError = $state(false);
+	let commentId: string | undefined = $state();
 	let deleting = $state(false);
 	let confirmingDelete = $state(false);
 
@@ -65,7 +68,7 @@
 				handleKeyDown: (_view, event) => {
 					if (event.key === 'Escape') {
 						event.preventDefault();
-						onCancel?.();
+						if (!sending) onCancel?.();
 						return true;
 					}
 					if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
@@ -83,6 +86,7 @@
 			onUpdate: ({ editor }) => {
 				editorState = { editor };
 				dirty = true;
+				saved = false;
 			},
 			onTransaction: ({ editor }) => (editorState = { editor })
 		});
@@ -95,6 +99,7 @@
 	}
 
 	function requestDelete() {
+		if (sending) return;
 		if (!confirmingDelete) {
 			confirmingDelete = true;
 			return;
@@ -108,19 +113,44 @@
 	bind:this={form}
 	method="POST"
 	{action}
-	use:enhance={({ formData }) => {
-		formData.set('note', deleting ? '' : currentHtml());
+	aria-busy={sending}
+	use:enhance={({ formData, cancel }) => {
+		if (sending || (!dirty && !deleting)) {
+			cancel();
+			return;
+		}
+		sending = true;
+		saveError = false;
+		saved = false;
+		const snapshot = currentHtml();
+		const submitted = deleting ? '' : snapshot;
+		formData.set('note', submitted);
+		if (commentId) formData.set('commentId', commentId);
 
 		return async ({ result, update }) => {
-			await update({ reset: false });
-			if (result.type !== 'success') return;
-			const next = deleting ? '' : currentHtml();
-			onSaved?.(next);
-			dirty = false;
-			deleting = false;
-			confirmingDelete = false;
-			saved = true;
-			setTimeout(() => (saved = false), 2000);
+			try {
+				if (result.type !== 'success') {
+					saveError = true;
+					if (result.type === 'redirect') await update({ reset: false });
+					return;
+				}
+				if (typeof result.data?.commentId === 'string') commentId = result.data.commentId;
+				await update({ reset: false });
+				// The response acknowledges only the submitted snapshot. Keep later edits open and
+				// update the newly created comment by id on the next save instead of duplicating it.
+				if (currentHtml() !== snapshot) {
+					dirty = true;
+					return;
+				}
+				dirty = false;
+				confirmingDelete = false;
+				saved = true;
+				onSaved?.(submitted);
+				setTimeout(() => (saved = false), 2000);
+			} finally {
+				sending = false;
+				deleting = false;
+			}
 		};
 	}}
 >
@@ -198,13 +228,19 @@
 
 	<div class="editor-shell" bind:this={editorElement}></div>
 
+	{#if saveError}<p role="alert">{t('documents.editor.saveError')}</p>{/if}
 	<div class="editor-actions">
 		{#if html}
-			<button type="button" class="delete-button" onclick={requestDelete}>
+			<button type="button" class="delete-button" disabled={sending} onclick={requestDelete}>
 				{confirmingDelete ? t('comments.deleteConfirm') : t('action.delete')}
 			</button>
 			{#if confirmingDelete}
-				<button type="button" class="cancel-delete" onclick={() => (confirmingDelete = false)}>
+				<button
+					type="button"
+					class="cancel-delete"
+					disabled={sending}
+					onclick={() => (confirmingDelete = false)}
+				>
 					{t('action.cancel')}
 				</button>
 			{/if}
@@ -212,9 +248,13 @@
 		<span class="action-spacer"></span>
 		{#if saved}<span class="saved-state">{t('action.save')} ✓</span>{/if}
 		{#if onCancel}
-			<button type="button" class="cancel-button" onclick={onCancel}>{t('action.cancel')}</button>
+			<button type="button" class="cancel-button" disabled={sending} onclick={onCancel}
+				>{t('action.cancel')}</button
+			>
 		{/if}
-		<button type="submit" class="save-button" disabled={!dirty}>{t('action.save')}</button>
+		<button type="submit" class="save-button" disabled={!dirty || sending}
+			>{sending ? t('documents.editor.saving') : t('action.save')}</button
+		>
 	</div>
 </form>
 

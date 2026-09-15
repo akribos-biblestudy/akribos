@@ -212,29 +212,36 @@ export async function loadVerseListItems(
 export async function addVerseToList(
 	db: Database,
 	listId: string,
-	reference: { book: number; chapter: number; verse: number },
+	reference: { book: number; chapter: number; verse: number; verseEnd?: number },
 	addedByUserId: string
 ): Promise<void> {
-	const [row] = await db
-		.select({ highest: max(verseListItems.position) })
-		.from(verseListItems)
-		.where(eq(verseListItems.listId, listId));
-
-	await db
-		.insert(verseListItems)
-		.values({
-			listId,
-			bookId: reference.book,
-			chapter: reference.chapter,
-			verse: reference.verse,
-			position: (row?.highest ?? -1) + 1,
-			addedByUserId
-		})
-		// Adding a verse twice is a no-op rather than an error: the reader offers the action per verse
-		// and a double click should not fail.
-		.onConflictDoNothing();
-
-	await touch(db, listId);
+	await db.transaction(async (tx) => {
+		// Serialize position allocation, including concurrent ranges added by collaborators.
+		await tx
+			.select({ id: verseLists.id })
+			.from(verseLists)
+			.where(eq(verseLists.id, listId))
+			.for('update');
+		const [row] = await tx
+			.select({ highest: max(verseListItems.position) })
+			.from(verseListItems)
+			.where(eq(verseListItems.listId, listId));
+		const count = (reference.verseEnd ?? reference.verse) - reference.verse + 1;
+		await tx
+			.insert(verseListItems)
+			.values(
+				Array.from({ length: count }, (_, index) => ({
+					listId,
+					bookId: reference.book,
+					chapter: reference.chapter,
+					verse: reference.verse + index,
+					position: (row?.highest ?? -1) + 1 + index,
+					addedByUserId
+				}))
+			)
+			.onConflictDoNothing();
+		await tx.update(verseLists).set({ updatedAt: new Date() }).where(eq(verseLists.id, listId));
+	});
 }
 
 /**

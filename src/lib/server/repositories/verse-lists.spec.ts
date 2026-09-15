@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import { closeDb, getDb } from '../db/index.ts';
-import { users, verseLists } from '../db/schema.ts';
+import { users, verseLists, verseListItems } from '../db/schema.ts';
 import { createUser } from './users.ts';
 import {
 	addVerseToList,
@@ -48,6 +48,27 @@ describe('removeVerseFromList enforces the same rule against the database', () =
 			await db.delete(users).where(eq(users.id, id));
 		}
 		await closeDb();
+	});
+
+	it('adds complete ranges atomically, preserves existing items and serializes concurrent positions', async () => {
+		const ownerId = await makeUser();
+		const list = await createVerseList(db, ownerId, 'Versbereiche');
+		await addVerseToList(db, list.id, { book: 43, chapter: 3, verse: 17 }, ownerId);
+		await addVerseToList(db, list.id, { book: 43, chapter: 3, verse: 16, verseEnd: 18 }, ownerId);
+		await Promise.all([
+			addVerseToList(db, list.id, { book: 43, chapter: 3, verse: 19, verseEnd: 20 }, ownerId),
+			addVerseToList(db, list.id, { book: 43, chapter: 3, verse: 21, verseEnd: 22 }, ownerId)
+		]);
+		const items = await loadVerseListItems(db, list.id, null);
+		expect(items.map((item) => item.verse).sort((a, b) => a - b)).toEqual([
+			16, 17, 18, 19, 20, 21, 22
+		]);
+		expect(items[0]!.verse).toBe(17);
+		const positions = await db
+			.select({ position: verseListItems.position })
+			.from(verseListItems)
+			.where(eq(verseListItems.listId, list.id));
+		expect(new Set(positions.map((row) => row.position)).size).toBe(7);
 	});
 
 	it('refuses to remove a verse a collaborator did not add, but the owner can', async () => {
