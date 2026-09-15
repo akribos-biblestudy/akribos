@@ -1267,7 +1267,7 @@ test('a word typed into a tab field searches only the current resource', async (
 	}));
 	expect(distributionMetrics).toEqual({
 		fits: true,
-		writingMode: 'vertical-rl',
+		writingMode: 'horizontal-tb',
 		visibleCounts: 0
 	});
 	const resultFontSize = await results

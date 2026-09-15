@@ -301,6 +301,7 @@
 					</p>
 					<GlossChart
 						glosses={data.glosses}
+						occurrenceTotal={data.statistics.occurrences}
 						hrefForGloss={(gloss) => `/${data.strong}${filterQuery({ gloss })}`}
 						activeGloss={data.gloss}
 					/>

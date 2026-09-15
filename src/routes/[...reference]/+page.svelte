@@ -24,6 +24,7 @@
 	import { spanRangeForVerse } from '$lib/bible/highlight-span';
 	import { readerLocation } from '$lib/reader-location.svelte';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
+	import { linkBibleReferences, rewriteBibleReferenceLinks } from '$lib/bible/link-references';
 	import { readerContentLinks } from '$lib/actions/reader-content-links';
 	import { strongHover } from '$lib/actions/strong-hover';
 	import { chapterWindow } from '$lib/reader/chapter-window';
@@ -2458,6 +2459,7 @@
 									<ReaderTabSearchResults
 										referenceHref={(reference) => contextualReferenceUrl(columnIndex, reference)}
 										resourceId={column.resource.id}
+										bibleId={primaryBibleId}
 										query={tabSearch.query}
 										result={tabSearch.result}
 										loading={tabSearch.loading}
@@ -2725,7 +2727,9 @@
 																	}}
 																>
 																	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-																	{@html entry.bodyHtml}
+																	{@html linkBibleReferences(
+																		rewriteBibleReferenceLinks(entry.bodyHtml)
+																	)}
 																</div>
 															{/each}
 														</article>

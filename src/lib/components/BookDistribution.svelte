@@ -21,6 +21,7 @@
 		activeBook?: number | null;
 		compact?: boolean;
 	} = $props();
+	let width = $state(0);
 
 	// Zero-count books stay in the chart — the server already scopes `counts` to whichever books are
 	// relevant (a Strong's number's own testament, or the whole canon for a text search), so an empty
@@ -60,7 +61,12 @@
 </script>
 
 {#if counts.length > 0}
-	<figure class="book-distribution" aria-label={label}>
+	<figure
+		class="book-distribution"
+		class:narrow={width > 0 && width <= 360}
+		bind:clientWidth={width}
+		aria-label={label}
+	>
 		<figcaption class="mb-3 text-xs font-semibold tracking-wide text-stone-500 uppercase">
 			{label}
 		</figcaption>
@@ -90,6 +96,7 @@
 								onclick={onBook ? () => onBook(entry.book) : undefined}
 								class="book"
 								class:active={activeBook === entry.book}
+								class:empty={entry.count === 0}
 								title={bookTooltip(entry)}
 								aria-label={bookTooltip(entry)}
 								aria-current={!onBook && activeBook === entry.book ? 'true' : undefined}
@@ -123,12 +130,13 @@
 
 	.books {
 		display: grid;
-		grid-template-columns: repeat(var(--book-count), minmax(1.4rem, 1fr));
+		grid-template-columns: repeat(var(--book-count), minmax(0, 1fr));
 		align-items: end;
 		width: 100%;
-		height: 7.5rem;
+		padding-inline: 0.5rem;
+		height: 8.25rem;
 		margin-bottom: 0.75rem;
-		overflow-x: hidden;
+		overflow: visible;
 		border-bottom: 2px solid var(--color-stone-200);
 	}
 
@@ -138,9 +146,9 @@
 
 	.book {
 		display: grid;
-		grid-template-rows: 1rem 4.5rem 1.5rem;
+		grid-template-rows: 1rem 4.5rem 2.5rem;
 		align-items: end;
-		min-width: 1.4rem;
+		min-width: 0;
 		height: 100%;
 		text-align: center;
 		text-decoration: none;
@@ -181,11 +189,36 @@
 	}
 
 	.name {
-		align-self: center;
+		align-self: start;
+		justify-self: center;
 		padding: 0 0.1rem;
 		font-size: 0.62rem;
 		white-space: nowrap;
 		color: var(--color-stone-600);
+		line-height: 1.2;
+		margin-top: 0.3rem;
+	}
+
+	.book:nth-child(even) .name {
+		margin-top: 1.3rem;
+	}
+
+	.book.empty .bar {
+		background: var(--color-stone-300);
+	}
+
+	.book.empty .name,
+	.book.empty .count {
+		color: var(--color-stone-400);
+	}
+
+	:global(.dark) .book.empty .bar {
+		background: var(--color-stone-700);
+	}
+
+	:global(.dark) .book.empty .name,
+	:global(.dark) .book.empty .count {
+		color: var(--color-stone-500);
 	}
 
 	:global(.dark) .count,
@@ -197,7 +230,7 @@
 		grid-template-columns: repeat(var(--book-count), minmax(0, 1fr));
 		align-items: end;
 		min-width: 0;
-		height: 4.7rem;
+		height: 4.9rem;
 		margin-bottom: 0.4rem;
 		gap: 0;
 		overflow: visible;
@@ -212,12 +245,10 @@
 
 	.books.compact .name {
 		justify-self: center;
-		align-self: center;
+		align-self: start;
 		padding: 0;
 		font-size: 0.58rem;
 		line-height: 1;
-		writing-mode: vertical-rl;
-		transform: rotate(180deg);
 	}
 
 	.testament-summary {
@@ -238,24 +269,28 @@
 		color: var(--color-stone-400);
 	}
 
-	@media (max-width: 639px) {
-		.books {
-			min-width: max(100%, calc(var(--book-count) * 2rem));
-			height: 6.5rem;
-		}
-
-		.book {
-			grid-template-rows: 1rem 3.75rem 1.5rem;
-			min-width: 2rem;
-		}
-
-		.count,
-		.name {
-			font-size: 0.7rem;
-		}
-
-		.books.compact {
-			min-width: 0;
-		}
+	.book-distribution.narrow .books {
+		height: 9.9rem;
+	}
+	.book-distribution.narrow .book {
+		grid-template-rows: 1rem 4.5rem 4rem;
+	}
+	.book-distribution.narrow .books.compact {
+		height: 6.4rem;
+	}
+	.book-distribution.narrow .books.compact .book {
+		grid-template-rows: 2.1rem 4rem;
+	}
+	.book-distribution.narrow .book:nth-child(4n + 1) .name {
+		margin-top: 0.3rem;
+	}
+	.book-distribution.narrow .book:nth-child(4n + 2) .name {
+		margin-top: 1.3rem;
+	}
+	.book-distribution.narrow .book:nth-child(4n + 3) .name {
+		margin-top: 2.3rem;
+	}
+	.book-distribution.narrow .book:nth-child(4n + 4) .name {
+		margin-top: 3.3rem;
 	}
 </style>

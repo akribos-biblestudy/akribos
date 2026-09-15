@@ -3,6 +3,7 @@
 	import { lexiconText } from '$lib/bible/lexicon';
 	import { t } from '$lib/i18n';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
+	import { linkBibleReferences, rewriteBibleReferenceLinks } from '$lib/bible/link-references';
 
 	let { entry, bibleId = null }: { entry: StrongEntry; bibleId?: string | null } = $props();
 	const text = $derived(lexiconText(entry, 'de'));
@@ -15,8 +16,10 @@
 				<section>
 					<h3>{field.title}</h3>
 					<!-- Both editions pass through the same escaping XML parser before persistence. -->
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					<div class="lexicon-body">{@html field.html}</div>
+					<div class="lexicon-body">
+						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+						{@html linkBibleReferences(rewriteBibleReferenceLinks(field.html))}
+					</div>
 				</section>
 			{/if}
 		{/each}

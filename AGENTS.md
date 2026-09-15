@@ -347,6 +347,22 @@ Leseschrift-Skalierung. Bibelzitate im Lexikon behalten dieselbe `--reader-text-
 Lexikon-Labels, Statistik und Bedienelemente verwenden dagegen feste `rem`-Größen wie die übrige
 Oberfläche; sie dürfen die Leseschrift-Skalierung nicht erben oder verschachtelt vervielfachen.
 
+Kommentare, Parallelstellen-Fließtext und Lexikonfelder ergänzen Bibelstellenlinks erst beim Rendern
+mit `rewriteBibleReferenceLinks()` und `linkBibleReferences()`, ebenso Kommentar-Suchtreffer.
+Grundlage bleibt das bereits beim Import bereinigte HTML; die Darstellung schreibt weder Text noch
+Dokumentindex zurück. Vorhandene Strong-Links und Code bleiben erhalten. `verseHoverPopover` nutzt
+die jeweilige Quell-/Standardbibel, während `readerContentLinks` Links einschließlich Kopieren und
+Tastaturbedienung in den aktuellen Arbeitsbereich einbettet.
+
+Wortdiagramme beschriften bis zu acht häufigste Wiedergaben außen mit Verbindungslinien; unter 0,5 %
+liegende und weitere Wiedergaben werden als gezählter Rest zusammengefasst. Die Mitte nennt zuerst
+die Zahl der Übersetzungsformen, danach die Gesamtvorkommen. Vom Server nicht gelieferte Wiedergaben
+bleiben ein eigener Rest; ein `+` kennzeichnet die dann nur bekannte Mindestzahl der Formen. Tabelle
+und Filter enthalten weiterhin alle gelieferten Formen. Buchkürzel stehen horizontal in versetzten
+Zeilen (vier auf schmalen Kacheln), Bücher ohne Treffer sind grau und bleiben als Filter bedienbar.
+Unter 360 Pixel Diagrammbreite stehen die vollständigen Beschriftungen unter dem Kreis, damit weder
+die Wörter noch die mittige Zusammenfassung in schmalen Reader-Kacheln unlesbar werden.
+
 Interaktive Oberflächen-Icons kommen aus `src/lib/components/Icon.svelte`: ein 24er-Raster, runde
 Linienenden und einheitlich 1,8 Strichstärke. Auch `ResourceKindIcon.svelte` delegiert dorthin; neue
 Bedienelemente dürfen nicht wieder eigene gefüllte SVGs oder Unicode-Ersatzzeichen einführen. Der
