@@ -840,6 +840,12 @@ Wechsel ihre Position; auch ohne Seitenaktionen bleibt deren Platz auf schmalen 
 
 ## Daten, Suche und Sicherheit
 
+API-Anfragen für das Rate-Limit werden beim Start und danach minütlich bereinigt, auch für inzwischen
+inaktive Schlüssel und IPs. Der nicht blockierende Wartungslauf löscht über einen Zeitindex höchstens
+5000 abgelaufene Zeilen je Transaktion und arbeitet weitere Batches ohne überlappende Läufe ab. Das
+aktuelle Ein-Minuten-Fenster bleibt erhalten; Datenbankfehler werden beim nächsten Lauf erneut versucht.
+Die letzte erfolgreiche API-Schlüsselnutzung wird durch eine tatsächlich ausgeführte Abfrage gespeichert.
+
 Eine Backup-Wiederherstellung gleicht nach der Migration zuerst ihre Laufhistorie ab: Im Dump
 enthaltene `queued`-/`running`-Jobs sind historische Zustände und werden als unterbrochen markiert.
 Die aktuelle Sicherheitskopie und der aktuelle Restore werden aus ihrem vor `pg_restore` erfassten

@@ -6,6 +6,7 @@ import { pruneExpiredSessions } from '$lib/server/auth/session';
 import { logger } from '$lib/server/logger';
 import { authenticateApiRequest, type ApiAuth } from '$lib/server/api/gate';
 import { checkApiRateLimit, KEYED_LIMIT, TRUSTED_LIMIT } from '$lib/server/api/rate-limit';
+import { startApiMaintenance } from '$lib/server/api/maintenance';
 import { apiError } from '$lib/server/api/errors';
 import { cleanStaleStagedFiles, failInterruptedBackupJobs } from '$lib/server/backup/jobs';
 import { startBackupScheduler } from '$lib/server/backup/scheduler';
@@ -60,6 +61,7 @@ export const init: ServerInit = async () => {
 	// Outside the try/catch above: a database that is briefly unreachable at boot must not permanently
 	// leave the site without a scheduler until the next deploy.
 	startBackupScheduler(db);
+	startApiMaintenance(db);
 };
 
 /**

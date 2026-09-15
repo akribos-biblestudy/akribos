@@ -524,7 +524,10 @@ export const apiRequests = pgTable(
 		subject: text('subject').notNull(),
 		requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow()
 	},
-	(table) => [index('api_requests_subject_idx').on(table.subject, table.requestedAt)]
+	(table) => [
+		index('api_requests_subject_idx').on(table.subject, table.requestedAt),
+		index('api_requests_requested_at_idx').on(table.requestedAt)
+	]
 );
 
 // --- verse lists ------------------------------------------------------------
