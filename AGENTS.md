@@ -185,6 +185,14 @@ startet dagegen bewusst aus dem gespeicherten Workspace, wird kanonisiert und da
 Alle Reader-Form-Actions und kontextuellen Links müssen diese Parameter mitführen und ihren neuen `readerState`
 zurückgeben; Trennergrößen dürfen unabhängig davon als persönliche Präferenz gespeichert werden.
 
+Workspace-Aktionen liefern zusätzlich immer den Pfad des anschließend fokussierten aktiven Tabs.
+Clients übernehmen diesen Pfad auch bei Layoutänderungen, Werkwechseln und Wortstudien; der alte
+globale Pfad darf keine unabhängige Tabgruppe überschreiben. Native HTML-Formulare erhalten nach
+erfolgreicher Änderung einen 303-Redirect auf dieselbe berechnete Reader-Adresse. Das Stellenfeld
+ist bereits beim Serverrendern befüllt. Suchbegriffe bleiben auch für inaktive Tabs im URL-Zustand;
+deren Ergebnisse werden erst bei Aktivierung geladen. Inline-Verweise in Kommentar-Suchergebnissen
+verwenden denselben kontextuellen Linkmechanismus wie der normale Kommentartext.
+
 Jede aktive Ressource wird in einer eigenen `.flow-column` innerhalb ihrer `.reader-tile` gerendert.
 Jeder aktive Tab besitzt in `columnStreams` seinen eigenen Kapitelstream; die REST-Nachladung verlangt
 deshalb immer `?resource=<id>` und liefert nie wieder einen globalen Mehrspaltenstrom. DOM-Schlüssel sind

@@ -182,3 +182,33 @@ describe('reader workspace', () => {
 		expect(readerLayoutSize(workspace).columns).toEqual([0.75, 0.25]);
 	});
 });
+
+it('expands by moving an inactive tab while keeping the active last tab and original focus', () => {
+	let workspace = workspaceFromColumns(['first'], { book: 1, chapter: 1 });
+	workspace = addReaderTab(workspace, 'tile-1', 'active-last', () => 'last');
+	workspace = setReaderTabLinkSet(workspace, 'tile-1', 'last', 'B');
+	workspace = setReaderTabReference(workspace, 'tile-1', 'last', { book: 43, chapter: 3 });
+	const expanded = changeReaderLayout(workspace, 'columns-2', () => 'tile-new');
+	expect(expanded.focusedTileId).toBe('tile-1');
+	expect(activeReaderTab(expanded.tiles[0]!)).toMatchObject({
+		id: 'last',
+		resourceId: 'active-last',
+		reference: { book: 43, chapter: 3 }
+	});
+	expect(activeReaderTab(expanded.tiles[1]!)).toMatchObject({
+		resourceId: 'first',
+		reference: { book: 1, chapter: 1 }
+	});
+	expect(workspace.tiles[0]!.tabs).toHaveLength(2);
+});
+
+it('inherits an explicit independent link set, and defaults only an empty tile to A', () => {
+	let workspace = workspaceFromColumns(['first']);
+	workspace = setReaderTabLinkSet(workspace, 'tile-1', 'tab-1', null);
+	workspace = addReaderTab(workspace, 'tile-1', 'second', () => 'second');
+	expect(activeReaderTab(workspace.tiles[0]!)?.linkSet).toBeNull();
+	workspace = changeReaderLayout(workspace, 'columns-3', ids());
+	const empty = workspace.tiles.find((tile) => tile.tabs.length === 0)!;
+	const filled = addReaderTab(workspace, empty.id, 'third', () => 'third');
+	expect(activeReaderTab(filled.tiles.find((tile) => tile.id === empty.id)!)?.linkSet).toBe('A');
+});

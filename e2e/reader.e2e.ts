@@ -1031,7 +1031,7 @@ test('links inside a lexicon keep and expose their reader context', async ({ pag
 	const strongReference = study.getByRole('link', { name: 'G2316' });
 	const bibleReference = study.getByRole('link', { name: 'Joh 3:16' });
 
-	await expect(strongReference).toHaveAttribute('href', /\/Joh3\?layout=/);
+	await expect(strongReference).toHaveAttribute('href', /\/Joh3,16\?layout=/);
 	await expect(bibleReference).toHaveAttribute('href', /\/Joh3,16\?layout=/);
 	await strongReference.click();
 	await expect(lexiconLookup(page)).toHaveValue('G2316');

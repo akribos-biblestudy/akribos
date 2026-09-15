@@ -348,9 +348,9 @@ export function changeReaderLayout(
 		while (next.tiles.length < tileCount) {
 			// Spread inactive tabs into newly visible tiles before leaving a genuinely empty tile.
 			const donor = next.tiles.find((tile) => tile.tabs.length > 1);
-			const moved = donor?.tabs.pop();
-			if (donor && donor.activeTabId === moved?.id)
-				donor.activeTabId = donor.tabs.at(-1)?.id ?? null;
+			const inactiveIndex = donor?.tabs.findLastIndex((tab) => tab.id !== donor.activeTabId) ?? -1;
+			const moved =
+				donor && inactiveIndex >= 0 ? donor.tabs.splice(inactiveIndex, 1)[0] : undefined;
 			next.tiles.push({
 				id: createId(),
 				tabs: moved ? [moved] : [],
@@ -385,7 +385,7 @@ export function addReaderTab(
 	const tab: ReaderTab = {
 		id: createId(),
 		resourceId,
-		linkSet: current?.linkSet ?? 'A',
+		linkSet: current ? current.linkSet : 'A',
 		reference: { ...(current?.reference ?? DEFAULT_READER_REFERENCE) },
 		lookup: null,
 		studyContext: null

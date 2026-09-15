@@ -7,6 +7,7 @@
 	import { onMount } from 'svelte';
 	import {
 		readerActionUrl,
+		readerPathFromActionData,
 		readerStateFromActionData,
 		readerStateFromPage,
 		readerUrl
@@ -47,11 +48,20 @@
 			const state = result.type === 'success' ? readerStateFromActionData(result.data) : null;
 			if (state && result.type === 'success') {
 				announceTabHistoryMutation(result.data);
-				await goto(readerUrl(page.url.pathname, state), {
-					replaceState: true,
-					invalidateAll: true,
-					noScroll: true
-				});
+				await goto(
+					readerUrl(
+						readerPathFromActionData(
+							result.type === 'success' ? result.data : null,
+							page.url.pathname
+						),
+						state
+					),
+					{
+						replaceState: true,
+						invalidateAll: true,
+						noScroll: true
+					}
+				);
 				return;
 			}
 			await update({ reset: false, invalidateAll: result.type !== 'success' });

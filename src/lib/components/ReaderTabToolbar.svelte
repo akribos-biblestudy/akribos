@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -8,6 +9,7 @@
 	import { READER_LINK_SETS, type ReaderLinkSet, type ReaderTab } from '$lib/reader/workspace';
 	import {
 		readerActionUrl,
+		readerPathFromActionData,
 		readerStateFromActionData,
 		readerStateFromPage,
 		readerUrl
@@ -49,7 +51,11 @@
 		onHistory: (direction: -1 | 1) => void;
 	} = $props();
 
-	let value = $state('');
+	let value = $state(
+		untrack(() =>
+			resource.kind === 'lexicon' ? (tab.lookup ?? '') : (searchQuery ?? formatReference(reference))
+		)
+	);
 	let focused = $state(false);
 	let valueTabId = $state('');
 	let linkMenu = $state<Menu>();
@@ -101,12 +107,21 @@
 			linkMenu?.close();
 			const state = result.type === 'success' ? readerStateFromActionData(result.data) : null;
 			if (state) {
-				await goto(readerUrl(page.url.pathname, state), {
-					replaceState: true,
-					invalidateAll: true,
-					noScroll: true,
-					keepFocus: true
-				});
+				await goto(
+					readerUrl(
+						readerPathFromActionData(
+							result.type === 'success' ? result.data : null,
+							page.url.pathname
+						),
+						state
+					),
+					{
+						replaceState: true,
+						invalidateAll: true,
+						noScroll: true,
+						keepFocus: true
+					}
+				);
 				return;
 			}
 			await update({ reset: false, invalidateAll: result.type !== 'success' });
