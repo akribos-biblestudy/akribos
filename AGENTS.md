@@ -1016,3 +1016,16 @@ Strong-Hover wird durch `strongHover` am Reader delegiert. Ein DOM-Index aktuali
 passenden primären oder zusätzlichen Strong-Nummer, ohne alle Verse reaktiv neu zu bewerten. Maus und
 schwebender Stift unterstützen Hover; Stiftkontakt und Touch löschen ihn. Ausgewählte Suchtreffer nutzen
 weiter separat `activeStrong`.
+
+### Reader-Start ohne optionale Editor- und Diagrammpakete
+
+Der Notizbereich lädt `DocumentEditor` erst beim Öffnen eines Dokuments dynamisch, parallel zur
+Dokumentanfrage. Die vorhandene Anfragegeneration verhindert weiterhin, dass eine verspätete Antwort
+oder ein später geladenes Modul ein inzwischen anderes Dokument öffnet. Die reine Bibliotheksansicht
+lädt keinen Editor. Lexikon- und Suchansichten laden `GlossChart` über `DeferredGlossChart` erst bei vorhandenen
+Übersetzungsformen; während des Downloads reserviert ein Platzhalter die Diagrammhöhe. Typimporte
+dürfen diese Pakete nicht wieder in das anfänglich geladene Reader-JavaScript ziehen.
+
+Das Header-Logo verwendet PNG-Varianten mit 140/280/420 Pixeln Breite für einfache bis dreifache
+Pixeldichte, bei expliziten intrinsischen Maßen 140 × 40. `static/logo.png` bleibt die ursprüngliche
+Bildquelle; die Varianten werden daraus proportional verkleinert und behalten Transparenz und Farben.

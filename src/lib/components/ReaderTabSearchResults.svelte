@@ -4,7 +4,7 @@
 	import { formatNumber } from '$lib/i18n';
 	import type { ReaderTabSearchResponse } from '$lib/reader/tab-search';
 	import BookDistribution from './BookDistribution.svelte';
-	import GlossChart from './GlossChart.svelte';
+	import GlossChart from './DeferredGlossChart.svelte';
 	import HighlightedVerse from './HighlightedVerse.svelte';
 	import Icon from './Icon.svelte';
 	import VerseText from './VerseText.svelte';

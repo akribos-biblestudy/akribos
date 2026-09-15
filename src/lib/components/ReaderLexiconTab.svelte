@@ -8,7 +8,7 @@
 	import type { StrongEntry } from '$lib/server/repositories/strong';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import BookDistribution from './BookDistribution.svelte';
-	import GlossChart from './GlossChart.svelte';
+	import GlossChart from './DeferredGlossChart.svelte';
 	import Icon from './Icon.svelte';
 	import MorphologyList from './MorphologyList.svelte';
 	import VerseText from './VerseText.svelte';
