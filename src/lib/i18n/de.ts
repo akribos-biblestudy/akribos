@@ -835,6 +835,10 @@ export const de = {
 	'tour.columnAdd.body':
 		'Mit diesem Symbol öffnest du eine weitere Übersetzung, einen Kommentar, Parallelstellen oder ein Wörterbuch als Tab in derselben Kachel.',
 	'tour.verseMenu.title': 'Versmenü',
+	'tour.accountBenefits.title': 'Mit einem Konto weiterarbeiten',
+	'tour.accountBenefits.body':
+		'Nach der Anmeldung kannst du Verse markieren, Notizen und Ausarbeitungen schreiben, Stellensammlungen anlegen und Arbeitsbereiche geräteübergreifend speichern. Über das Konto-Menü meldest du dich an. Das Lesen und Studieren der Bibel bleibt auch ohne Konto möglich.',
+	'tour.accountBenefits.register': 'Konto erstellen',
 	'tour.verseMenu.body':
 		'Klicke auf eine Versnummer, um sie hervorzuheben, eine verknüpfte Notiz zu beginnen oder sie einer Stellensammlung zuzuordnen.',
 	'tour.readerNotes.title': 'Notizen im Bibeltext',

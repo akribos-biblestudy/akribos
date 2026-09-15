@@ -4,10 +4,15 @@ import { Buffer } from 'node:buffer';
 import type { Cookies } from '@sveltejs/kit';
 import {
 	allResourceIds,
+	isReaderLayout,
 	normalizeReaderWorkspace,
 	type ReaderWorkspace
 } from '$lib/reader/workspace';
 import type { VerseRef } from '$lib/bible/reference';
+import {
+	INITIAL_READER_COLUMNS_COOKIE,
+	readInitialReaderColumns
+} from '$lib/reader/initial-layout';
 import { COLUMNS_COOKIE, resolveColumns, writeColumns } from './columns.ts';
 import type { ReadableResource } from './repositories/resources.ts';
 
@@ -66,7 +71,10 @@ export function resolveReaderWorkspace(
 	const fallback =
 		cookieColumns.length > 0 || accountHasColumns
 			? resolveColumns(cookies, available, accountColumns)
-			: defaultWorkspaceResources(available);
+			: defaultWorkspaceResources(
+					available,
+					readInitialReaderColumns(cookies.get(INITIAL_READER_COLUMNS_COOKIE)) ?? 1
+				);
 	const stored = accountWorkspace ?? readReaderWorkspaceCookie(cookies);
 	return normalizeReaderWorkspace(
 		stored,
@@ -76,13 +84,44 @@ export function resolveReaderWorkspace(
 	);
 }
 
-/** A new reader starts with one complementary resource per tile instead of several translations. */
-function defaultWorkspaceResources(available: ReadableResource[]): string[] {
-	const ids = (['bible', 'commentary', 'lexicon'] as const).flatMap((kind) => {
-		const resource = available.find((candidate) => candidate.kind === kind);
+/** Defer a first preference until the browser can supply its width; existing choices always win. */
+export function needsInitialReaderViewport(
+	cookies: Cookies,
+	available: ReadableResource[],
+	accountWorkspace: ReaderWorkspace | null | undefined,
+	accountColumns: readonly string[] = []
+): boolean {
+	if (readInitialReaderColumns(cookies.get(INITIAL_READER_COLUMNS_COOKIE))) return false;
+	const stored = accountWorkspace ?? readReaderWorkspaceCookie(cookies);
+	if (
+		stored &&
+		typeof stored === 'object' &&
+		'version' in stored &&
+		stored.version === 1 &&
+		'layout' in stored &&
+		isReaderLayout(stored.layout)
+	)
+		return false;
+	const known = new Set(available.map((resource) => resource.id));
+	return ![...(cookies.get(COLUMNS_COOKIE) ?? '').split(','), ...accountColumns].some((id) =>
+		known.has(id.trim())
+	);
+}
+
+/** Bible first, then complementary works; fill missing categories with other available Bibles. */
+function defaultWorkspaceResources(available: ReadableResource[], columns: number): string[] {
+	const sorted = [...available].sort((a, b) => a.sortOrder - b.sortOrder);
+	const ids = (['bible', 'commentary', 'lexicon', 'xrefs'] as const).flatMap((kind) => {
+		const resource = sorted.find((candidate) => candidate.kind === kind);
 		return resource ? [resource.id] : [];
 	});
-	return ids.length > 0 ? ids : available.slice(0, 1).map((resource) => resource.id);
+	for (const resource of sorted.filter((candidate) => candidate.kind === 'bible')) {
+		if (!ids.includes(resource.id)) ids.push(resource.id);
+	}
+	return (ids.length > 0 ? ids : sorted.slice(0, 1).map((resource) => resource.id)).slice(
+		0,
+		columns
+	);
 }
 
 export function readReaderWorkspaceCookie(cookies: Cookies): unknown {

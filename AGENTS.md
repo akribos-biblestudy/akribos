@@ -88,11 +88,18 @@ werden zuerst inaktive Tabs verteilt. Kein Layoutwechsel darf einen Tab schließ
 werden je Anordnung separat gespeichert. `MAX_READER_TABS` ist ausschließlich eine Missbrauchsgrenze,
 keine bewusst sichtbare Produktgrenze.
 
-Ohne gespeicherten Workspace und ohne migrierbare alte Spaltenauswahl startet der Reader dreispaltig:
-erste Bibel, erster Kommentar und erstes Lexikon gemäß `sortOrder`, alle in Tabgruppe A. Fehlt eine
-dieser Ressourcenkategorien, werden nur die vorhandenen Standardressourcen geöffnet. Ein vorhandener
-Workspace beziehungsweise eine alte `columns`-/`reader_columns`-Auswahl hat immer Vorrang vor diesem
-Standard.
+Ohne gespeicherten Workspace und ohne migrierbare alte Spaltenauswahl richtet sich die erste Ansicht
+nach der Fensterbreite: unter 768 CSS-Pixeln eine, ab 768 zwei, ab 1200 drei und ab 1920 vier Spalten.
+Die Werke folgen der Reihenfolge Bibel, Kommentar, Lexikon, Parallelstellen, je Kategorie gemäß
+`sortOrder`, alle in Tabgruppe A. Fehlende Kategorien werden mit weiteren Bibeln aufgefüllt;
+es entstehen höchstens so viele Kacheln wie ausgewählte Werke. Die erste Ressource ist immer eine Bibel.
+Das Root-Layout meldet die grobe Breitenklasse im Cookie `reader-initial-columns`. Solange sie bei
+einem Erstbesuch fehlt, zeigen Server-Loads nur eine vorläufige Bibelkachel und speichern oder
+kanonisieren diese noch nicht. Nach der einmaligen Client-Navigation wird der passende Standard
+regulär gespeichert; die Tour wartet darauf. Ohne JavaScript bleibt die Bibelkachel bedienbar.
+Die vorläufige Reader-Antwort ist `private, no-store`. Gespeicherte Konto-/Cookie-Workspaces,
+alte `columns`-/`reader_columns`-Auswahlen und geteilte URL-Ansichten haben immer Vorrang;
+Fenstergrößenänderungen ordnen einen bestehenden Arbeitsbereich nie automatisch neu an.
 
 Das vollständige Workspace-JSON liegt für Konten in `users.reader_workspace`, für Gäste kompakt und
 Base64url-kodiert im Cookie `reader-workspace`. Bei Konten ist die Datenbankkopie maßgeblich und folgt
@@ -777,6 +784,11 @@ jemand an, der die Tour bereits als Gast beendet hat, zeigt die erste Ausführun
 zusätzlichen, angemeldeten Schritte (`MEMBER_TOUR_STEPS`); sonst die vollständige Sequenz. Da Login und
 Registrierung standardmäßig auf `/account` weiterleiten, nicht in den Reader, erscheint die Tour für
 diese Fälle beim nächsten Reader-Besuch automatisch, nicht zwingend unmittelbar nach dem Einloggen.
+Die Gast-Tour endet mit einem Hinweis auf Markierungen, Notizen, Ausarbeitungen, Stellensammlungen
+und gespeicherte Arbeitsbereiche nach der Anmeldung sowie einem Link zur Registrierung.
+Dieser Schritt gehört ausschließlich zur Gast-Tour; angemeldete Leser sehen ihre Funktionsschritte.
+Die globale Top Bar nutzt die gesamte Fensterbreite: Logo links, Ansichts-/Kontofunktionen rechts,
+auch auf 4K-Monitoren und unabhängig von der begrenzten Inhaltsbreite einer Unterseite.
 
 Das Benutzer-Menü (`/account`) enthält nur Profil & Sicherheit sowie Darstellung. Der aktive
 Abschnitt steht im `tab`-Queryparameter und bleibt über Reload und Browser-History erhalten.

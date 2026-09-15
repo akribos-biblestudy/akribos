@@ -213,6 +213,14 @@
 		</p>
 		<h2 id="tour-panel-title" class="tour-title">{t(step.titleKey)}</h2>
 		<p class="tour-body">{t(step.bodyKey)}</p>
+		{#if step.link}
+			<a
+				href={step.link.href}
+				onclick={() => complete()}
+				class="mt-3 inline-block text-sm font-semibold text-accent-700 underline dark:text-accent-300"
+				>{t(step.link.labelKey)}</a
+			>
+		{/if}
 		<div class="tour-actions">
 			<button type="button" class="tour-skip" onclick={() => complete()}>{t('tour.skip')}</button>
 			<div class="tour-nav">

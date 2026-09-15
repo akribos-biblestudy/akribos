@@ -6,6 +6,7 @@ import {
 } from '$lib/server/repositories/saved-reader-workspaces';
 import { listBibles, listReaderResources } from '$lib/server/repositories/resources';
 import {
+	needsInitialReaderViewport,
 	resolveReaderWorkspace,
 	workspaceColumns,
 	writeWorkspaceCompatibilityCookies
@@ -31,6 +32,12 @@ export async function load({ cookies, locals }) {
 		? locals.user!.defaultBibleId
 		: null;
 	const readerResources = await listReaderResources(db, locals.user?.id);
+	const initializeReaderWorkspace = needsInitialReaderViewport(
+		cookies,
+		readerResources,
+		locals.user?.readerWorkspace,
+		locals.user?.readerColumns
+	);
 	const workspace = resolveReaderWorkspace(
 		cookies,
 		readerResources,
@@ -38,12 +45,14 @@ export async function load({ cookies, locals }) {
 		locals.user?.readerColumns
 	);
 	const columns = workspaceColumns(workspace);
-	if (locals.user && !locals.user.readerWorkspace) {
-		await updateReaderWorkspace(db, locals.user.id, workspace);
+	if (!initializeReaderWorkspace) {
+		if (locals.user && !locals.user.readerWorkspace) {
+			await updateReaderWorkspace(db, locals.user.id, workspace);
+		}
+		if (locals.user) await ensureDefaultReaderWorkspace(db, locals.user.id, workspace);
+		// Keep a device fallback for guests and after sign-out, once the first layout is known.
+		writeWorkspaceCompatibilityCookies(cookies, workspace);
 	}
-	if (locals.user) await ensureDefaultReaderWorkspace(db, locals.user.id, workspace);
-	// Also keep a device fallback for guests and after sign-out. Signed-in readers use the account copy.
-	writeWorkspaceCompatibilityCookies(cookies, workspace);
 	const readerFontScale = readFontScale(cookies, locals.user?.readerFontScale);
 	writeFontScale(cookies, readerFontScale);
 	const theme = readTheme(cookies, locals.user?.theme);
@@ -51,6 +60,7 @@ export async function load({ cookies, locals }) {
 
 	const savedWorkspaces = locals.user ? await listSavedReaderWorkspaces(db, locals.user.id) : [];
 	return {
+		initializeReaderWorkspace,
 		analytics: await readAnalyticsSettings(db),
 		savedWorkspaces,
 		activeSavedWorkspaceId: savedWorkspaces.find((entry) => entry.isActive)?.id ?? null,

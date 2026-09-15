@@ -44,7 +44,7 @@ test('a new guest sees the product tour automatically and it stays closed once d
 
 	const tour = page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' });
 	await expect(tour).toBeVisible();
-	await expect(page.getByText('Schritt 1 von 6')).toBeVisible();
+	await expect(page.getByText('Schritt 1 von 7')).toBeVisible();
 
 	await page.getByRole('button', { name: 'Tour überspringen' }).click();
 	await expect(tour).toHaveCount(0);
@@ -77,12 +77,21 @@ test('the tour walks through its signed-out steps with Weiter and can be finishe
 	await expect(page.getByRole('dialog', { name: 'Werkauswahl' })).toBeVisible();
 	await page.getByRole('button', { name: 'Weiter' }).click(); // -> Tabs verknüpfen
 	await expect(page.getByRole('dialog', { name: 'Tabs verknüpfen' })).toBeVisible();
-	await page.getByRole('button', { name: 'Weiter' }).click(); // -> Tab hinzufügen, the last step
+	await page.getByRole('button', { name: 'Weiter' }).click(); // -> Tab hinzufügen
 	await expect(page.getByRole('dialog', { name: 'Tab hinzufügen' })).toBeVisible();
+	await page.getByRole('button', { name: 'Weiter' }).click();
+	const benefits = page.getByRole('dialog', { name: 'Mit einem Konto weiterarbeiten' });
+	await expect(benefits).toBeVisible();
+	await expect(benefits).toContainText('Notizen und Ausarbeitungen');
+	await expect(benefits).toContainText('Stellensammlungen');
+	await expect(benefits.getByRole('link', { name: 'Konto erstellen' })).toHaveAttribute(
+		'href',
+		'/register'
+	);
 
 	// Last step for a guest: its button reads "Fertig" rather than "Weiter".
 	await page.getByRole('button', { name: 'Fertig' }).click();
-	await expect(page.getByRole('dialog', { name: 'Tab hinzufügen' })).toHaveCount(0);
+	await expect(benefits).toHaveCount(0);
 
 	await page.goto('/Joh3');
 	await expect(page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' })).toHaveCount(0);
@@ -97,7 +106,7 @@ test('the "Produkt-Tour" menu item restarts it from the beginning', async ({ pag
 	await page.getByRole('menuitem', { name: 'Produkt-Tour' }).click();
 
 	await expect(page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' })).toBeVisible();
-	await expect(page.getByText('Schritt 1 von 6')).toBeVisible();
+	await expect(page.getByText('Schritt 1 von 7')).toBeVisible();
 });
 
 test('escape closes the tour and counts as dismissed', async ({ page }) => {

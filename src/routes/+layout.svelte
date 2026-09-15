@@ -2,7 +2,9 @@
 	import './layout.css';
 	import Analytics from '$lib/components/Analytics.svelte';
 	import { page } from '$app/state';
-	import { setContext } from 'svelte';
+	import { onMount, setContext } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { INITIAL_READER_COLUMNS_COOKIE, initialReaderColumns } from '$lib/reader/initial-layout';
 	import {
 		READER_WORKSPACE_CONTEXT,
 		type ReaderWorkspaceCapture
@@ -17,6 +19,21 @@
 	} from '$lib/reader/document-navigation';
 
 	let { children, data } = $props();
+	onMount(() => {
+		// Send only a coarse width hint. Saved layouts ignore it, including on another device.
+		const value = String(initialReaderColumns(window.innerWidth));
+		try {
+			document.cookie = `${INITIAL_READER_COLUMNS_COOKIE}=${value}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+			if (
+				data.initializeReaderWorkspace &&
+				document.cookie.split('; ').includes(`${INITIAL_READER_COLUMNS_COOKIE}=${value}`)
+			) {
+				void goto(page.url, { replaceState: true, invalidateAll: true, noScroll: true });
+			}
+		} catch {
+			// Without cookies or JavaScript the first Bible remains usable in a single tile.
+		}
+	});
 	setContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT, { capture: null });
 	setContext<DocumentReaderNavigation>(DOCUMENT_READER_NAVIGATION, { pending: null });
 	setContext<ReferenceNavigation>(REFERENCE_NAVIGATION, {
@@ -65,6 +82,7 @@
 				? { fontScale: data.readerFontScale, layout: readerWorkspace.layout }
 				: null}
 			guestTourDone={data.tourGuestDone}
+			initializingWorkspace={data.initializeReaderWorkspace}
 		/>
 
 		{@render children()}

@@ -14,13 +14,14 @@ export type TourStep = {
 	titleKey: MessageKey;
 	bodyKey: MessageKey;
 	placement: TourPlacement;
+	link?: { href: string; labelKey: MessageKey };
 };
 
 /**
  * Explained to every reader, signed in or not: each tab's combined location/resource search, word
  * study, work replacement, A–E link sets and opening another tab.
  */
-export const GUEST_TOUR_STEPS: TourStep[] = [
+const READER_TOUR_STEPS: TourStep[] = [
 	{
 		id: 'reader-layout',
 		selector: '[data-testid="layout-picker"]',
@@ -65,6 +66,18 @@ export const GUEST_TOUR_STEPS: TourStep[] = [
 	}
 ];
 
+export const GUEST_TOUR_STEPS: TourStep[] = [
+	...READER_TOUR_STEPS,
+	{
+		id: 'account-benefits',
+		selector: '[data-tour-target="user-menu"]',
+		titleKey: 'tour.accountBenefits.title',
+		bodyKey: 'tour.accountBenefits.body',
+		placement: 'bottom',
+		link: { href: '/register', labelKey: 'tour.accountBenefits.register' }
+	}
+];
+
 /**
  * Additional steps shown only once signed in: the verse menu (highlight, note,
  * verse lists) and the account entry point.
@@ -88,7 +101,7 @@ export const MEMBER_TOUR_STEPS: TourStep[] = [
 
 /** The complete sequence for the current sign-in state — what "Produkt-Tour" restarts from scratch. */
 export function tourStepsFor(signedIn: boolean): TourStep[] {
-	return signedIn ? [...GUEST_TOUR_STEPS, ...MEMBER_TOUR_STEPS] : GUEST_TOUR_STEPS;
+	return signedIn ? [...READER_TOUR_STEPS, ...MEMBER_TOUR_STEPS] : GUEST_TOUR_STEPS;
 }
 
 const DOCUMENT_LIBRARY_TOUR_STEPS: TourStep[] = [

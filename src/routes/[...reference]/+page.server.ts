@@ -46,6 +46,7 @@ import {
 	type ReaderSearchQueries
 } from '$lib/reader/url-state';
 import {
+	needsInitialReaderViewport,
 	resolveReaderWorkspace,
 	workspaceColumns,
 	writeWorkspaceCompatibilityCookies
@@ -145,6 +146,14 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 		reference
 	);
 	const decodedUrlState = decodeReaderUrlState(url);
+	const awaitingInitialViewport =
+		!decodedUrlState &&
+		needsInitialReaderViewport(
+			cookies,
+			readerResources,
+			locals.user?.readerWorkspace,
+			locals.user?.readerColumns
+		);
 	const activeSaved = locals.user ? await getActiveReaderWorkspace(db, locals.user.id) : null;
 	let workspace = decodedUrlState
 		? normalizeReaderWorkspace(
@@ -196,7 +205,7 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 	}
 
 	const readerState = encodeReaderUrlState(workspace, searchQueries, notesFilters);
-	if (readerStateFromUrl(url) !== readerState) {
+	if (!awaitingInitialViewport && readerStateFromUrl(url) !== readerState) {
 		// A plain passage URL starts a personal branch and may safely become the account/device default.
 		// A valid URL snapshot is never persisted by this GET: it may have come from somebody else.
 		if (!decodedUrlState)
@@ -250,7 +259,10 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 
 	// Public scripture text is the same for everyone; a signed-in reader's page is not.
 	setHeaders({
-		'cache-control': locals.user ? 'private, no-store' : 'public, max-age=0, s-maxage=3600'
+		'cache-control':
+			locals.user || awaitingInitialViewport
+				? 'private, no-store'
+				: 'public, max-age=0, s-maxage=3600'
 	});
 
 	rememberLocation(cookies, reference);

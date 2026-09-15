@@ -17,6 +17,7 @@
 		user = null,
 		savedWorkspaces = [],
 		readerPreferences = null,
+		initializingWorkspace = false,
 		guestTourDone = false
 	}: {
 		savedWorkspaces?: SavedWorkspaceSummary[];
@@ -27,6 +28,7 @@
 			tourCompletedAt: Date | string | null;
 		} | null;
 		readerPreferences?: { fontScale: number; layout: ReaderLayout } | null;
+		initializingWorkspace?: boolean;
 		/** Whether this device already finished (or dismissed) the tour while signed out. */
 		guestTourDone?: boolean;
 	} = $props();
@@ -39,6 +41,7 @@
 	 * record, while the guest cookie only shortens what a first sign-in shows.
 	 */
 	const autoStartTourSteps = $derived.by(() => {
+		if (initializingWorkspace) return [];
 		if (user)
 			return user.tourCompletedAt
 				? []
@@ -64,9 +67,7 @@
 	       backdrop-blur-xl before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent-500
 	       dark:border-white/8 dark:shadow-black/20"
 >
-	<div
-		class="mx-auto flex h-[var(--header-height)] max-w-[var(--content-max-width)] items-center gap-2 px-3 pt-0.5 sm:gap-5 sm:px-5"
-	>
+	<div class="flex h-[var(--header-height)] w-full items-center gap-2 px-3 pt-0.5 sm:gap-5 sm:px-5">
 		<a href="/" class="group shrink-0 focus-visible:rounded-sm" aria-label="Akribos – Startseite">
 			{#if readerPreferences}
 				<img src="/logo.png" alt="Akribos" class="h-8 w-auto sm:h-10" />
