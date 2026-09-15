@@ -727,6 +727,18 @@ Downloads erzwingen `attachment`, `nosniff`, CSP-Sandbox und `private, no-store`
 Papierkorb und Wechsel zu Notizen lassen Anlagen ruhen; Wiederherstellung beziehungsweise Rückwechsel
 machen sie erneut zugänglich. Physisches Dokument-/Kontolöschen löscht die Dateien per Cascade.
 Anlagen sind weder Bestandteil öffentlicher Notizen noch der Markdown-/Word-/PDF-Exporte.
+Die interne Dokumentbibliotheks-API filtert anhand derselben kompakten Stellenprojektion wie die
+Notizbibliothek, behält aber ihre Sortierung nach Änderungsdatum. Erst nach allen Filtern lädt sie
+höchstens 100 Vorschauen; vollständige Körper werden bei aktueller Parser-Version nicht erneut gelesen
+oder geparst. Fehlende/veraltete Projektionen bleiben während rollender Deployments im Speicher
+rekonstruierbar, ohne GET-Schreibzugriffe. Das Ausarbeitungsboard liest nur Workflow-Metadaten und
+höchstens 136 Vorschauzeichen pro Dokument; Suchen prüfen weiterhin den vollständigen Suchtext.
+Word und PDF exportieren die Markdown-Blockstruktur über den Parser. Codeblöcke und Inline-Code sind
+wörtlicher Inhalt, normale Formatierungen verändern keine unformatierten Sternchen, Unterstriche oder
+URLs. Word-Links auf interne Dokumente verwenden die aktuelle Server-Origin. Doppelte Vorlagennamen
+bleiben durch den eindeutigen Datenbankindex geschützt und liefern auch bei eingepackten Drizzle-
+Fehlern einen erklärten HTTP-409-Konflikt; die Formularverbesserung erhält den eingegebenen Entwurf.
+
 `DocumentEditor.withRevision()` hält für Upload/Löschen dieselbe serielle Queue wie Autosave:
 ausstehender Text wird vorher gespeichert, während des Uploads eingegebener Text danach mit der neuen
 Revision. Weitere Uploads, Metadatenformulare und Navigations-Flushes warten auf diese Queue.

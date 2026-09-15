@@ -459,6 +459,8 @@ export const de = {
 	'sermons.templates.emptyDocument': 'Leeres Dokument',
 	'sermons.templates.empty': 'Du hast noch keine eigene Ausarbeitungsvorlage.',
 	'sermons.templates.saved': 'Die Ausarbeitungsvorlage wurde gespeichert.',
+	'sermons.templates.duplicate':
+		'Eine Vorlage mit diesem Namen ist bereits vorhanden. Bitte einen anderen Namen wählen.',
 	'sermons.templates.error': 'Die Ausarbeitungsvorlage konnte nicht gespeichert werden.',
 	'sermons.templates.deleteConfirm': 'Diese Ausarbeitungsvorlage wirklich löschen?',
 	'sermons.deliveries.title': 'Bereits gehalten',

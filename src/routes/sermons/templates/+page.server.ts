@@ -20,8 +20,15 @@ function templateFailure(caught: unknown) {
 	if (caught instanceof InvalidSermonTemplateError) {
 		return fail(400, { error: caught.code });
 	}
-	if (caught && typeof caught === 'object' && 'code' in caught && caught.code === '23505') {
-		return fail(409, { error: 'duplicate' as const });
+	// Drizzle wraps the PostgreSQL error in `cause`; inspect that chain without swallowing
+	// unrelated failures. The unique constraint is still the authority for concurrent submits.
+	const seen = new Set<unknown>();
+	let cause = caught;
+	while (cause && typeof cause === 'object' && !seen.has(cause)) {
+		seen.add(cause);
+		if ('code' in cause && cause.code === '23505')
+			return fail(409, { error: 'duplicate' as const });
+		cause = 'cause' in cause ? cause.cause : undefined;
 	}
 	throw caught;
 }

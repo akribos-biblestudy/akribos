@@ -308,12 +308,8 @@ export type ListDocumentFilters = {
 	deleted?: 'exclude' | 'only' | 'include';
 };
 
-/** Lists one owner's working copies, newest first. */
-export async function listDocuments(
-	db: Database,
-	userId: string,
-	filters: ListDocumentFilters = {}
-): Promise<Document[]> {
+/** Shared ownership and search predicates for full documents and compact board cards. */
+function documentListConditions(db: Database, userId: string, filters: ListDocumentFilters) {
 	const conditions = [eq(documents.userId, userId)];
 	if (filters.kind) conditions.push(eq(documents.kind, filters.kind));
 	if (filters.visibility) conditions.push(eq(documents.visibility, filters.visibility));
@@ -344,10 +340,38 @@ export async function listDocuments(
 		);
 	}
 
+	return conditions;
+}
+
+/** Lists one owner's working copies, newest first. */
+export async function listDocuments(
+	db: Database,
+	userId: string,
+	filters: ListDocumentFilters = {}
+): Promise<Document[]> {
 	return db
 		.select()
 		.from(documents)
-		.where(and(...conditions))
+		.where(and(...documentListConditions(db, userId, filters)))
+		.orderBy(desc(documents.updatedAt), desc(documents.id));
+}
+
+/** The board needs only a short preview and workflow metadata, even for very long working copies. */
+export async function listSermonBoardDocuments(db: Database, userId: string, query?: string) {
+	return db
+		.select({
+			id: documents.id,
+			title: documents.title,
+			plainText: sql<string>`left(${documents.plainText}, 136)`,
+			sermonStatus: documents.sermonStatus,
+			sermonDate: documents.sermonDate,
+			sermonSeries: documents.sermonSeries,
+			sermonFormat: documents.sermonFormat,
+			revision: documents.revision,
+			updatedAt: documents.updatedAt
+		})
+		.from(documents)
+		.where(and(...documentListConditions(db, userId, { kind: 'sermon', query })))
 		.orderBy(desc(documents.updatedAt), desc(documents.id));
 }
 

@@ -122,6 +122,7 @@ export async function backfillDocumentBodyReferenceIndexes(
 }
 
 export type DocumentLibraryIndexFilters = {
+	order?: 'created' | 'updated';
 	kind?: DocumentKind;
 	query?: string;
 	normalizedTagPath?: string;
@@ -215,7 +216,10 @@ export async function listDocumentLibraryIndex(
 			)
 		)
 		.where(and(...conditions))
-		.orderBy(desc(documents.createdAt), desc(documents.id));
+		.orderBy(
+			desc(filters.order === 'updated' ? documents.updatedAt : documents.createdAt),
+			desc(documents.id)
+		);
 
 	return rows.map((row) => {
 		const fallback = row.fallbackBodyHtml
@@ -288,7 +292,7 @@ export async function listDocumentLibrarySummaries(
 			id: documents.id,
 			kind: documents.kind,
 			title: documents.title,
-			plainText: sql<string>`left(regexp_replace(${documents.plainText}, ${'\\s+'}, ' ', 'g'), 181)`,
+			plainText: sql<string>`left(${documents.plainText}, 181)`,
 			visibility: documents.visibility,
 			revision: documents.revision,
 			source: documents.source,

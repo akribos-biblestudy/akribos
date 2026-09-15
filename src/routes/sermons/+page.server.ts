@@ -25,7 +25,7 @@ import { listDocumentTagTree } from '$lib/server/repositories/document-tags';
 import {
 	createDocumentWithPassages,
 	InvalidDocumentInputError,
-	listDocuments,
+	listSermonBoardDocuments,
 	updateDocument
 } from '$lib/server/repositories/documents';
 import { listBibles } from '$lib/server/repositories/resources';
@@ -61,10 +61,8 @@ export async function load({ locals, url, setHeaders }) {
 	const rawYear = (url.searchParams.get('year') ?? '').trim();
 	const rawFormat = (url.searchParams.get('format') ?? '').trim();
 	const format = isSermonFormat(rawFormat) ? rawFormat : undefined;
-	const allSermonsPromise = listDocuments(db, user.id, { kind: 'sermon' });
-	const matchingSermonsPromise = q
-		? listDocuments(db, user.id, { kind: 'sermon', query: q })
-		: allSermonsPromise;
+	const allSermonsPromise = listSermonBoardDocuments(db, user.id);
+	const matchingSermonsPromise = q ? listSermonBoardDocuments(db, user.id, q) : allSermonsPromise;
 	const [allSermons, matchingSermons, tagTree, templates] = await Promise.all([
 		allSermonsPromise,
 		matchingSermonsPromise,

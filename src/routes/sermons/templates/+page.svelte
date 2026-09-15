@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import Icon from '$lib/components/Icon.svelte';
 	import DocumentAreaNav from '$lib/components/documents/DocumentAreaNav.svelte';
 	import { GERMAN_SERMON_STARTER_TEMPLATE } from '$lib/notes/documents';
@@ -27,14 +28,16 @@
 	<DocumentAreaNav active="sermons" />
 
 	{#if form?.error}
-		<p class="notice error" role="alert">{t('sermons.templates.error')}</p>
+		<p class="notice error" role="alert">
+			{t(form.error === 'duplicate' ? 'sermons.templates.duplicate' : 'sermons.templates.error')}
+		</p>
 	{:else if form?.created || form?.updated || form?.deleted}
 		<p class="notice" role="status">{t('sermons.templates.saved')}</p>
 	{/if}
 
 	<section class="template-card mt-7" data-tour-target="sermon-template-create">
 		<h2 class="font-serif text-lg font-semibold">{t('sermons.templates.new')}</h2>
-		<form method="POST" action="?/create" class="mt-4 space-y-3">
+		<form method="POST" action="?/create" use:enhance class="mt-4 space-y-3">
 			<label class="field-label"
 				><span>{t('sermons.templates.name')}</span><input
 					name="name"
@@ -72,7 +75,7 @@
 				{#each data.templates as template (template.id)}
 					<details class="template-card">
 						<summary class="cursor-pointer font-semibold">{template.name}</summary>
-						<form method="POST" action="?/update" class="mt-4 space-y-3">
+						<form method="POST" action="?/update" use:enhance class="mt-4 space-y-3">
 							<input type="hidden" name="id" value={template.id} />
 							<label class="field-label"
 								><span>{t('sermons.templates.name')}</span><input

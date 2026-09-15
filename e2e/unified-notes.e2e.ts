@@ -2582,3 +2582,50 @@ test('pending visual text survives immediate save, mode switches and navigation'
 	await expect(visual).toContainText('Sofort speichern Joh 3,16 und Moduswechsel vor Navigation');
 	await expect(visual.locator('a[data-reference="Joh3,16"]')).toHaveCount(1);
 });
+
+test('duplicate sermon template names return an explained conflict and preserve the entered draft', async ({
+	page
+}) => {
+	await loginNewReader(page);
+	await page.goto('/sermons/templates');
+	const create = page.locator('form[action="?/create"]');
+	await create.locator('input[name="name"]').fill('Gleicher Name');
+	await create.locator('textarea').fill('Erste Vorlage');
+	await create.getByRole('button', { name: 'Vorlage erstellen' }).click();
+	await expect(page.locator('summary').filter({ hasText: 'Gleicher Name' })).toBeVisible();
+	await create.locator('input[name="name"]').fill('Gleicher Name');
+	await create.locator('textarea').fill('Nicht verlorener neuer Entwurf');
+	const response = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'POST' && new URL(response.url()).searchParams.has('/create')
+	);
+	await create.getByRole('button', { name: 'Vorlage erstellen' }).click();
+	expect(await (await response).json()).toMatchObject({ type: 'failure', status: 409 });
+	const nativeConflict = await page.request.post('/sermons/templates?/create', {
+		headers: { accept: 'text/html', origin: new URL(page.url()).origin },
+		form: { name: 'Gleicher Name', bodyMarkdown: 'Nativer Konflikt' }
+	});
+	expect(nativeConflict.status()).toBe(409);
+	await expect(page.getByRole('alert')).toContainText('bereits vorhanden');
+	await expect(create.locator('textarea')).toHaveValue('Nicht verlorener neuer Entwurf');
+	await create.locator('input[name="name"]').fill('Zweite Vorlage');
+	await create.getByRole('button', { name: 'Vorlage erstellen' }).click();
+	await page.locator('summary').filter({ hasText: 'Zweite Vorlage' }).click();
+	const second = page
+		.locator('details')
+		.filter({ has: page.locator('summary').filter({ hasText: 'Zweite Vorlage' }) });
+	await second.locator('input[name="name"]').fill('Gleicher Name');
+	await second.locator('textarea').fill('Nachtrag beim Umbenennen');
+	const rename = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'POST' && new URL(response.url()).searchParams.has('/update')
+	);
+	await second.getByRole('button', { name: 'Speichern', exact: true }).click();
+	expect(await (await rename).json()).toMatchObject({ type: 'failure', status: 409 });
+	await expect(page.getByRole('alert')).toContainText('bereits vorhanden');
+	await expect(second.locator('textarea')).toHaveValue('Nachtrag beim Umbenennen');
+	await page.reload();
+	await expect(page.locator('summary')).toHaveText(['Gleicher Name', 'Zweite Vorlage']);
+	await page.locator('summary').filter({ hasText: 'Zweite Vorlage' }).click();
+	await expect(second.locator('textarea')).toHaveValue('Nicht verlorener neuer Entwurf');
+});
