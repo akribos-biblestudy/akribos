@@ -299,7 +299,10 @@
 				<form
 					method="POST"
 					action={resourceAction('save')}
-					use:enhance
+					use:enhance={() =>
+						async ({ update }) => {
+							await update({ reset: false });
+						}}
 					class="grid gap-4 p-4 sm:grid-cols-2 sm:p-5"
 				>
 					<input type="hidden" name="id" value={selectedResource.id} />
