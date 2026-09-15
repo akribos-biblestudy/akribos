@@ -158,6 +158,11 @@ these repository secrets under **Settings → Secrets and variables → Actions*
 | `COOLIFY_WEBHOOK` | the deploy webhook URL shown by this Coolify resource         |
 | `COOLIFY_TOKEN`   | a Coolify API token; API access must be enabled on the server |
 
+The workflow calls the deploy webhook with `POST`, as specified by the current
+[deployment API](https://coolify.io/docs/api/endpoints/deployments/deploy-by-tag-or-uuid).
+Keep the resource UUID and other query parameters from Coolify's generated URL. The production
+instance rejects `GET` requests to this endpoint with HTTP 405.
+
 Do not add a `build:` section for `app` back to `compose.yaml`: that makes Coolify compile the app on
 the production server. `pull_policy: always` makes every deployment refresh the moving `latest` tag.
 Disable Coolify's direct auto-deploy-on-push integration if it is enabled; otherwise it can deploy

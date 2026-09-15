@@ -138,5 +138,5 @@ jobs:
         if: env.COOLIFY_WEBHOOK != ''
         run: |
           curl --fail --silent --show-error \
-            --request GET "$COOLIFY_WEBHOOK" \
+            --request POST "$COOLIFY_WEBHOOK" \
             --header "Authorization: Bearer $COOLIFY_TOKEN"

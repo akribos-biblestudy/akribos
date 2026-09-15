@@ -13,7 +13,8 @@ Paketmanager ist `pnpm` (Node >= 24).
 Das Produktionsimage wird nach erfolgreichen CI-Tests von GitHub Actions nach
 `ghcr.io/akribos-biblestudy/akribos` veröffentlicht. `compose.yaml` darf für den App-Service kein
 `build:` enthalten: Coolify zieht ausschließlich das vorgebaute Image und löst den Deploy erst über
-den nachgelagerten Actions-Webhook aus.
+den nachgelagerten Actions-Webhook aus. Dieser ruft den Coolify-Deploy-Endpunkt mit `POST` auf;
+ein `GET` wird von der Produktionsinstanz mit HTTP 405 abgewiesen.
 
 - `pnpm check`: Svelte- und TypeScript-Prüfung
 - `pnpm lint`: Prettier-Check und ESLint
