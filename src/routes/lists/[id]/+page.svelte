@@ -85,12 +85,17 @@
 			<input
 				id="add-verse"
 				name="reference"
+				aria-invalid={form?.error === 'reference'}
+				aria-describedby={form?.error === 'reference' ? 'add-verse-error' : undefined}
 				placeholder="Joh 3,16"
 				class="min-w-0 flex-1 rounded-md border border-stone-300 px-3 py-1.5 text-sm
 				       focus:border-accent-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
 			/>
 			<Button variant="primary">{t('lists.addVerse')}</Button>
 		</form>
+		{#if form?.error === 'reference'}<p id="add-verse-error" role="alert">
+				{t('lists.invalidReference')}
+			</p>{/if}
 	</Card>
 
 	{#if data.items.length === 0}

@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { parseReference } from '$lib/bible/reference';
+import { isReferenceInCanon, parseReference } from '$lib/bible/reference';
 import { getDb } from '$lib/server/db';
 import { config } from '$lib/server/config';
 import { resolveColumns } from '$lib/server/columns';
@@ -10,6 +10,7 @@ import { countRecent, recordAttempt } from '$lib/server/auth/rate-limit';
 import { listBibles } from '$lib/server/repositories/resources';
 import {
 	addComment,
+	updateCommentDraft,
 	deleteComment,
 	isCommentReactionEmoji,
 	loadCommentsForList,
@@ -129,11 +130,17 @@ export const actions = {
 		const form = await request.formData();
 		const reference = parseReference(String(form.get('reference') ?? ''));
 
-		if (!reference?.verse) return fail(400, { error: 'reference' as const });
+		if (!reference?.verse || !isReferenceInCanon(reference))
+			return fail(400, { error: 'reference' as const });
 		await addVerseToList(
 			db,
 			access.list.id,
-			{ book: reference.book, chapter: reference.chapter, verse: reference.verse },
+			{
+				book: reference.book,
+				chapter: reference.chapter,
+				verse: reference.verse,
+				verseEnd: reference.verseEnd
+			},
 			userId
 		);
 		return { saved: true };
@@ -143,7 +150,8 @@ export const actions = {
 		const { db, userId, access } = await collaboratorAccess(locals, params.id);
 		const form = await request.formData();
 		const reference = parseReference(String(form.get('reference') ?? ''));
-		if (!reference?.verse) return fail(400, { error: 'reference' as const });
+		if (!reference?.verse || !isReferenceInCanon(reference))
+			return fail(400, { error: 'reference' as const });
 
 		await removeVerseFromList(
 			db,
@@ -233,8 +241,18 @@ export const actions = {
 		const html = String(form.get('note') ?? '');
 		if (!itemId) return fail(400, { error: 'item' as const });
 
-		await addComment(db, access.list.id, { itemId, parentCommentId, authorUserId: userId, html });
-		return { saved: true };
+		const commentId = String(form.get('commentId') ?? '');
+		if (
+			commentId &&
+			!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(commentId)
+		)
+			return fail(400, { error: 'comment' as const });
+		const options = { itemId, parentCommentId, authorUserId: userId, html };
+		const comment = commentId
+			? await updateCommentDraft(db, access.list.id, commentId, options)
+			: await addComment(db, access.list.id, options);
+		if (!comment) return fail(400, { error: 'comment' as const });
+		return { saved: true, commentId: comment.id };
 	},
 
 	deleteComment: async ({ params, request, locals }) => {

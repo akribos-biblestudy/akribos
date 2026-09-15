@@ -651,6 +651,8 @@ export const de = {
 	'lists.newWithVerse': 'Neue Liste mit diesem Vers',
 	'lists.backToOverview': 'Alle Stellensammlungen',
 	'lists.titleLabel': 'Titel der Stellensammlung',
+	'lists.invalidReference':
+		'Bitte eine gültige Bibelstelle mit Vers angeben, zum Beispiel Joh 3,16 oder Joh 3,16-18.',
 	'lists.addVerseHint': 'Bibelstelle eingeben, z.B. Joh 3,16',
 	'lists.readInContext': 'Im Kapitel lesen',
 	'lists.delete': 'Stellensammlung löschen',
