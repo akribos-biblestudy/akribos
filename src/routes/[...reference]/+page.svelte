@@ -2215,7 +2215,7 @@
 			? 'reader-mobile-reading-tab'
 			: undefined}
 	>
-		<div class="mx-auto max-w-[var(--content-max-width)] sm:px-3 sm:py-3">
+		<div class="w-full sm:px-3 sm:py-3">
 			<form
 				bind:this={sizesForm}
 				method="POST"

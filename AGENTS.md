@@ -290,6 +290,9 @@ Wichtige Scroll-Invarianten:
 Die globale Sucheingabe ist auf allen Seiten aus der Top Bar entfernt, einschließlich Buch-/Kapitelwahl
 und globaler Tastatur-Fokussierung. Im Reader bleiben außerdem die globale Kapitelüberschrift und
 Kapitelpfeile entfernt; sein Header enthält nur die dezente Layoutwahl und Ansichts-/Kontofunktionen.
+Die Reader-Kacheln nutzen die gesamte verfügbare Seitenbreite mit lediglich schmalen Außenabständen.
+Die allgemeine `--content-max-width` darf den Reader auch auf großen Bildschirmen nicht begrenzen;
+bei geöffnetem Notizbereich füllen die Kacheln die verbleibende Breite neben diesem Bereich.
 Das Konto-Menü ist mindestens 16 rem breit (am Viewport begrenzt), damit „Notizen & Ausarbeitungen“
 einzeilig bleibt. Die Darstellung-Einstellungen zeigen keine Übersicht der offenen Reader-Ressourcen. Der Theme-Schalter
 bleibt auf normalen Bildschirmen rahmenlos. Eine mittlere Viewport-Breite darf allein keine kontrastreiche
