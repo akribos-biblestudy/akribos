@@ -226,6 +226,12 @@ Tab-Aktivierung und Strong-Klick), müssen den Quell-Tab und dessen sichtbare Re
 die kanonische URL beziehungsweise `focusedTileId` darf dafür nie ersatzweise verwendet werden, weil sie
 während clientseitiger Interaktionen kurzzeitig zu einer anderen Gruppe gehören kann.
 
+Beim Aktivieren eines Tabs derselben nicht-leeren Tabgruppe hat die sichtbare Stelle des bisherigen
+Tabs derselben Kachel Vorrang, auch serverseitig vor einem veralteten `targetReference`. Strong-Klicks
+übertragen die sichtbare Lesestelle als `currentReference` und den angeklickten Vers separat als
+`sourceReference`: Nur letzterer wird zum Wortstudien-Kontext. Das Öffnen oder Wiederverwenden eines
+Lexikons darf die Leseposition der Quellkachel und ihrer Tabgruppe nicht auf den angeklickten Vers setzen.
+
 Das kompakte Feld in `ReaderTabToolbar.svelte` ist Stellenwahl und ressourcenbezogene Suche zugleich:
 Eine Bibelstelle navigiert den Tab, Wörter und Strong-Nummern öffnen dagegen keine andere Route, sondern
 eine Ergebnisansicht innerhalb genau dieses Tabs. `tabSearches` in der Reader-Seite hält diesen

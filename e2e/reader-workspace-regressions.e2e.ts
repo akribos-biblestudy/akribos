@@ -39,11 +39,12 @@ test('Strong clicks in an unfocused group preserve both independent reading posi
 		.first()
 		.click();
 	await expect(tile(page, 1).getByRole('tab', { name: /^Strong Griechisch/ })).toBeVisible();
-	await expectView(page, '/Joh3,16', [
+	await expectView(page, '/Joh3', [
 		'1.1:SEEDDE:A:1Mo1',
-		'2.1:SEEDDE:B:Joh3,16',
-		'2.2:STRONGS_GREEK:B:Joh3,16'
+		'2.1:SEEDDE:B:Joh3',
+		'2.2:STRONGS_GREEK:B:Joh3'
 	]);
+	expect(new URL(page.url()).searchParams.getAll('sourceRef')).toContain('2.2:Joh3,16');
 });
 
 test('adding a resource uses its source group position and preserves an independent link setting', async ({

@@ -394,9 +394,14 @@ export const actions = {
 					.find((tab) => tab?.linkSet === targetTab.linkSet)
 			: null;
 		const targetReference =
-			requestedTargetReference && isReferenceInCanon(requestedTargetReference)
-				? requestedTargetReference
-				: linkedActivePeer?.reference;
+			targetTab?.linkSet &&
+			targetTab.linkSet === sourceTab?.linkSet &&
+			currentReference &&
+			isReferenceInCanon(currentReference)
+				? currentReference
+				: requestedTargetReference && isReferenceInCanon(requestedTargetReference)
+					? requestedTargetReference
+					: linkedActivePeer?.reference;
 		if (targetTile && targetTab && targetReference) {
 			// A newly shown linked tab joins the visible group's current position. Its previously stored
 			// position must never pull the already visible members of that group backwards.
@@ -607,13 +612,16 @@ export const actions = {
 		const sourceResource = available.find((resource) => resource.id === sourceResourceId);
 		if (sourceResource?.kind !== 'bible') return fail(400, { error: 'source' });
 
-		// The route URL can belong to another group. The clicked tab and its exact verse are the only
-		// authority here, otherwise a click in B can accidentally move every tab in A.
-		const studyReference =
+		// Reading position and clicked verse serve different purposes. Studying a word farther down
+		// the visible text must not scroll its linked group to that word.
+		const readingReference =
 			currentReference && isReferenceInCanon(currentReference)
 				? currentReference
 				: initialSourceTab.reference;
-		workspace = setReaderTabReference(workspace, sourceTileId, sourceTabId, studyReference);
+		const sourceReference = parseReference(String(form.get('sourceReference') ?? ''));
+		const studyReference =
+			sourceReference && isReferenceInCanon(sourceReference) ? sourceReference : readingReference;
+		workspace = setReaderTabReference(workspace, sourceTileId, sourceTabId, readingReference);
 		sourceTile = workspace.tiles.find((tile) => tile.id === sourceTileId);
 		const sourceTab = sourceTile?.tabs.find((tab) => tab.id === sourceTabId);
 		if (!sourceTile || !sourceTab) return fail(400, { error: 'tab' });
@@ -633,7 +641,7 @@ export const actions = {
 			// The chosen dictionary belongs to the tab. A click may change its entry, but must not
 			// silently swap it for a different lexicon merely because that one also covers the number.
 			let next = workspace;
-			next = setReaderTabReference(next, existing.tile.id, existing.tab.id, studyReference);
+			next = setReaderTabReference(next, existing.tile.id, existing.tab.id, readingReference);
 			next = setReaderTabStudy(next, existing.tile.id, existing.tab.id, lookup, {
 				sourceResourceId,
 				reference: studyReference,
@@ -676,7 +684,7 @@ export const actions = {
 		);
 		if (!added) return fail(409, { error: 'workspace' });
 		next = setReaderTabLinkSet(next, targetTile.id, added.id, sourceTab.linkSet);
-		next = setReaderTabReference(next, targetTile.id, added.id, studyReference);
+		next = setReaderTabReference(next, targetTile.id, added.id, readingReference);
 		next = setReaderTabStudy(next, targetTile.id, added.id, lookup, {
 			sourceResourceId,
 			reference: studyReference,
