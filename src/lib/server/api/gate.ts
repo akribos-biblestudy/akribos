@@ -20,7 +20,7 @@ import { createHash } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
 import { config } from '../config.ts';
 import type { Database } from '../db/client.ts';
-import { apiKeys, type ApiKey } from '../db/schema.ts';
+import { apiKeys, users, type ApiKey } from '../db/schema.ts';
 
 export type ApiAuth =
 	{ kind: 'trusted' } | { kind: 'key'; apiKey: Pick<ApiKey, 'id' | 'userId' | 'scope'> };
@@ -56,9 +56,10 @@ export async function authenticateApiRequest(
 
 	const id = hashKey(token);
 	const [row] = await db
-		.select()
+		.select({ id: apiKeys.id, userId: apiKeys.userId, scope: apiKeys.scope })
 		.from(apiKeys)
-		.where(and(eq(apiKeys.id, id), isNull(apiKeys.revokedAt)))
+		.innerJoin(users, eq(users.id, apiKeys.userId))
+		.where(and(eq(apiKeys.id, id), isNull(apiKeys.revokedAt), isNull(users.disabledAt)))
 		.limit(1);
 	if (!row) return { ok: false, status: 401, code: 'invalid_api_key' };
 

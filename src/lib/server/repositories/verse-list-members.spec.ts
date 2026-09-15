@@ -110,6 +110,52 @@ describe('verse list invites and membership', () => {
 		});
 	});
 
+	it.each(['revoked', 'expired'] as const)(
+		'rechecks an invitation that becomes %s before consumption',
+		async (change) => {
+			const owner = await makeUser();
+			const invitee = await makeUser();
+			const listId = await makeList(owner.id);
+			const invite = await createVerseListInvite(db, listId, invitee.email, owner.id);
+			if (!invite.ok) throw new Error('expected invite');
+			const id = createHash('sha256').update(invite.token).digest('hex');
+			const racedDb = new Proxy(db, {
+				get(target, property, receiver) {
+					if (property !== 'transaction') return Reflect.get(target, property, receiver);
+					return async (...args: Parameters<typeof db.transaction>) => {
+						if (change === 'revoked') await revokeVerseListInvite(db, listId, id);
+						else
+							await db
+								.update(verseListInvites)
+								.set({ expiresAt: new Date(0) })
+								.where(eq(verseListInvites.id, id));
+						return target.transaction(...args);
+					};
+				}
+			});
+			expect(await acceptVerseListInvite(racedDb, invite.token, invitee)).toEqual({
+				ok: false,
+				reason: 'invalid'
+			});
+			expect(await findListAccess(db, listId, invitee.id)).toBeUndefined();
+		}
+	);
+
+	it('allows exactly one of two concurrent acceptances to consume an invitation', async () => {
+		const owner = await makeUser();
+		const invitee = await makeUser();
+		const listId = await makeList(owner.id);
+		const invite = await createVerseListInvite(db, listId, invitee.email, owner.id);
+		if (!invite.ok) throw new Error('expected invite');
+		const results = await Promise.all([
+			acceptVerseListInvite(db, invite.token, invitee),
+			acceptVerseListInvite(db, invite.token, invitee)
+		]);
+		expect(results.filter((result) => result.ok)).toHaveLength(1);
+		expect(results.filter((result) => !result.ok)).toEqual([{ ok: false, reason: 'invalid' }]);
+		expect((await findListAccess(db, listId, invitee.id))?.isOwner).toBe(false);
+	});
+
 	it('refuses to invite the list owner, or someone already a member', async () => {
 		const owner = await makeUser();
 		const member = await makeUser();
