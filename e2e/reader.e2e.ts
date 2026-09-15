@@ -99,6 +99,11 @@ async function selectLinkSet(page: Page, tileIndex: number, linkSet: string): Pr
 		.getByRole('menu', { name: 'Tabgruppe wechseln' })
 		.getByRole('menuitemradio', { name: linkSet, exact: true })
 		.click();
+	// Clicking submits an enhanced form; later input must wait for its resulting navigation.
+	await expect(tile.getByRole('button', { name: /Tabgruppe für/ })).toHaveAttribute(
+		'aria-label',
+		new RegExp(`aktuell ${linkSet}$`)
+	);
 }
 
 async function loginAsAdmin(page: Page): Promise<void> {
@@ -1535,6 +1540,10 @@ test('closing an inactive tab preserves a scroll position before its URL debounc
 	await page.goto(
 		'/Joh3,16?layout=columns-2&tab=1.1:SEEDDE:A:Joh3,16&tab=1.2:SEEDCOMMENTARY:B:1Mo1,3&tab=1.3:STRONGS_GREEK:B:1Mo1,3&active=1.1&focus=1'
 	);
+	await expect(tabReference(page)).toHaveValue('Joh 3,16');
+	await expect(
+		page.getByRole('button', { name: 'Kommentar schließen', exact: true })
+	).toBeVisible();
 	const closing = page.waitForRequest(
 		(request) => request.method() === 'POST' && request.url().includes('/closeTab')
 	);

@@ -64,6 +64,11 @@ Berechtigung. Personalisierte Antworten einschließlich aller Antworten auf pers
 sind `private, no-store`. Bereits vom Berechtigten geladener Text lässt sich durch Widerruf nicht aus
 seinem Browser zurückholen; weitere Serverabfragen prüfen die Freigabe erneut.
 
+Auch Markierungsübersichten prüfen die aktuelle Ressourcenfreigabe beim Text-Join. Alte Markierungen
+bleiben bei Widerruf erhalten, liefern aber keinen gesperrten Text. Teilmarkierungen validieren ihre
+Wortgrenzen ausschließlich anhand einer aktuell verfügbaren, fertigen Bibel. API-Schlüssel beider
+Scopes sind bei gesperrtem Konto ungültig; nach Entsperren gelten nicht widerrufene Schlüssel wieder.
+
 ## Anmeldung und Registrierung
 
 `/login` fragt zuerst nur die normalisierte E-Mail-Adresse ab; `/register` führt in denselben Ablauf.
@@ -726,6 +731,11 @@ gespeichert:
   `findListAccess()` ist die einzige Stelle, die "Eigentümer oder Mitglied" gemeinsam prüft, und liefert
   `{ list, isOwner }` oder `undefined` — eine fremde oder nie eingeladene Liste ist damit ebenso
   "nicht gefunden" wie bei einer reinen Eigentümerprüfung.
+
+Einladungsannahme verbraucht den weiterhin gültigen, unbenutzten und adressgleichen Token per
+bedingtem UPDATE mit RETURNING innerhalb derselben Transaktion wie die Mitgliedschaft. Ein früherer
+Lesezugriff genügt nicht: Paralleler Widerruf, Ablauf und eine zweite Annahme werden beim Verbrauch
+erneut geprüft; ohne verbrauchte Zeile entsteht keine Mitgliedschaft.
 
 **Löschregel für Vers-Einträge:** Jedes Mitglied darf Verse hinzufügen (`addVerseToList()`, mit
 `addedByUserId`). Beim Entfernen (`removeVerseFromList()`) darf ein Mitglied nur einen selbst

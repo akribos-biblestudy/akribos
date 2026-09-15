@@ -11,7 +11,8 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { countVerseWords, type VerseSegment } from '../../bible/segments.ts';
-import { highlightStyles, verseHighlights, verses } from '../db/schema.ts';
+import { highlightStyles, resources, verseHighlights, verses } from '../db/schema.ts';
+import { readableResourceCondition } from './resources.ts';
 
 export type ChapterHighlight = {
 	verse: number;
@@ -95,11 +96,19 @@ export async function listHighlightedVerses(
 		})
 		.from(verseHighlights)
 		.leftJoin(
+			resources,
+			and(
+				eq(resources.id, sql`coalesce(${verseHighlights.resourceId}, ${defaultResourceId})`),
+				eq(resources.kind, 'bible'),
+				readableResourceCondition(userId)
+			)
+		)
+		.leftJoin(
 			verses,
 			and(
 				// A partial highlight only exists relative to its own translation; a whole-verse one
 				// falls back to whichever bible the caller asked for.
-				eq(verses.resourceId, sql`coalesce(${verseHighlights.resourceId}, ${defaultResourceId})`),
+				eq(verses.resourceId, resources.id),
 				eq(verses.bookId, verseHighlights.bookId),
 				eq(verses.chapter, verseHighlights.chapter),
 				eq(verses.verse, verseHighlights.verse)
@@ -144,6 +153,7 @@ type ResolvedRange = { resourceId: string; endVerse: number; start: number; end:
 /** How many words the reader's rendering of one verse has, or 0 when there is no such verse. */
 async function wordCountAt(
 	db: Database,
+	userId: string,
 	resourceId: string,
 	book: number,
 	chapter: number,
@@ -152,12 +162,15 @@ async function wordCountAt(
 	const [row] = await db
 		.select({ segments: verses.segments })
 		.from(verses)
+		.innerJoin(resources, eq(resources.id, verses.resourceId))
 		.where(
 			and(
 				eq(verses.resourceId, resourceId),
 				eq(verses.bookId, book),
 				eq(verses.chapter, chapter),
-				eq(verses.verse, verse)
+				eq(verses.verse, verse),
+				eq(resources.kind, 'bible'),
+				readableResourceCondition(userId)
 			)
 		)
 		.limit(1);
@@ -176,6 +189,7 @@ async function wordCountAt(
  */
 async function resolvePartialRange(
 	db: Database,
+	userId: string,
 	reference: { book: number; chapter: number; verse: number },
 	range: WordRange
 ): Promise<ResolvedRange | null | undefined> {
@@ -183,6 +197,7 @@ async function resolvePartialRange(
 
 	const startCount = await wordCountAt(
 		db,
+		userId,
 		range.resourceId,
 		reference.book,
 		reference.chapter,
@@ -193,7 +208,14 @@ async function resolvePartialRange(
 	const endCount =
 		endVerse === reference.verse
 			? startCount
-			: await wordCountAt(db, range.resourceId, reference.book, reference.chapter, endVerse);
+			: await wordCountAt(
+					db,
+					userId,
+					range.resourceId,
+					reference.book,
+					reference.chapter,
+					endVerse
+				);
 	if (endCount === 0) return undefined;
 
 	const start = Math.min(Math.max(range.start, 0), startCount - 1);
@@ -231,7 +253,7 @@ export async function setVerseHighlight(
 		.limit(1);
 	if (!style) return;
 
-	const resolved = range ? await resolvePartialRange(db, reference, range) : null;
+	const resolved = range ? await resolvePartialRange(db, userId, reference, range) : null;
 	if (resolved === undefined) return;
 
 	if (resolved) {

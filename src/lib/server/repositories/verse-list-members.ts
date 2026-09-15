@@ -222,21 +222,35 @@ export async function acceptVerseListInvite(
 
 	if (normalizeEmail(user.email) !== invite.email) return { ok: false, reason: 'emailMismatch' };
 
-	await db.transaction(async (tx) => {
-		await tx
+	return db.transaction(async (tx) => {
+		// The lookup above only determines the user-facing error. Consumption is the authorization
+		// boundary: UPDATE locks the row and rechecks a concurrent revoke, expiry or other acceptance.
+		const [accepted] = await tx
 			.update(verseListInvites)
 			.set({ acceptedAt: new Date() })
-			.where(eq(verseListInvites.id, id));
+			.where(
+				and(
+					eq(verseListInvites.id, id),
+					eq(verseListInvites.email, normalizeEmail(user.email)),
+					isNull(verseListInvites.acceptedAt),
+					gt(verseListInvites.expiresAt, new Date())
+				)
+			)
+			.returning();
+		if (!accepted) return { ok: false, reason: 'invalid' } as const;
 
 		await tx
 			.insert(verseListMembers)
-			.values({ listId: invite.listId, userId: user.id, invitedByUserId: invite.invitedByUserId })
+			.values({
+				listId: accepted.listId,
+				userId: user.id,
+				invitedByUserId: accepted.invitedByUserId
+			})
 			// Already a member (e.g. accepted a second invite sent before the first was revoked): the
 			// invite is still marked used above, nothing else to do.
 			.onConflictDoNothing();
+		return { ok: true, listId: accepted.listId } as const;
 	});
-
-	return { ok: true, listId: invite.listId };
 }
 
 /** Removes a member from a list. Only ever called after the caller is confirmed to be its owner. */
