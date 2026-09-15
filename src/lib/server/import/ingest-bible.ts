@@ -70,6 +70,16 @@ export async function ingestBible(
 	stream: ParseStream,
 	options: IngestOptions
 ): Promise<IngestResult> {
+	// Commit content and metadata together. Empty sources and late parser failures keep the
+	// previously readable resource intact, including its word and book indexes.
+	return db.transaction((tx) => ingestBibleTransaction(tx as unknown as Database, stream, options));
+}
+
+async function ingestBibleTransaction(
+	db: Database,
+	stream: ParseStream,
+	options: IngestOptions
+): Promise<IngestResult> {
 	const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
 	const warnings: string[] = [];
 
@@ -81,6 +91,8 @@ export async function ingestBible(
 	/** Verses of the book currently being read, keyed so a duplicate replaces its predecessor. */
 	let buffer = new Map<string, ParsedVerse>();
 	let bufferBook: number | undefined;
+	const seen = new Set<string>();
+	let hasText = false;
 
 	const flush = async () => {
 		if (buffer.size === 0) return;
@@ -103,6 +115,7 @@ export async function ingestBible(
 	for await (const event of stream) {
 		switch (event.type) {
 			case 'metadata': {
+				if (metadata) throw new Error('received duplicate resource metadata');
 				metadata = { ...event.metadata, ...options.overrides };
 				resourceId = metadata.id;
 				await upsertResource(db, metadata, options);
@@ -128,16 +141,38 @@ export async function ingestBible(
 				if (bufferBook !== undefined && verse.book !== bufferBook) await flush();
 				bufferBook = verse.book;
 
-				const key = `${verse.chapter}:${verse.verse}`;
-				const existing = buffer.get(key);
+				const key = `${verse.book}:${verse.chapter}:${verse.verse}`;
+				hasText ||= segmentsToText(verse.segments).trim().length > 0;
+				let existing = buffer.get(key);
+				if (!existing && seen.has(key)) {
+					const [stored] = await db
+						.select()
+						.from(verses)
+						.where(
+							and(
+								eq(verses.resourceId, resourceId),
+								eq(verses.bookId, verse.book),
+								eq(verses.chapter, verse.chapter),
+								eq(verses.verse, verse.verse)
+							)
+						);
+					if (stored)
+						existing = {
+							book: stored.bookId,
+							chapter: stored.chapter,
+							verse: stored.verse,
+							segments: stored.segments
+						};
+				}
 				if (existing) {
 					const outcome = resolveDuplicate(existing, verse);
 					warnings.push(
 						`duplicate ${bookLabel(verse.book)} ${verse.chapter},${verse.verse} — ${outcome.reason}`
 					);
-					buffer.set(key, outcome.verse);
+					if (outcome.keep === 'later') buffer.set(key, outcome.verse);
 					break;
 				}
+				seen.add(key);
 				buffer.set(key, verse);
 
 				if (buffer.size >= batchSize * 4) await flush();
@@ -159,6 +194,18 @@ export async function ingestBible(
 	await flush();
 
 	if (!resourceId) throw new Error('the source contained no resource metadata');
+	if (!hasText) throw new Error('the source contained no usable Bible text');
+	// Replacements of empty duplicates do not create another verse or retain old words.
+	const [verseTotal] = await db
+		.select({ total: count() })
+		.from(verses)
+		.where(eq(verses.resourceId, resourceId));
+	const [wordTotal] = await db
+		.select({ total: count() })
+		.from(verseWords)
+		.where(eq(verseWords.resourceId, resourceId));
+	verseCount = verseTotal!.total;
+	wordCount = wordTotal!.total;
 
 	await writeBookStatistics(db, resourceId);
 	await db

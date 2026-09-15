@@ -7,6 +7,7 @@
  */
 
 import type { SourceFormat } from './types.ts';
+import { parseReference } from '../reference.ts';
 
 export type Detection = {
 	format: SourceFormat;
@@ -123,6 +124,20 @@ function detectDelimited(head: string, fileName: string): Detection | null {
 }
 
 export function splitDelimited(line: string): string[] {
+	// A reference followed by prose is already unambiguous. Punctuation in that prose (or a
+	// German chapter/verse comma) is not a table delimiter.
+	const prose = /^([1-3]?[.\s]*[\p{L}.]+(?:\s+[\p{L}.]+)*\s*\d+[:,]\d+(?:[-‑–]\d+)?) +(.+)$/u.exec(
+		line
+	);
+	if (prose && !/^[|;\t]/.test(prose[2]!.trim())) return [prose[1]!.trim(), prose[2]!.trim()];
+	// Recognize actual CSV columns before punctuation inside a quoted text field can suggest
+	// another delimiter. An unquoted German reference alone is not a complete first CSV field.
+	const csv = splitCsv(line);
+	if (
+		(csv.length >= 2 && parseReference(csv[0] ?? '')?.verse !== undefined) ||
+		(csv.length >= 4 && csv.slice(0, 3).every((field) => /^\d+$/.test(field)))
+	)
+		return csv;
 	if (line.includes('\t')) return line.split('\t').map((field) => field.trim());
 	// The pipe is common in bible text dumps, where the text itself contains commas and semicolons.
 	if (line.includes('|')) return line.split('|').map((field) => field.trim());

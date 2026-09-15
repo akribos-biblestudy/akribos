@@ -94,6 +94,12 @@ A resource is identified by the identifier in its file, or by `--id`. Importing 
 again **replaces** its content. Name, column title, ordering and licence text are not overwritten on
 re-import, so edits made in the admin UI survive.
 
+Bible imports commit content, word indexes, book statistics and metadata together. A source with no
+usable Bible text or a parser failure leaves an existing translation unchanged and reports a failed
+import. Duplicate references use the first nonempty text throughout the entire source, including
+across batch and book boundaries; each duplicate produces a warning. Final counts reflect stored
+verses and words rather than the number of input rows.
+
 ## Bible translations
 
 | Format                  | Recognised by                   | Notes                                                                                                          |

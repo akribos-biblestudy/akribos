@@ -141,7 +141,10 @@ async function* parse(input: SourceInput, options: UsfmOptions): ParseStream {
 
 		const finalized = finalizeSegments(segments);
 		segments = [];
-		if (finalized.length === 0) return undefined;
+		if (finalized.length === 0) {
+			verse = 0;
+			return undefined;
+		}
 
 		versesSeen += 1;
 		const event: ParseEvent = {
@@ -157,109 +160,123 @@ async function* parse(input: SourceInput, options: UsfmOptions): ParseStream {
 		};
 		heading = undefined;
 		verseEnd = undefined;
+		verse = 0;
 		return event;
 	};
 
-	for await (const line of readLines(input)) {
-		// Markers can be followed by content on the same line: "\v 1 Im Anfang …".
-		const match = /^\\(\w+\*?)\s*(.*)$/.exec(line.trim());
+	for await (const rawLine of readLines(input)) {
+		// Structural markers delimit content even when a source writes an entire paragraph on one line.
+		// Character styles and word attributes remain together for appendInline().
+		for (const line of rawLine.split(
+			/(?=\\(?:id|h|toc1|c|v|s[12]?|ms1?|p|m|pi1?|nb|q[1-3]?|b|li1?)\s)/
+		)) {
+			// Markers can be followed by content on the same line: "\v 1 Im Anfang …".
+			const match = /^\\(\w+\*?)\s*(.*)$/.exec(line.trim());
 
-		if (!match) {
-			// Continuation of the previous verse.
-			if (verse > 0 && line.trim()) pushText(segments, ` ${line.trim()}`);
-			continue;
-		}
-
-		const [, marker, rest = ''] = match;
-
-		switch (marker) {
-			case 'id': {
-				const code = rest.split(/\s+/)[0] ?? '';
-				const resolved = bookFromUsfmCode(code);
-				if (resolved) book = resolved;
-				else yield { type: 'warning', message: `unknown USFM book code "${code}"` };
-				break;
+			if (!match) {
+				// Continuation of the previous verse.
+				if (verse > 0 && line.trim()) pushText(segments, ` ${line.trim()}`);
+				continue;
 			}
 
-			case 'h':
-			case 'toc1':
-				title ??= rest.trim() || undefined;
-				break;
+			const [, marker, rest = ''] = match;
 
-			case 'c': {
-				const pending = flushVerse();
-				if (pending) yield pending;
-				chapter = Number.parseInt(rest, 10) || 0;
-				verse = 0;
-				break;
-			}
-
-			case 'v': {
-				const pending = flushVerse();
-				if (pending) yield pending;
-
-				if (!metadataEmitted) {
-					yield emitMetadata();
-					metadataEmitted = true;
+			switch (marker) {
+				case 'id': {
+					const pending = flushVerse();
+					if (pending) yield pending;
+					chapter = verse = 0;
+					segments = [];
+					heading = undefined;
+					const code = rest.split(/\s+/)[0] ?? '';
+					const resolved = bookFromUsfmCode(code);
+					book = resolved;
+					if (!resolved) yield { type: 'warning', message: `unknown USFM book code "${code}"` };
+					break;
 				}
 
-				// "\v 16-17 text" marks a merged range.
-				const versePart = /^(\d+)(?:[-‑–](\d+))?\s*(.*)$/.exec(rest.trim());
-				if (!versePart) {
-					yield { type: 'warning', message: `unreadable verse marker: \\v ${rest}` };
+				case 'h':
+				case 'toc1':
+					title ??= rest.trim() || undefined;
+					break;
+
+				case 'c': {
+					const pending = flushVerse();
+					if (pending) yield pending;
+					chapter = Number.parseInt(rest, 10) || 0;
 					verse = 0;
 					break;
 				}
 
-				verse = Number.parseInt(versePart[1]!, 10);
-				const end = versePart[2] ? Number.parseInt(versePart[2], 10) : undefined;
-				verseEnd = end !== undefined && end > verse ? end : undefined;
-				appendInline(segments, versePart[3] ?? '', book ?? 1);
+				case 'v': {
+					const pending = flushVerse();
+					if (pending) yield pending;
 
-				if (versesSeen % 500 === 0 && versesSeen > 0) {
-					yield { type: 'progress', done: versesSeen };
+					if (!metadataEmitted) {
+						yield emitMetadata();
+						metadataEmitted = true;
+					}
+
+					// "\v 16-17 text" marks a merged range.
+					const versePart = /^(\d+)(?:[-‑–](\d+))?\s*(.*)$/.exec(rest.trim());
+					if (!versePart) {
+						yield { type: 'warning', message: `unreadable verse marker: \\v ${rest}` };
+						verse = 0;
+						break;
+					}
+
+					verse = Number.parseInt(versePart[1]!, 10);
+					const end = versePart[2] ? Number.parseInt(versePart[2], 10) : undefined;
+					verseEnd = end !== undefined && end > verse ? end : undefined;
+					appendInline(segments, versePart[3] ?? '', book ?? 1);
+
+					if (versesSeen % 500 === 0 && versesSeen > 0) {
+						yield { type: 'progress', done: versesSeen };
+					}
+					break;
 				}
-				break;
+
+				// Section headings.
+				case 's':
+				case 's1':
+				case 's2':
+				case 'ms':
+				case 'ms1': {
+					const pending = flushVerse();
+					if (pending) yield pending;
+					heading = rest.trim() || undefined;
+					break;
+				}
+
+				// Paragraph and poetry markers: they break the line but carry no content of their own.
+				case 'p':
+				case 'm':
+				case 'pi':
+				case 'pi1':
+				case 'nb':
+				case 'q':
+				case 'q1':
+				case 'q2':
+				case 'q3':
+				case 'b':
+				case 'li':
+				case 'li1':
+					if (verse > 0) {
+						if (marker.startsWith('q') || marker === 'b') segments.push({ kind: 'br' });
+						if (rest.trim()) appendInline(segments, rest, book ?? 1);
+					}
+					break;
+
+				default:
+					// Everything else is front matter or apparatus. Content that belongs to the running verse
+					// is still appended, so a translation is never silently truncated by an unknown marker.
+					if (verse > 0 && rest.trim() && !IGNORED_MARKERS.has(marker!)) {
+						appendInline(segments, rest, book ?? 1);
+					}
+					break;
 			}
-
-			// Section headings.
-			case 's':
-			case 's1':
-			case 's2':
-			case 'ms':
-			case 'ms1':
-				heading = rest.trim() || undefined;
-				break;
-
-			// Paragraph and poetry markers: they break the line but carry no content of their own.
-			case 'p':
-			case 'm':
-			case 'pi':
-			case 'pi1':
-			case 'nb':
-			case 'q':
-			case 'q1':
-			case 'q2':
-			case 'q3':
-			case 'b':
-			case 'li':
-			case 'li1':
-				if (verse > 0) {
-					if (marker.startsWith('q') || marker === 'b') segments.push({ kind: 'br' });
-					if (rest.trim()) appendInline(segments, rest, book ?? 1);
-				}
-				break;
-
-			default:
-				// Everything else is front matter or apparatus. Content that belongs to the running verse
-				// is still appended, so a translation is never silently truncated by an unknown marker.
-				if (verse > 0 && rest.trim() && !IGNORED_MARKERS.has(marker!)) {
-					appendInline(segments, rest, book ?? 1);
-				}
-				break;
 		}
 	}
-
 	const pending = flushVerse();
 	if (pending) yield pending;
 	if (!metadataEmitted) yield emitMetadata();
