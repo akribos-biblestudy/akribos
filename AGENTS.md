@@ -852,6 +852,14 @@ Die kanonischen 66 Bücher und Referenzregeln liegen in Code unter `src/lib/bibl
 enthält die Darstellung, `verses.text` die Suche. Strong-Wörter sind zusätzlich normalisiert in
 `verse_words`; Statistiken und Suchbegriffe werden materialisiert und nach Imports aktualisiert.
 
+Ein Bibelimport ersetzt Text, Wortindex, Buchstatistik und Ressourcenmetadaten in einer Transaktion.
+Ohne verwertbaren Text oder bei einem späteren Parserfehler bleibt der vorherige Stand vollständig
+erhalten; ein leerer Import wird nie als fertige Bibel veröffentlicht. Die Regel „erster nicht leerer
+Text gewinnt“ gilt für das gesamte Werk, auch über Puffer- und Buchwechsel hinweg. Jedes Duplikat
+erzeugt eine Warnung; die abschließenden Zähler stammen aus dem tatsächlich gespeicherten Inhalt.
+USFM-Strukturmarker gelten unabhängig von Zeilenumbrüchen; Buchwechsel schließen zuerst den alten
+Vers ab. Abschnittsüberschriften in USFM und USX gehören zum folgenden Vers.
+
 Mehrere Lexika können dieselbe Strong-Nummer abdecken (`lexicon_entries` hat einen zusammengesetzten
 Schlüssel aus `resourceId` und `strong`); `loadStrongEntry()` zeigt davon nur das mit der niedrigsten
 `resources.sortOrder`, ohne die anderen zu verschmelzen. Griechische Strong-Nummern reichen bis 6020,

@@ -96,11 +96,16 @@ async function* parse(input: SourceInput, options: Options, flavour: 'usx' | 'us
 			switch (event.name) {
 				case 'book':
 				case 'id': {
+					const pending = flushVerse();
+					if (pending) yield pending;
+					chapter = verse = 0;
+					segments = [];
+					heading = undefined;
 					const code = attribute(event.attributes, 'code', 'id');
 					if (code) {
 						const resolved = bookFromUsfmCode(code);
-						if (resolved) book = resolved;
-						else yield { type: 'warning', message: `unknown book code "${code}"` };
+						book = resolved;
+						if (!resolved) yield { type: 'warning', message: `unknown book code "${code}"` };
 					}
 					break;
 				}
@@ -168,6 +173,8 @@ async function* parse(input: SourceInput, options: Options, flavour: 'usx' | 'us
 				case 'para': {
 					const style = attribute(event.attributes, 'style') ?? '';
 					if (/^(s|ms|mt)\d?$/.test(style)) {
+						const pending = flushVerse();
+						if (pending) yield pending;
 						headingDepth += 1;
 						inTitle = /^mt/.test(style);
 						heading = '';
