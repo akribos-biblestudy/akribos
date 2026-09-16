@@ -14,6 +14,8 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { bookIdsForTestament } from '../../bible/books.ts';
 import { normalizeStrongId, strongLanguage, type StrongId } from '../../bible/strong.ts';
 import type { VerseSegment } from '../../bible/segments.ts';
+import { groupStrongGlosses, type StrongGlossGroup } from '../../bible/glosses.ts';
+import { loadLemmaLookup } from '../lemmas.ts';
 import type { Database } from '../db/client.ts';
 import { lexiconEntries, resources, verses, verseWords } from '../db/schema.ts';
 
@@ -37,6 +39,8 @@ export type StrongEntry = {
 export type StrongGloss = {
 	display: string;
 	occurrences: number;
+	/** Original counted spellings when the displayed lemma differs or combines several forms. */
+	forms?: { display: string; occurrences: number }[];
 };
 
 export type StrongOccurrence = {
@@ -197,17 +201,56 @@ export async function loadStrongGlosses(
 	db: Database,
 	strong: StrongId,
 	resourceId: string,
-	limit = 12
+	limit = 12,
+	selectedGloss?: string
 ): Promise<StrongGloss[]> {
-	const rows = await db.execute<{ display: string; occurrences: number }>(sql`
-		select display, occurrences
-		from strong_glosses
-		where resource_id = ${resourceId} and strong = ${strong}
-		order by rank
-		limit ${limit}
-	`);
+	const groups = await loadStrongGlossGroups(db, strong, resourceId);
+	const visible = new Set(groups.slice(0, Math.max(0, limit)));
+	// Keep a selected tail group visible, including exact-case distinctions such as Leben/leben.
+	for (const group of selectStrongGlossGroups(groups, selectedGloss)) visible.add(group);
+	return groups
+		.filter((group) => visible.has(group))
+		.map(({ display, occurrences, forms }) => ({
+			display,
+			occurrences,
+			...(forms.length > 1 || forms[0]?.display !== display
+				? { forms: forms.map(({ display, occurrences }) => ({ display, occurrences })) }
+				: {})
+		}));
+}
 
-	return rows.map((row) => ({ display: row.display, occurrences: Number(row.occurrences) }));
+function selectStrongGlossGroups(groups: StrongGlossGroup[], requestedGloss?: string) {
+	const rawRequested = requestedGloss?.trim();
+	if (!rawRequested) return [];
+	const exact = groups.find((group) => group.display === rawRequested);
+	if (exact) return [exact];
+	const requested = rawRequested.toLowerCase();
+	return groups.filter(
+		(group) =>
+			group.display.toLowerCase() === requested ||
+			group.forms.some((form) => form.gloss === requested)
+	);
+}
+
+async function loadStrongGlossGroups(db: Database, strong: StrongId, resourceId: string) {
+	const [rows, [resource]] = await Promise.all([
+		db.execute<{ gloss: string; display: string; occurrences: number }>(sql`
+			select gloss, display, occurrences
+			from strong_glosses
+			where resource_id = ${resourceId} and strong = ${strong}
+			order by rank
+		`),
+		db
+			.select({ language: resources.language })
+			.from(resources)
+			.where(eq(resources.id, resourceId))
+			.limit(1)
+	]);
+	if (!rows.length) return [];
+	return groupStrongGlosses(
+		rows.map((row) => ({ ...row, occurrences: Number(row.occurrences) })),
+		await loadLemmaLookup(resource?.language ?? 'und')
+	);
 }
 
 export type OccurrencePage = {
@@ -234,9 +277,20 @@ export async function loadStrongOccurrences(
 	const page = Math.max(1, options.page ?? 1);
 	const offset = (page - 1) * pageSize;
 	const bookCondition = options.book ? sql`and book_id = ${options.book}` : sql``;
-	const glossCondition = options.gloss?.trim()
-		? sql`and lower(btrim(word)) = lower(btrim(${options.gloss}))`
-		: sql``;
+	let glossCondition = sql``;
+	if (options.gloss?.trim()) {
+		const groups = await loadStrongGlossGroups(db, strong, resourceId);
+		// Keep old links to an inflected spelling working, and include every spelling of the lemma.
+		// Exact lemma casing distinguishes e.g. the noun Leben from the verb leben. An ambiguous
+		// case-insensitive request retains all matching groups instead of picking an arbitrary one.
+		const selected = selectStrongGlossGroups(groups, options.gloss);
+		glossCondition = selected.length
+			? sql`and lower(btrim(word)) in (${sql.join(
+					selected.flatMap((group) => group.forms.map((form) => sql`${form.gloss}`)),
+					sql`, `
+				)})`
+			: sql`and lower(btrim(word)) = lower(btrim(${options.gloss}))`;
+	}
 
 	const [{ count } = { count: 0 }] = await db.execute<{ count: number }>(sql`
 		select count(distinct ${verseWords.verseId})::int as count

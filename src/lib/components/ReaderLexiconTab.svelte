@@ -18,7 +18,11 @@
 		strong: string;
 		statistics: { occurrences: number; verseCount: number };
 		bookCounts: { book: number; count: number }[];
-		glosses: { display: string; occurrences: number }[];
+		glosses: {
+			display: string;
+			occurrences: number;
+			forms?: { display: string; occurrences: number }[];
+		}[];
 		occurrences: {
 			occurrences: {
 				book: number;

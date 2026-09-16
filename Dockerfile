@@ -58,6 +58,7 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/build ./build
 COPY --from=build --chown=node:node /app/drizzle ./drizzle
 COPY --from=build --chown=node:node /app/data/hebrewstrong.xml ./data/hebrewstrong.xml
+COPY --from=build --chown=node:node /app/data/lemmas ./data/lemmas
 COPY --from=build --chown=node:node /app/scripts/migrate.ts ./scripts/migrate.ts
 COPY --from=build --chown=node:node /app/package.json ./package.json
 
