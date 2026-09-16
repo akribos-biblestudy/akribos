@@ -15,6 +15,43 @@
 
 	const pageBase = $derived(`/${data.strong}`);
 
+	type Gloss = {
+		display: string;
+		occurrences: number;
+		forms?: { display: string; occurrences: number }[];
+	};
+
+	function normalizeGloss(value: string): string {
+		return value.trim().toLocaleLowerCase('de');
+	}
+
+	function isLemmaGloss(gloss: Gloss): boolean {
+		return (
+			(gloss.forms?.length ?? 0) > 1 ||
+			!!gloss.forms?.some((form) => normalizeGloss(form.display) !== normalizeGloss(gloss.display))
+		);
+	}
+
+	function isActiveGloss(gloss: Gloss): boolean {
+		if (!data.gloss) return false;
+		const requested = data.gloss.trim();
+		if (data.glosses.some((entry: Gloss) => entry.display === requested))
+			return gloss.display === requested;
+		const active = normalizeGloss(requested);
+		return (
+			normalizeGloss(gloss.display) === active ||
+			!!gloss.forms?.some((form) => normalizeGloss(form.display) === active)
+		);
+	}
+
+	function glossTitle(gloss: Gloss): string | undefined {
+		if (!isLemmaGloss(gloss)) return undefined;
+		const forms = gloss
+			.forms!.map((form) => `${form.display} (${formatNumber(form.occurrences)})`)
+			.join(', ');
+		return `${t('strong.glossForms')}: ${forms}`;
+	}
+
 	function filterQuery(options: { book?: number | null; gloss?: string | null }): string {
 		const query = new SvelteURLSearchParams();
 		const book = options.book === undefined ? data.book : options.book;
@@ -137,15 +174,20 @@
 					<summary class="cursor-pointer text-sm font-semibold">
 						{t('strong.filterTranslation')}{data.gloss ? `: ${data.gloss}` : ''}
 					</summary>
+					{#if data.glosses.some(isLemmaGloss)}
+						<p class="mt-2 text-xs text-stone-500 dark:text-stone-400">
+							{t('strong.glossLemmaHint')}
+						</p>
+					{/if}
 					<ul class="mt-3 flex flex-wrap gap-1.5">
 						{#each data.glosses as gloss (gloss.display)}
 							<li>
 								<a
 									class="inline-flex rounded-full border border-stone-300 px-2.5 py-1 text-xs dark:border-stone-700"
-									class:border-accent-600={data.gloss?.toLocaleLowerCase('de') ===
-										gloss.display.toLocaleLowerCase('de')}
-									class:bg-accent-50={data.gloss?.toLocaleLowerCase('de') ===
-										gloss.display.toLocaleLowerCase('de')}
+									class:border-accent-600={isActiveGloss(gloss)}
+									class:bg-accent-50={isActiveGloss(gloss)}
+									aria-current={isActiveGloss(gloss) ? 'true' : undefined}
+									title={glossTitle(gloss)}
 									href="/{data.strong}{filterQuery({ gloss: gloss.display })}"
 								>
 									{gloss.display} · {formatNumber(gloss.occurrences)}

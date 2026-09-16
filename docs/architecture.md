@@ -43,6 +43,12 @@ row per number, sharing a position.
 views refreshed after an import. The previous version recomputed the gloss frequencies in Python on
 every word-study open, over every verse containing the word.
 
+Translation lemma grouping reads every precomputed spelling for one resource/Strong pair, combines
+recognized forms with the source Bible's offline language dictionary, and only then applies the
+display limit. It does not rescan verses or modify their original-language lemma annotations.
+Occurrence filters reuse the exact original SQL spelling keys behind the selected group. See
+[translation lemmas](translation-lemmas.md) for ambiguity handling and language-data provenance.
+
 ## Search
 
 `verses.search_vector` is a generated `tsvector` over a `german_unaccent` configuration: German

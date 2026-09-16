@@ -11,6 +11,12 @@
 
 	Chart.register(DoughnutController, ArcElement, Tooltip);
 
+	type Gloss = {
+		display: string;
+		occurrences: number;
+		forms?: { display: string; occurrences: number }[];
+	};
+
 	/** Ranked renderings with outside labels, plus the ungrouped accessible table and filters. */
 	let {
 		glosses,
@@ -20,7 +26,7 @@
 		hrefForGloss,
 		activeGloss = null
 	}: {
-		glosses: { display: string; occurrences: number }[];
+		glosses: Gloss[];
 		/** Renderings below this share of the total are folded into one "+N andere" slice. */
 		groupBelowPercent?: number;
 		/** Full Strong count, including renderings beyond the repository's result limit. */
@@ -37,6 +43,35 @@
 	const listedTotal = $derived(glosses.reduce((sum, gloss) => sum + gloss.occurrences, 0));
 	const total = $derived(Math.max(listedTotal, occurrenceTotal ?? listedTotal));
 	const unlistedOccurrences = $derived(total - listedTotal);
+	const hasLemmaForms = $derived(glosses.some(isLemmaGloss));
+
+	function normalizeGloss(value: string): string {
+		return value.trim().toLocaleLowerCase('de');
+	}
+
+	function isLemmaGloss(gloss: Gloss): boolean {
+		return (
+			(gloss.forms?.length ?? 0) > 1 ||
+			!!gloss.forms?.some((form) => normalizeGloss(form.display) !== normalizeGloss(gloss.display))
+		);
+	}
+
+	function isActiveGloss(gloss: Gloss): boolean {
+		if (!activeGloss) return false;
+		const requested = activeGloss.trim();
+		if (glosses.some((entry) => entry.display === requested)) return gloss.display === requested;
+		const active = normalizeGloss(requested);
+		return (
+			normalizeGloss(gloss.display) === active ||
+			!!gloss.forms?.some((form) => normalizeGloss(form.display) === active)
+		);
+	}
+
+	function originalForms(gloss: Gloss): string {
+		return (gloss.forms?.length ? gloss.forms : [gloss])
+			.map((form) => `${form.display} (${formatNumber(form.occurrences)})`)
+			.join(', ');
+	}
 
 	/** The chart's own series: the grouped tail (if any) is a distinct, muted "other" entry. */
 	const chartGlosses = $derived.by(() => {
@@ -257,6 +292,9 @@
 </script>
 
 <div class="donut-chart" class:compact>
+	{#if hasLemmaForms}
+		<p class="lemma-hint">{t('strong.glossLemmaHint')}</p>
+	{/if}
 	<div class="canvas-wrap" style:height={`${Math.max(290, chartGlosses.length * 17 + 24)}px`}>
 		<canvas bind:this={canvas} aria-label={t('strong.translations')}></canvas>
 		{#if centerLabel}
@@ -281,18 +319,25 @@
 
 	<table class="sr-only">
 		<caption>{t('strong.translations')}</caption>
-		<thead><tr><th>{t('strong.translations')}</th><th>{t('strong.occurrences')}</th></tr></thead>
+		<thead>
+			<tr>
+				<th>{t('strong.translations')}</th><th>{t('strong.occurrences')}</th>
+				{#if hasLemmaForms}<th>{t('strong.glossForms')}</th>{/if}
+			</tr>
+		</thead>
 		<tbody>
 			{#each glosses as gloss (gloss.display)}
 				<tr>
 					<td>{gloss.display}</td>
 					<td>{formatNumber(gloss.occurrences)}</td>
+					{#if hasLemmaForms}<td>{originalForms(gloss)}</td>{/if}
 				</tr>
 			{/each}
 			{#if unlistedOccurrences > 0}
 				<tr>
 					<td>{t('strong.glossUnlisted')}</td>
 					<td>{formatNumber(unlistedOccurrences)}</td>
+					{#if hasLemmaForms}<td></td>{/if}
 				</tr>
 			{/if}
 		</tbody>
@@ -304,12 +349,11 @@
 				<li>
 					<a
 						href={hrefForGloss(gloss.display)}
-						class:active={activeGloss?.toLocaleLowerCase('de') ===
-							gloss.display.toLocaleLowerCase('de')}
-						aria-current={activeGloss?.toLocaleLowerCase('de') ===
-						gloss.display.toLocaleLowerCase('de')
-							? 'true'
+						title={isLemmaGloss(gloss)
+							? `${t('strong.glossForms')}: ${originalForms(gloss)}`
 							: undefined}
+						class:active={isActiveGloss(gloss)}
+						aria-current={isActiveGloss(gloss) ? 'true' : undefined}
 					>
 						<span>{gloss.display}</span>
 						<small>{formatNumber(gloss.occurrences)}</small>
@@ -321,6 +365,13 @@
 </div>
 
 <style>
+	.lemma-hint {
+		margin: 0.25rem 0 0;
+		color: var(--color-stone-500);
+		font-size: 0.75rem;
+		line-height: 1.5;
+	}
+
 	.canvas-wrap {
 		position: relative;
 		height: 290px;

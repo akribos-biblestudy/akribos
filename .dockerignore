@@ -16,6 +16,8 @@ docs
 data/*
 # Startup backfills existing Hebrew lexicons from this bundled translation.
 !data/hebrewstrong.xml
+!data/lemmas/
+!data/lemmas/**
 
 .env
 .env.*

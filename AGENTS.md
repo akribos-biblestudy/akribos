@@ -915,6 +915,20 @@ Die kanonischen 66 Bücher und Referenzregeln liegen in Code unter `src/lib/bibl
 enthält die Darstellung, `verses.text` die Suche. Strong-Wörter sind zusätzlich normalisiert in
 `verse_words`; Statistiken und Suchbegriffe werden materialisiert und nach Imports aktualisiert.
 
+„Übersetzt als“ gruppiert alle bereits vorgezählten `strong_glosses`-Formen erst nach erkannten
+Übersetzungslemmata und begrenzt anschließend die Anzeige. Maßgeblich ist die Sprache der Quellbibel,
+nicht die Lexikonsprache. `data/lemmas/<sprache>.tsv.gz` enthält lokale Kandidaten mit Wortart;
+Deutsch ist gebündelt, andere Sprachen bleiben ohne Datei unverändert. Der Server hält nur die
+kompakten Wörterbuchbytes samt Zeilenindex im Speicher, niemals kontobezogene Ergebnisse.
+Mehrdeutige Formen benötigen genau eine unabhängig belegte Grundform derselben Strong-Gruppe.
+Unbekannte Formen, Funktionswörter, Mehrwortmarkierungen und kollidierende Analysen bleiben erhalten;
+Substantiv- und Verb-Lemmata behalten ihre Schreibweise. Die Gesamtzahlen und Urtext-`verse_words.lemma`
+ändern sich nicht. Trefferfilter lösen Grundformen und alte Wortform-Links auf dieselben originalen
+SQL-Schlüssel auf; exakte Lemma-Schreibweise hat Vorrang, sonst werden alle passenden Gruppen verwendet.
+Es ist kein Reimport oder Backfill nötig. Herkunft, Lizenz, Sprachdatei-Import und Grenzen stehen in
+`data/lemmas/README.md` und `docs/translation-lemmas.md`. Docker muss diese Daten im Build-Kontext und
+Runtime-Image mitführen; sie gehören niemals in den Browser-Bundle.
+
 Ein Bibelimport ersetzt Text, Wortindex, Buchstatistik und Ressourcenmetadaten in einer Transaktion.
 Ohne verwertbaren Text oder bei einem späteren Parserfehler bleibt der vorherige Stand vollständig
 erhalten; ein leerer Import wird nie als fertige Bibel veröffentlicht. Die Regel „erster nicht leerer

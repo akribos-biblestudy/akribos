@@ -250,7 +250,7 @@
 						"name": "gloss",
 						"in": "query",
 						"required": false,
-						"description": "Restrict occurrences to one translation rendering from the glosses list. Matching ignores case and surrounding whitespace; it can be combined with book.",
+						"description": "Restrict occurrences to a translation lemma from the glosses list, including its original word forms. Old word-form filters remain valid. Exact lemma casing takes precedence (e.g. German Leben versus leben); otherwise matching ignores case and surrounding whitespace. Can be combined with book.",
 						"schema": { "type": "string", "example": "geliebt" }
 					}
 				],
@@ -922,9 +922,14 @@
 				"properties": {
 					"display": {
 						"type": "string",
-						"description": "How the statistics resource renders this word, e.g. \"lieben\"."
+						"description": "Recognized translation lemma in the source Bible language, or the original rendering when unavailable or ambiguous, e.g. \"lieben\"."
 					},
-					"occurrences": { "type": "integer" }
+					"occurrences": { "type": "integer" },
+					"forms": {
+						"type": "array",
+						"description": "Original counted word forms when normalized or grouped. Their counts sum to occurrences.",
+						"items": { "type": "object", "required": ["display", "occurrences"], "properties": { "display": { "type": "string" }, "occurrences": { "type": "integer" } } }
+					}
 				}
 			},
 			"StrongOccurrence": {

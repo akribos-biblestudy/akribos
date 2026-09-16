@@ -27,7 +27,11 @@ export type ReaderTabStrongSearch = {
 	pageCount: number;
 	book: number | null;
 	bookCounts: { book: number; count: number }[];
-	glosses: { display: string; occurrences: number }[];
+	glosses: {
+		display: string;
+		occurrences: number;
+		forms?: { display: string; occurrences: number }[];
+	}[];
 	statistics: { occurrences: number; verseCount: number };
 	hits: {
 		book: number;

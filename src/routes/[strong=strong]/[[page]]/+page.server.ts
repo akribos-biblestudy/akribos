@@ -47,7 +47,7 @@ export async function load({ params, setHeaders, url, locals }) {
 		loadStrongEntry(db, strong, locals.user?.id),
 		loadStrongStatistics(db, strong, statisticsResource),
 		loadStrongBookCounts(db, strong, statisticsResource),
-		loadStrongGlosses(db, strong, statisticsResource, 20),
+		loadStrongGlosses(db, strong, statisticsResource, 20, gloss),
 		loadStrongOccurrences(db, strong, statisticsResource, { page, pageSize: 30, book, gloss })
 	]);
 

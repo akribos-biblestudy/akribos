@@ -497,6 +497,8 @@ export const de = {
 	'strong.translations': 'Übersetzt als',
 	'strong.glossOthers': '+{count} andere',
 	'strong.glossUnlisted': 'weitere Wiedergaben',
+	'strong.glossLemmaHint': 'Erkannte Wortformen sind nach ihrer Grundform zusammengefasst.',
+	'strong.glossForms': 'Wortformen im Bibeltext',
 	'strong.glossCenterWord': 'Vorkommen',
 	'strong.glossCenterHint': '{count} häufigste Übersetzungen',
 	'strong.translationsHint':
