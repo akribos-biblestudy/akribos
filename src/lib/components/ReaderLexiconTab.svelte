@@ -284,6 +284,7 @@
 										<VerseText
 											segments={occurrence.segments}
 											activeStrong={entry.strong}
+											showStrongAssignmentNotes
 											onStrongClick={(strong) => onLookup(strong)}
 										/>
 									</p>

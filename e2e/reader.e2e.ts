@@ -1187,6 +1187,32 @@ test('clicking a footnote marker opens its note without relying on the Popover A
 	await expect(note).not.toBeVisible();
 });
 
+test('assignment uncertainty markers stay out of reading text but remain in word studies', async ({
+	page
+}) => {
+	await page.goto('/Joh3');
+	const verse = page.locator('.flow-column').first().locator('[data-verse-key="43:3:16"]');
+	// This fixture has both an assignment note and an ordinary star-marked translation footnote.
+	await expect(verse.locator('.footnote-marker')).toHaveCount(1);
+	await verse.locator('.footnote-marker').click();
+	await expect(page.getByRole('note')).toHaveText('o. so sehr');
+	await verse.locator('.footnote-marker').click();
+	await verse.locator('.strong[data-strong="G25"]').click();
+	const study = page.locator('.lexicon-tab');
+	await expect(study.locator('.occurrence .footnote-marker')).toHaveCount(2);
+	await study.locator('.occurrence .footnote-marker').first().click();
+	await expect(study.getByRole('note')).toHaveText(
+		'Automatische Wortzuordnung; fachlich noch nicht bestätigt.'
+	);
+	await page.goto('/G25');
+	const occurrences = page.getByRole('list', { name: 'Vorkommen', exact: true });
+	await expect(occurrences.locator('.footnote-marker')).toHaveCount(2);
+	await occurrences.locator('.footnote-marker').first().click();
+	await expect(occurrences.getByRole('note')).toHaveText(
+		'Automatische Wortzuordnung; fachlich noch nicht bestätigt.'
+	);
+});
+
 test('the Strong page lists every occurrence', async ({ page }) => {
 	await page.goto('/G2316');
 

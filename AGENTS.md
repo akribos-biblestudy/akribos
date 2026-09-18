@@ -43,6 +43,13 @@ Die Abhängigkeitsrichtung ist wichtig: `src/lib/bible` importiert niemals aus `
 wird als sichere strukturierte Segmente plus flacher Suchtext gespeichert. Die UI rendert Segmente mit
 `VerseText.svelte`; importiertes HTML darf nicht ungeprüft in den Bibeltext gelangen.
 
+`VerseText` blendet im Lesetext die von Akribos-Bible erzeugte Fußnote „Automatische Wortzuordnung;
+fachlich noch nicht bestätigt.“ aus. Bestehende Importe enthalten deren XML-Typ nicht mehr; erkannt
+wird deshalb ausschließlich dieser whitespace-normalisierte Text mit leerem Marker. Normale Fußnoten
+bleiben sichtbar. Die Fundstellen im Lexikon-Tab und auf den Strong-Seiten aktivieren ausdrücklich
+`showStrongAssignmentNotes`, damit der Hinweis dort weiter abrufbar ist. Gespeicherte Segmente,
+Strong-Zuordnungen, Wortindizes und API-Daten werden dabei nicht verändert.
+
 ## Private Ressourcenfreigaben
 
 `resource_user_grants` erteilt einzelnen Konten Zugriff auf nicht öffentliche Werke. Nur fertige

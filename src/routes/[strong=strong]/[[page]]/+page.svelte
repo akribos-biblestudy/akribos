@@ -286,7 +286,11 @@
 						<p
 							class="scripture-sized mt-1 min-w-0 font-serif leading-relaxed [overflow-wrap:anywhere]"
 						>
-							<VerseText segments={occurrence.segments} activeStrong={data.strong} />
+							<VerseText
+								segments={occurrence.segments}
+								activeStrong={data.strong}
+								showStrongAssignmentNotes
+							/>
 						</p>
 					</li>
 				{/each}
