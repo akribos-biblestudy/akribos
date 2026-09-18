@@ -79,7 +79,7 @@ const GERMAN = `<?xml version="1.0" encoding="utf-8"?>
 	</BIBLEBOOK>
 	<BIBLEBOOK bnumber="43">
 		<CHAPTER cnumber="3">
-			<VERS vnumber="16">Denn also hat <gr str="2316">Gott </gr> die <gr str="2889">Welt </gr><gr str="25">geliebt </gr><note n="*">o. so sehr</note>, daß er seinen <gr str="5207">Sohn </gr> gab.</VERS>
+			<VERS vnumber="16">Denn also hat <gr str="2316">Gott </gr> die <gr str="2889">Welt </gr><gr str="25">geliebt </gr><NOTE type="x-explanation" ex="nl:akribosStrongUncertainty">Automatische Wortzuordnung; fachlich noch nicht bestätigt.</NOTE><note n="*">o. so sehr</note>, daß er seinen <gr str="5207">Sohn </gr> gab.</VERS>
 			<VERS vnumber="17">Denn <gr str="2316">Gott </gr> hat seinen <gr str="5207">Sohn </gr> nicht gesandt, um zu richten.</VERS>
 		</CHAPTER>
 	</BIBLEBOOK>

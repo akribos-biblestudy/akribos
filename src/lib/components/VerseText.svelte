@@ -8,6 +8,9 @@
 	} from '$lib/bible/segments';
 	import Footnote from './Footnote.svelte';
 
+	// Existing Zefania imports retain the generated note text, but not its x-explanation metadata.
+	const strongAssignmentNote = 'Automatische Wortzuordnung; fachlich noch nicht bestätigt.';
+
 	/**
 	 * Renders a verse from its stored segments.
 	 *
@@ -19,6 +22,7 @@
 		segments,
 		onStrongClick,
 		activeStrong = null,
+		showStrongAssignmentNotes = false,
 		highlights = [],
 		wordOffset = 0
 	}: {
@@ -27,6 +31,8 @@
 		onStrongClick?: (strong: string, word: string) => void;
 		/** Highlights a selected Strong's number, e.g. inside a result or occurrence list. */
 		activeStrong?: string | null;
+		/** Keep assignment uncertainty accessible in word-study occurrences, outside the reading text. */
+		showStrongAssignmentNotes?: boolean;
 		/** Translation-specific highlighted word ranges to paint within `segments`, if any. */
 		highlights?: HighlightRange[];
 		/** Global word index of `segments[0]`, so a verse split into a lead and a remainder (see
@@ -42,9 +48,20 @@
 
 	type RenderPart = { segment: VerseSegment; suffix: string };
 
+	function isHiddenAssignmentNote(segment: VerseSegment): boolean {
+		return (
+			!showStrongAssignmentNotes &&
+			typeof segment !== 'string' &&
+			segment.kind === 'note' &&
+			segment.marker.trim() === '' &&
+			segment.text.trim().replace(/\s+/g, ' ') === strongAssignmentNote
+		);
+	}
+
 	function keepClosingPunctuation(list: VerseSegment[]): RenderPart[] {
 		const parts: RenderPart[] = [];
 		for (const original of list) {
+			if (isHiddenAssignmentNote(original)) continue;
 			let segment = original;
 			const previous = parts.at(-1);
 			if (
@@ -103,7 +120,9 @@
 	{:else if item.kind === 'em'}
 		<em class:has-highlight={item.color} style:background-color={item.color}>{item.text}</em>
 	{:else if item.kind === 'note'}
-		<Footnote marker={item.segment.marker} text={item.segment.text} />
+		{#if !isHiddenAssignmentNote(item.segment)}
+			<Footnote marker={item.segment.marker} text={item.segment.text} />
+		{/if}
 	{:else if item.kind === 'wj'}
 		<span class="words-of-jesus"
 			>{#each item.children as child, index (index)}{@render chunk(child)}{/each}</span
