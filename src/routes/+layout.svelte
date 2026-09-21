@@ -1,5 +1,6 @@
 <script lang="ts">
 	import './layout.css';
+	import readingFont from '$lib/assets/fonts/akribos-text-regular.woff2?url';
 	import Analytics from '$lib/components/Analytics.svelte';
 	import { page } from '$app/state';
 	import { onMount, setContext } from 'svelte';
@@ -61,6 +62,7 @@
 <svelte:head>
 	<title>Akribos - Die Bibel präzise studieren</title>
 	<link rel="icon" href="/icon.png" />
+	<link rel="preload" href={readingFont} as="font" type="font/woff2" crossorigin="anonymous" />
 	<!-- Keep native same-origin form POSTs compatible with CSRF protection while withholding
 		 referrers from external analytics requests. no-referrer also suppresses the form's Origin. -->
 	{#if data.analytics.enabled}<meta name="referrer" content="same-origin" />{/if}
@@ -70,10 +72,10 @@
 	{@render children()}
 {:else}
 	<div
-		class="flex min-h-full flex-col"
-		style="--reader-font-scale: {data.readerFontScale /
-			100}; --reader-text-size: calc(1.08rem * {data.readerFontScale /
-			100}); --header-height: {reader ? '3.25rem' : '4rem'}"
+		class="reading-preferences flex min-h-full flex-col"
+		style="--reader-font-scale: {data.readerFontScale / 100}; --header-height: {reader
+			? '3.25rem'
+			: '4rem'}"
 	>
 		<SiteHeader
 			savedWorkspaces={data.savedWorkspaces}

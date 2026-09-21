@@ -344,9 +344,9 @@
 		border: 1px solid var(--line);
 		border-radius: 0.6rem;
 		background: color-mix(in oklab, var(--surface-raised) 75%, transparent);
-		font-family: var(--reader-font-family, ui-serif, Georgia, serif);
-		font-size: var(--reader-text-size, 1.08rem);
-		line-height: 1.55;
+		font-family: var(--font-serif);
+		font-size: var(--reader-text-size);
+		line-height: var(--reader-line-height);
 		text-align: left;
 		cursor: pointer;
 	}
@@ -373,6 +373,9 @@
 		margin-top: 0.35rem;
 		font-size: 0.76rem;
 		font-weight: 700;
+	}
+	.commentary-result {
+		font-size: var(--reader-prose-size);
 	}
 	.status {
 		padding: 1.25rem 0.65rem;

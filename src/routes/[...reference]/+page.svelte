@@ -1635,6 +1635,31 @@
 	 */
 	let lastAlignedElement: (Element | null)[] = [];
 
+	onMount(() => {
+		// A late webfont changes line breaks after the initial verse alignment. Keep the current
+		// semantic position of every tab, including independent groups and chapter-only targets.
+		// Use live references: the user may already have scrolled or navigated while it downloaded.
+		const alignAfterFontLoad = (event: FontFaceSetLoadEvent) => {
+			if (!event.fontfaces.some((font) => /Akribos Text|Noto Sans Hebrew/.test(font.family)))
+				return;
+			scrollTopsByTab.clear();
+			for (const [index, column] of data.columns.entries()) {
+				if (column.resource.kind === 'lexicon') continue;
+				const reference = visibleReferences[index] ?? column.activeTab.reference;
+				lastAlignedElement[index] = null;
+				if (reference.verse) {
+					scrollColumnToVerse(index, reference.book, reference.chapter, reference.verse);
+				} else if (flowColumns[index]) {
+					suppressProgrammaticFlowScroll(index);
+					flowColumns[index]!.scrollTop = 0;
+				}
+				if (flowColumns[index]) updateFlowEdgeState(index, flowColumns[index]!);
+			}
+		};
+		document.fonts.addEventListener('loadingdone', alignAfterFontLoad);
+		return () => document.fonts.removeEventListener('loadingdone', alignAfterFontLoad);
+	});
+
 	$effect(() => {
 		const columnsKey = data.columns
 			.map(
@@ -1701,6 +1726,11 @@
 					if (scrollTop !== undefined) {
 						suppressProgrammaticFlowScroll(index);
 						flowColumn.scrollTop = scrollTop;
+					} else if (reference.verse) {
+						scrollColumnToVerse(index, reference.book, reference.chapter, reference.verse);
+					} else {
+						suppressProgrammaticFlowScroll(index);
+						flowColumn.scrollTop = 0;
 					}
 					updateFlowEdgeState(index, flowColumn);
 				} else if (flowColumn) {
@@ -3191,8 +3221,8 @@
 
 	.flow-chapter {
 		padding: 1.05rem 1.2rem 1.65rem;
-		text-align: justify;
-		text-justify: inter-word;
+		/* Natural spacing also works in narrow tiles and at large personal reading sizes. */
+		text-align: start;
 	}
 
 	.flow-chapter + .flow-chapter {
@@ -3236,8 +3266,8 @@
 		display: inline;
 		margin: 0;
 		font-family: var(--font-serif);
-		font-size: var(--reader-text-size, 1.08rem);
-		line-height: 1.65;
+		font-size: var(--reader-text-size);
+		line-height: var(--reader-line-height);
 		hyphens: auto;
 	}
 
@@ -3282,8 +3312,8 @@
 		display: flow-root;
 		margin-bottom: 1.15rem;
 		font-family: var(--font-serif);
-		font-size: var(--reader-text-size, 1.08rem);
-		line-height: 1.65;
+		font-size: var(--reader-prose-size);
+		line-height: var(--reader-line-height);
 	}
 
 	.loading-chapter {
@@ -3478,7 +3508,7 @@
 		}
 		&:where([lang='hbo']) {
 			font-family: var(--font-hebrew);
-			font-size: 1.25rem;
+			font-size: var(--reader-hebrew-size);
 		}
 	}
 </style>

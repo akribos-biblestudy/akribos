@@ -285,6 +285,8 @@
 						</a>
 						<p
 							class="scripture-sized mt-1 min-w-0 font-serif leading-relaxed [overflow-wrap:anywhere]"
+							lang={data.resource?.language}
+							dir={data.resource?.direction}
 						>
 							<VerseText
 								segments={occurrence.segments}

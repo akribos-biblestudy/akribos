@@ -28,11 +28,11 @@ import {
 	MAX_STYLES,
 	renameHighlightStyle
 } from '$lib/server/repositories/highlight-styles';
-import { writeFontScale } from '$lib/server/reader-preferences';
+import { readFontScale, writeFontScale } from '$lib/server/reader-preferences';
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
-export async function load({ locals, url }) {
+export async function load({ locals, url, cookies }) {
 	if (!locals.user) redirect(303, '/login?redirectTo=%2Faccount');
 	if (url.searchParams.get('tab') === 'lists') redirect(303, '/lists');
 
@@ -45,7 +45,7 @@ export async function load({ locals, url }) {
 
 	return {
 		hasPassword: Boolean(account?.passwordHash),
-		readerFontScale: locals.user.readerFontScale,
+		readerFontScale: readFontScale(cookies, locals.user.readerFontScale),
 		minPasswordLength: MIN_PASSWORD_LENGTH,
 		apiKeys,
 		maxApiKeys: MAX_API_KEYS,

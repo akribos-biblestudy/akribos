@@ -75,7 +75,14 @@ export async function load({ params, setHeaders, url, locals }) {
 		glosses,
 		occurrences,
 		title: strong,
-		resource: resource ? { id: resource.id, abbrev: resource.tabTitle } : null,
+		resource: resource
+			? {
+					id: resource.id,
+					abbrev: resource.tabTitle,
+					language: resource.language,
+					direction: resource.direction
+				}
+			: null,
 		// The translation the verse-hover popover fetches text from. This page has a shared, cookie-free
 		// cache (`s-maxage`), so it deliberately reuses the same resource already picked for the
 		// occurrence statistics above rather than the reader's own `columns` cookie, which would vary

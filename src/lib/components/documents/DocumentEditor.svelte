@@ -2235,7 +2235,7 @@
 		min-height: 100%;
 		flex: 1;
 		padding-bottom: 3rem;
-		font-size: 0.98rem;
+		font-size: var(--reader-prose-size);
 	}
 	.document-editor .markdown-editor {
 		display: flex;
@@ -2258,7 +2258,7 @@
 		}
 		.editor-host :global(.document-prose) {
 			min-height: 24rem;
-			font-size: 1rem;
+			font-size: var(--reader-prose-size);
 		}
 	}
 </style>
