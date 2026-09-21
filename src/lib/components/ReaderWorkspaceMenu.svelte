@@ -15,6 +15,7 @@
 	let entries = $derived(workspaces);
 	let entriesGeneration = 0;
 	let menu = $state<Menu>();
+	let trigger = $state<HTMLButtonElement>();
 	let dialog = $state<HTMLDialogElement>();
 	let nameInput = $state<HTMLInputElement>();
 	let editing = $state(false);
@@ -24,6 +25,7 @@
 	let busy = $state(false);
 	let message = $state('');
 	let notice = $state('');
+	let openError = $state('');
 	const dialogTitle = $derived(
 		deleting
 			? 'Arbeitsbereich löschen'
@@ -96,6 +98,7 @@
 </script>
 
 <button
+	bind:this={trigger}
 	type="button"
 	class="workspace-trigger"
 	aria-label="Arbeitsbereiche"
@@ -111,6 +114,7 @@
 
 <Menu bind:this={menu} label="Arbeitsbereiche" minWidth="19rem">
 	<p class="menu-caption">Arbeitsbereiche · automatisch gespeichert</p>
+	{#if openError}<p role="alert" class="open-error">{openError}</p>{/if}
 	{#if entries.length === 0}
 		<p class="empty-hint">Noch keine Arbeitsbereiche gespeichert.</p>
 	{:else}
@@ -125,12 +129,16 @@
 						if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
 						event.preventDefault();
 						menu?.close();
+						openError = '';
 						try {
-							await capture.flush?.();
+							await capture.flush?.({ discardConflict: true });
 							await goto(`/workspaces/${entry.id}`, { invalidateAll: true });
-						} catch {
-							notice =
-								'Der Arbeitsbereich konnte nicht gespeichert werden. Bitte versuche es erneut.';
+						} catch (caught) {
+							openError =
+								caught instanceof Error
+									? caught.message
+									: 'Der Arbeitsbereich konnte nicht geöffnet werden. Bitte versuche es erneut.';
+							if (trigger) menu?.openAt(trigger);
 						}
 					}}
 					data-sveltekit-preload-data="off"
@@ -270,6 +278,14 @@
 		font-size: 0.78rem;
 		color: var(--color-stone-500);
 	}
+	.open-error {
+		max-width: 24rem;
+		padding: 0.4rem 0.6rem;
+		color: var(--color-red-700);
+		font-size: 0.8rem;
+		line-height: 1.5;
+		overflow-wrap: anywhere;
+	}
 	.workspace-row {
 		display: flex;
 		align-items: center;
@@ -398,6 +414,7 @@
 		border-color: var(--color-stone-600);
 	}
 	:global(.dark) .delete-action,
+	:global(.dark) .open-error,
 	:global(.dark) .workspace-dialog .error-message {
 		color: var(--color-red-400);
 	}

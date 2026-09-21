@@ -5,12 +5,41 @@ import {
 	readerStateFromUrl,
 	readReaderNotesFilters,
 	readerStateFromPage,
+	readerActionUrl,
 	withReaderNotesFilters,
 	sameReaderUrlWorkspace
 } from './url-state';
 import { workspaceFromColumns } from './workspace';
 
 describe('reader URL state', () => {
+	it('sends selection, content and detached guards only with the action, never in shared state', () => {
+		const workspace = workspaceFromColumns(['bible'], { book: 43, chapter: 3 });
+		const state = encodeReaderUrlState(workspace);
+		const action = new URL(
+			readerActionUrl(
+				'setLayout',
+				state,
+				{
+					workspaceId: 'private-workspace',
+					workspaceVersion: 7,
+					workspaceContentVersion: 19
+				},
+				true
+			),
+			'https://example.com/Joh3'
+		);
+		expect(action.searchParams.get('workspaceId')).toBe('private-workspace');
+		expect(action.searchParams.get('workspaceVersion')).toBe('7');
+		expect(action.searchParams.get('workspaceContentVersion')).toBe('19');
+		expect(action.searchParams.get('workspaceDetached')).toBe('true');
+		expect(action.searchParams.has('/setLayout')).toBe(true);
+		expect(readerStateFromUrl(action)).toBe(state);
+		const guest = new URL(readerActionUrl('setLayout', state), 'https://example.com/Joh3');
+		expect(guest.searchParams.has('workspaceId')).toBe(false);
+		expect(guest.searchParams.has('workspaceVersion')).toBe(false);
+		expect(guest.searchParams.has('workspaceContentVersion')).toBe(false);
+	});
+
 	it('round-trips layout, tabs, active positions, references, link groups, lookup and searches in active and inactive tabs', () => {
 		const workspace = workspaceFromColumns(['bible', 'commentary', 'lexicon'], {
 			book: 43,

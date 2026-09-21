@@ -3,7 +3,14 @@
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
+	import { getContext } from 'svelte';
 	import type { SubmitFunction } from '@sveltejs/kit';
+	import { readWorkspacePersistence } from '$lib/reader/persistence';
+	import { readerMutationEnhancement } from '$lib/reader/persistence-enhancement';
+	import {
+		READER_WORKSPACE_CONTEXT,
+		type ReaderWorkspaceCapture
+	} from '$lib/reader/saved-workspaces';
 	import { formatReference, type VerseRef } from '$lib/bible/reference';
 	import { activeReaderTab, type ReaderTab, type ReaderTile } from '$lib/reader/workspace';
 	import {
@@ -41,6 +48,7 @@
 		selectedTileIndex?: number;
 		onSelectTile?: (tileIndex: number) => void;
 	} = $props();
+	const capture = getContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT);
 
 	let moveForm = $state<HTMLFormElement>();
 	let moveFromTile = $state<HTMLInputElement>();
@@ -54,42 +62,51 @@
 	const activeTab = $derived(tile.tabs.find((tab) => tab.id === tile.activeTabId) ?? tile.tabs[0]);
 
 	function submitEnhancement(reference?: VerseRef): SubmitFunction {
-		const url = readerUrl(reference);
-		return () => {
-			return async ({ result, update }) => {
-				moveMenu?.close();
-				await update({ reset: false, invalidateAll: result.type !== 'success' });
-				if (result.type === 'success') {
-					const state = readerStateFromActionData(result.data);
-					if (!state) return;
-					announceTabHistoryMutation(result.data);
-					const path =
-						result.data &&
-						typeof result.data === 'object' &&
-						'path' in result.data &&
-						typeof result.data.path === 'string'
-							? result.data.path
-							: new URL(url, window.location.origin).pathname;
-					const targetUrl = readerUrlWithState(path, state);
-					if (`${window.location.pathname}${window.location.search}` === targetUrl) {
-						// A scroll may already have shallowly installed this exact URL while the action was
-						// in flight. In that one case there is no navigation to refresh the active tab.
-						await invalidateAll();
-					} else {
-						await goto(targetUrl, {
-							replaceState: true,
-							invalidateAll: true,
-							noScroll: true,
-							keepFocus: true
-						});
+		return readerMutationEnhancement(
+			capture,
+			() => page,
+			() => {
+				const url = readerUrl(reference);
+				return async ({ result, update }) => {
+					moveMenu?.close();
+					await update({ reset: false, invalidateAll: result.type !== 'success' });
+					if (result.type === 'success') {
+						const state = readerStateFromActionData(result.data);
+						if (!state) return;
+						announceTabHistoryMutation(result.data);
+						const path =
+							result.data &&
+							typeof result.data === 'object' &&
+							'path' in result.data &&
+							typeof result.data.path === 'string'
+								? result.data.path
+								: new URL(url, window.location.origin).pathname;
+						const targetUrl = readerUrlWithState(path, state);
+						if (`${window.location.pathname}${window.location.search}` === targetUrl) {
+							// A scroll may already have shallowly installed this exact URL while the action was
+							// in flight. In that one case there is no navigation to refresh the active tab.
+							await invalidateAll();
+						} else {
+							await goto(targetUrl, {
+								replaceState: true,
+								invalidateAll: true,
+								noScroll: true,
+								keepFocus: true
+							});
+						}
 					}
-				}
-			};
-		};
+				};
+			}
+		);
 	}
 
 	function actionUrl(action: string): string {
-		return readerActionUrl(action, readerStateFromPage(page), page.data.activeSavedWorkspaceId);
+		return readerActionUrl(
+			action,
+			readerStateFromPage(page),
+			readWorkspacePersistence(page.data, page.state.readerWorkspacePersistence),
+			page.data.readerWorkspaceDetached
+		);
 	}
 
 	function isSelected(ownerTile: ReaderTile, ownerTileIndex: number, tab: ReaderTab): boolean {

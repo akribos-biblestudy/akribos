@@ -1,4 +1,5 @@
 import { parseReference, referencePath, type VerseRef } from '$lib/bible/reference';
+import type { WorkspacePersistenceToken } from './persistence';
 import {
 	isReaderLayout,
 	MAX_READER_TABS,
@@ -262,10 +263,14 @@ export function sameReaderUrlWorkspace(left: ReaderWorkspace, right: ReaderWorks
 export function readerActionUrl(
 	action: string,
 	state: string | null | undefined,
-	workspaceId?: string | null
+	persistence?: WorkspacePersistenceToken | null,
+	detached = false
 ): string {
-	const owner = workspaceId ? `workspaceId=${encodeURIComponent(workspaceId)}&` : '';
-	return state ? `?${state}&${owner}/${action}` : `?${owner}/${action}`;
+	const owner = persistence
+		? `workspaceId=${encodeURIComponent(persistence.workspaceId)}&workspaceVersion=${persistence.workspaceVersion}&workspaceContentVersion=${persistence.workspaceContentVersion}&`
+		: '';
+	const branch = detached ? 'workspaceDetached=true&' : '';
+	return state ? `?${state}&${owner}${branch}/${action}` : `?${owner}${branch}/${action}`;
 }
 
 export function readerUrl(path: string, state: string): string {

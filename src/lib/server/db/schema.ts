@@ -386,6 +386,9 @@ export const savedReaderWorkspaces = pgTable(
 			.references(() => users.id, { onDelete: 'cascade' }),
 		name: text('name').notNull(),
 		snapshot: jsonb('snapshot').$type<SavedWorkspaceSnapshot>().notNull(),
+		/** Every snapshot change, independent of the name/deletion revision. */
+		contentVersion: integer('content_version').notNull().default(1),
+		/** Legacy bootstrap hint only; current selection belongs to each session. */
 		isActive: boolean('is_active').notNull().default(false),
 		revision: integer('revision').notNull().default(1),
 		...timestamps
@@ -402,7 +405,8 @@ export const savedReaderWorkspaces = pgTable(
 			'saved_reader_workspaces_name_check',
 			sql`char_length(btrim(${table.name})) between 1 and 80`
 		),
-		check('saved_reader_workspaces_revision_check', sql`${table.revision} > 0`)
+		check('saved_reader_workspaces_revision_check', sql`${table.revision} > 0`),
+		check('saved_reader_workspaces_content_version_check', sql`${table.contentVersion} > 0`)
 	]
 );
 
@@ -441,9 +445,17 @@ export const sessions = pgTable(
 		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 		lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+		activeReaderWorkspaceId: uuid('active_reader_workspace_id').references(
+			() => savedReaderWorkspaces.id,
+			{ onDelete: 'set null' }
+		),
+		readerWorkspaceVersion: integer('reader_workspace_version').notNull().default(0),
 		userAgent: text('user_agent')
 	},
-	(table) => [index('sessions_user_idx').on(table.userId, table.expiresAt)]
+	(table) => [
+		index('sessions_user_idx').on(table.userId, table.expiresAt),
+		check('sessions_reader_workspace_version_check', sql`${table.readerWorkspaceVersion} >= 0`)
+	]
 );
 
 export const passwordResets = pgTable(

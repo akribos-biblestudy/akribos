@@ -19,7 +19,11 @@ import { lockLoginEmail } from '../auth/email-login.ts';
 import { hashPassword } from '../auth/password.ts';
 import { normalizeFontScale } from '../reader-preferences.ts';
 import type { ReaderWorkspace } from '../../reader/workspace.ts';
-import { persistReaderWorkspace, type WorkspaceWriteGuard } from './saved-reader-workspaces';
+import {
+	persistReaderWorkspace,
+	type WorkspaceWriteGuard,
+	type WorkspaceDetachment
+} from './saved-reader-workspaces';
 
 export function normalizeEmail(email: string): string {
 	return email.trim().toLowerCase();
@@ -138,8 +142,8 @@ export async function updateReaderWorkspace(
 	db: Database,
 	userId: string,
 	workspace: ReaderWorkspace,
-	options: { guard?: WorkspaceWriteGuard; readerState?: string } = {}
-): Promise<boolean> {
+	options: { guard: WorkspaceWriteGuard; readerState?: string; detached?: WorkspaceDetachment }
+) {
 	return persistReaderWorkspace(db, userId, workspace, options);
 }
 

@@ -2,7 +2,10 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { isReferenceInCanon, parseReference } from '$lib/bible/reference';
 import { getDb } from '$lib/server/db';
 import { config } from '$lib/server/config';
-import { resolveColumns } from '$lib/server/columns';
+import {
+	readerWorkspaceBibleColumns,
+	resolveReaderWorkspaceContext
+} from '$lib/server/reader-workspace-context';
 import { logger } from '$lib/server/logger';
 import { mailer } from '$lib/server/mail';
 import { verseListInviteMail } from '$lib/server/mail/templates';
@@ -51,8 +54,8 @@ export async function load({ params, locals, cookies }) {
 	if (!access) error(404, 'Stellensammlung nicht gefunden');
 
 	const bibles = await listBibles(db, locals.user?.id);
-	const primary =
-		resolveColumns(cookies, bibles, locals.user.readerColumns)[0] ?? bibles[0]?.id ?? null;
+	const context = await resolveReaderWorkspaceContext({ cookies, locals });
+	const primary = readerWorkspaceBibleColumns(context, bibles)[0] ?? null;
 
 	const [rawItems, comments, allMembers] = await Promise.all([
 		loadVerseListItems(db, access.list.id, primary),

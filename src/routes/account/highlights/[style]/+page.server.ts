@@ -1,6 +1,9 @@
 import { error, redirect } from '@sveltejs/kit';
 import { getDb } from '$lib/server/db';
-import { resolveColumns } from '$lib/server/columns';
+import {
+	readerWorkspaceBibleColumns,
+	resolveReaderWorkspaceContext
+} from '$lib/server/reader-workspace-context';
 import { listBibles } from '$lib/server/repositories/resources';
 import { listHighlightedVerses } from '$lib/server/repositories/verse-highlights';
 
@@ -11,8 +14,8 @@ export async function load({ params, locals, cookies }) {
 
 	const db = getDb();
 	const bibles = await listBibles(db, locals.user?.id);
-	const primary =
-		resolveColumns(cookies, bibles, locals.user.readerColumns)[0] ?? bibles[0]?.id ?? null;
+	const context = await resolveReaderWorkspaceContext({ cookies, locals });
+	const primary = readerWorkspaceBibleColumns(context, bibles)[0] ?? null;
 	const result = await listHighlightedVerses(db, locals.user.id, params.style, primary);
 	if (!result) error(404, 'Markierungsfarbe nicht gefunden');
 

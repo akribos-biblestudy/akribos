@@ -1,9 +1,15 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { SubmitFunction } from '@sveltejs/kit';
+	import { readWorkspacePersistence } from '$lib/reader/persistence';
+	import { readerMutationEnhancement } from '$lib/reader/persistence-enhancement';
+	import {
+		READER_WORKSPACE_CONTEXT,
+		type ReaderWorkspaceCapture
+	} from '$lib/reader/saved-workspaces';
 	import { bookById } from '$lib/bible/books';
 	import { formatReference, parseReference, type VerseRef } from '$lib/bible/reference';
 	import { READER_LINK_SETS, type ReaderLinkSet, type ReaderTab } from '$lib/reader/workspace';
@@ -50,6 +56,7 @@
 		historyBusy?: boolean;
 		onHistory: (direction: -1 | 1) => void;
 	} = $props();
+	const capture = getContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT);
 
 	let value = $state(
 		untrack(() =>
@@ -102,38 +109,47 @@
 		onOpenReference(parsed);
 	};
 
-	const linkEnhancement: SubmitFunction = () => {
-		return async ({ result, update }) => {
-			linkMenu?.close();
-			const state = result.type === 'success' ? readerStateFromActionData(result.data) : null;
-			if (state) {
-				await goto(
-					readerUrl(
-						readerPathFromActionData(
-							result.type === 'success' ? result.data : null,
-							page.url.pathname
+	const linkEnhancement: SubmitFunction = readerMutationEnhancement(
+		capture,
+		() => page,
+		() => {
+			return async ({ result, update }) => {
+				linkMenu?.close();
+				const state = result.type === 'success' ? readerStateFromActionData(result.data) : null;
+				if (state) {
+					await goto(
+						readerUrl(
+							readerPathFromActionData(
+								result.type === 'success' ? result.data : null,
+								page.url.pathname
+							),
+							state
 						),
-						state
-					),
-					{
-						replaceState: true,
-						invalidateAll: true,
-						noScroll: true,
-						keepFocus: true
-					}
-				);
-				return;
-			}
-			await update({ reset: false, invalidateAll: result.type !== 'success' });
-		};
-	};
+						{
+							replaceState: true,
+							invalidateAll: true,
+							noScroll: true,
+							keepFocus: true
+						}
+					);
+					return;
+				}
+				await update({ reset: false, invalidateAll: result.type !== 'success' });
+			};
+		}
+	);
 
 	function linkClass(linkSet: ReaderLinkSet): string {
 		return linkSet ? `link-${linkSet.toLowerCase()}` : 'link-none';
 	}
 
 	function actionUrl(action: string): string {
-		return readerActionUrl(action, readerStateFromPage(page), page.data.activeSavedWorkspaceId);
+		return readerActionUrl(
+			action,
+			readerStateFromPage(page),
+			readWorkspacePersistence(page.data, page.state.readerWorkspacePersistence),
+			page.data.readerWorkspaceDetached
+		);
 	}
 </script>
 

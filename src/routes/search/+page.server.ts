@@ -3,7 +3,10 @@ import { parseReference, referencePath } from '$lib/bible/reference';
 import { normalizeStrongId } from '$lib/bible/strong';
 import { isValidBookId } from '$lib/bible/books';
 import { getDb } from '$lib/server/db';
-import { resolveColumns } from '$lib/server/columns';
+import {
+	readerWorkspaceBibleColumns,
+	resolveReaderWorkspaceContext
+} from '$lib/server/reader-workspace-context';
 import { listBibles } from '$lib/server/repositories/resources';
 import { search } from '$lib/server/repositories/search';
 
@@ -32,7 +35,8 @@ export async function load({ url, cookies, setHeaders, locals }) {
 
 	const db = getDb();
 	const bibles = await listBibles(db, locals.user?.id);
-	const columnIds = resolveColumns(cookies, bibles, locals.user?.readerColumns);
+	const context = await resolveReaderWorkspaceContext({ cookies, locals });
+	const columnIds = readerWorkspaceBibleColumns(context, bibles);
 	const byId = new Map(bibles.map((bible) => [bible.id, bible]));
 
 	const results = await search(db, query, { resourceIds: columnIds, page, book });

@@ -11,11 +11,21 @@ import {
 	validateWorkspaceSnapshot,
 	workspaceMutationResponse
 } from '$lib/server/saved-reader-workspaces';
+import { resolveReaderWorkspaceContext } from '$lib/server/reader-workspace-context';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async (event) => {
 	const userId = requireWorkspaceUser(event);
-	return json({ workspaces: await listSavedReaderWorkspaces(getDb(), userId) });
+	const context = await resolveReaderWorkspaceContext(event, true);
+	return json({
+		workspaces: await listSavedReaderWorkspaces(
+			getDb(),
+			userId,
+			event.locals.sessionId!,
+			context.selection
+		),
+		...context.selection
+	});
 };
 
 export const POST: RequestHandler = async (event) => {
@@ -25,11 +35,16 @@ export const POST: RequestHandler = async (event) => {
 		error(400, 'Name und Arbeitsbereich sind erforderlich.');
 	const snapshot = await validateWorkspaceSnapshot(parsed.data.snapshot, userId);
 	return workspaceMutationResponse(
-		await changeSavedReaderWorkspace(getDb(), userId, {
-			action: 'create',
-			name: parsed.data.name,
-			snapshot
-		}),
+		await changeSavedReaderWorkspace(
+			getDb(),
+			userId,
+			{
+				action: 'create',
+				name: parsed.data.name,
+				snapshot
+			},
+			event.locals.sessionId!
+		),
 		201
 	);
 };

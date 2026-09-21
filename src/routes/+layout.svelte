@@ -4,7 +4,8 @@
 	import Analytics from '$lib/components/Analytics.svelte';
 	import { page } from '$app/state';
 	import { onMount, setContext } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
+	import { createWorkspacePersistence, readWorkspacePersistence } from '$lib/reader/persistence';
 	import { INITIAL_READER_COLUMNS_COOKIE, initialReaderColumns } from '$lib/reader/initial-layout';
 	import {
 		READER_WORKSPACE_CONTEXT,
@@ -35,7 +36,14 @@
 			// Without cookies or JavaScript the first Bible remains usable in a single tile.
 		}
 	});
-	setContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT, { capture: null });
+	setContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT, {
+		capture: null,
+		persistence: createWorkspacePersistence(
+			() => readWorkspacePersistence(page.data, page.state.readerWorkspacePersistence),
+			(token) =>
+				replaceState(window.location.href, { ...page.state, readerWorkspacePersistence: token })
+		)
+	});
 	setContext<DocumentReaderNavigation>(DOCUMENT_READER_NAVIGATION, { pending: null });
 	setContext<ReferenceNavigation>(REFERENCE_NAVIGATION, {
 		open: null,

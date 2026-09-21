@@ -7,6 +7,7 @@ import {
 	readerUrl
 } from './url-state';
 import { activeReaderTab, normalizeReaderWorkspace, type ReaderWorkspace } from './workspace';
+import type { WorkspacePersistence } from './persistence';
 
 export const MAX_SAVED_WORKSPACES = 100;
 export const MAX_WORKSPACE_NAME_LENGTH = 80;
@@ -28,7 +29,9 @@ export type SavedWorkspaceSummary = {
 export const READER_WORKSPACE_CONTEXT = Symbol('reader-workspace-capture');
 export type ReaderWorkspaceCapture = {
 	capture: (() => SavedWorkspaceSnapshot) | null;
-	flush?: () => Promise<void>;
+	flush?: (options?: { discardConflict?: boolean }) => Promise<void>;
+	persistence: WorkspacePersistence;
+	reportError?: (message: string) => void;
 };
 
 export function cleanWorkspaceName(value: string): string | null {
