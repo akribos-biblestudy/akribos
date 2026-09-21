@@ -317,31 +317,34 @@
 		{/each}
 	</ul>
 
-	<table class="sr-only">
-		<caption>{t('strong.translations')}</caption>
-		<thead>
-			<tr>
-				<th>{t('strong.translations')}</th><th>{t('strong.occurrences')}</th>
-				{#if hasLemmaForms}<th>{t('strong.glossForms')}</th>{/if}
-			</tr>
-		</thead>
-		<tbody>
-			{#each glosses as gloss (gloss.display)}
+	<!-- Clip a block wrapper: a table keeps its intrinsic minimum width even at width: 1px. -->
+	<div class="sr-only">
+		<table>
+			<caption>{t('strong.translations')}</caption>
+			<thead>
 				<tr>
-					<td>{gloss.display}</td>
-					<td>{formatNumber(gloss.occurrences)}</td>
-					{#if hasLemmaForms}<td>{originalForms(gloss)}</td>{/if}
+					<th>{t('strong.translations')}</th><th>{t('strong.occurrences')}</th>
+					{#if hasLemmaForms}<th>{t('strong.glossForms')}</th>{/if}
 				</tr>
-			{/each}
-			{#if unlistedOccurrences > 0}
-				<tr>
-					<td>{t('strong.glossUnlisted')}</td>
-					<td>{formatNumber(unlistedOccurrences)}</td>
-					{#if hasLemmaForms}<td></td>{/if}
-				</tr>
-			{/if}
-		</tbody>
-	</table>
+			</thead>
+			<tbody>
+				{#each glosses as gloss (gloss.display)}
+					<tr>
+						<td>{gloss.display}</td>
+						<td>{formatNumber(gloss.occurrences)}</td>
+						{#if hasLemmaForms}<td>{originalForms(gloss)}</td>{/if}
+					</tr>
+				{/each}
+				{#if unlistedOccurrences > 0}
+					<tr>
+						<td>{t('strong.glossUnlisted')}</td>
+						<td>{formatNumber(unlistedOccurrences)}</td>
+						{#if hasLemmaForms}<td></td>{/if}
+					</tr>
+				{/if}
+			</tbody>
+		</table>
+	</div>
 
 	{#if hrefForGloss}
 		<ul class="gloss-filters" aria-label={t('strong.filterTranslation')}>

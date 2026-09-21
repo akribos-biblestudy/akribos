@@ -109,6 +109,10 @@ Inaktive Textstreams bleiben erhalten, ihre bisherigen Pixelpositionen werden un
 Öffnen wird stattdessen ihre gespeicherte Stelle ausgerichtet. Kapitelreferenzen erhalten dadurch
 keinen zusätzlichen Vers 1.
 
+Die zugängliche Datentabelle von `GlossChart` liegt in einem visuell verborgenen Blockcontainer.
+Der 1-Pixel-Clip darf nicht direkt an der Tabelle liegen: Ihre intrinsische Mindestbreite würde
+bei langen Übersetzungsformen trotzdem einen horizontalen Seitenüberlauf verursachen.
+
 ## Private Ressourcenfreigaben
 
 `resource_user_grants` erteilt einzelnen Konten Zugriff auf nicht öffentliche Werke. Nur fertige
