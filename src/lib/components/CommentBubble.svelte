@@ -85,8 +85,8 @@
 		border: 1px solid color-mix(in oklab, var(--color-accent-300) 48%, var(--color-stone-200));
 		background: color-mix(in oklab, var(--color-accent-50) 72%, var(--surface));
 		padding: 0.7rem 0.85rem 0.7rem 1rem;
-		font-family: Georgia, 'Times New Roman', serif;
-		font-size: var(--reader-text-size, 1.08rem);
+		font-family: var(--font-serif);
+		font-size: var(--reader-text-size);
 		line-height: 1.65;
 	}
 	.comment-display {

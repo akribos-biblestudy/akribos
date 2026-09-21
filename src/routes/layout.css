@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import '../lib/typography/fonts.css';
 
 /* Dark mode is driven by a class on <html>, set before first paint in app.html. Light is the
    default regardless of OS preference; only an explicit user choice enables dark. */
@@ -7,12 +8,11 @@
 @theme {
 	/* Reading typography: a serif for scripture, a sans for the interface. */
 	--font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-	--font-serif:
-		Charter, 'Noto Serif', 'Iowan Old Style', 'Palatino Linotype', Georgia, Cambria, serif;
+	--font-serif: 'Akribos Text', 'Noto Sans Hebrew', 'Akribos Text Fallback', Georgia, serif;
 
 	/* Greek and Hebrew need fonts with polytonic and pointed coverage. */
-	--font-greek: 'Gentium Plus', 'SBL Greek', 'Palatino Linotype', ui-serif, serif;
-	--font-hebrew: 'Ezra SIL', 'SBL Hebrew', 'Taamey Frank CLM', 'Times New Roman', serif;
+	--font-greek: 'Akribos Text', 'Akribos Text Fallback', Georgia, serif;
+	--font-hebrew: 'Noto Sans Hebrew', 'Times New Roman', serif;
 
 	/* Brand green sampled from the supplied logo. */
 	--color-accent-50: oklch(0.97 0.025 143);
@@ -38,6 +38,17 @@
 	--surface-raised: #ffffff;
 	--line: rgb(120 113 108 / 0.2);
 	--shadow-soft: 0 1px 2px rgb(28 25 23 / 0.04), 0 10px 28px rgb(28 25 23 / 0.045);
+}
+
+/* Recompute at the preference boundary: inherited calculated custom properties would otherwise
+   retain the root's scale. Controls use rem, so increasing reading size only enlarges the text. */
+:root,
+.reading-preferences {
+	--reader-text-size: calc(1.125rem * var(--reader-font-scale, 1));
+	--reader-prose-size: calc(1.0625rem * var(--reader-font-scale, 1));
+	--reader-hebrew-size: calc(1.25rem * var(--reader-font-scale, 1));
+	--reader-line-height: 1.7;
+	--reader-font-family: var(--font-serif);
 }
 
 @layer base {
@@ -83,8 +94,8 @@
 
 	.prose-like {
 		font-family: var(--font-serif);
-		font-size: 1.04rem;
-		line-height: 1.67;
+		font-size: var(--reader-prose-size);
+		line-height: var(--reader-line-height);
 	}
 
 	.prose-like :where(h1, h2, h3, h4, h5, h6) {
@@ -129,7 +140,8 @@
 	}
 
 	.scripture-sized {
-		font-size: calc(1.15rem * var(--reader-font-scale, 1));
+		font-size: var(--reader-text-size);
+		line-height: var(--reader-line-height);
 	}
 
 	:focus-visible {
@@ -196,6 +208,12 @@
 		font-weight: 600;
 		letter-spacing: 0.01em;
 		color: var(--color-stone-500);
+	}
+
+	.verse-hover-popup-text {
+		font-family: var(--font-serif);
+		font-size: var(--reader-prose-size);
+		line-height: var(--reader-line-height);
 	}
 
 	:where(.dark) .verse-hover-popup-ref {

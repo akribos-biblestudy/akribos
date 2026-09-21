@@ -301,6 +301,7 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 			? `${referenceLabel} · ${translationLabel}`
 			: referenceLabel;
 		const body = ownerDocument.createElement('div');
+		body.className = 'verse-hover-popup-text';
 		body.textContent = text;
 		box.append(heading, body);
 		if (onInsert || onOpen) {

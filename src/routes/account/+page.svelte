@@ -353,7 +353,7 @@
 						<p
 							class="mt-3 rounded-md border border-stone-200 bg-stone-50 px-3 py-2 font-serif
 							       leading-relaxed dark:border-stone-800 dark:bg-stone-950"
-							style="font-size: calc(1rem * {data.readerFontScale / 100})"
+							style="font-size: var(--reader-text-size); line-height: var(--reader-line-height)"
 						>
 							{t('account.readerFontPreview')}
 						</p>

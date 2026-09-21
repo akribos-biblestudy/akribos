@@ -143,9 +143,9 @@
 	}
 	.comment-body {
 		margin-top: 0.15rem;
-		font-family: Georgia, 'Times New Roman', serif;
-		font-size: calc(1rem * var(--reader-font-scale, 1));
-		line-height: 1.6;
+		font-family: var(--font-serif);
+		font-size: var(--reader-prose-size);
+		line-height: var(--reader-line-height);
 	}
 	.comment-body :global(p) {
 		margin: 0 0 0.4em;

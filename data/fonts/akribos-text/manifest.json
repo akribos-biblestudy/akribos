@@ -1,0 +1,109 @@
+{
+  "family": "Akribos Text",
+  "version": "1.000",
+  "source": {
+    "url": "https://github.com/silnrsi/font-gentium/releases/download/v7.000/GentiumBook-7.000.zip",
+    "sha256": "fa4e35bcea62dd68befabf4bb7c2765aacd2691f51ec8ae008f5f913ef49f419"
+  },
+  "files": {
+    "akribos-text-regular.woff2": {
+      "sha256": "7aeed4827e4ae619ce3a9d2f647a704d0617bff4752a10076c26fb54d88920a2",
+      "bytes": 143708,
+      "codepoints": 1700,
+      "glyphs": 2462,
+      "nfc_nfd_samples": 5,
+      "weight": 400,
+      "italic": false,
+      "outline_roots": [
+        "c",
+        "e",
+        "l",
+        "lcaron",
+        "lslash"
+      ],
+      "outline_glyphs": 80,
+      "spacing_glyphs": 34
+    },
+    "akribos-text-italic.woff2": {
+      "sha256": "5a1b67404b2ca46dd99302cd0f78061553aa73ffa614505d1fc997b2b05529a1",
+      "bytes": 157160,
+      "codepoints": 1700,
+      "glyphs": 2467,
+      "nfc_nfd_samples": 5,
+      "weight": 400,
+      "italic": true,
+      "outline_roots": [
+        "c",
+        "e"
+      ],
+      "outline_glyphs": 62,
+      "spacing_glyphs": 16
+    },
+    "akribos-text-semibold.woff2": {
+      "sha256": "9aa5753982fc14138e84139b7204167378f974234dce79cdefdfd74a2824aa79",
+      "bytes": 145612,
+      "codepoints": 1700,
+      "glyphs": 2462,
+      "nfc_nfd_samples": 5,
+      "weight": 600,
+      "italic": false,
+      "outline_roots": [
+        "c",
+        "e",
+        "l",
+        "lcaron",
+        "lslash"
+      ],
+      "outline_glyphs": 80,
+      "spacing_glyphs": 34
+    },
+    "akribos-text-semibold-italic.woff2": {
+      "sha256": "387daf7ef343c8a90d49c4c06264ba893f5271863d58132a17e5e4f6ffb2b578",
+      "bytes": 159224,
+      "codepoints": 1700,
+      "glyphs": 2467,
+      "nfc_nfd_samples": 5,
+      "weight": 600,
+      "italic": true,
+      "outline_roots": [
+        "c",
+        "e"
+      ],
+      "outline_glyphs": 62,
+      "spacing_glyphs": 16
+    },
+    "akribos-text-bold.woff2": {
+      "sha256": "ed2bed5e1ef7f3da63df237f4b5e99ae50944a1774845e02dabeb2d937fc4e9b",
+      "bytes": 141060,
+      "codepoints": 1700,
+      "glyphs": 2462,
+      "nfc_nfd_samples": 5,
+      "weight": 700,
+      "italic": false,
+      "outline_roots": [
+        "c",
+        "e",
+        "l",
+        "lcaron",
+        "lslash"
+      ],
+      "outline_glyphs": 80,
+      "spacing_glyphs": 34
+    },
+    "akribos-text-bold-italic.woff2": {
+      "sha256": "617168c9801ab638aa06b306896a3a81af00e4a706c7f7d4739a966f80583b69",
+      "bytes": 154464,
+      "codepoints": 1700,
+      "glyphs": 2467,
+      "nfc_nfd_samples": 5,
+      "weight": 700,
+      "italic": true,
+      "outline_roots": [
+        "c",
+        "e"
+      ],
+      "outline_glyphs": 62,
+      "spacing_glyphs": 16
+    }
+  }
+}

@@ -436,23 +436,16 @@ test('the full Strong occurrence page is usable on a phone', async ({ page }) =>
 	expect(viewportDoesNotOverflow).toBe(true);
 });
 
-test('commentary text is formatted the same as scripture text', async ({ page }) => {
+test('commentary text shares the reading face with a slightly smaller prose size', async ({
+	page
+}) => {
 	await useCommentaryColumn(page);
 
 	await page.goto('/Joh3,16');
 	const flowCommentary = page.locator('.flow-reference .commentary-body').first();
 	await expect(flowCommentary).toContainText('bekannteste Vers');
-	expect(
-		await page
-			.locator('.flow-reference')
-			.first()
-			.evaluate((el) => getComputedStyle(el).fontSize)
-	).toBe(
-		await page
-			.locator('.flow-verse')
-			.first()
-			.evaluate((el) => getComputedStyle(el).fontSize)
-	);
+	await expect(page.locator('.flow-reference').first()).toHaveCSS('font-size', '17px');
+	await expect(page.locator('.flow-verse').first()).toHaveCSS('font-size', '18px');
 	expect(
 		await page
 			.locator('.flow-reference')
@@ -720,7 +713,11 @@ test('flowing text keeps columns scroll-synchronized', async ({ page }) => {
 	});
 	await columns.first().evaluate((element) => {
 		element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-		element.scrollTop = element.scrollHeight;
+		// Anchor a real verse. The trailing blank space lets even the final verse reach the fade;
+		// scrolling beyond all text is not a reading position and depends on font metrics.
+		const verse = element.querySelector<HTMLElement>('[data-verse-key="43:3:17"]')!;
+		element.scrollTop +=
+			verse.getBoundingClientRect().top - element.getBoundingClientRect().top - 24;
 		element.dispatchEvent(new Event('scroll'));
 	});
 

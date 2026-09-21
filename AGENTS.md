@@ -87,6 +87,28 @@ dokumentiert. Zugangsdaten und Sessiondateien
 gehören nicht ins Repository. Die Produktbilder dürfen keine Zugangscodes oder echten Kontaktdaten
 zeigen; Beispielinhalte werden im dafür vorgesehenen Demokonto angelegt, nicht ins Bild montiert.
 
+## Leseschrift und Schriftgrößen
+
+Die lokal ausgelieferte Schrift „Akribos Text“ ist eine offen dokumentierte OFL-Ableitung von
+Gentium Book mit eigenen Kontur- und Abstandsänderungen, keine vollständig neu gezeichnete Familie.
+Herkunft und reproduzierbarer Schriftbau stehen in `docs/typography.md`, Lizenz und Hashmanifest
+unter `data/fonts/akribos-text/`, das Buildskript unter `scripts/fonts/`; die sechs
+echten Schnitte (400/600/700, aufrecht und kursiv) werden als WOFF2 über Vites gehashte Assets geladen.
+Latein und polytonisches Griechisch verwenden diese Schrift; Hebräisch verwendet das lokal gebündelte
+Noto Sans Hebrew. Betriebssystemschriften sind nur Rückfall, kein externer Schriftdienst ist beteiligt.
+
+`src/lib/typography/fonts.css` definiert die Dateien; `layout.css` ist die gemeinsame Größenskala:
+Bibeltext 1,125 rem, Kommentar-/Lexikon-/Dokumenttext 1,0625 rem, Zeilenhöhe 1,7. Berechnete Größen
+werden an `.reading-preferences` mit dem Geräteskalierungswert erneut aufgelöst, damit vererbte
+CSS-Variablen die persönliche Vergrößerung nicht verlieren. Bedienelemente und Lexikonlabels bleiben
+in festen rem-Größen. Auch die Kontovorschau liest den gerätelokalen Schriftgrößenwert.
+
+Nach einem verspäteten Schrift-Download richtet der Reader die aktuell sichtbaren Tab-Referenzen
+programmatisch erneut aus; er schreibt dabei weder eine neue URL noch einen neuen Workspace.
+Inaktive Textstreams bleiben erhalten, ihre bisherigen Pixelpositionen werden ungültig. Beim späteren
+Öffnen wird stattdessen ihre gespeicherte Stelle ausgerichtet. Kapitelreferenzen erhalten dadurch
+keinen zusätzlichen Vers 1.
+
 ## Private Ressourcenfreigaben
 
 `resource_user_grants` erteilt einzelnen Konten Zugriff auf nicht öffentliche Werke. Nur fertige
@@ -386,7 +408,7 @@ bleibt auf normalen Bildschirmen rahmenlos. Eine mittlere Viewport-Breite darf a
 E-Ink-Darstellung aktivieren; Rahmen und deckender Hintergrund sind ausschließlich für `(update: slow)`
 beziehungsweise `(monochrome)` gedacht.
 
-Lexikon-Fließtext verwendet eine kompaktere Grundgröße von `0.95rem` und folgt der persönlichen
+Lexikon-Fließtext verwendet dieselbe Grundgröße von `1.0625rem` wie Kommentartext und folgt der persönlichen
 Leseschrift-Skalierung. Bibelzitate im Lexikon behalten dieselbe `--reader-text-size` wie der Reader.
 Lexikon-Labels, Statistik und Bedienelemente verwenden dagegen feste `rem`-Größen wie die übrige
 Oberfläche; sie dürfen die Leseschrift-Skalierung nicht erben oder verschachtelt vervielfachen.

@@ -352,7 +352,7 @@
 	}
 	h2 {
 		margin-top: 0.08rem;
-		font-size: calc(1.45 * var(--reader-text-size, 1.08rem));
+		font-size: calc(1.45 * var(--reader-text-size));
 		font-weight: 500;
 		line-height: 1.25;
 	}
@@ -378,8 +378,8 @@
 
 	.original-word {
 		margin-bottom: 0.25rem;
-		font-family: var(--font-greek), var(--font-hebrew), serif;
-		font-size: var(--reader-text-size, 1.08rem);
+		font-family: var(--font-serif);
+		font-size: var(--reader-text-size);
 	}
 	.grammar-details {
 		font-family: ui-sans-serif, system-ui, sans-serif;
@@ -446,8 +446,8 @@
 		border: 1px solid var(--line);
 		border-radius: 0.6rem;
 		background: color-mix(in oklab, var(--surface-raised) 75%, transparent);
-		font-size: var(--reader-text-size, 1.08rem);
-		line-height: 1.55;
+		font-size: var(--reader-text-size);
+		line-height: var(--reader-line-height);
 		text-align: left;
 		cursor: pointer;
 	}
@@ -466,7 +466,7 @@
 		font-weight: 700;
 	}
 	.occurrence p {
-		font-family: var(--reader-font-family, ui-serif, Georgia, serif);
+		font-family: var(--font-serif);
 	}
 	.pagination {
 		display: flex;

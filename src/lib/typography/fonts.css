@@ -1,0 +1,74 @@
+/* Akribos Text is an OFL-licensed derivative; sources, changes and rebuild instructions:
+   docs/typography.md. Vite fingerprints these local assets; no external font service is used. */
+@font-face {
+	font-family: 'Akribos Text';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('../assets/fonts/akribos-text-regular.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'Akribos Text';
+	font-style: italic;
+	font-weight: 400;
+	font-display: swap;
+	src: url('../assets/fonts/akribos-text-italic.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'Akribos Text';
+	font-style: normal;
+	font-weight: 600;
+	font-display: swap;
+	src: url('../assets/fonts/akribos-text-semibold.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'Akribos Text';
+	font-style: italic;
+	font-weight: 600;
+	font-display: swap;
+	src: url('../assets/fonts/akribos-text-semibold-italic.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'Akribos Text';
+	font-style: normal;
+	font-weight: 700;
+	font-display: swap;
+	src: url('../assets/fonts/akribos-text-bold.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'Akribos Text';
+	font-style: italic;
+	font-weight: 700;
+	font-display: swap;
+	src: url('../assets/fonts/akribos-text-bold-italic.woff2') format('woff2');
+}
+
+/* Measured against Liberation Serif, not guessed for a platform's Georgia installation. */
+@font-face {
+	font-family: 'Akribos Text Fallback';
+	src: local('Liberation Serif');
+	size-adjust: 98.9362%;
+	ascent-override: 95.7451%;
+	descent-override: 27.1442%;
+	line-gap-override: 0%;
+}
+
+/* A separate script-specific face preserves Hebrew marks and cantillation. */
+@font-face {
+	font-family: 'Noto Sans Hebrew';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff2')
+		format('woff2');
+	unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+@font-face {
+	font-family: 'Noto Sans Hebrew';
+	font-style: normal;
+	font-weight: 700;
+	font-display: swap;
+	src: url('@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-700-normal.woff2')
+		format('woff2');
+	unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}

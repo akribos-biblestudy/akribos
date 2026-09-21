@@ -53,9 +53,9 @@
 		color: var(--color-stone-500);
 	}
 	.lexicon-body {
-		font-size: calc(0.95rem * var(--reader-font-scale, 1));
-		font-family: var(--reader-font-family, ui-serif, Georgia, serif);
-		line-height: 1.7;
+		font-size: var(--reader-prose-size);
+		font-family: var(--font-serif);
+		line-height: var(--reader-line-height);
 		overflow-wrap: anywhere;
 	}
 	.lexicon-body :global(a) {
@@ -64,7 +64,7 @@
 		text-underline-offset: 0.15em;
 	}
 	.lexicon-body :global(.original) {
-		font-family: var(--font-hebrew), var(--font-greek), serif;
+		font-family: 'Akribos Text', 'Noto Sans Hebrew', serif;
 	}
 	.translation-note {
 		margin: 0;
