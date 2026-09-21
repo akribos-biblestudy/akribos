@@ -50,6 +50,43 @@ bleiben sichtbar. Die Fundstellen im Lexikon-Tab und auf den Strong-Seiten aktiv
 `showStrongAssignmentNotes`, damit der Hinweis dort weiter abrufbar ist. Gespeicherte Segmente,
 Strong-Zuordnungen, Wortindizes und API-Daten werden dabei nicht verändert.
 
+## Nutzerhilfe, Administrationshilfe und Produktbilder
+
+`/help` bietet Themenübersicht und eine serverseitige GET-Suche über `q`. Der statische,
+typisierte Katalog unter `src/lib/help/` ist die gemeinsame Quelle für Themen, Artikel,
+Suchtext und Sitemap. Themen liegen unter `/help/[topic]`, einzelne Aufgaben zusätzlich unter
+`/help/[topic]/[article]`; unbekannte Artikel liefern 404. Die bisherigen 13 `/help#…`-Anker
+bleiben auf den verlinkten Themenkarten erhalten. Fragmente erreichen den Server nicht und
+dürfen deshalb nicht ausschließlich über Serverredirects migriert werden.
+
+Administrationshilfe (`audience: admin`, `/help/administration` einschließlich aller Unterseiten)
+ist ausschließlich für angemeldete Administratoren zugänglich. Direkte Aufrufe müssen die Rolle
+serverseitig prüfen. Themenübersicht, Suche, Navigation, verwandte Artikel und serialisierte
+Hilfedaten dürfen Gästen und normalen Konten keine Adminartikel anbieten; bloßes Ausblenden in der
+Oberfläche genügt nicht. Die öffentliche Sitemap und Landingpage enthalten keine Adminhilfelinks.
+Die API-Hilfe bleibt ein eigener, öffentlich erreichbarer Fachbereich. Rollenabhängige Hilfeantworten
+dürfen nicht öffentlich gecacht werden. Bei neuen Artikeln und Querverweisen ist diese Zugriffsgrenze
+mitzupflegen und mit Gast-, Nutzer- und Adminzugriff zu prüfen.
+
+Die interaktive API-Referenz unter `/api/docs` bindet Scalars CSS nur während ihrer eigenen
+Mount-Laufzeit im Dokument ein, damit auch ausgelagerte Dialoge gestaltet bleiben. Kein globaler
+Scalar-CSS-Import: Beim Verlassen zuerst die Instanz zerstören, dann ihr Stylesheet entfernen und
+die vorherigen `light-mode`-/`dark-mode`-Klassen am Body wiederherstellen, damit SPA-Navigation
+das Design der übrigen Anwendung nicht verändert.
+
+Artikel-HTML ist ausschließlich versionierter redaktioneller Inhalt, niemals ungeprüfte Eingabe
+oder importiertes HTML. `HelpScreenshot.svelte` dient Hilfe und Landingpage gemeinsam: ein normaler
+Bildlink bleibt ohne JavaScript bedienbar; der Dialog bietet Vergrößerung auf Originalgröße,
+Escape und Fokusrückgabe. Öffentliche Live-Aufnahmen liegen unter `static/help/live/`. Adminbilder
+liegen ausschließlich unter `src/lib/server/help/images/` und werden über `/help/media/[image]`
+ausgeliefert. Dieser Endpunkt prüft die Administratorrolle, antwortet sonst mit 404 und setzt
+`private, no-store`, `Vary: Cookie` sowie `noindex, nofollow`. Die `?inline`-Imports in
+`src/lib/server/help/admin-images.ts` halten die Bilddaten im Serverbuild; Adminbilder dürfen keine
+öffentliche Assetkopie erhalten. Herkunft und Aufnahmezustände sind in `docs/help-screenshots.md`
+dokumentiert. Zugangsdaten und Sessiondateien
+gehören nicht ins Repository. Die Produktbilder dürfen keine Zugangscodes oder echten Kontaktdaten
+zeigen; Beispielinhalte werden im dafür vorgesehenen Demokonto angelegt, nicht ins Bild montiert.
+
 ## Private Ressourcenfreigaben
 
 `resource_user_grants` erteilt einzelnen Konten Zugriff auf nicht öffentliche Werke. Nur fertige

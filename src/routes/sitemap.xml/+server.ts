@@ -1,5 +1,6 @@
 import { BOOKS } from '$lib/bible/books';
 import { bookShortName } from '$lib/bible/book-names';
+import { helpArticles } from '$lib/help/catalog';
 import { config } from '$lib/server/config';
 import { getDb } from '$lib/server/db';
 import { chapterCount } from '$lib/server/repositories/resources';
@@ -14,7 +15,13 @@ export async function GET({ setHeaders }) {
 
 	// "/" is now always a personalized, private redirect (never public content), so it must not be
 	// advertised as an indexable URL; "/about" carries the marketing landing page instead.
-	const urls: string[] = [`${origin}/about`, `${origin}/help`];
+	const urls: string[] = [
+		`${origin}/about`,
+		`${origin}/help`,
+		...helpArticles
+			.filter((article) => article.audience !== 'admin')
+			.map((article) => `${origin}${article.path}`)
+	];
 
 	for (const book of BOOKS) {
 		const chapters = await chapterCount(db, resourceIds, book.id);

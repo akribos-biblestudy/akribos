@@ -186,7 +186,10 @@ test('the help page is reachable from the site header', async ({ page }) => {
 
 	await expect(page).toHaveURL(/\/help$/);
 	await expect(
-		page.getByRole('heading', { level: 1, name: 'Wie können wir dir helfen?' })
+		page.getByRole('heading', {
+			level: 1,
+			name: /Raum für deine Fragen.*Klarheit für dein Studium/
+		})
 	).toBeVisible();
 });
 
@@ -218,7 +221,9 @@ test('the about page loads with a visible heading', async ({ page }) => {
 	await anonymousAbout.click();
 
 	await expect(page).toHaveURL(/\/about$/);
-	await expect(page.getByRole('heading', { level: 1 })).toContainText('Lies den Text');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+		'Die Bibel lesen. Zusammenhänge verstehen.'
+	);
 
 	await loginAsAdmin(page);
 	await page.goto('/Joh3');
@@ -229,7 +234,9 @@ test('the about page loads with a visible heading', async ({ page }) => {
 
 	await expect(page).toHaveURL(/\/about$/);
 	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-	await expect(page.getByRole('heading', { level: 1 })).toContainText('Lies den Text');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+		'Die Bibel lesen. Zusammenhänge verstehen.'
+	);
 });
 
 test('the landing page shows a prominent reader link and real product screenshots', async ({
@@ -237,26 +244,53 @@ test('the landing page shows a prominent reader link and real product screenshot
 }) => {
 	await page.goto('/about');
 
-	const readerLink = page.locator('.hero').getByRole('link', { name: /Jetzt lesen/ });
+	const readerLink = page.locator('.hero').getByRole('link', { name: 'Bibel öffnen', exact: true });
 	await expect(readerLink).toBeVisible();
-	await expect(readerLink).toHaveAttribute('href', '/Johannes3');
+	await expect(readerLink).toHaveAttribute('href', '/Joh1');
 	await expect
 		.poll(async () => (await readerLink.boundingBox())?.height ?? 0)
-		.toBeGreaterThanOrEqual(70);
+		.toBeGreaterThanOrEqual(48);
+	await expect(
+		page.locator('.hero').getByRole('link', { name: 'Akribos kennenlernen' })
+	).toHaveAttribute('href', '#lesen');
 
 	await expect(
 		page.getByRole('img', {
-			name: 'Akribos-Reader mit zwei parallel geöffneten Bibelübersetzungen'
+			name: 'Akribos-Arbeitsbereich mit Bibeltext, Kommentar und Lexikon zu Johannes 1'
 		})
-	).toHaveAttribute('src', '/landing/reader.webp');
-	await expect(
-		page.getByRole('img', { name: 'Geöffnete Strong-Seitenleiste im Akribos-Reader' })
-	).toHaveAttribute('src', '/landing/strong-study.webp');
+	).toHaveAttribute('src', '/help/live/workspace-overview.webp');
 	await expect(
 		page.getByRole('img', {
-			name: 'Geöffnetes Versmenü im Akribos-Reader mit Markierungen, Kommentaren und Stellensammlungen'
+			name: 'Wortstudie im Lexikon-Tab neben dem Bibeltext im Akribos-Reader'
 		})
-	).toHaveAttribute('src', '/landing/verse-menu.webp');
+	).toHaveAttribute('src', '/help/live/strong-study.webp');
+	await expect(
+		page.getByRole('img', {
+			name: 'Geöffnete Beispielnotiz im Editor neben dem Bibeltext'
+		})
+	).toHaveAttribute('src', '/help/live/notes-editor.webp');
+
+	for (const viewport of [
+		{ width: 1440, height: 1000 },
+		{ width: 320, height: 720 },
+		{ width: 390, height: 844 }
+	]) {
+		await page.setViewportSize(viewport);
+		for (const screenshot of await page.locator('.landing img[src^="/help/live/"]:visible').all()) {
+			await screenshot.scrollIntoViewIfNeeded();
+			await expect
+				.poll(() => screenshot.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+				.toBeGreaterThan(0);
+		}
+		await expect
+			.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+			.toBe(true);
+	}
+
+	await expect(page.locator('.hero').getByRole('img')).toHaveAttribute(
+		'src',
+		'/help/live/reader-mobile.webp'
+	);
 });
 
 test('the obsolete book and chapter chooser is absent from every tab', async ({ page }) => {
