@@ -5,8 +5,20 @@ import type { ApiAuth } from '$lib/server/api/gate';
 
 declare global {
 	namespace App {
+		interface PageData {
+			readerWorkspaceDetached?: boolean;
+			activeSavedWorkspaceId?: string | null;
+			activeSavedWorkspaceVersion?: number | null;
+			activeSavedWorkspaceContentVersion?: number | null;
+		}
+
 		interface PageState {
 			readerState?: string;
+			readerWorkspacePersistence?: {
+				workspaceId: string;
+				workspaceVersion: number;
+				workspaceContentVersion: number;
+			};
 			readerNotesFilters?: import('$lib/reader/url-state').ReaderNotesFilters;
 		}
 
@@ -36,6 +48,10 @@ declare global {
 			> | null;
 			/** Session id, needed to renew or revoke the session. */
 			sessionId: string | null;
+			/** One shared promise for concurrent root/page reader loads in this request. */
+			readerWorkspaceContext?: Promise<
+				import('$lib/server/reader-workspace-context').ReaderWorkspaceContext
+			>;
 			/** Set by the hook for any `/api/v1` request; null outside that namespace. */
 			apiAuth: ApiAuth | null;
 		}

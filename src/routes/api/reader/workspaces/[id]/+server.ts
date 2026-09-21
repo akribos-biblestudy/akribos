@@ -17,12 +17,17 @@ export const PATCH: RequestHandler = async (event) => {
 	const parsed = savedWorkspaceInput.safeParse(await readWorkspaceJson(event.request));
 	if (!parsed.success || !parsed.data.revision) error(400, 'Ungültige Arbeitsbereichsdaten.');
 	return workspaceMutationResponse(
-		await changeSavedReaderWorkspace(getDb(), userId, {
-			action: 'update',
-			id: event.params.id,
-			revision: parsed.data.revision,
-			name: parsed.data.name
-		})
+		await changeSavedReaderWorkspace(
+			getDb(),
+			userId,
+			{
+				action: 'update',
+				id: event.params.id,
+				revision: parsed.data.revision,
+				name: parsed.data.name
+			},
+			event.locals.sessionId!
+		)
 	);
 };
 
@@ -34,10 +39,15 @@ export const DELETE: RequestHandler = async (event) => {
 		.safeParse(await readWorkspaceJson(event.request));
 	if (!parsed.success) error(400, 'Die aktuelle Revision ist erforderlich.');
 	return workspaceMutationResponse(
-		await changeSavedReaderWorkspace(getDb(), userId, {
-			action: 'delete',
-			id: event.params.id,
-			revision: parsed.data.revision
-		})
+		await changeSavedReaderWorkspace(
+			getDb(),
+			userId,
+			{
+				action: 'delete',
+				id: event.params.id,
+				revision: parsed.data.revision
+			},
+			event.locals.sessionId!
+		)
 	);
 };

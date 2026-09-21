@@ -9,6 +9,7 @@ import {
 } from '$lib/server/repositories/saved-reader-workspaces';
 import { listReaderResources } from '$lib/server/repositories/resources';
 import { writeWorkspaceCompatibilityCookies } from '$lib/server/reader-workspace';
+import { writeActiveReaderWorkspaceHint } from '$lib/server/reader-workspace-context';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params, url, setHeaders }) => {
@@ -28,21 +29,20 @@ export const actions: Actions = {
 		if (!locals.user) error(401, 'Bitte melde dich an.');
 		if (!isUuid(params.id)) error(404, 'Arbeitsbereich nicht gefunden.');
 		const db = getDb();
-		const saved = await getSavedReaderWorkspace(db, locals.user.id, params.id);
-		if (!saved) error(404, 'Arbeitsbereich nicht gefunden.');
-		const resources = await listReaderResources(db, locals.user?.id);
-		const restored = restoreSavedWorkspace(
-			saved.snapshot,
-			resources.map((resource) => resource.id)
-		);
-		if (!restored) error(400, 'Dieser Arbeitsbereich kann nicht geöffnet werden.');
 		const activated = await activateSavedReaderWorkspace(
 			db,
 			locals.user.id,
-			params.id,
-			restored.workspace
+			locals.sessionId!,
+			params.id
 		);
 		if (!activated) error(404, 'Arbeitsbereich nicht gefunden.');
+		const resources = await listReaderResources(db, locals.user.id);
+		const restored = restoreSavedWorkspace(
+			activated.snapshot,
+			resources.map((resource) => resource.id)
+		);
+		if (!restored) error(400, 'Dieser Arbeitsbereich kann nicht geöffnet werden.');
+		writeActiveReaderWorkspaceHint(cookies, locals.user.id, activated.id);
 		writeWorkspaceCompatibilityCookies(cookies, restored.workspace);
 		cookies.set('location', formatReference(restored.reference), {
 			path: '/',

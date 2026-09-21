@@ -2,6 +2,14 @@
 	import { announceTabHistoryMutation } from '$lib/reader/tab-history-navigation';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { getContext } from 'svelte';
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { readerMutationEnhancement } from '$lib/reader/persistence-enhancement';
+	import {
+		READER_WORKSPACE_CONTEXT,
+		type ReaderWorkspaceCapture
+	} from '$lib/reader/saved-workspaces';
 	import { t } from '$lib/i18n';
 	import {
 		readerPathFromActionData,
@@ -18,6 +26,7 @@
 	 * resources remain valid.
 	 */
 	let { resources, label }: { resources: ReadableResource[]; label: string } = $props();
+	const capture = getContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT);
 
 	type Context = {
 		action: string;
@@ -36,6 +45,7 @@
 	let dialog: HTMLDialogElement | undefined = $state();
 	let searchInput: HTMLInputElement | undefined = $state();
 	let context: Context | undefined = $state();
+	let contextWorkspace: unknown;
 	let activeKind: string | undefined = $state();
 	let query = $state('');
 	let chooserStyle = $state('');
@@ -118,6 +128,7 @@
 
 	export function openAt(next: Context, anchor: HTMLElement): void {
 		context = next;
+		contextWorkspace = page.data.workspace;
 		query = '';
 		activeKind = groups[0]?.kind;
 		closePreview();
@@ -130,6 +141,39 @@
 		closePreview();
 		dialog?.close();
 	}
+
+	const submitEnhancement: SubmitFunction = readerMutationEnhancement(
+		capture,
+		() => page,
+		({ cancel }) => {
+			if (contextWorkspace !== page.data.workspace) {
+				cancel();
+				close();
+				capture.reportError?.(
+					'Die Ansicht des Arbeitsbereichs hat sich geändert. Bitte öffne die Werkauswahl erneut.'
+				);
+				return;
+			}
+			const readerUrl = context?.readerUrl;
+			return async ({ result, update }) => {
+				close();
+				await update({ reset: false, invalidateAll: result.type !== 'success' });
+				if (result.type === 'success' && readerUrl) {
+					const state = readerStateFromActionData(result.data);
+					if (!state) return;
+					announceTabHistoryMutation(result.data);
+					const path = readerPathFromActionData(
+						result.data,
+						new URL(readerUrl, window.location.origin).pathname
+					);
+					await goto(readerUrlWithState(path, state), {
+						replaceState: true,
+						invalidateAll: true
+					});
+				}
+			};
+		}
+	);
 </script>
 
 <dialog
@@ -192,30 +236,7 @@
 						onfocusin={(event) => schedulePreview(resource, event.currentTarget, 250)}
 						onfocusout={schedulePreviewClose}
 					>
-						<form
-							method="POST"
-							action={context.action}
-							use:enhance={() => {
-								const readerUrl = context?.readerUrl;
-								return async ({ result, update }) => {
-									close();
-									await update({ reset: false, invalidateAll: result.type !== 'success' });
-									if (result.type === 'success' && readerUrl) {
-										const state = readerStateFromActionData(result.data);
-										if (!state) return;
-										announceTabHistoryMutation(result.data);
-										const path = readerPathFromActionData(
-											result.data,
-											new URL(readerUrl, window.location.origin).pathname
-										);
-										await goto(readerUrlWithState(path, state), {
-											replaceState: true,
-											invalidateAll: true
-										});
-									}
-								};
-							}}
-						>
+						<form method="POST" action={context.action} use:enhance={submitEnhancement}>
 							<input type="hidden" name="tileId" value={context.tileId} />
 							{#if context.tabId}<input type="hidden" name="tabId" value={context.tabId} />{/if}
 							<input type="hidden" name="resource" value={resource.id} />

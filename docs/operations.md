@@ -58,6 +58,20 @@ The token generation, expiry, single-use and rate-limit design follows the appli
 the [OWASP token and PIN recommendations](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html#general-security-practices).
 The requested password/code step intentionally reveals which sign-in method an address uses.
 
+## Device-specific workspace selection
+
+Migration `0043_outstanding_robbie_robertson.sql` adds the active workspace and selection version to
+sessions, plus a separate content version to named snapshots. It is additive: existing names, contents,
+management revisions and sessions remain present. The container applies it before serving traffic.
+The first access initializes an existing session from its valid device hint or the previous global
+selection. Historical per-device choices cannot be reconstructed from the old global flag. After the
+upgrade, open the desired workspace once on each device; subsequent selections remain independent.
+
+Devices still share the contents of a named workspace. A conflicting edit reports an error and leaves
+the newer saved snapshot intact. Reopening a workspace resolves its latest state. Deleting a workspace
+removes it from the account; another device that still selected it receives an existing fallback on
+its next access. No separate service or periodic job is required.
+
 ## Re-scanning document Bible references
 
 Migration `0038_document_reference_parser_version.sql` marks existing derived indexes with the legacy

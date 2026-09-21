@@ -211,28 +211,42 @@ shape; those collaborative threads are not unified documents. See
 ## Reader workspace
 
 Named workspaces are stored in `saved_reader_workspaces`, scoped to their owner. Each entry combines
-the canonical Reader URL state (including searches and note filters) with divider sizes. A partial
-unique index permits one active entry per account. Initial use adopts the existing account/device
-workspace as “Standard”; a shared URL is never the source of that initialization. The header exposes
-only IDs, names, management revisions and active flags, highlighting the active entry. Creating a
-workspace copies the current view and then opens that independent copy.
+the canonical Reader URL state (including searches and note filters) with divider sizes. Names and
+snapshots are shared across the account's devices; the active selection belongs to the current browser
+session through `sessions.active_reader_workspace_id`. A user-bound HttpOnly cookie is only a checked
+selection hint after signing in again. The former global active flag and `users.reader_workspace`
+are legacy/bootstrap projections, never the source of another device's active selection. Initial use
+adopts the previous account/device workspace as “Standard”; shared URLs never initialize it. A
+request-local resolver Promise gives layout, header, root and Reader the same selection and snapshot.
 
-Reader actions atomically update the active entry and `users.reader_workspace` under the owner's row
-lock. Requests identify their active workspace separately from the shareable URL and compare both that
-ID and the previous semantic workspace inside the transaction, preventing late writes from replacing
-a newly activated workspace. Client-only searches and note filters use the same checks through
-`PUT /api/reader/workspaces/[id]/view`. Shallow URL changes also update `page.state.readerState`, so later
-actions retain the latest searches and references. Pending reference/search writes flush before a
-workspace switch. Foreign URL branches retain their existing protection against overwriting account
-preferences. Autosave leaves the management revision unchanged; rename/deletion require it. Active
-entries cannot be deleted until another is opened. Names are unique per account and new entries are
-limited to 100 per account.
+Writes lock owner, current session and snapshot in that order, rechecking ownership, account/session
+validity and the client's workspace ID, session selection version and snapshot content version. A
+selection version increases on activation, including A–B–A switches. An independent `content_version`
+protects the entire snapshot, including searches, note filters and divider sizes. Actual snapshot
+changes increase it; no-op saves do not. Rename/delete continue to use a separate management revision.
+Permission normalization never substitutes a new expected version for the client's original one.
 
-Opening uses `/workspaces/[id]`: its GET only reads the owned entry. After navigation has allowed any
-document editor to flush pending changes, a form action validates available resources, activates the
-entry together with its account projection, and redirects to the restored Reader URL. Prefetch never
-changes account preferences. Removed resources are pruned on opening and persisted on subsequent
-changes. Schema migrations are `0033_flowery_umar.sql` and `0034_certain_susan_delgado.sql`.
+Every successful Reader action and `PUT /api/reader/workspaces/[id]/view` returns the current selection
+and content versions. Client writes are serialized and consume the previous acknowledgement before
+sending the next request. Late responses cannot replace a different selection. These internal versions
+and IDs belong to write requests only, not shareable URLs. Shallow URL changes additionally update
+`page.state.readerState`. Independent URL branches remain detached and do not overwrite a named
+snapshot. Conflicts are reported explicitly; opening a workspace may discard a known rejected workspace
+save, while pending document writes and transport failures must still be handled successfully.
+
+The root URL resumes the selected device snapshot, rather than letting an unrelated old location
+cookie change it. A synchronous scroll-resume hint additionally binds reference and source tab to the
+workspace ID, selection version and content version. Root can save that hint only under the regular
+locks with all three values still matching, before redirecting to the resulting owned snapshot. This
+preserves a full page exit before the scroll debounce, including focus in an independent tab group.
+
+Opening uses `/workspaces/[id]`: GET only reads the owned entry. After navigation has allowed document
+editors to flush, an explicit form action validates resources, activates the entry for this session and
+redirects to its restored Reader URL. Prefetch changes neither selection nor its cookie. Removed
+resources are pruned when opening and persisted on a later edit. Deleting the requesting device's active
+entry requires switching first. If another device's active entry is deleted, that device atomically
+chooses an existing fallback and increases its selection version on its next access, rejecting old
+requests. Names remain unique, with at most 100 entries per account.
 
 The reader uses a small, pure workspace domain model in `src/lib/reader/workspace.ts`. It supports the
 same eight tile arrangements as Logos Web: one tile, two/three/four columns, two rows, a 2×2 grid, and
@@ -241,9 +255,11 @@ owns an open-ended tab strip and one active resource. Changing arrangements redi
 tabs without closing them. Horizontal and vertical track fractions are stored separately for every
 arrangement.
 
-A reader without a stored workspace or legacy column selection starts in three columns with the first
-Bible, first commentary and first lexicon in resource order, all in tab group A. Existing workspace and
-legacy column state always wins over this onboarding default.
+A reader without a stored workspace or legacy column selection uses one, two, three or four initial
+columns according to the viewport class, preferring Bible, commentary, lexicon and cross-references
+in resource order, all in tab group A. Before the browser reports that class, the server renders one
+provisional Bible tile without persisting it. Existing workspace and legacy column state always wins
+over this onboarding default.
 
 Each resource tab owns both an optional tab group (`linkSet`, `A`–`E`) and its own passage reference. Visible tabs
 with the same letter follow a genuine user scroll, and the resulting reference is persisted to every

@@ -169,16 +169,18 @@ Der zentrale Reader ist `src/routes/[...reference]/+page.svelte`; sein Server-Lo
 liegen in der gleichnamigen `+page.server.ts`. Die REST-Nachladung für Endless Scrolling erfolgt über
 `src/routes/api/reader/[book]/[chapter]/+server.ts`.
 
-Die Root-Route `/` leitet jeden Besucher unmittelbar zum Bibeltext weiter, nicht mehr nur angemeldete.
-Angemeldete Leser landen an ihrer im `location`-Cookie gespeicherten letzten Lesestelle, alle anderen
-(auch nicht angemeldete Besucher) an Johannes 1 als Fallback. Das Akribos-Logo verlinkt unverändert auf
-`/` und darf das `location`-Cookie nicht löschen, damit es auch von Konto- und Verwaltungsseiten zur
-letzten Lesestelle zurückführt. Das `location`-Cookie enthält auch die genaue Versposition. Echte
-Nutzerscrolls schreiben sie synchron vor dem URL-Debounce, damit sofortiges Verlassen des Readers
-die letzte Stelle erhält; verspätete Antworten früherer Scroll-Aktionen dürfen nach einer Navigation
-die URL nicht mehr verändern. Die Marketing-Landingpage wird auf `/` nicht mehr angezeigt, bleibt aber
-unter `/about` unverändert erreichbar. Weil das Root-Verhalten vom Session-Cookie abhängt, darf die
-Antwort nicht öffentlich gecacht werden.
+Die Root-Route `/` leitet jeden Besucher unmittelbar zum Bibeltext weiter. Angemeldete Leser
+öffnen den auf diesem Gerät ausgewählten Snapshot mit dessen fokussierter Lesestelle, alle anderen
+starten bei Johannes 1. Das Akribos-Logo verlinkt auf `/`. Ein altes, ungebundenes `location`-Cookie
+darf keine inzwischen anders gewählte oder auf einem anderen Gerät geänderte Ansicht überschreiben.
+Echte Nutzerscrolls merken die genaue Versposition zusätzlich synchron vor dem URL-Debounce in einem
+an Auswahl-ID, Auswahlversion, Inhaltsversion und Quell-Tab gebundenen Resume-Hinweis. Beim erneuten
+Root-Aufruf darf dieser Hinweis nur bei exakt passendem Versionsstand unter denselben Schreibsperren
+übernommen werden; der Quell-Tab bestimmt dabei den Fokus. So bleibt auch eine echte vollständige
+Seitennavigation vor dem Debounce erhalten, ohne daraus einen unabhängigen URL-Zweig zu machen.
+Verspätete Scroll-Antworten dürfen nach einer Navigation weder URL noch neue Auswahl verändern.
+Die Marketing-Landingpage bleibt unter `/about` erreichbar. Sessionabhängige Root-Antworten sind
+`private, no-store`.
 
 Der Logos-artige Arbeitsbereich wird als `ReaderWorkspace` in `src/lib/reader/workspace.ts` modelliert:
 Eine von acht festen Anordnungen enthält höchstens vier sichtbare Kacheln, jede Kachel beliebig viele
@@ -201,40 +203,58 @@ Die vorläufige Reader-Antwort ist `private, no-store`. Gespeicherte Konto-/Cook
 alte `columns`-/`reader_columns`-Auswahlen und geteilte URL-Ansichten haben immer Vorrang;
 Fenstergrößenänderungen ordnen einen bestehenden Arbeitsbereich nie automatisch neu an.
 
-Das vollständige Workspace-JSON liegt für Konten in `users.reader_workspace`, für Gäste kompakt und
-Base64url-kodiert im Cookie `reader-workspace`. Bei Konten ist die Datenbankkopie maßgeblich und folgt
-dem Nutzer geräteübergreifend. `reader_columns` und das alte `columns`-Cookie bleiben eine auf fünf
-eindeutige Ressourcen begrenzte Kompatibilitätsprojektion für Suche und ältere Clients; sie dürfen den
-Workspace nach dessen erster Migration nicht wieder überschreiben. Eine bestehende Auswahl wird
-verlustfrei migriert: höchstens vier Spalten werden Kacheln, eine alte fünfte Spalte wird ein weiterer
-Tab in der vierten Kachel.
+Bei Konten ist der ausgewählte benannte Snapshot in `saved_reader_workspaces` maßgeblich. Das
+Workspace-JSON in `users.reader_workspace` bleibt eine Legacy-/Kompatibilitätsprojektion; es darf
+keine andere Geräteauswahl bestimmen. Gäste speichern ihren Workspace weiterhin kompakt und
+Base64url-kodiert im Cookie `reader-workspace`. `reader_columns` und das alte `columns`-Cookie bleiben
+eine auf fünf eindeutige Ressourcen begrenzte Projektion für ältere Clients. Eine bestehende Auswahl
+wird verlustfrei migriert: höchstens vier Spalten werden Kacheln, eine alte fünfte Spalte wird ein
+weiterer Tab in der vierten Kachel.
 
-Benannte Arbeitsbereiche liegen in `saved_reader_workspaces`: kanonischer Reader-URL-Zustand
-inklusive Suchen/Notizfiltern plus Trennergrößen. Genau ein Eintrag je Konto ist aktiv (`is_active`,
-partieller eindeutiger Index); bei der ersten Nutzung wird der bisherige Konto-/Gerätestand unter
-„Standard“ übernommen, niemals eine fremde URL-Ansicht. Das Header-Menü liefert nur eigene Namen, IDs,
-Verwaltungsrevisionen und Aktivstatus und hebt den aktiven Eintrag hervor. Neue Arbeitsbereiche kopieren
-die aktuelle Ansicht und werden anschließend geöffnet. Die aktuelle Ansicht wird über einen pro
-Root-Layout erzeugten Svelte-Kontext aus sichtbaren Referenzen und Suchen erfasst; bei verzögertem
-Scrollen gewinnt die tatsächlich fokussierte Quellkachel.
+Benannte Arbeitsbereiche enthalten kanonischen Reader-URL-Zustand inklusive Suchen/Notizfiltern und
+Trennergrößen. Diese Inhalte und Namen gehören zum Konto und stehen auf allen Geräten zur Verfügung.
+Die aktive Auswahl gehört dagegen zur jeweiligen Browseranmeldung:
+`sessions.active_reader_workspace_id` und `sessions.reader_workspace_version`. Ein benutzergebundener
+HttpOnly-Cookie dient nach erneuter Anmeldung nur als geprüfter Auswahlhinweis; er erteilt keine
+Berechtigung. Die bisherige globale Aktivmarkierung dient nur der Übernahme bestehender Konten.
+Bei der ersten Nutzung wird der bisherige Konto-/Gerätestand unter „Standard“ übernommen, niemals eine
+fremde URL-Ansicht. Ein pro Request als Promise geteilter Resolver hält Layout, Header, Reader und
+Root-Navigation auf derselben Auswahl. Das Menü berechnet `isActive` aus der anfragenden Session.
+Neue Arbeitsbereiche kopieren die aktuell sichtbare Ansicht und werden anschließend geöffnet.
 
-Reader-Mutationen schreiben `users.reader_workspace` und den aktiven benannten Stand atomar unter
-Sperre der Nutzerzeile. Die Action trägt `workspaceId` nur in ihrer Anfrage, nicht in geteilten URLs;
-Aktiv-ID und vorheriger semantischer Zustand werden vor dem Schreiben erneut geprüft. So kann eine
-verspätete Anfrage den inzwischen geöffneten anderen Arbeitsbereich nicht überschreiben. Suchen und
-Sidecar-Filter speichern über den gleichfalls geschützten `/api/reader/workspaces/[id]/view`-Endpunkt.
-Der aktuelle flache URL-Zustand steht zusätzlich in `page.state.readerState`, damit nachfolgende
-Aktionen auch vor einer Servernavigation aktuelle Suchen und Referenzen übernehmen. Vor dem Wechsel
-werden ausstehende Lese-/Suchänderungen abgewartet. Fremde URL-Zweige bleiben unabhängig und dürfen den
-aktiven Stand weiterhin nicht überschreiben. Autosave ändert nicht die Verwaltungsrevision; Umbenennen
-und Löschen verlangen diese weiterhin. Der aktive Arbeitsbereich lässt sich erst nach dem Wechsel zu
-einem anderen löschen. Namen sind pro Konto eindeutig; höchstens 100 Einträge sind erlaubt.
+Reader-Mutationen sperren Nutzer, aktuelle Session und Snapshot in dieser Reihenfolge. Sie prüfen
+Eigentümer, gültige Session und drei vom Client mitgeführte Werte: `workspaceId`, `workspaceVersion`
+und `workspaceContentVersion`. Diese Werte gehören ausschließlich zu Schreibanfragen, niemals zu
+geteilten Reader-URLs. Die Auswahlversion steigt bei jeder Aktivierung, auch beim Wechsel A–B–A.
+Die unabhängige `saved_reader_workspaces.content_version` schützt den vollständigen Snapshot
+(einschließlich Suchen, Notizfiltern und Trennergrößen) vor konkurrierenden Änderungen. Unveränderte
+Snapshots erhöhen sie nicht; die Verwaltungsrevision für Umbenennen/Löschen bleibt davon getrennt.
+Ressourcenbereinigung verwendet den ursprünglichen Versionsstand für die Schreibprüfung.
+Eine native Erstaktion ohne JavaScript darf den provisorischen Standard ohne Clientversionen nur
+einmalig anlegen: Die Session hat noch keine Auswahl und Version 0, das Konto noch keinen benannten
+Arbeitsbereich, und die Quellansicht entspricht exakt dem serverseitigen provisorischen Standard.
+Diese Ausnahme wird unter denselben Sperren geprüft; bestehende Auswahlen verlangen immer Versionen.
+
+Suchen und Sidecar-Filter verwenden dieselben Grenzen über
+`PUT /api/reader/workspaces/[id]/view`. Erfolgreiche Antworten liefern die aktuellen Auswahl- und
+Inhaltsversionen zurück. Der Client übernimmt sie nur für dieselbe Auswahl und serialisiert seine
+Speicheranfragen; eine spät eintreffende Antwort darf keinen neu geöffneten Arbeitsbereich umdeuten.
+Der aktuelle flache URL-Zustand bleibt zusätzlich in `page.state.readerState`. Unabhängige URL-Zweige
+werden als `detached` behandelt und überschreiben keinen benannten Stand. Veraltete Schreibanfragen
+liefern einen erklärten Konflikt. Beim ausdrücklich gewünschten Arbeitsbereichswechsel darf nur ein
+bereits erkannter Workspace-Konflikt verworfen werden; ausstehende Dokumentänderungen und echte
+Übertragungsfehler müssen weiterhin erfolgreich behandelt werden.
+
+Der auf diesem Gerät aktive Arbeitsbereich lässt sich erst nach dem Wechsel zu einem anderen löschen.
+Ist ein gelöschter Eintrag auf einem anderen Gerät geöffnet, wählt dessen nächster Zugriff unter Sperre
+einen vorhandenen Ersatz und erhöht die Auswahlversion; alte Anfragen bleiben damit ungültig.
+Namen sind pro Konto eindeutig; höchstens 100 Einträge sind erlaubt.
 
 `/workspaces/[id]` ist ein schreibfreier Öffnungs-GET. Erst nach dieser Navigation (und damit nach dem
-Flush ausstehender Dokumentänderungen) aktiviert eine Form Action den Eintrag und übernimmt dessen
-Stand atomar als Konto-Arbeitsbereich. Vorladen verändert keine Präferenz. Speichern und Öffnen prüfen
-Ressourcen erneut gegen die für das Konto verfügbaren, fertigen Werke; weggefallene Tabs und Kontexte werden beim
-Öffnen bereinigt und bei der nächsten Änderung fortgeschrieben.
+Flush ausstehender Dokumentänderungen) aktiviert eine Form Action den Eintrag für die aktuelle Session.
+Vorladen verändert weder Auswahl noch Auswahlcookie. Speichern und Öffnen prüfen Ressourcen erneut
+gegen die für das Konto verfügbaren, fertigen Werke; weggefallene Tabs und Kontexte werden beim Öffnen
+bereinigt und bei der nächsten Änderung fortgeschrieben.
 Das Wiederherstellen offener Tab-Suchen lädt nur deren Ergebnisse und schreibt die bereits
 kanonisierte URL nicht erneut: Vor der Initialisierung der Kapitelstreams wären Fokus und sichtbare
 Referenzen sonst noch unvollständig und könnten die gerade geöffnete Momentaufnahme verändern.

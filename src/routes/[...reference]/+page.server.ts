@@ -45,12 +45,7 @@ import {
 	sameReaderUrlWorkspace,
 	type ReaderSearchQueries
 } from '$lib/reader/url-state';
-import {
-	needsInitialReaderViewport,
-	resolveReaderWorkspace,
-	workspaceColumns,
-	writeWorkspaceCompatibilityCookies
-} from '$lib/server/reader-workspace';
+import { workspaceColumns, writeWorkspaceCompatibilityCookies } from '$lib/server/reader-workspace';
 import { loadReaderTabChapter } from '$lib/server/reader-chapter';
 import { saveVerseComment } from '$lib/server/repositories/verse-comments';
 import {
@@ -62,9 +57,15 @@ import {
 import { findLexiconEntry } from '$lib/server/repositories/strong';
 import { updateReaderFontScale, updateReaderWorkspace } from '$lib/server/repositories/users';
 import {
-	getActiveReaderWorkspace,
+	workspaceSelection,
+	type WorkspaceWriteResult,
+	type WorkspaceSelection,
 	type WorkspaceWriteGuard
 } from '$lib/server/repositories/saved-reader-workspaces';
+import {
+	readWorkspaceVersion,
+	resolveReaderWorkspaceContext
+} from '$lib/server/reader-workspace-context';
 import {
 	MAX_FONT_SCALE,
 	MIN_FONT_SCALE,
@@ -137,24 +138,10 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 		error(503, 'Es ist noch keine Bibelübersetzung importiert.');
 	}
 
-	const readerResources = await listReaderResources(db, locals.user?.id);
-	const persistedWorkspace = resolveReaderWorkspace(
-		cookies,
-		readerResources,
-		locals.user?.readerWorkspace,
-		locals.user?.readerColumns,
-		reference
-	);
+	const context = await resolveReaderWorkspaceContext({ cookies, locals });
+	const { resources: readerResources, workspace: persistedWorkspace, activeSaved } = context;
 	const decodedUrlState = decodeReaderUrlState(url);
-	const awaitingInitialViewport =
-		!decodedUrlState &&
-		needsInitialReaderViewport(
-			cookies,
-			readerResources,
-			locals.user?.readerWorkspace,
-			locals.user?.readerColumns
-		);
-	const activeSaved = locals.user ? await getActiveReaderWorkspace(db, locals.user.id) : null;
+	const awaitingInitialViewport = !decodedUrlState && context.awaitingInitialViewport;
 	let workspace = decodedUrlState
 		? normalizeReaderWorkspace(
 				decodedUrlState.workspace,
@@ -205,11 +192,24 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 	}
 
 	const readerState = encodeReaderUrlState(workspace, searchQueries, notesFilters);
+	const ownedReaderState =
+		context.snapshot?.readerState ??
+		encodeReaderUrlState(workspaceAtReference(persistedWorkspace, reference));
+	const readerWorkspaceDetached = !!decodedUrlState && readerState !== ownedReaderState;
 	if (!awaitingInitialViewport && readerStateFromUrl(url) !== readerState) {
 		// A plain passage URL starts a personal branch and may safely become the account/device default.
 		// A valid URL snapshot is never persisted by this GET: it may have come from somebody else.
-		if (!decodedUrlState)
-			await commitWorkspace(cookies, locals.user, workspace, true, undefined, readerState);
+		if (!decodedUrlState) {
+			const result = await commitWorkspace(
+				cookies,
+				locals.user,
+				workspace,
+				true,
+				context.guard,
+				readerState
+			);
+			if (!result.saved && result.reason === 'conflict') error(409, result.message!);
+		}
 		redirect(302, readerUrl(canonical, readerState));
 	}
 
@@ -268,6 +268,8 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 	rememberLocation(cookies, reference);
 
 	return {
+		...context.selection,
+		readerWorkspaceDetached,
 		reference,
 		title: formatReference(reference),
 		fullTitle: `${bookName(reference.book)} ${reference.chapter}`,
@@ -296,7 +298,7 @@ export const actions = {
 		if (!isReaderLayout(layout)) return fail(400, { error: 'layout' });
 		const current = await currentWorkspace(
 			cookies,
-			locals.user,
+			locals,
 			url,
 			undefined,
 			actionReference(params)
@@ -320,7 +322,7 @@ export const actions = {
 		}
 		const current = await currentWorkspace(
 			cookies,
-			locals.user,
+			locals,
 			url,
 			available,
 			actionReference(params)
@@ -349,7 +351,7 @@ export const actions = {
 		}
 		const current = await currentWorkspace(
 			cookies,
-			locals.user,
+			locals,
 			url,
 			available,
 			actionReference(params)
@@ -378,7 +380,7 @@ export const actions = {
 		const tabId = String(form.get('tabId') ?? '');
 		const currentReference = parseReference(String(form.get('currentReference') ?? ''));
 		const requestedTargetReference = parseReference(String(form.get('targetReference') ?? ''));
-		const current = await currentWorkspace(cookies, locals.user, url);
+		const current = await currentWorkspace(cookies, locals, url);
 		let { workspace } = current;
 		const sourceTile = workspace.tiles.find((tile) => tile.id === tileId);
 		const sourceTab = sourceTile ? activeReaderTab(sourceTile) : null;
@@ -420,7 +422,7 @@ export const actions = {
 		const tabId = String(form.get('tabId') ?? '');
 		const current = await currentWorkspace(
 			cookies,
-			locals.user,
+			locals,
 			url,
 			undefined,
 			actionReference(params)
@@ -457,7 +459,7 @@ export const actions = {
 		if (!Number.isInteger(toIndex)) return fail(400, { error: 'position' });
 		const current = await currentWorkspace(
 			cookies,
-			locals.user,
+			locals,
 			url,
 			undefined,
 			actionReference(params)
@@ -480,7 +482,7 @@ export const actions = {
 		if (!isReaderLinkSet(linkSet)) return fail(400, { error: 'linkSet' });
 		const current = await currentWorkspace(
 			cookies,
-			locals.user,
+			locals,
 			url,
 			undefined,
 			actionReference(params)
@@ -501,7 +503,7 @@ export const actions = {
 		const reference = parseReference(String(form.get('reference') ?? ''));
 		if (!reference || !isReferenceInCanon(reference)) return fail(400, { error: 'reference' });
 		const available = await listReaderResources(getDb(), locals.user?.id);
-		const current = await currentWorkspace(cookies, locals.user, url, available);
+		const current = await currentWorkspace(cookies, locals, url, available);
 		const target = openReaderBibleReference(
 			current.workspace,
 			available,
@@ -528,7 +530,7 @@ export const actions = {
 		}
 		const current = await currentWorkspace(
 			cookies,
-			locals.user,
+			locals,
 			url,
 			undefined,
 			actionReference(params)
@@ -563,7 +565,7 @@ export const actions = {
 		const available = await listReaderResources(getDb(), locals.user?.id);
 		const current = await currentWorkspace(
 			cookies,
-			locals.user,
+			locals,
 			url,
 			available,
 			actionReference(params)
@@ -603,7 +605,7 @@ export const actions = {
 
 		const db = getDb();
 		const available = await listReaderResources(db, locals.user?.id);
-		const current = await currentWorkspace(cookies, locals.user, url, available);
+		const current = await currentWorkspace(cookies, locals, url, available);
 		let { workspace } = current;
 		let sourceTile = workspace.tiles.find((tile) => tile.id === sourceTileId);
 		const initialSourceTab = sourceTile?.tabs.find((tab) => tab.id === sourceTabId);
@@ -709,23 +711,26 @@ export const actions = {
 		}
 		const current = await currentWorkspace(
 			cookies,
-			locals.user,
+			locals,
 			url,
 			undefined,
 			actionReference(params)
 		);
 		const next = setReaderLayoutSize(current.workspace, layout, columns, rows);
 		// Divider ratios are personal and may be saved without adopting a foreign URL workspace.
-		await commitWorkspace(
+		const persistence = await commitWorkspace(
 			cookies,
 			locals.user,
 			setReaderLayoutSize(current.persistedWorkspace, layout, columns, rows),
-			!url.searchParams.has('workspaceId') ||
-				url.searchParams.get('workspaceId') === current.guard?.activeId,
-			current.guard
+			current.persist,
+			current.guard,
+			undefined,
+			current.detachedBranch
 		);
+		if (!persistence.saved && persistence.reason === 'conflict') return fail(409, persistence);
 		return {
 			success: true,
+			...persistence,
 			readerState: encodeReaderUrlState(next, current.searchQueries, current.notesFilters)
 		};
 	},
@@ -956,24 +961,21 @@ type CurrentWorkspace = {
 	searchQueries: ReaderSearchQueries;
 	notesFilters: ReaderNotesFilters;
 	persist: boolean;
+	detachedBranch: boolean;
+	selection: WorkspaceSelection;
 	guard?: WorkspaceWriteGuard;
 };
 
 async function currentWorkspace(
 	cookies: Parameters<typeof writeWorkspaceCompatibilityCookies>[0],
-	user: App.Locals['user'],
+	locals: App.Locals,
 	url: URL,
 	available?: Awaited<ReturnType<typeof listReaderResources>>,
 	reference?: { book: number; chapter: number; verse?: number }
 ): Promise<CurrentWorkspace> {
-	const resources = available ?? (await listReaderResources(getDb(), user?.id));
-	const persistedWorkspace = resolveReaderWorkspace(
-		cookies,
-		resources,
-		user?.readerWorkspace,
-		user?.readerColumns,
-		reference
-	);
+	const context = await resolveReaderWorkspaceContext({ cookies, locals });
+	const resources = available ?? context.resources;
+	const persistedWorkspace = context.workspace;
 	const decoded = decodeReaderUrlState(url);
 	let workspace = decoded
 		? normalizeReaderWorkspace(
@@ -984,14 +986,36 @@ async function currentWorkspace(
 			)
 		: persistedWorkspace;
 	workspace.layoutSizes = structuredClone(persistedWorkspace.layoutSizes);
-	const active = user ? await getActiveReaderWorkspace(getDb(), user.id) : null;
-	const guard = user ? { activeId: active?.id ?? null, previous: persistedWorkspace } : undefined;
+	const provisionalState = encodeReaderUrlState(
+		workspaceAtReference(persistedWorkspace, reference)
+	);
+	const bootstrap =
+		context.awaitingInitialViewport &&
+		!context.activeSaved &&
+		(!decoded ||
+			encodeReaderUrlState(
+				workspace,
+				decoded.searchQueries,
+				readReaderNotesFilters(url.searchParams)
+			) === provisionalState);
+	const guard: WorkspaceWriteGuard | undefined =
+		locals.user && locals.sessionId
+			? {
+					sessionId: locals.sessionId,
+					activeId: url.searchParams.get('workspaceId'),
+					selectionVersion: readWorkspaceVersion(url.searchParams.get('workspaceVersion')),
+					contentVersion: readWorkspaceVersion(url.searchParams.get('workspaceContentVersion')),
+					bootstrap
+				}
+			: undefined;
 	const persist =
-		(!url.searchParams.has('workspaceId') || url.searchParams.get('workspaceId') === active?.id) &&
-		(!decoded || sameReaderUrlWorkspace(workspace, persistedWorkspace));
+		url.searchParams.get('workspaceDetached') !== 'true' &&
+		(bootstrap || !decoded || sameReaderUrlWorkspace(workspace, persistedWorkspace));
 	if (!reference) {
 		return {
 			guard,
+			selection: context.selection,
+			detachedBranch: url.searchParams.get('workspaceDetached') === 'true',
 			workspace,
 			persistedWorkspace,
 			searchQueries: decoded?.searchQueries ?? {},
@@ -1012,12 +1036,24 @@ async function currentWorkspace(
 	}
 	return {
 		guard,
+		selection: context.selection,
+		detachedBranch: url.searchParams.get('workspaceDetached') === 'true',
 		workspace,
 		persistedWorkspace,
 		searchQueries: decoded?.searchQueries ?? {},
 		notesFilters: readReaderNotesFilters(url.searchParams),
 		persist
 	};
+}
+
+function workspaceAtReference(workspace: ReaderWorkspace, reference?: VerseRef): ReaderWorkspace {
+	if (!reference) return workspace;
+	const tile =
+		workspace.tiles.find(
+			(entry) => entry.id === workspace.focusedTileId && activeReaderTab(entry)
+		) ?? workspace.tiles.find((entry) => activeReaderTab(entry));
+	const tab = tile && activeReaderTab(tile);
+	return tile && tab ? setReaderTabReference(workspace, tile.id, tab.id, reference) : workspace;
 }
 
 function actionReference(params: {
@@ -1034,23 +1070,24 @@ async function commitWorkspace(
 	workspace: ReaderWorkspace,
 	persist = true,
 	guard?: WorkspaceWriteGuard,
-	readerState?: string
-): Promise<void> {
-	if (!persist) return;
-	if (
-		user &&
-		!(await updateReaderWorkspace(getDb(), user.id, workspace, {
+	readerState?: string,
+	detachedBranch = false
+): Promise<WorkspaceWriteResult> {
+	if (user) {
+		if (!guard) return { saved: false, reason: 'conflict', ...workspaceSelection(null) };
+		const result = await updateReaderWorkspace(getDb(), user.id, workspace, {
 			guard,
-			readerState
-		}))
-	)
-		return;
-	const written = writeWorkspaceCompatibilityCookies(cookies, workspace);
-	if (!written && !user) {
-		// A browser cookie is the only persistence available to a guest. Do not pretend a mutation was
-		// saved once the exceptionally large workspace no longer fits in it.
-		error(409, 'Der Arbeitsbereich ist für die lokale Speicherung zu groß.');
+			readerState,
+			detached: detachedBranch ? 'explicit' : !persist ? 'snapshot' : undefined
+		});
+		if (!result.saved) return result;
+		writeWorkspaceCompatibilityCookies(cookies, workspace);
+		return result;
 	}
+	if (!persist) return { saved: false, reason: 'detached', ...workspaceSelection(null) };
+	if (!writeWorkspaceCompatibilityCookies(cookies, workspace))
+		error(409, 'Der Arbeitsbereich ist für die lokale Speicherung zu groß.');
+	return { saved: true, ...workspaceSelection(null) };
 }
 
 async function finishWorkspaceMutation<T extends Record<string, unknown>>(
@@ -1060,9 +1097,7 @@ async function finishWorkspaceMutation<T extends Record<string, unknown>>(
 	current: CurrentWorkspace,
 	next: ReaderWorkspace,
 	extra?: T
-): Promise<
-	{ success: true; readerState: string; path: string; tabOrigins: Record<string, string> } & T
-> {
+) {
 	const focused =
 		next.tiles.find((tile) => tile.id === next.focusedTileId && activeReaderTab(tile)) ??
 		next.tiles.find((tile) => activeReaderTab(tile));
@@ -1072,7 +1107,16 @@ async function finishWorkspaceMutation<T extends Record<string, unknown>>(
 			? extra.path
 			: referencePath(active?.reference ?? { book: 43, chapter: 1 });
 	const readerState = encodeReaderUrlState(next, current.searchQueries, current.notesFilters);
-	await commitWorkspace(cookies, user, next, current.persist, current.guard, readerState);
+	const persistence = await commitWorkspace(
+		cookies,
+		user,
+		next,
+		current.persist,
+		current.guard,
+		readerState,
+		current.detachedBranch
+	);
+	if (!persistence.saved && persistence.reason === 'conflict') return fail(409, persistence);
 	if (
 		request.headers.get('accept')?.includes('text/html') &&
 		request.headers.get('x-sveltekit-action') !== 'true'
@@ -1081,6 +1125,7 @@ async function finishWorkspaceMutation<T extends Record<string, unknown>>(
 	}
 	return {
 		success: true,
+		...persistence,
 		tabOrigins: readerTabOrigins(next),
 		readerState,
 		...(extra ?? ({} as T)),

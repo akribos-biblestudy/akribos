@@ -1,17 +1,9 @@
 import { readAnalyticsSettings } from '$lib/server/analytics/settings';
 import { getDb } from '$lib/server/db';
-import {
-	ensureDefaultReaderWorkspace,
-	listSavedReaderWorkspaces
-} from '$lib/server/repositories/saved-reader-workspaces';
-import { listBibles, listReaderResources } from '$lib/server/repositories/resources';
-import {
-	needsInitialReaderViewport,
-	resolveReaderWorkspace,
-	workspaceColumns,
-	writeWorkspaceCompatibilityCookies
-} from '$lib/server/reader-workspace';
-import { updateReaderWorkspace } from '$lib/server/repositories/users';
+import { listSavedReaderWorkspaces } from '$lib/server/repositories/saved-reader-workspaces';
+import { listBibles } from '$lib/server/repositories/resources';
+import { workspaceColumns, writeWorkspaceCompatibilityCookies } from '$lib/server/reader-workspace';
+import { resolveReaderWorkspaceContext } from '$lib/server/reader-workspace-context';
 import {
 	readFontScale,
 	readTheme,
@@ -31,39 +23,27 @@ export async function load({ cookies, locals }) {
 	const defaultBibleId = bibles.some((bible) => bible.id === locals.user?.defaultBibleId)
 		? locals.user!.defaultBibleId
 		: null;
-	const readerResources = await listReaderResources(db, locals.user?.id);
-	const initializeReaderWorkspace = needsInitialReaderViewport(
-		cookies,
-		readerResources,
-		locals.user?.readerWorkspace,
-		locals.user?.readerColumns
-	);
-	const workspace = resolveReaderWorkspace(
-		cookies,
-		readerResources,
-		locals.user?.readerWorkspace,
-		locals.user?.readerColumns
-	);
+	const context = await resolveReaderWorkspaceContext({ cookies, locals });
+	const {
+		resources: readerResources,
+		workspace,
+		awaitingInitialViewport: initializeReaderWorkspace
+	} = context;
 	const columns = workspaceColumns(workspace);
-	if (!initializeReaderWorkspace) {
-		if (locals.user && !locals.user.readerWorkspace) {
-			await updateReaderWorkspace(db, locals.user.id, workspace);
-		}
-		if (locals.user) await ensureDefaultReaderWorkspace(db, locals.user.id, workspace);
-		// Keep a device fallback for guests and after sign-out, once the first layout is known.
-		writeWorkspaceCompatibilityCookies(cookies, workspace);
-	}
+	if (!initializeReaderWorkspace) writeWorkspaceCompatibilityCookies(cookies, workspace);
 	const readerFontScale = readFontScale(cookies, locals.user?.readerFontScale);
 	writeFontScale(cookies, readerFontScale);
 	const theme = readTheme(cookies, locals.user?.theme);
 	if (theme) writeTheme(cookies, theme);
 
-	const savedWorkspaces = locals.user ? await listSavedReaderWorkspaces(db, locals.user.id) : [];
+	const savedWorkspaces = locals.user
+		? await listSavedReaderWorkspaces(db, locals.user.id, locals.sessionId!, context.selection)
+		: [];
 	return {
 		initializeReaderWorkspace,
 		analytics: await readAnalyticsSettings(db),
 		savedWorkspaces,
-		activeSavedWorkspaceId: savedWorkspaces.find((entry) => entry.isActive)?.id ?? null,
+		...context.selection,
 		bibles,
 		defaultBibleId,
 		previewBibleId: defaultBibleId ?? bibles[0]?.id ?? null,
