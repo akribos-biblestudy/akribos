@@ -6,23 +6,49 @@
 	 * npm package rather than its CDN script — self-hosted, like the rest of the stack, so this page
 	 * keeps working offline and without trusting a third-party script host.
 	 */
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import { createApiReference } from '@scalar/api-reference';
-	import '@scalar/api-reference/style.css';
+	import scalarStyles from '@scalar/api-reference/style.css?inline';
 
 	let container: HTMLDivElement;
-	let instance: ReturnType<typeof createApiReference> | undefined;
 
 	onMount(() => {
-		instance = createApiReference(container, {
-			url: '/openapi.json',
-			showSidebar: true,
-			hideDownloadButton: false
-		});
-	});
+		// Scalar's CSS includes document-wide rules, and its color-mode hook adds body classes.
+		// A regular CSS import survives SvelteKit navigation; own both for this mount instead.
+		// Keep the stylesheet in the document so Scalar's teleported dialogs remain styled too.
+		const modeClasses = ['light-mode', 'dark-mode'] as const;
+		const previousModes = modeClasses.filter((name) => document.body.classList.contains(name));
+		const stylesheet = document.createElement('style');
+		stylesheet.dataset.apiReferenceStyles = '';
+		stylesheet.textContent = scalarStyles;
+		document.head.appendChild(stylesheet);
 
-	onDestroy(() => {
-		instance?.destroy();
+		function restoreHostStyles() {
+			stylesheet.remove();
+			for (const name of modeClasses) {
+				document.body.classList.toggle(name, previousModes.includes(name));
+			}
+		}
+
+		let instance: ReturnType<typeof createApiReference>;
+		try {
+			instance = createApiReference(container, {
+				url: '/openapi.json',
+				showSidebar: true,
+				hideDownloadButton: false
+			});
+		} catch (error) {
+			restoreHostStyles();
+			throw error;
+		}
+
+		return () => {
+			try {
+				instance.destroy();
+			} finally {
+				restoreHostStyles();
+			}
+		};
 	});
 </script>
 

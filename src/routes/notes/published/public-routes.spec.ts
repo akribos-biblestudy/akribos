@@ -88,6 +88,10 @@ describe('unlisted note sharing', () => {
 		);
 		const xml = await (await getSitemap({ setHeaders: vi.fn() } as never)).text();
 		expect(xml).toContain('<loc>https://example.test/about</loc>');
+		expect(xml).toContain('<loc>https://example.test/help</loc>');
+		expect(xml).toContain('<loc>https://example.test/help/reader/arbeitsbereich-einrichten</loc>');
+		expect(xml).toContain('<loc>https://example.test/help/api</loc>');
+		expect(xml).not.toContain('/help/administration');
 		expect(xml).toContain('<loc>https://example.test/Joh1</loc>');
 		expect(xml).not.toContain('/notes');
 		expect(mocks.getPublishedDocumentBySlug).not.toHaveBeenCalled();
