@@ -3058,14 +3058,16 @@
 								</div>
 							</div>
 						{:else}
-							<button
-								type="button"
-								class="empty-tile"
-								onclick={(event) => openResourceDialog(tile.id, event.currentTarget)}
-							>
-								<Icon name="plus" class="size-6" />
-								<span>Ressource öffnen</span>
-							</button>
+							<div class="empty-tile">
+								<button
+									type="button"
+									class="empty-tile-open"
+									onclick={(event) => openResourceDialog(tile.id, event.currentTarget)}
+								>
+									<Icon name="plus" class="size-6" />
+									<span>Ressource öffnen</span>
+								</button>
+							</div>
 						{/if}
 					</section>
 				{/each}
@@ -3340,10 +3342,18 @@
 		min-width: 0;
 		min-height: 0;
 		flex-direction: column;
+		/* Header backgrounds and the scrolling/fading content share the card's rounded boundary. */
+		overflow: hidden;
 		border: 1px solid var(--line);
 		border-radius: 0.75rem;
 		background: var(--surface);
 		box-shadow: var(--shadow-soft);
+	}
+
+	/* Edge-to-edge header controls keep their keyboard outline inside the clipped card. */
+	.reader-tile :global(.resource-tabs button:focus-visible),
+	.reader-tile :global(.tab-toolbar button:focus-visible) {
+		outline-offset: -3px;
 	}
 
 	.tile-content {
@@ -3428,15 +3438,23 @@
 		display: flex;
 		min-height: 0;
 		flex: 1;
-		flex-direction: column;
 		align-items: center;
 		justify-content: center;
+	}
+
+	.empty-tile-open {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
 		gap: 0.5rem;
+		padding: 0.75rem;
+		border-radius: 0.5rem;
 		color: var(--color-stone-400);
 		font-size: 0.8rem;
 	}
 
-	.empty-tile:hover {
+	.empty-tile-open:hover,
+	.empty-tile-open:focus-visible {
 		color: var(--color-accent-600);
 	}
 

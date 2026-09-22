@@ -3,7 +3,7 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { getContext } from 'svelte';
+	import { getContext, onDestroy, onMount, tick } from 'svelte';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { readerMutationEnhancement } from '$lib/reader/persistence-enhancement';
 	import {
@@ -48,7 +48,9 @@
 	let contextWorkspace: unknown;
 	let activeKind: string | undefined = $state();
 	let query = $state('');
-	let chooserStyle = $state('');
+	let chooserOpen = $state(false);
+	let chooserAnchor: HTMLElement | undefined;
+	let placementFrame: number | undefined;
 	let previewStyle = $state('');
 	let previewResource: ReadableResource | undefined = $state();
 	let previewTimer: ReturnType<typeof setTimeout> | undefined;
@@ -75,15 +77,81 @@
 		})
 	);
 
-	function placeChooser(anchor: HTMLElement): void {
-		const rect = anchor.getBoundingClientRect();
-		const width = Math.min(368, window.innerWidth - 16);
-		const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
-		const highestTop = Math.max(8, window.innerHeight - 248);
-		const top = Math.min(Math.max(8, rect.bottom + 6), highestTop);
-		const maxHeight = Math.max(180, window.innerHeight - top - 8);
-		chooserStyle = `--chooser-left:${left}px;--chooser-top:${top}px;--chooser-width:${width}px;--chooser-max-height:${maxHeight}px`;
+	function placeChooser(): void {
+		if (!dialog?.open || !chooserAnchor?.isConnected) return;
+		const rect = chooserAnchor.getBoundingClientRect();
+		const viewport = window.visualViewport;
+		const viewportLeft = viewport?.offsetLeft ?? 0;
+		const viewportTop = viewport?.offsetTop ?? 0;
+		// A stable desktop scrollbar gutter belongs to innerWidth/visualViewport.width, but it can
+		// still clip a top-layer dialog. The root's rendered width excludes that reserved strip.
+		const viewportWidth = Math.min(
+			viewport?.width ?? window.innerWidth,
+			document.documentElement.getBoundingClientRect().width - viewportLeft
+		);
+		const viewportHeight = viewport?.height ?? window.innerHeight;
+		const margin = 8;
+		const gap = 6;
+		const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+		const width = Math.min(32 * rem, viewportWidth - 2 * margin);
+		const maxHeight = Math.min(28 * rem, viewportHeight - 2 * margin);
+		const left = Math.max(
+			viewportLeft + margin,
+			Math.min(rect.left, viewportLeft + viewportWidth - width - margin)
+		);
+		// Apply size before measuring, including wrapped category buttons and the actual list length.
+		dialog.style.setProperty('--chooser-width', `${width}px`);
+		dialog.style.setProperty('--chooser-max-height', `${maxHeight}px`);
+		const height = dialog.getBoundingClientRect().height;
+		const below = viewportTop + viewportHeight - margin - rect.bottom - gap;
+		const above = rect.top - gap - viewportTop - margin;
+		const preferBelow = height <= below || below >= above;
+		const preferredTop = preferBelow ? rect.bottom + gap : rect.top - height - gap;
+		const top = Math.max(
+			viewportTop + margin,
+			Math.min(preferredTop, viewportTop + viewportHeight - height - margin)
+		);
+		dialog.style.setProperty('--chooser-left', `${left}px`);
+		dialog.style.setProperty('--chooser-top', `${top}px`);
 	}
+
+	function schedulePlacement(): void {
+		if (placementFrame !== undefined) cancelAnimationFrame(placementFrame);
+		placementFrame = requestAnimationFrame(() => {
+			placementFrame = undefined;
+			placeChooser();
+		});
+	}
+
+	function viewportChanged(): void {
+		if (!chooserOpen) return;
+		closePreview();
+		schedulePlacement();
+	}
+
+	$effect(() => {
+		if (chooserOpen) {
+			// Filtering or switching categories can change the height of a popup above its anchor.
+			void visible.length;
+			void groups.length;
+			schedulePlacement();
+		}
+	});
+
+	onMount(() => {
+		const viewport = window.visualViewport;
+		viewport?.addEventListener('resize', viewportChanged);
+		viewport?.addEventListener('scroll', viewportChanged);
+		return () => {
+			viewport?.removeEventListener('resize', viewportChanged);
+			viewport?.removeEventListener('scroll', viewportChanged);
+		};
+	});
+
+	onDestroy(() => {
+		clearPreviewTimers();
+		if (placementFrame !== undefined) cancelAnimationFrame(placementFrame);
+	});
 
 	function clearPreviewTimers(): void {
 		if (previewTimer) clearTimeout(previewTimer);
@@ -132,14 +200,27 @@
 		query = '';
 		activeKind = groups[0]?.kind;
 		closePreview();
-		placeChooser(anchor);
+		chooserAnchor = anchor;
 		dialog?.showModal();
-		requestAnimationFrame(() => searchInput?.focus());
+		chooserOpen = true;
+		void tick().then(() => {
+			if (!dialog?.open || chooserAnchor !== anchor) return;
+			placeChooser();
+			searchInput?.focus({ preventScroll: true });
+		});
 	}
 
 	export function close(): void {
 		closePreview();
 		dialog?.close();
+	}
+
+	function onClose(): void {
+		if (dialog?.open) return;
+		closePreview();
+		chooserOpen = false;
+		chooserAnchor?.focus({ preventScroll: true });
+		chooserAnchor = undefined;
 	}
 
 	const submitEnhancement: SubmitFunction = readerMutationEnhancement(
@@ -176,12 +257,13 @@
 	);
 </script>
 
+<svelte:window onresize={viewportChanged} onscroll={viewportChanged} />
+
 <dialog
 	bind:this={dialog}
 	aria-label={label}
 	class="translation-dialog"
-	style={chooserStyle}
-	onclose={closePreview}
+	onclose={onClose}
 	onclick={(event) => {
 		if (event.target === dialog) close();
 	}}
@@ -319,7 +401,7 @@
 		top: var(--chooser-top, 3.5rem);
 		left: var(--chooser-left, 0.5rem);
 		box-sizing: border-box;
-		width: var(--chooser-width, min(23rem, calc(100vw - 1rem)));
+		width: var(--chooser-width, min(32rem, calc(100vw - 1rem)));
 		height: auto;
 		max-width: none;
 		max-height: var(--chooser-max-height, calc(100dvh - 4rem));
@@ -340,8 +422,8 @@
 	}
 	.chooser-shell {
 		display: flex;
-		max-height: inherit;
-		min-height: 14rem;
+		max-height: calc(var(--chooser-max-height, 28rem) - 2px);
+		min-height: min(14rem, calc(var(--chooser-max-height, 28rem) - 2px));
 		flex-direction: column;
 		overflow: hidden;
 		border-radius: inherit;
@@ -403,11 +485,11 @@
 	}
 	.categories {
 		display: flex;
+		flex: none;
+		flex-wrap: wrap;
 		gap: 0.1rem;
-		overflow-x: auto;
 		padding: 0 0.55rem 0.45rem;
 		border-bottom: 1px solid var(--line);
-		scrollbar-width: none;
 	}
 	.category {
 		display: inline-flex;
@@ -595,12 +677,6 @@
 		color: var(--color-stone-100);
 	}
 	@media (max-width: 639px) {
-		.translation-dialog {
-			top: 0.5rem;
-			left: 0.5rem;
-			width: calc(100vw - 1rem);
-			max-height: calc(100dvh - 1rem);
-		}
 		.resource-preview {
 			top: auto;
 			right: 0.5rem;
