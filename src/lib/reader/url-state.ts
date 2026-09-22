@@ -1,3 +1,4 @@
+import { normalizeWordPosition } from '$lib/bible/strong-assignment';
 import { parseReference, referencePath, type VerseRef } from '$lib/bible/reference';
 import type { WorkspacePersistenceToken } from './persistence';
 import {
@@ -16,6 +17,7 @@ const READER_URL_STATE_PARAMS = new Set([
 	'source',
 	'sourceRef',
 	'word',
+	'wordPosition',
 	'search',
 	'notesQuery',
 	'notesTag',
@@ -74,6 +76,7 @@ type CompactTab = [
 	studyChapter: number | 0,
 	studyVerse: number | 0,
 	studyWord: string | 0,
+	studyWordPosition: number,
 	searchQuery: string | 0
 ];
 
@@ -101,6 +104,7 @@ type ReaderUrlTab = {
 		sourceResourceId: string;
 		reference: VerseRef;
 		word: string | null;
+		wordPosition?: number;
 	} | null;
 };
 
@@ -114,7 +118,7 @@ export type DecodedReaderUrlState = {
  *
  *   ?layout=columns-2&tab=1.1:SEEDDE:A:Joh3,16&active=1.1&focus=1
  *
- * `tab`, `active`, `lookup`, `source`, `sourceRef`, `word` and `search` may repeat. Persisted UUIDs
+ * `tab`, `active`, `lookup`, `source`, `sourceRef`, `word`, `wordPosition` and `search` may repeat. Persisted UUIDs
  * and custom divider sizes are deliberately omitted; coordinates provide stable identity inside the
  * URL, while sizes remain a personal device preference.
  */
@@ -139,6 +143,8 @@ export function encodeReaderUrlState(
 				);
 				if (tab.studyContext.word) {
 					parts.push(`word=${coordinate}:${encodePart(tab.studyContext.word)}`);
+					if (tab.studyContext.wordPosition !== undefined)
+						parts.push(`wordPosition=${coordinate}:${tab.studyContext.wordPosition}`);
 				}
 			}
 			const search = searchQueries[tab.id]?.trim().slice(0, 200);
@@ -170,6 +176,7 @@ export function decodeReaderUrlState(value: URL | URLSearchParams): DecodedReade
 	const sources = coordinateParameters(params, 'source');
 	const sourceReferences = coordinateParameters(params, 'sourceRef');
 	const words = coordinateParameters(params, 'word');
+	const positions = coordinateParameters(params, 'wordPosition');
 	const searches = coordinateParameters(params, 'search');
 
 	for (const raw of params.getAll('tab')) {
@@ -177,6 +184,8 @@ export function decodeReaderUrlState(value: URL | URLSearchParams): DecodedReade
 		if (!parsed || parsed.coordinate.tile > tileCount) continue;
 		const sourceReference = parseReference(sourceReferences.get(parsed.key) ?? '');
 		const sourceResourceId = cleanOptional(sources.get(parsed.key));
+		const word = cleanOptional(words.get(parsed.key));
+		const wordPosition = normalizeWordPosition(positions.get(parsed.key));
 		tabsByTile[parsed.coordinate.tile - 1]!.set(parsed.coordinate.tab, {
 			...parsed,
 			lookup: cleanOptional(lookups.get(parsed.key)),
@@ -185,7 +194,8 @@ export function decodeReaderUrlState(value: URL | URLSearchParams): DecodedReade
 					? {
 							sourceResourceId,
 							reference: sourceReference,
-							word: cleanOptional(words.get(parsed.key))
+							word,
+							...(word && wordPosition !== undefined ? { wordPosition } : {})
 						}
 					: null
 		});
@@ -394,6 +404,7 @@ function compactReaderState(
 				tab.studyContext?.reference.chapter ?? 0,
 				tab.studyContext?.reference.verse ?? 0,
 				tab.studyContext?.word ?? 0,
+				tab.studyContext?.wordPosition ?? -1,
 				tab.id === tile.activeTabId ? (searchQueries[tab.id]?.trim().slice(0, 200) ?? 0) : 0
 			])
 		]),

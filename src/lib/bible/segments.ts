@@ -143,30 +143,30 @@ export type TaggedWord = {
  */
 export function wordsFromSegments(segments: readonly VerseSegment[]): TaggedWord[] {
 	const words: TaggedWord[] = [];
-	let position = 0;
-
-	const walk = (list: readonly VerseSegment[]): void => {
-		for (const segment of list) {
-			if (typeof segment === 'string') continue;
-
-			if (segment.kind === 'w') {
-				for (const strong of segment.strongs ?? [segment.strong]) {
-					words.push({
-						position,
-						text: segment.text,
-						strong,
-						...(segment.morph ? { morph: segment.morph } : {})
-					});
-				}
-				position += 1;
-			} else if (segment.kind === 'wj') {
-				walk(segment.children);
-			}
+	for (const [position, segment] of taggedWordSegments(segments).entries()) {
+		for (const strong of segment.strongs ?? [segment.strong]) {
+			words.push({
+				position,
+				text: segment.text,
+				strong,
+				...(segment.morph ? { morph: segment.morph } : {})
+			});
 		}
-	};
-
-	walk(segments);
+	}
 	return words;
+}
+
+/** The source-word order shared by verse_words.position and precise word-study clicks. */
+export function taggedWordSegments(segments: readonly VerseSegment[]): WordSegment[] {
+	return segments.flatMap((segment) =>
+		typeof segment === 'string'
+			? []
+			: segment.kind === 'w'
+				? [segment]
+				: segment.kind === 'wj'
+					? taggedWordSegments(segment.children)
+					: []
+	);
 }
 
 /** Collapses runs of whitespace and trims, without touching the characters themselves. */

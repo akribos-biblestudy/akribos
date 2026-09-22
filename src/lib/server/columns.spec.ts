@@ -28,6 +28,7 @@ function resource(id: string): ReadableResource {
 		hasStrongs: false,
 		hasMorphology: false,
 		licenseHtml: null,
+		sourceRevision: null,
 		usageNotesHtml: null
 	};
 }

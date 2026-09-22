@@ -111,7 +111,8 @@
 											"hasStrongs": true,
 											"hasMorphology": false,
 											"licenseHtml": "<p>Public domain.</p>",
-											"usageNotesHtml": null
+											"usageNotesHtml": null,
+											"sourceRevision": null
 										}
 									]
 								}
@@ -743,9 +744,15 @@
 					"hasStrongs",
 					"hasMorphology",
 					"licenseHtml",
-					"usageNotesHtml"
+					"usageNotesHtml",
+					"sourceRevision"
 				],
 				"properties": {
+					"sourceRevision": {
+						"type": ["string", "null"],
+						"maxLength": 80,
+						"description": "Edition revision explicitly declared by the imported source (Zefania XMLBIBLE/@revision). Null when unknown; never inferred from editable titles or the XML format version."
+					},
 					"id": {
 						"type": "string",
 						"description": "Resource id, used as the `bible`/`resources`/`bibles` parameter elsewhere in this API."

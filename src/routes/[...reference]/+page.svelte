@@ -28,7 +28,12 @@
 		passagePointKey,
 		passageToDbEndpoints
 	} from '$lib/bible/passage';
-	import { countVerseWords, segmentsToText, splitVerseLead } from '$lib/bible/segments';
+	import {
+		countVerseWords,
+		segmentsToText,
+		splitVerseLead,
+		taggedWordSegments
+	} from '$lib/bible/segments';
 	import { spanRangeForVerse } from '$lib/bible/highlight-span';
 	import { readerLocation } from '$lib/reader-location.svelte';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
@@ -57,6 +62,7 @@
 		readerLayoutSize,
 		setReaderTabLookup,
 		setReaderTabReference,
+		type ReaderStudyContext,
 		type ReaderTab,
 		type ReaderWorkspace
 	} from '$lib/reader/workspace';
@@ -1096,7 +1102,8 @@
 		columnIndex: number,
 		lookup: string,
 		reference?: VerseRef,
-		word?: string
+		word?: string,
+		wordPosition?: number
 	): Promise<void> {
 		const column = data.columns[columnIndex];
 		if (!column || !lookup.trim()) return;
@@ -1109,6 +1116,7 @@
 				form.set('currentReference', formatReference(toolbarReference(column)));
 				if (reference) form.set('sourceReference', formatReference(reference));
 				if (word) form.set('word', word);
+				if (wordPosition !== undefined) form.set('wordPosition', String(wordPosition));
 				const result = await fetchReaderAction('openLexiconTab', form);
 				if (!result) return;
 				const state = readerStateFromActionData(result.data);
@@ -1122,7 +1130,7 @@
 					}
 				);
 				const targetColumn = data.columns.find((column) => column.tileId === result.data?.tileId);
-				if (targetColumn) recordTabVisit(targetColumn, { kind: 'lookup', lookup });
+				if (targetColumn) recordTabVisit(targetColumn, historyLocation(targetColumn));
 				if (
 					window.matchMedia('(max-width: 639px)').matches &&
 					result.data &&
@@ -1141,7 +1149,11 @@
 		}
 	}
 
-	async function lookupInLexicon(columnIndex: number, lookup: string): Promise<boolean> {
+	async function lookupInLexicon(
+		columnIndex: number,
+		lookup: string,
+		studyContext?: ReaderStudyContext | null
+	): Promise<boolean> {
 		const column = data.columns[columnIndex];
 		if (!column || column.resource.kind !== 'lexicon') return false;
 		try {
@@ -1151,11 +1163,20 @@
 				form.set('tabId', column.activeTab.id);
 				form.set('lookup', lookup);
 				if (!lookup.trim()) form.set('clearLookup', 'true');
+				if (studyContext !== undefined) {
+					form.set('restoreStudy', 'true');
+					if (studyContext) {
+						form.set('sourceResource', studyContext.sourceResourceId);
+						form.set('sourceReference', formatReference(studyContext.reference));
+						if (studyContext.word) form.set('word', studyContext.word);
+						if (studyContext.wordPosition !== undefined)
+							form.set('wordPosition', String(studyContext.wordPosition));
+					}
+				}
 				const result = await fetchReaderAction('setTabLookup', form);
 				if (!result) return false;
 				const state = readerStateFromActionData(result.data);
 				if (!state) return false;
-				recordTabVisit(column, { kind: 'lookup', lookup: lookup.trim() || null });
 				await goto(
 					readerUrl(readerPathFromActionData(result.data, window.location.pathname), state),
 					{
@@ -1164,6 +1185,10 @@
 						noScroll: true
 					}
 				);
+				const updated = data.columns.find(
+					(candidate) => candidate.activeTab.id === column.activeTab.id
+				);
+				if (updated) recordTabVisit(updated, historyLocation(updated));
 				return true;
 			});
 		} catch (error) {
@@ -1178,9 +1203,16 @@
 		verse: number,
 		book = data.reference.book,
 		chapter = data.reference.chapter,
-		sourceColumnIndex = activeFlowSource
+		sourceColumnIndex = activeFlowSource,
+		wordPosition?: number
 	) {
-		void openLexiconForLookup(sourceColumnIndex, strong, { book, chapter, verse }, word);
+		void openLexiconForLookup(
+			sourceColumnIndex,
+			strong,
+			{ book, chapter, verse },
+			word,
+			wordPosition
+		);
 	}
 
 	type StreamChapter = (typeof data.columns)[number]['initialChapter'];
@@ -1265,7 +1297,13 @@
 			const resource = data.readerResources.find(
 				(candidate) => candidate.id === stored.sourceResourceId && candidate.kind === 'bible'
 			);
-			if (resource) return { resource, reference: stored.reference, word: stored.word };
+			if (resource)
+				return {
+					resource,
+					reference: stored.reference,
+					word: stored.word,
+					wordPosition: stored.wordPosition
+				};
 		}
 
 		const linkedBible = data.columns.find(
@@ -1277,8 +1315,13 @@
 		const source =
 			linkedBible ?? data.columns.find((candidate) => candidate.resource.kind === 'bible');
 		return source
-			? { resource: source.resource, reference: toolbarReference(source), word: null }
-			: { resource: null, reference: null, word: null };
+			? {
+					resource: source.resource,
+					reference: toolbarReference(source),
+					word: null,
+					wordPosition: undefined
+				}
+			: { resource: null, reference: null, word: null, wordPosition: undefined };
 	}
 	type TabSearchState = {
 		resourceId: string;
@@ -1311,7 +1354,11 @@
 
 	function historyLocation(column: (typeof data.columns)[number]): TabHistoryLocation {
 		if (column.resource.kind === 'lexicon')
-			return { kind: 'lookup', lookup: column.activeTab.lookup };
+			return {
+				kind: 'lookup',
+				lookup: column.activeTab.lookup,
+				studyContext: column.activeTab.studyContext
+			};
 		const search = tabSearchFor(column);
 		return search
 			? { kind: 'search', query: search.query, page: search.result?.page ?? 1, book: search.book }
@@ -1343,7 +1390,7 @@
 									resourceId: tab.resourceId,
 									history: createTabHistory(
 										resource?.kind === 'lexicon'
-											? { kind: 'lookup', lookup: tab.lookup }
+											? { kind: 'lookup', lookup: tab.lookup, studyContext: tab.studyContext }
 											: queries[tab.id]
 												? { kind: 'search', query: queries[tab.id]!, page: 1, book: null }
 												: { kind: 'reference', reference: { ...tab.reference } }
@@ -1385,7 +1432,11 @@
 			if (location.kind === 'reference')
 				opened = await openTabSearchReference(columnIndex, location.reference);
 			else if (location.kind === 'lookup')
-				opened = await lookupInLexicon(columnIndex, location.lookup ?? '');
+				opened = await lookupInLexicon(
+					columnIndex,
+					location.lookup ?? '',
+					location.studyContext ?? null
+				);
 			else await runTabSearch(columnIndex, location.query, location.page, location.book);
 			if (opened) tabHistories[column.activeTab.id] = { ...stored, history: next };
 		} catch {
@@ -2681,7 +2732,7 @@
 								resource={column.resource}
 								reference={toolbarReference(column)}
 								searchQuery={tabSearch?.query ?? null}
-								studyResourceTitle={studyContext.resource?.abbrev ?? null}
+								studyResource={studyContext.resource}
 								onOpenResource={replaceResourceDialog}
 								onSearch={(query) =>
 									column.resource.kind === 'lexicon'
@@ -2704,6 +2755,7 @@
 										sourceResource={studyContext.resource}
 										studyReference={studyContext.reference}
 										studyWord={studyContext.word}
+										studyWordPosition={studyContext.wordPosition}
 										onLookup={(lookup) => void lookupInLexicon(columnIndex, lookup)}
 										onOpenReference={(reference) =>
 											void openTabSearchReference(columnIndex, reference)}
@@ -2728,14 +2780,15 @@
 											void runTabSearch(columnIndex, query, pageNumber, book)}
 										onOpenReference={(reference) =>
 											void openTabSearchReference(columnIndex, reference)}
-										onStrongClick={(strong, word, reference) =>
+										onStrongClick={(strong, word, reference, wordPosition) =>
 											openStrong(
 												strong,
 												word,
 												reference.verse ?? 1,
 												reference.book,
 												reference.chapter,
-												columnIndex
+												columnIndex,
+												wordPosition
 											)}
 									/>
 								{:else}
@@ -2923,14 +2976,15 @@
 																dir={column.resource.direction}
 																><VerseText
 																	segments={leadSegments}
-																	onStrongClick={(strong, word) =>
+																	onStrongClick={(strong, word, wordPosition) =>
 																		openStrong(
 																			strong,
 																			word,
 																			cell.verse,
 																			stream.reference.book,
 																			stream.reference.chapter,
-																			columnIndex
+																			columnIndex,
+																			wordPosition
 																		)}
 																	highlights={partial}
 																/></span
@@ -2942,17 +2996,19 @@
 														>
 															<VerseText
 																segments={remainingSegments}
-																onStrongClick={(strong, word) =>
+																onStrongClick={(strong, word, wordPosition) =>
 																	openStrong(
 																		strong,
 																		word,
 																		cell.verse,
 																		stream.reference.book,
 																		stream.reference.chapter,
-																		columnIndex
+																		columnIndex,
+																		wordPosition
 																	)}
 																highlights={partial}
 																wordOffset={leadWordCount}
+																wordPositionOffset={taggedWordSegments(leadSegments).length}
 															/>
 														</span>
 													</p>

@@ -229,6 +229,7 @@ async function upsertResource(
 		language: metadata.language,
 		direction: metadata.direction ?? 'ltr',
 		licenseHtml: metadata.licenseHtml ?? null,
+		sourceRevision: metadata.sourceRevision ?? null,
 		sourceFormat: options.sourceFormat,
 		sourceFile: options.sourceFile ?? null,
 		status: 'importing' as const
@@ -244,6 +245,7 @@ async function upsertResource(
 			set: {
 				language: values.language,
 				direction: values.direction,
+				sourceRevision: values.sourceRevision,
 				sourceFormat: values.sourceFormat,
 				sourceFile: values.sourceFile,
 				status: values.status,

@@ -3,6 +3,7 @@
  * validation and mutations can be used by form actions, SSR and focused unit tests.
  */
 
+import { normalizeWordPosition } from '$lib/bible/strong-assignment';
 import { isReferenceInCanon, type VerseRef } from '$lib/bible/reference';
 
 export const READER_LAYOUTS = [
@@ -26,6 +27,8 @@ export type ReaderStudyContext = {
 	sourceResourceId: string;
 	reference: VerseRef;
 	word: string | null;
+	/** Zero-based tagged-word position in the source verse; older contexts omit it. */
+	wordPosition?: number;
 };
 
 export type ReaderTab = {
@@ -520,7 +523,10 @@ export function setReaderTabLookup(
 	const tab = tile?.tabs.find((item) => item.id === tabId);
 	if (!tile || !tab) return next;
 	const normalized = normalizeTabLookup(lookup);
-	if (tab.lookup !== normalized && tab.studyContext) tab.studyContext.word = null;
+	if (tab.lookup !== normalized && tab.studyContext) {
+		tab.studyContext.word = null;
+		delete tab.studyContext.wordPosition;
+	}
 	tab.lookup = normalized;
 	tile.activeTabId = tab.id;
 	next.focusedTileId = tile.id;
@@ -542,7 +548,10 @@ export function setReaderTabStudy(
 	tab.studyContext = {
 		sourceResourceId: context.sourceResourceId,
 		reference: { ...context.reference },
-		word: normalizeTabLookup(context.word)
+		word: normalizeTabLookup(context.word),
+		...(context.word && normalizeWordPosition(context.wordPosition) !== undefined
+			? { wordPosition: normalizeWordPosition(context.wordPosition) }
+			: {})
 	};
 	return next;
 }
@@ -693,6 +702,9 @@ function normalizeStudyContext(value: unknown, known: Set<string>): ReaderStudyC
 	return {
 		sourceResourceId: value.sourceResourceId,
 		reference,
-		word: normalizeTabLookup(value.word)
+		word: normalizeTabLookup(value.word),
+		...(value.word && normalizeWordPosition(value.wordPosition) !== undefined
+			? { wordPosition: normalizeWordPosition(value.wordPosition) }
+			: {})
 	};
 }

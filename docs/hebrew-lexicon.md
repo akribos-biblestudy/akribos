@@ -5,7 +5,9 @@ The English source, Hebrew/Aramaic headwords, transliteration, pronunciation and
 intact. The German text is an **automatic draft, not a philologically reviewed dictionary**. It must
 be reviewed before this issue is approved for production. In particular, short glosses, archaic
 English, names and grammatical terminology can be mistranslated. The interface identifies this
-status and offers the complete English original below the German article.
+status within the native “Englisches Original” disclosure below the German article. The provenance
+text explicitly describes the translation of the dictionary article, not a Bible word's Strong
+assignment. It must never act as the word-study uncertainty signal.
 
 ## XML and persistence
 
@@ -45,6 +47,20 @@ German is the default wherever a translation exists, in reader tabs and standalo
 The native “Englisches Original” disclosure also works without JavaScript. Opening it is temporary,
 like other article disclosures; it does not change the workspace. German explanations of the KJV
 renderings are labelled as such and are not presented as quotations from a German Bible.
+
+## Uncertain source-word assignments
+
+Word-study uncertainty comes from the selected Bible translation, for both Testaments. An exact,
+blank-marker “Automatische Wortzuordnung; fachlich noch nicht bestätigt.” source note must immediately
+follow the affected tagged word (only whitespace may intervene). Existing imports retained this
+text and order but not the original XML `ex="nl:akribosStrongUncertainty"` attribute.
+
+The reader records the clicked word's zero-based tagged-word position with its source resource,
+verse, spelling and Strong. This matters when the same word and Strong occur several times within
+one verse and only some assignments carry a note. The API checks all of that context against the
+stored verse. An old link without a position reports ambiguity when matching occurrences differ;
+an unmarked occurrence is not labelled uncertain, nor claimed to be human-reviewed. Occurrence
+footnotes name the affected word and studied Strong; dictionary translation metadata is unrelated.
 
 ## Translation provenance and reproduction
 

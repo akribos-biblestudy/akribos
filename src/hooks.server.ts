@@ -17,6 +17,7 @@ import {
 	backfillDocumentFootnotes,
 	DocumentFootnoteBackfillError
 } from '$lib/server/documents/footnote-backfill';
+import { backfillResourceRevisions } from '$lib/server/import/backfill-resource-revisions';
 import { backfillTskResourceKind } from '$lib/server/import/backfill-tsk-kind';
 
 /**
@@ -74,6 +75,14 @@ export const init: ServerInit = async () => {
 	} catch (error) {
 		// The original edition stays readable when enrichment is temporarily unavailable.
 		logger.warn({ err: error }, 'Hebrew lexicon translation backfill skipped');
+	}
+
+	try {
+		const revisedResources = await backfillResourceRevisions(db);
+		if (revisedResources > 0)
+			logger.info({ revisedResources }, 'resource source revisions backfilled');
+	} catch (error) {
+		logger.warn({ err: error }, 'resource source revision backfill skipped');
 	}
 
 	// Outside the try/catch above: a database that is briefly unreachable at boot must not permanently

@@ -1,3 +1,4 @@
+import { normalizeWordPosition } from '$lib/bible/strong-assignment';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { randomUUID } from 'node:crypto';
 import { openReaderBibleReference } from '$lib/reader/open-bible-reference';
@@ -590,13 +591,38 @@ export const actions = {
 		if (!tab || available.find((resource) => resource.id === tab.resourceId)?.kind !== 'lexicon') {
 			return fail(400, { error: 'tab' });
 		}
-		return finishWorkspaceMutation(
-			request,
-			cookies,
-			locals.user,
-			current,
-			setReaderTabLookup(workspace, tileId, tabId, lookup)
-		);
+		let next = setReaderTabLookup(workspace, tileId, tabId, lookup);
+		if (form.get('restoreStudy') === 'true') {
+			const sourceResourceId = String(form.get('sourceResource') ?? '');
+			const reference = parseReference(String(form.get('sourceReference') ?? ''));
+			const word =
+				String(form.get('word') ?? '')
+					.trim()
+					.slice(0, 200) || null;
+			const wordPosition = normalizeWordPosition(form.get('wordPosition'));
+			if (sourceResourceId) {
+				if (
+					!reference ||
+					!isReferenceInCanon(reference) ||
+					!available.some(
+						(resource) => resource.id === sourceResourceId && resource.kind === 'bible'
+					)
+				)
+					return fail(400, { error: 'studyContext' });
+				next = setReaderTabStudy(next, tileId, tabId, lookup, {
+					sourceResourceId,
+					reference,
+					word,
+					...(word && wordPosition !== undefined ? { wordPosition } : {})
+				});
+			} else {
+				const nextTab = next.tiles
+					.find((tile) => tile.id === tileId)
+					?.tabs.find((candidate) => candidate.id === tabId);
+				if (nextTab) nextTab.studyContext = null;
+			}
+		}
+		return finishWorkspaceMutation(request, cookies, locals.user, current, next);
 	},
 
 	/** Reuses the lexicon tab belonging to the source tab's A–E group, or opens one. */
@@ -610,6 +636,7 @@ export const actions = {
 				.slice(0, 200)
 		);
 		const currentReference = parseReference(String(form.get('currentReference') ?? ''));
+		const clickedPosition = normalizeWordPosition(form.get('wordPosition'));
 		const clickedWord = String(form.get('word') ?? '')
 			.trim()
 			.slice(0, 200);
@@ -660,7 +687,8 @@ export const actions = {
 			next = setReaderTabStudy(next, existing.tile.id, existing.tab.id, lookup, {
 				sourceResourceId,
 				reference: studyReference,
-				word: clickedWord || null
+				word: clickedWord || null,
+				...(clickedWord && clickedPosition !== undefined ? { wordPosition: clickedPosition } : {})
 			});
 			return finishWorkspaceMutation(request, cookies, locals.user, current, next, {
 				tileId: existing.tile.id,
@@ -703,7 +731,8 @@ export const actions = {
 		next = setReaderTabStudy(next, targetTile.id, added.id, lookup, {
 			sourceResourceId,
 			reference: studyReference,
-			word: clickedWord || null
+			word: clickedWord || null,
+			...(clickedWord && clickedPosition !== undefined ? { wordPosition: clickedPosition } : {})
 		});
 		return finishWorkspaceMutation(request, cookies, locals.user, current, next, {
 			tileId: targetTile.id,

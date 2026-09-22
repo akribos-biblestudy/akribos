@@ -22,6 +22,7 @@ import { refreshStrongStatisticsBlocking } from '../db/statistics.ts';
 import { backfillHebrewTranslations } from '../import/backfill-hebrew-translations.ts';
 import { backfillDocumentBodyReferenceIndexes } from '../repositories/document-reference-index.ts';
 import { backfillDocumentFootnotes } from '../documents/footnote-backfill.ts';
+import { backfillResourceRevisions } from '../import/backfill-resource-revisions.ts';
 import { backfillTskResourceKind } from '../import/backfill-tsk-kind.ts';
 import { invalidateResourceCache } from '../repositories/resources.ts';
 import { pruneExpiredSessions } from '../auth/session.ts';
@@ -506,6 +507,7 @@ async function executeRestore(
 			await backfillDocumentBodyReferenceIndexes(db);
 			await backfillHebrewTranslations(db);
 			await backfillTskResourceKind(db);
+			await backfillResourceRevisions(db);
 			// Materialized view *data* is not part of a dump; without this, search and Strong's
 			// statistics come back empty.
 			await refreshStrongStatisticsBlocking(db);

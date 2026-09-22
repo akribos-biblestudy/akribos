@@ -2,6 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import { normalizeStrongId, otherLanguageId } from '$lib/bible/strong';
 import { parseMorphology } from '$lib/bible/morphology';
 import { parseReference } from '$lib/bible/reference';
+import { normalizeWordPosition } from '$lib/bible/strong-assignment';
 import { getDb } from '$lib/server/db';
 import {
 	loadOriginalWord,
@@ -11,7 +12,8 @@ import {
 	loadStrongOccurrences,
 	loadStrongStatistics,
 	pickStatisticsResource,
-	findLexiconEntry
+	findLexiconEntry,
+	loadStrongAssignmentStatus
 } from '$lib/server/repositories/strong';
 import { listReaderResources } from '$lib/server/repositories/resources';
 
@@ -21,6 +23,8 @@ import { listReaderResources } from '$lib/server/repositories/resources';
  * Query parameters:
  *   ref        the verse the word was clicked in, so the original form and morphology can be shown
  *   resource   the exact translation whose tagged word opened the lexicon tab
+ *   word       the clicked source spelling (checked against the saved verse segments)
+ *   wordPosition zero-based tagged-word position; absent legacy links may be ambiguous
  *   lexicon    the exact dictionary represented by the tab
  *   resources  legacy list of translations, used only when `resource` is absent
  *   page       page of the occurrence list
@@ -46,6 +50,10 @@ export async function GET({ params, url, setHeaders, locals }) {
 		requestedResource?.id ??
 		(await pickStatisticsResource(db, resourceIds, strong, locals.user?.id));
 	const reference = parseReference(url.searchParams.get('ref') ?? '');
+	const sourceWord = (url.searchParams.get('word') ?? '').trim().slice(0, 200);
+	const rawPosition = url.searchParams.get('wordPosition');
+	const wordPosition = normalizeWordPosition(rawPosition);
+	if (rawPosition !== null && wordPosition === undefined) error(400, 'Ungültige Wortposition');
 	const page = Number(url.searchParams.get('page') ?? '1') || 1;
 	const requestedBook = Number(url.searchParams.get('book') ?? '');
 	const book =
@@ -58,28 +66,41 @@ export async function GET({ params, url, setHeaders, locals }) {
 		: undefined;
 	if (lexiconId && !lexicon) error(400, 'Unbekanntes Lexikon');
 
-	const [entry, statistics, bookCounts, glosses, occurrences, original] = await Promise.all([
-		lexicon
-			? findLexiconEntry(db, lexicon.id, strong, locals.user?.id)
-			: loadStrongEntry(db, strong, locals.user?.id),
-		statisticsResource
-			? loadStrongStatistics(db, strong, statisticsResource)
-			: Promise.resolve({ occurrences: 0, verseCount: 0 }),
-		statisticsResource ? loadStrongBookCounts(db, strong, statisticsResource) : Promise.resolve([]),
-		statisticsResource ? loadStrongGlosses(db, strong, statisticsResource) : Promise.resolve([]),
-		statisticsResource
-			? loadStrongOccurrences(db, strong, statisticsResource, { page, book })
-			: Promise.resolve({ occurrences: [], total: 0, page: 1, pageCount: 1 }),
-		reference?.verse !== undefined
-			? loadOriginalWord(db, {
-					strong,
-					book: reference.book,
-					chapter: reference.chapter,
-					verse: reference.verse,
-					userId: locals.user?.id
-				})
-			: Promise.resolve(undefined)
-	]);
+	const [entry, statistics, bookCounts, glosses, occurrences, original, assignmentStatus] =
+		await Promise.all([
+			lexicon
+				? findLexiconEntry(db, lexicon.id, strong, locals.user?.id)
+				: loadStrongEntry(db, strong, locals.user?.id),
+			statisticsResource
+				? loadStrongStatistics(db, strong, statisticsResource)
+				: Promise.resolve({ occurrences: 0, verseCount: 0 }),
+			statisticsResource
+				? loadStrongBookCounts(db, strong, statisticsResource)
+				: Promise.resolve([]),
+			statisticsResource ? loadStrongGlosses(db, strong, statisticsResource) : Promise.resolve([]),
+			statisticsResource
+				? loadStrongOccurrences(db, strong, statisticsResource, { page, book })
+				: Promise.resolve({ occurrences: [], total: 0, page: 1, pageCount: 1 }),
+			reference?.verse !== undefined
+				? loadOriginalWord(db, {
+						strong,
+						book: reference.book,
+						chapter: reference.chapter,
+						verse: reference.verse,
+						userId: locals.user?.id
+					})
+				: Promise.resolve(undefined),
+			statisticsResource && reference && sourceWord
+				? loadStrongAssignmentStatus(
+						db,
+						statisticsResource,
+						reference,
+						strong,
+						sourceWord,
+						wordPosition
+					)
+				: Promise.resolve(null)
+		]);
 
 	// Dictionary content is immutable between imports, so it is worth caching.
 	setHeaders({ 'cache-control': 'public, max-age=60, s-maxage=3600' });
@@ -95,6 +116,7 @@ export async function GET({ params, url, setHeaders, locals }) {
 		glosses,
 		occurrences,
 		original: original ?? null,
+		assignmentStatus,
 		morphology: parseMorphology(original?.morph ?? ''),
 		statisticsResource: statisticsResource ?? null
 	});

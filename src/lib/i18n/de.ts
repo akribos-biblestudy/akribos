@@ -498,7 +498,8 @@ export const de = {
 	'strong.pronunciation': 'Aussprache',
 	'strong.kjvRenderingsGerman': 'King-James-Wiedergaben (deutsch erläutert)',
 	'strong.kjvRenderings': 'King-James-Wiedergaben',
-	'strong.machineTranslation': 'Automatisch vorübersetzt · fachlich noch nicht geprüft',
+	'strong.translationProvenance':
+		'Der deutsche Lexikontext wurde automatisch aus dem englischen Original übersetzt und ist fachlich noch nicht geprüft. Das betrifft die Übersetzung des Lexikonartikels, nicht die Strong-Zuordnung eines Bibelworts.',
 	'strong.englishOriginal': 'Englisches Original',
 	'strong.definition': 'Bedeutung',
 	'strong.derivation': 'Herkunft',

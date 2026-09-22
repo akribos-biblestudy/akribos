@@ -92,12 +92,14 @@ describe('reader workspace', () => {
 		workspace = setReaderTabStudy(workspace, 'tile-2', 'tab-2', 'G25', {
 			sourceResourceId: 'bible',
 			reference: { book: 43, chapter: 3, verse: 16 },
-			word: 'geliebt'
+			word: 'geliebt',
+			wordPosition: 13
 		});
 		expect(activeReaderTab(workspace.tiles[1]!)?.studyContext).toEqual({
 			sourceResourceId: 'bible',
 			reference: { book: 43, chapter: 3, verse: 16 },
-			word: 'geliebt'
+			word: 'geliebt',
+			wordPosition: 13
 		});
 
 		workspace = setReaderTabLookup(workspace, 'tile-2', 'tab-2', 'G2316');

@@ -1232,15 +1232,61 @@ test('assignment uncertainty markers stay out of reading text but remain in word
 	const study = page.locator('.lexicon-tab');
 	await expect(study.locator('.occurrence .footnote-marker')).toHaveCount(2);
 	await study.locator('.occurrence .footnote-marker').first().click();
-	await expect(study.getByRole('note')).toHaveText(
-		'Automatische Wortzuordnung; fachlich noch nicht bestätigt.'
+	await expect(study.locator('.occurrence').getByRole('note')).toHaveText(
+		'Die Strong-Zuordnung von „geliebt“ zu G25 ist fachlich noch nicht bestätigt.'
 	);
 	await page.goto('/G25');
 	const occurrences = page.getByRole('list', { name: 'Vorkommen', exact: true });
 	await expect(occurrences.locator('.footnote-marker')).toHaveCount(2);
 	await occurrences.locator('.footnote-marker').first().click();
 	await expect(occurrences.getByRole('note')).toHaveText(
-		'Automatische Wortzuordnung; fachlich noch nicht bestätigt.'
+		'Die Strong-Zuordnung von „geliebt“ zu G25 ist fachlich noch nicht bestätigt.'
+	);
+});
+
+test('word-study uncertainty validates and restores the clicked source position', async ({
+	page
+}) => {
+	await page.goto('/Joh3');
+	const bible = page.locator('.flow-column[data-resource-id="SEEDDE"]');
+	const verse = bible.locator('[data-verse-key="43:3:16"]');
+	await verse.locator('.strong[data-strong="G25"]').click();
+	const study = page.locator('.lexicon-tab');
+	await expect(study.locator('.assignment-note')).toContainText('„geliebt“ zu G25 in Joh 3,16');
+	await expect(
+		page.getByTitle('Vorkommen aus Testübersetzung · Version 1.2', { exact: true })
+	).toBeVisible();
+	await expect(page).toHaveURL((url) =>
+		url.searchParams.getAll('wordPosition').some((value) => value.endsWith(':2'))
+	);
+	const base = '/api/strong/G25?resource=SEEDDE&ref=Joh3,16&word=geliebt';
+	expect((await (await page.request.get(`${base}&wordPosition=2`)).json()).assignmentStatus).toBe(
+		'unconfirmed'
+	);
+	expect(
+		(await (await page.request.get(`${base}&wordPosition=1`)).json()).assignmentStatus
+	).toBeNull();
+	expect(
+		(await (await page.request.get(base.replace('SEEDDE', 'SEEDPLAIN') + '&wordPosition=2')).json())
+			.assignmentStatus
+	).toBeNull();
+	expect((await page.request.get(`${base}&wordPosition=-1`)).status()).toBe(400);
+	await page.reload();
+	await expect(study.locator('.assignment-note')).toContainText('„geliebt“ zu G25');
+	await verse.locator('.strong[data-strong="G2316"]').click();
+	await expect(study.locator('.headword strong')).toHaveText('G2316');
+	await expect(study.locator('.assignment-note')).toHaveCount(0);
+	const tile = page.locator('.reader-tile').filter({ has: study });
+	await tile.getByRole('button', { name: 'Im Tab zurück' }).click();
+	await expect(study.locator('.assignment-note')).toContainText('„geliebt“ zu G25');
+	await expect(page).toHaveURL((url) =>
+		url.searchParams.getAll('wordPosition').some((value) => value.endsWith(':2'))
+	);
+	await lexiconLookup(page).fill('G2889');
+	await lexiconLookup(page).press('Enter');
+	await expect(study.locator('.headword strong')).toHaveText('G2889');
+	await expect(page).toHaveURL(
+		(url) => !url.searchParams.has('wordPosition') && !url.searchParams.has('word')
 	);
 });
 

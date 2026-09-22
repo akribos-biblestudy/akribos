@@ -2,14 +2,18 @@
 	import {
 		highlightSegment,
 		initHighlightCursor,
+		taggedWordSegments,
 		type DisplayChunk,
 		type HighlightRange,
 		type VerseSegment
 	} from '$lib/bible/segments';
 	import Footnote from './Footnote.svelte';
-
-	// Existing Zefania imports retain the generated note text, but not its x-explanation metadata.
-	const strongAssignmentNote = 'Automatische Wortzuordnung; fachlich noch nicht bestätigt.';
+	import {
+		isStrongAssignmentNote,
+		strongAssignmentNotes,
+		strongAssignmentMessage,
+		wordHasStrong
+	} from '$lib/bible/strong-assignment';
 
 	/**
 	 * Renders a verse from its stored segments.
@@ -24,11 +28,12 @@
 		activeStrong = null,
 		showStrongAssignmentNotes = false,
 		highlights = [],
-		wordOffset = 0
+		wordOffset = 0,
+		wordPositionOffset = 0
 	}: {
 		segments: VerseSegment[];
 		/** Called when a tagged word is activated; the reader opens its linked lexicon tab. */
-		onStrongClick?: (strong: string, word: string) => void;
+		onStrongClick?: (strong: string, word: string, wordPosition: number) => void;
 		/** Highlights a selected Strong's number, e.g. inside a result or occurrence list. */
 		activeStrong?: string | null;
 		/** Keep assignment uncertainty accessible in word-study occurrences, outside the reading text. */
@@ -38,6 +43,8 @@
 		/** Global word index of `segments[0]`, so a verse split into a lead and a remainder (see
 		 *  `splitVerseLead`) keeps `highlights` ranges aligned across both calls. */
 		wordOffset?: number;
+		/** Tagged-word offset, distinct from visible-word highlighting; matches verse_words.position. */
+		wordPositionOffset?: number;
 	} = $props();
 
 	function matchesStrong(segment: Extract<VerseSegment, { kind: 'w' }>, strong: string | null) {
@@ -47,15 +54,18 @@
 	}
 
 	type RenderPart = { segment: VerseSegment; suffix: string };
+	const assignmentWords = $derived(
+		new Map(strongAssignmentNotes(segments).map(({ note, word }) => [note, word]))
+	);
+	const wordPositions = $derived(
+		new Map(taggedWordSegments(segments).map((word, index) => [word, index + wordPositionOffset]))
+	);
 
 	function isHiddenAssignmentNote(segment: VerseSegment): boolean {
-		return (
-			!showStrongAssignmentNotes &&
-			typeof segment !== 'string' &&
-			segment.kind === 'note' &&
-			segment.marker.trim() === '' &&
-			segment.text.trim().replace(/\s+/g, ' ') === strongAssignmentNote
-		);
+		if (!isStrongAssignmentNote(segment)) return false;
+		if (!showStrongAssignmentNotes) return true;
+		const word = assignmentWords.get(segment);
+		return !!activeStrong && (!word || !wordHasStrong(word, activeStrong));
 	}
 
 	function keepClosingPunctuation(list: VerseSegment[]): RenderPart[] {
@@ -114,14 +124,21 @@
 			data-strongs={item.segment.strongs?.join(' ')}
 			title={item.segment.morph ?? undefined}
 			style:background-color={item.color}
-			onclick={() => onStrongClick?.(item.segment.strong, item.segment.text)}
+			onclick={() =>
+				onStrongClick?.(item.segment.strong, item.segment.text, wordPositions.get(item.segment)!)}
 			>{item.segment.text}</button
 		>
 	{:else if item.kind === 'em'}
 		<em class:has-highlight={item.color} style:background-color={item.color}>{item.text}</em>
 	{:else if item.kind === 'note'}
 		{#if !isHiddenAssignmentNote(item.segment)}
-			<Footnote marker={item.segment.marker} text={item.segment.text} />
+			{@const assignmentWord = assignmentWords.get(item.segment)}
+			<Footnote
+				marker={item.segment.marker}
+				text={assignmentWord
+					? strongAssignmentMessage(assignmentWord, activeStrong)
+					: item.segment.text}
+			/>
 		{/if}
 	{:else if item.kind === 'wj'}
 		<span class="words-of-jesus"
