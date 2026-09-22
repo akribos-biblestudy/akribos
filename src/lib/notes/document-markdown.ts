@@ -3,6 +3,14 @@ import { marked, Renderer, type Tokens } from 'marked';
 import TurndownService from 'turndown';
 import { parseDocument, stringify as stringifyYaml } from 'yaml';
 import {
+	createDocumentFootnoteMarked,
+	isDocumentFootnoteId,
+	parseDocumentFootnotes,
+	repairLegacyDocumentFootnotes,
+	serializeDocumentFootnotes,
+	type DocumentFootnote
+} from './document-footnotes.ts';
+import {
 	bibleReferenceFromLinkText,
 	findBibleReferences,
 	rewriteBibleReferenceLinks,
@@ -136,7 +144,8 @@ const ALLOWED_HTML_TAGS = new Set([
 	'pre',
 	'hr',
 	'br',
-	'a'
+	'a',
+	'sup'
 ]);
 const VOID_HTML_TAGS = new Set(['hr', 'br']);
 const DANGEROUS_RAW_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed', 'svg', 'math']);
@@ -188,15 +197,27 @@ export function documentMarkdownToHtml(markdown: string): { html: string; plainT
 	const normalised = normalizeDocumentMarkdown(markdown);
 	assertSize(normalised, MAX_DOCUMENT_MARKDOWN_BYTES, 'file_too_large');
 	const renderer = new SafeDocumentRenderer();
-	const rendered = marked.parse(normalised, {
-		async: false,
-		gfm: true,
-		breaks: false,
-		pedantic: false,
-		renderer
-	});
+	const rendered = renderDocumentFootnotes(normalised, renderer);
 	const html = sanitiseDocumentHtml(String(rendered));
 	return { html, plainText: documentHtmlToPlainText(html) };
+}
+
+function renderDocumentFootnotes(
+	markdown: string,
+	renderer: SafeDocumentRenderer,
+	warnings?: WarningCollector
+): string {
+	const parsed = parseDocumentFootnotes(markdown);
+	for (const [index, warning] of parsed.warnings.entries())
+		warnings?.add(`footnote:${index}`, warning);
+	const instance = createDocumentFootnoteMarked(parsed.footnotes, renderer);
+	const body = String(instance.parse(parsed.bodyMarkdown, { async: false }));
+	if (!parsed.footnotes.length) return body;
+	const noteRenderer = createDocumentFootnoteMarked([], renderer);
+	return (
+		body +
+		`<ol data-footnotes="true">${parsed.footnotes.map((note) => `<li data-footnote-id="${note.id}">${noteRenderer.parse(note.markdown, { async: false }) || '<p></p>'}</li>`).join('')}</ol>`
+	);
 }
 
 /** Extract references from visible prose while keeping inline formatting in one text run. */
@@ -291,13 +312,16 @@ export function documentBodyBibleBooks(html: string): number[] {
  */
 export function documentHtmlToMarkdown(input: string): string {
 	assertSize(input, MAX_DOCUMENT_MARKDOWN_BYTES * 4, 'file_too_large');
-	const service = createTurndownService();
+	const footnotes: Array<Pick<DocumentFootnote, 'id' | 'markdown'>> = [];
+	const service = createTurndownService(footnotes);
 	const turnedDown = service
 		.turndown(sanitiseDocumentHtml(rewriteBibleReferenceLinks(input)))
 		// Turndown's block separator can land immediately after its explicit hard-break marker. Keeping
 		// that empty line would make Marked read the backslash as literal text on the next round trip.
 		.replace(/\\\r?\n(?:[\t ]*\r?\n)+(?=\S)/g, '\\\n');
-	const markdown = normalizeDocumentMarkdown(turnedDown);
+	const markdown = footnotes.length
+		? serializeDocumentFootnotes(turnedDown, footnotes)
+		: normalizeDocumentMarkdown(turnedDown);
 	assertSize(markdown, MAX_DOCUMENT_MARKDOWN_BYTES, 'file_too_large');
 	return markdown;
 }
@@ -313,16 +337,13 @@ export function previewObsidianMarkdown(
 	const { metadata, body } = extractFrontmatter(lineNormalised);
 	const warnings = new WarningCollector();
 	const parsed = readImportMetadata(metadata, filename, warnings);
-	const markdown = normaliseObsidianBody(body, warnings);
+	const repaired = repairLegacyDocumentFootnotes(body);
+	for (const [index, warning] of repaired.warnings.entries())
+		warnings.add(`footnote-repair:${index}`, warning);
+	const markdown = normaliseObsidianBody(repaired.markdown, warnings);
 	assertSize(markdown, MAX_DOCUMENT_MARKDOWN_BYTES, 'file_too_large');
 	const renderer = new SafeDocumentRenderer(warnings, true);
-	const rendered = marked.parse(markdown, {
-		async: false,
-		gfm: true,
-		breaks: false,
-		pedantic: false,
-		renderer
-	});
+	const rendered = renderDocumentFootnotes(markdown, renderer, warnings);
 	const html = sanitiseDocumentHtml(String(rendered));
 
 	return {
@@ -340,29 +361,39 @@ export const parseObsidianMarkdownFile = previewObsidianMarkdown;
 
 /** Re-serialise only blocks containing Bible links; unrelated Markdown and large code blocks stay exact. */
 function rewriteImportedBibleLinks(markdown: string): string {
-	const tokens = marked.lexer(markdown, { gfm: true });
-	return normalizeDocumentMarkdown(
-		tokens
-			.map((token) => {
-				let containsBibleLink = false;
-				marked.walkTokens([token], (child) => {
-					if (
-						child.type === 'link' &&
-						bibleReferenceFromLinkText(
-							documentHtmlToPlainText(marked.Parser.parseInline(child.tokens ?? []))
+	const parsed = parseDocumentFootnotes(markdown);
+	const rewrite = (body: string, notes: readonly DocumentFootnote[]) => {
+		const instance = createDocumentFootnoteMarked(notes, new SafeDocumentRenderer());
+		const tokens = instance.lexer(body);
+		return normalizeDocumentMarkdown(
+			tokens
+				.map((token) => {
+					let containsBibleLink = false;
+					instance.walkTokens([token], (child) => {
+						if (
+							child.type === 'link' &&
+							bibleReferenceFromLinkText(
+								documentHtmlToPlainText(marked.Parser.parseInline(child.tokens ?? []))
+							)
 						)
-					)
-						containsBibleLink = true;
-				});
-				if (!containsBibleLink) return token.raw;
-				return (
-					documentHtmlToMarkdown(
-						marked.parser([token], { renderer: new SafeDocumentRenderer() })
-					).trimEnd() + (token.raw.match(/\n*$/u)?.[0] ?? '')
-				);
-			})
-			.join('')
-	);
+							containsBibleLink = true;
+					});
+					if (!containsBibleLink) return token.raw;
+					return (
+						documentHtmlToMarkdown(instance.parser([token])).trimEnd() +
+						(token.raw.match(/\n*$/u)?.[0] ?? '')
+					);
+				})
+				.join('')
+		);
+	};
+	const body = rewrite(parsed.bodyMarkdown, parsed.footnotes);
+	return parsed.footnotes.length
+		? serializeDocumentFootnotes(
+				body,
+				parsed.footnotes.map((note) => ({ ...note, markdown: rewrite(note.markdown, []) }))
+			)
+		: body;
 }
 
 /** Export only portable document data; ownership, ids and publication state are not accepted. */
@@ -615,7 +646,9 @@ class WarningCollector {
 	}
 }
 
-function createTurndownService(): TurndownService {
+function createTurndownService(
+	footnotes: Array<Pick<DocumentFootnote, 'id' | 'markdown'>>
+): TurndownService {
 	const service = new TurndownService({
 		headingStyle: 'atx',
 		hr: '---',
@@ -625,7 +658,30 @@ function createTurndownService(): TurndownService {
 		fence: '```',
 		emDelimiter: '_',
 		strongDelimiter: '**',
-		linkStyle: 'inlined'
+		linkStyle: 'inlined',
+		// Turndown chooses its blank rule before custom rules but still visits descendants.
+		// Empty newly inserted definitions still belong to the document during its first autosave.
+		blankReplacement: (_content, node) => {
+			const element = node as HTMLElement;
+			const collect = (definition: HTMLElement) => {
+				const id = definition.getAttribute('data-footnote-id');
+				if (definition.nodeName === 'LI' && isDocumentFootnoteId(id))
+					footnotes.push({ id, markdown: '' });
+			};
+			if (element.nodeName === 'OL' && element.getAttribute('data-footnotes') === 'true') {
+				return '';
+			}
+			if (
+				element.nodeName === 'LI' &&
+				element.parentElement?.getAttribute('data-footnotes') === 'true'
+			) {
+				collect(element);
+				return '';
+			}
+			const id = element.nodeName === 'SUP' ? element.getAttribute('data-footnote-ref') : null;
+			if (isDocumentFootnoteId(id)) return `[^${id}]`;
+			return 'isBlock' in node && node.isBlock ? '\n\n' : '';
+		}
 	});
 	service.addRule('strikethrough', {
 		filter: ['s', 'del'],
@@ -639,6 +695,29 @@ function createTurndownService(): TurndownService {
 			const tag = node.nodeName.toLowerCase();
 			return content.trim() ? `<${tag}>${content}</${tag}>` : '';
 		}
+	});
+	service.addRule('documentFootnoteReference', {
+		filter: (node) =>
+			node.nodeName === 'SUP' && isDocumentFootnoteId(node.getAttribute('data-footnote-ref')),
+		replacement: (_content, node) => `[^${(node as HTMLElement).getAttribute('data-footnote-ref')}]`
+	});
+	service.addRule('documentFootnoteDefinition', {
+		filter: (node) =>
+			node.nodeName === 'LI' &&
+			isDocumentFootnoteId(node.getAttribute('data-footnote-id')) &&
+			node.parentElement?.getAttribute('data-footnotes') === 'true',
+		replacement: (content, node) => {
+			footnotes.push({
+				id: (node as HTMLElement).getAttribute('data-footnote-id')!,
+				markdown: normalizeDocumentMarkdown(content)
+			});
+			return '';
+		}
+	});
+	service.addRule('documentFootnotes', {
+		filter: (node) => node.nodeName === 'OL' && node.getAttribute('data-footnotes') === 'true',
+		// Unexpected children remain readable; only validated definition nodes are extracted above.
+		replacement: (content) => (content ? `\n\n${content}\n\n` : '')
 	});
 	return service;
 }
@@ -1003,12 +1082,33 @@ function sanitiseDocumentHtml(input: string): string {
 			if (!ALLOWED_HTML_TAGS.has(tag)) return '';
 			if (slash) return VOID_HTML_TAGS.has(tag) ? '' : `</${tag}>`;
 			if (VOID_HTML_TAGS.has(tag)) return `<${tag}>`;
+			const footnoteAttribute =
+				tag === 'sup'
+					? 'data-footnote-ref'
+					: tag === 'li'
+						? 'data-footnote-id'
+						: tag === 'ol'
+							? 'data-footnotes'
+							: null;
+			if (footnoteAttribute) {
+				const value = readHtmlAttribute(String(rest), footnoteAttribute);
+				if (tag === 'ol' ? value === 'true' : isDocumentFootnoteId(value))
+					return `<${tag} ${footnoteAttribute}="${value}">`;
+			}
 			if (tag !== 'a') return `<${tag}>`;
 			const href = readHtmlHref(String(rest));
 			const safeHref = href ? safeLinkHref(href) : null;
 			return safeHref ? `<a href="${escapeHtmlAttribute(safeHref)}">` : '<a>';
 		}
 	);
+}
+
+function readHtmlAttribute(attributes: string, name: string): string | null {
+	const match = new RegExp(
+		`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\x60]+))`,
+		'i'
+	).exec(attributes);
+	return match ? decodeHtmlEntities(match[1] ?? match[2] ?? match[3] ?? '') : null;
 }
 
 function documentHtmlToPlainText(html: string): string {

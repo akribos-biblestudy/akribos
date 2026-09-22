@@ -111,6 +111,51 @@
 	.dark [data-bible-reference-prose] a {
 		color: var(--color-accent-300);
 	}
+	.document-prose sup[data-footnote-ref],
+	[data-bible-reference-prose] sup[data-footnote-ref] {
+		position: relative;
+		top: -0.35em;
+		padding-inline: 0.1em;
+		font-size: 0.75em;
+		line-height: 0;
+		vertical-align: baseline;
+		color: var(--color-accent-700);
+		cursor: pointer;
+	}
+	.dark .document-prose sup[data-footnote-ref] {
+		color: var(--color-accent-300);
+	}
+	.document-prose sup[data-footnote-ref]:focus-visible,
+	[data-bible-reference-prose] [data-footnote-link]:focus-visible {
+		border-radius: 0.15rem;
+		outline: 2px solid currentColor;
+		outline-offset: 3px;
+	}
+	.document-prose ol[data-footnotes],
+	[data-bible-reference-prose] ol[data-footnotes] {
+		margin-block: 1.75em 0.5em;
+		border-top: 1px solid var(--line);
+		padding-block-start: 0.8em;
+		padding-inline-start: 1.5em;
+		font-size: 0.95em;
+		line-height: 1.6;
+		list-style: decimal;
+		overflow-wrap: anywhere;
+	}
+	.document-prose li[data-footnote-id],
+	[data-bible-reference-prose] li[data-footnote-id] {
+		margin-block: 0.5em;
+		padding-inline-start: 0.15em;
+	}
+	.document-prose li[data-footnote-id] > p,
+	[data-bible-reference-prose] li[data-footnote-id] > p {
+		margin-block: 0.25em;
+	}
+	[data-bible-reference-prose] .footnote-backlink {
+		display: inline-block;
+		padding: 0.1em 0.3em;
+		font-family: var(--font-sans);
+	}
 	[data-bible-reference-prose] h4 {
 		font-size: 1.1rem;
 		font-weight: 700;

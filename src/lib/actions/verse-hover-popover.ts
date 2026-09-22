@@ -326,6 +326,9 @@ export function verseHoverPopover(node: HTMLElement, params: VerseHoverParams) {
 				open.className = 'verse-hover-popup-insert';
 				open.textContent = openLabel;
 				open.href = href;
+				// This popup is outside the source link. Its GET must not preload and change the
+				// workspace before the explicit opening callback can submit its guarded action.
+				open.dataset.sveltekitPreloadData = 'off';
 				if (onOpen && activeAnchor) {
 					const reference: VerseRef = {
 						book: Number(activeAnchor.dataset.book),

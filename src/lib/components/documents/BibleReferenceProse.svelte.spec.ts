@@ -64,4 +64,38 @@ describe('BibleReferenceProse', () => {
 		await link.unhover();
 		await expect.element(tooltip).not.toBeVisible();
 	});
+	it('keeps repeated footnote links and keyboard return targets inside each rendered instance', async () => {
+		const html =
+			'<p>Text<sup data-footnote-ref="same">1</sup>, nochmals<sup data-footnote-ref="same">1</sup>.</p><ol data-footnotes="true"><li data-footnote-id="same"><p>Eine formatierte <strong>Fußnote</strong>.</p></li></ol>';
+		const first = await render(BibleReferenceProse, {
+			html,
+			bibleId: null,
+			tooltipId: 'first-footnote-preview',
+			testId: 'first-footnotes'
+		});
+		const second = await render(BibleReferenceProse, {
+			html,
+			bibleId: null,
+			tooltipId: 'second-footnote-preview',
+			testId: 'second-footnotes'
+		});
+		const firstRoot = first.getByTestId('first-footnotes').element();
+		const secondRoot = second.getByTestId('second-footnotes').element();
+		const references = Array.from(
+			firstRoot.querySelectorAll<HTMLAnchorElement>('[role="doc-noteref"]')
+		);
+		const firstTarget = document.getElementById(decodeURIComponent(references[1]!.hash.slice(1)))!;
+		expect(firstRoot.contains(firstTarget)).toBe(true);
+		expect(secondRoot.contains(firstTarget)).toBe(false);
+		expect(firstRoot.querySelector('li')!.id).not.toBe(secondRoot.querySelector('li')!.id);
+		references[1]!.focus();
+		await userEvent.keyboard('{Enter}');
+		expect(document.activeElement).toBe(firstTarget);
+		const backlink = first
+			.getByTestId('first-footnotes')
+			.getByRole('link', { name: 'Zurück zu Fußnote 1, Verweis 2' });
+		await backlink.click();
+		expect(document.activeElement).toBe(references[1]);
+		expect(firstRoot.querySelectorAll('[role="doc-backlink"]')).toHaveLength(2);
+	});
 });

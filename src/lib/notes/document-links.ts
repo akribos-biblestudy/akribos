@@ -1,4 +1,5 @@
 import { marked } from 'marked';
+import { createDocumentFootnoteLexer, parseDocumentFootnotes } from './document-footnotes.ts';
 
 const DOCUMENT_ID = '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
 const OWNED_DOCUMENT_HREF = new RegExp(`^/notes/(${DOCUMENT_ID})(?:[?#].*)?$`, 'iu');
@@ -10,7 +11,12 @@ const OWNED_DOCUMENT_HREF = new RegExp(`^/notes/(${DOCUMENT_ID})(?:[?#].*)?$`, '
  */
 export function documentLinkTargetIds(markdown: string): string[] {
 	const result = new Set<string>();
-	const tokens = marked.lexer(markdown, { gfm: true });
+	const parsed = parseDocumentFootnotes(markdown);
+	const lexer = createDocumentFootnoteLexer(parsed.footnotes);
+	const tokens = [
+		...lexer.lex(parsed.bodyMarkdown),
+		...parsed.footnotes.flatMap((note) => lexer.lex(note.markdown))
+	];
 	marked.walkTokens(tokens, (token) => {
 		if (token.type !== 'link') return;
 		const match = OWNED_DOCUMENT_HREF.exec(token.href);

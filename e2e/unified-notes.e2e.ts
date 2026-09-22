@@ -940,8 +940,16 @@ test('verse shorthand survives import and reload in notes and sermons with exact
 test('a private note links inline Bible references and previews real text by hover and focus', async ({
 	page
 }) => {
-	await loginAs(page, SEED_READER);
-	await page.goto(`/notes/${SEED_PRIVATE_NOTE_ID}`);
+	// Opening a reference updates the active workspace. A shared seed account would correctly
+	// conflict with other suites that concurrently edit that same named workspace.
+	await loginNewReader(page);
+	const documentId = await createNoteFromLibrary(page);
+	await saveMarkdownDocument(page, {
+		title: 'Private Bibelstellen-Vorschau',
+		markdown: 'Das Bild aus Mt 3,12 ruft zu einer entschiedenen Antwort.',
+		requestMarker: 'Mt 3,12'
+	});
+	await page.getByRole('tab', { name: 'Visuell' }).click();
 
 	const reference = page.locator(
 		'[data-testid="document-editor"] a.bible-reference.verse-ref[data-reference="Mt3,12"]'
@@ -989,13 +997,25 @@ test('a private note links inline Bible references and previews real text by hov
 	// The non-persisted ProseMirror decoration is still a real link, not a tooltip-only affordance.
 	await page.getByRole('tab', { name: 'Visuell' }).click();
 	await reference.click();
-	await expect(page).toHaveURL(`/notes/${SEED_PRIVATE_NOTE_ID}`);
+	await expect(page).toHaveURL(`/notes/${documentId}`);
 	const browserTabs = page.context().pages().length;
-	await preview.getByRole('link', { name: 'Bibelstelle öffnen' }).click();
+	const prematureReaderLoads: string[] = [];
+	page.on('request', (request) => {
+		const url = new URL(request.url());
+		// A plain passage GET changes the personal workspace. The popup must first return to
+		// the Reader and then apply its guarded action, without racing an implicit preload.
+		if (url.pathname === '/Mt3,12/__data.json' && !url.searchParams.has('tab')) {
+			prematureReaderLoads.push(request.url());
+		}
+	});
+	const openReference = preview.getByRole('link', { name: 'Bibelstelle öffnen' });
+	await openReference.hover();
+	await openReference.click();
 	await expect(page).toHaveURL((url) => url.pathname === '/Mt3,12');
 	await expect(page.locator('[data-verse-key="40:3:12"]').first()).toContainText('Worfschaufel');
 	await expect(page.getByTestId('reader-notes-sidecar-editor')).toBeVisible();
 	expect(page.context().pages()).toHaveLength(browserTabs);
+	expect(prematureReaderLoads).toEqual([]);
 });
 
 for (const kind of ['note', 'sermon']) {

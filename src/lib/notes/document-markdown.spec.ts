@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseDocumentFootnotes, repairLegacyDocumentFootnotes } from './document-footnotes.ts';
 import {
 	createDocumentMarkdownExport,
 	documentBodyBibleBooks,
@@ -26,6 +27,97 @@ describe('normalizeDocumentMarkdown', () => {
 });
 
 describe('documentMarkdownToHtml', () => {
+	it('keeps rich footnotes and stable repeated IDs through import and repeated HTML/Markdown round trips', () => {
+		const preview = previewObsidianMarkdown(
+			'Fußnoten.md',
+			'Text[^aufgaben_aelteste] und erneut[^aufgaben_aelteste].\n\n[^aufgaben_aelteste]: **Erklärung** mit [Johannes 8,31](https://github.com/Joh8,31).\n\n    Zweiter Absatz mit _Betonung_.\n\n    - Listenpunkt\n\n[^unbenutzt]: Bleibt erhalten.\n'
+		);
+		let markdown = preview.markdown;
+		for (let round = 0; round < 3; round++) {
+			const result = documentMarkdownToHtml(markdown);
+			expect(result.html.match(/data-footnote-ref="aufgaben_aelteste"/g)).toHaveLength(2);
+			expect(result.html).toContain('<ol data-footnotes="true">');
+			expect(result.html).toContain('<li data-footnote-id="aufgaben_aelteste">');
+			expect(result.html).toContain('<strong>Erklärung</strong>');
+			expect(result.html).toContain('<a href="/Joh8,31">Johannes 8,31</a>');
+			expect(result.html).toContain('<em>Betonung</em>');
+			expect(result.html).toContain('Listenpunkt');
+			expect(result.html).toContain('Bleibt erhalten.');
+			const next = documentHtmlToMarkdown(result.html);
+			expect(documentMarkdownToHtml(next).html).toBe(result.html);
+			if (round > 0) expect(next).toBe(markdown);
+			markdown = next;
+		}
+	});
+
+	it('preserves an empty newly inserted definition during autosave and as the only content', () => {
+		for (const body of ['<p>Text<sup data-footnote-ref="fn_empty">1</sup></p>', '']) {
+			const markdown = documentHtmlToMarkdown(
+				`${body}<ol data-footnotes="true"><li data-footnote-id="fn_empty"><p></p></li></ol>`
+			);
+			expect(parseDocumentFootnotes(markdown).footnotes).toEqual([
+				{ id: 'fn_empty', number: 1, markdown: '' }
+			]);
+			expect(documentMarkdownToHtml(markdown).html).toContain(
+				'<li data-footnote-id="fn_empty"><p></p></li>'
+			);
+		}
+	});
+
+	it('renders both repaired glued issue definitions with their complete text and canonical Bible links', () => {
+		const repaired = repairLegacyDocumentFootnotes(
+			'Text[^aufgaben_aelteste] und Text[^juenger]. [^aufgaben_aelteste]: Entnommen aus William MacDonald. Weitere Dinge. [^juenger]: Siehe [Johannes 8,31](https://github.com/Joh8,31).'
+		);
+		const rendered = documentMarkdownToHtml(repaired.markdown);
+		expect(rendered.html.match(/<li data-footnote-id=/g)).toHaveLength(2);
+		expect(rendered.html).toContain('Entnommen aus William MacDonald. Weitere Dinge.');
+		expect(rendered.html).toContain('href="/Joh8,31"');
+		expect(rendered.html).not.toContain('[^');
+	});
+
+	it('repairs both glued definitions directly in an Obsidian import before preview rendering and storage', () => {
+		const source =
+			'Die Hauptaufgaben [^aufgaben_aelteste] der Ältesten sind ...\n\n' +
+			'... die wirkliche Jünger Jesu sind [^juenger] ...\n\n' +
+			'[^aufgaben_aelteste]: Entnommen aus „Christus und die Gemeinde“ von William MacDonald. ' +
+			'Meiner Meinung nach sind diese Aufgaben nicht allesamt ausschließlich von den Ältesten durchzuführen, ' +
+			'aber die Ältesten haben die Verantwortung über diese Dinge. [^juenger]: Siehe [Johannes 8,31](https://github.com/Joh8,31)\n';
+		const preview = previewObsidianMarkdown(
+			'Aelteste.md',
+			'---\ntitle: Älteste und Jünger\ntype: sermon\n---\n\n' + source
+		);
+		expect(preview.html.match(/<sup data-footnote-ref=/g)).toHaveLength(2);
+		expect(preview.html.match(/<li data-footnote-id=/g)).toHaveLength(2);
+		expect(preview.html).toContain('William MacDonald');
+		expect(preview.html).toContain('href="/Joh8,31"');
+		expect(parseDocumentFootnotes(preview.markdown).footnotes).toHaveLength(2);
+		expect(documentMarkdownToHtml(preview.markdown).html).toBe(preview.html);
+	});
+
+	it('keeps missing, duplicate and nested footnote content visible', () => {
+		const rendered = documentMarkdownToHtml(
+			'Text[^n] [^missing] [^duplicate].\n\n[^n]: Erklärung mit [^nested].\n\n[^nested]: Erhalten.\n\n[^duplicate]: one\n\n[^duplicate]: two'
+		);
+		expect(rendered.html).toContain('[^missing]');
+		expect(rendered.html).toContain('[^nested]');
+		expect(rendered.html).toContain('[^duplicate]: one');
+		expect(rendered.html).toContain('[^duplicate]: two');
+		expect(rendered.plainText).toContain('Erhalten.');
+	});
+
+	it('allow-lists exactly the structural footnote attributes and neutralises hostile note content', () => {
+		const markdown = documentHtmlToMarkdown(
+			'<p>Text<sup data-footnote-ref="safe_id" id="evil" class="x" onclick="steal()">1</sup></p><ol data-footnotes="true" onmouseover="steal()"><li data-footnote-id="safe_id" style="color:red"><p><strong>Gut</strong> <a href="javascript:bad()">Link</a></p><script>secret()</script></li><li data-footnote-id="bad.id"><p>Ungültig, aber erhalten.</p></li></ol>'
+		);
+		const rendered = documentMarkdownToHtml(markdown);
+		expect(rendered.html).toContain('<sup data-footnote-ref="safe_id">1</sup>');
+		expect(rendered.html).toContain('<strong>Gut</strong>');
+		expect(rendered.plainText).toContain('Ungültig, aber erhalten.');
+		expect(rendered.html).not.toMatch(
+			/onclick|onmouseover|javascript|secret|style=|class=|id="evil"/
+		);
+	});
+
 	it('retains all heading levels and attribute-free underline/highlight across repeated round trips', () => {
 		const input =
 			'# Eins\n\n## Zwei\n\n### Drei\n\n#### Vier\n\n##### Fünf\n\n###### Sechs\n\n<u>unterstrichen **fett**</u> und <mark>markiert</mark>\n';

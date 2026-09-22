@@ -685,6 +685,9 @@ wie andere Tab-Aktionen; anschließend navigiert SvelteKit im selben Browser-Tab
 Sidecar-Editor sowie unveränderte Kapitelstreams. Der eigenständige Editor übergibt Dokument und
 optionale Zielstelle über einen pro Root-Layout erzeugten Kontext an den Reader. Sowohl die Vorschau
 als auch „Im Arbeitsbereich öffnen“ und der Rückkehrlink zum Bibeltext warten zuvor auf Autosave.
+Stellenlinks und der dynamisch erzeugte „Bibelstelle öffnen“-Link im Vorschau-Popup setzen
+`data-sveltekit-preload-data="off"`. Sonst kann ein Hover-/Touch-Prefetch den persönlichen Reader-Stand
+bereits ändern und damit die noch ausstehende geschützte Öffnungsaktion in einen Versionskonflikt treiben.
 
 Ein einziges `ReferenceContextMenu` im Root-Layout behandelt Rechtsklicks auf Bibelverse,
 Suchtreffer und Stellenlinks einschließlich Dokumenteditor und Lexika. Explizite `data-reference`-
@@ -766,6 +769,40 @@ kontextuelle Dialog aus dem Versmenü und übergibt neu angelegte oder ausgewäh
 Sidecar, wenn JavaScript aktiv ist; der normale Form-Redirect bleibt der funktionsfähige No-JS-Pfad.
 Notizen erzeugen keine Icons oder Unterstreichungen im Bibeltext; der Sidecar und das Versmenü
 bleiben die Zugänge zu persönlichen Dokumenten.
+
+Dokumentfußnoten verwenden portable `[^id]`-Verweise und Definitionen am Markdown-Ende. Der reine
+Parser in `src/lib/notes/document-footnotes.ts` liefert einen pro Aufruf isolierten Marked-Lexer;
+keine globale Extension darf Identitäten oder Nummern zwischen Dokumenten teilen. IDs bleiben stabil,
+Nummern folgen dem ersten Textverweis, wiederholte Verweise teilen dieselbe Definition. Code, bewusst
+escapte Marker und normale Links werden nicht als Fußnoten interpretiert. Fehlende, doppelte,
+verschachtelte oder nicht unterstützte Definitionen bleiben verlustfrei erhalten; verwaiste Inhalte
+werden nicht automatisch gelöscht. Die gesonderte Legacy-Reparatur erkennt eindeutig gepaarte rohe
+oder früher escapte Marker, zusammengezogene Definitionen und alte Mammoth-Verweise.
+
+Das gespeicherte HTML erlaubt ausschließlich `sup[data-footnote-ref]`, `ol[data-footnotes="true"]`
+und `li[data-footnote-id]` als neue Fußnotensemantik. Keine beliebigen `data-*`-Attribute oder DOM-IDs.
+Drei Tiptap-Nodes erhalten diese Struktur; Verweis und neue Definition entstehen in einer einzigen
+Undo-Transaktion. Bloßes Entfernen eines Textverweises verwirft keinen Fußnoteninhalt. Nur die ausdrückliche
+Entfernen-Aktion darf die letzte zugehörige Definition löschen. Leseansichten ergänzen Sprungziele und
+Rücklinks ausschließlich pro Renderinstanz; sie gelangen nie in Markdown, Autosave oder öffentliche
+Snapshots. Bibelstellen in Fußnoten nutzen dieselben sicheren Vorschauen und Kontextaktionen.
+Fußnotensprünge richten die Cursorzeile nach dem Svelte-Layoutwechsel der Kontextleiste erneut im
+Editor-Scrollcontainer aus, sofern Dokument und Auswahl noch unverändert sind. Ein verspäteter Sprung
+darf keine inzwischen gewählte andere Textstelle übernehmen.
+Beim Verschieben derselben Editorinstanz in den Zen-Dialog werden ihre berechneten Reader-Schriftvariablen
+auf den Dialog übernommen. Er liegt außerhalb von `.reading-preferences`; ohne diese Kopie würde die
+persönliche Textvergrößerung verloren gehen. Die Skalierung wird dabei nicht nochmals multipliziert.
+
+Word-Import ordnet Mammoths Fußnoten/Endnoten vor der allgemeinen Bereinigung zu. Word-Export erzeugt
+native Fußnoten und erhält unreferenzierte Definitionen als sichtbaren Anhang. PDF verwendet verlinkte
+nummerierte Verweise und einen vollständigen Fußnotenabschnitt am Dokumentende, keine dynamischen
+Fußbereiche je Seite. Der idempotente `backfillDocumentFootnotes` läuft beim Start, nach Restore und
+über `pnpm db:backfill-footnotes`: unter Dokumentzeilensperre erneut lesen, alle Textableitungen und
+Referenzindizes atomar aktualisieren, Revision erhöhen, Zeitstempel erhalten. Notizen, Ausarbeitungen
+und Papierkorb sind eingeschlossen. Veröffentlichungen werden ausschließlich aus ihrem eigenen
+Markdown repariert; ein neuer privater Entwurf darf nie in den Snapshot gelangen. Nur eine zuvor
+aktuelle Veröffentlichung folgt der technischen Revisionsanhebung. Mehrdeutige HTML-Quellen ohne
+passendes Markdown bleiben unverändert. Betriebslogs enthalten nur Zähler, keine privaten Inhalte.
 
 Der Dokumentimport unter `/notes/import` akzeptiert Word-`.docx`- und UTF-8-`.md`-Dateien oder genau
 ein ZIP mit Markdown. Word wird mit Mammoth im Speicher in bereinigtes Markdown umgewandelt;
