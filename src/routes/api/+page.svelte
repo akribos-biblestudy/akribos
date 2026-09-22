@@ -54,6 +54,18 @@
 	</section>
 
 	<section class="mb-8">
+		<h2 class="mb-2 text-lg font-semibold">Resource licences</h2>
+		<p class="text-stone-700 dark:text-stone-300">
+			Each resource must be enabled for the public API, independently of its availability in the
+			Reader. This applies to both key scopes and same-origin requests to <code>/api/v1</code>.
+			Private resources also require the key owner's current personal grant. Use
+			<code>/api/v1/resources</code>
+			to discover the works available to your request. Disabled works are excluded from search and word
+			studies; lists and highlights retain references while omitting unavailable text.
+		</p>
+	</section>
+
+	<section class="mb-8">
 		<h2 class="mb-2 text-lg font-semibold">Rate limits</h2>
 		<p class="text-stone-700 dark:text-stone-300">
 			120 requests per minute per API key. Exceeding it returns <code>429</code> with a

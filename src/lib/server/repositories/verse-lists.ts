@@ -168,11 +168,10 @@ export async function isListCollaborator(
 /**
  * A list's verses with their text, for the list page and the public share view.
  *
- * `redactEmail` covers the one caller with an audience that never proved anything about who it is:
- * the public `/l/{slug}` link. Everywhere else, "who added this" is shown to people who are already
- * the list's owner or an invited collaborator — they know each other's addresses from the invite
- * itself — so the real display name or email is fine. An anonymous visitor of the public link gets a
- * generic placeholder instead of a fellow collaborator's email address.
+ * `redactEmail` protects public readers of both `/l/{slug}` and the versioned API. Only the list's
+ * owner or an accepted collaborator with personal access may see an email fallback; a public-scope
+ * key never grants that access, even when its owner owns the list. Public readers retain display
+ * names, with a generic placeholder when a contributor has not chosen one.
  */
 export async function loadVerseListItems(
 	db: Database,

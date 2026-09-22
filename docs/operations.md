@@ -55,6 +55,27 @@ configured `UPLOAD_DIR` and contains a valid `revision` in its Zefania header. D
 another resource or reimport Bible text merely to guess a version; restoring the actual archive allows
 the next startup to recover the metadata. New imports record source revisions atomically themselves.
 
+## Resource permission for the public API
+
+Administrators control each resource's licence permission for `/api/v1` with **Über die öffentliche
+API abrufbar** under **Administration → Ressourcen**. Migration `0046_resource_api_access` adds the
+setting with access enabled for compatibility, including existing rows; review licences that exclude API
+redistribution. Reimports preserve the setting. Disabling API access leaves ordinary Reader access,
+resource visibility and personal grants unchanged. Enabling it never creates a private grant.
+
+All versioned resource paths enforce the setting for both API-key scopes and same-origin requests.
+This includes indirectly selected dictionary definitions, original-language words and Strong
+statistics, not only chapter URLs. A direct unavailable chapter returns `404 unknown_bible`; lists
+with an unavailable requested Bible retain their references without text. Partial highlights retain
+their source references and word ranges but cannot return a disabled source's text. Own notes and
+documents remain available through their existing ownership checks.
+
+Resource-bearing API responses use `private, no-store` and API resource selection bypasses the
+Reader's process cache, so new requests recheck licence permission and current grants. Existing
+client copies cannot be recalled. Internal Reader quotations and previews use separate Reader
+endpoints with the same ordinary read permissions. This configuration controls the public API; it
+is not an anti-scraping mechanism for text that is intentionally readable in the web application.
+
 ## Local PDF compiler and print fonts
 
 PDF export uses the local **Typst 0.15.1** CLI. There is no rendering service, browser runtime,

@@ -25,6 +25,7 @@ import {
  *   page       page of the occurrence list (default 1)
  */
 export async function GET({ params, url, setHeaders, locals }) {
+	setHeaders({ 'cache-control': 'private, no-store' });
 	const strong = normalizeStrongId(params.strong);
 	if (!strong)
 		return apiError(404, 'invalid_strong_id', `"${params.strong}" is not a Strong's id.`);
@@ -39,7 +40,8 @@ export async function GET({ params, url, setHeaders, locals }) {
 		db,
 		resourceIds,
 		strong,
-		resourceViewerId(locals)
+		resourceViewerId(locals),
+		'api'
 	);
 	const reference = parseReference(url.searchParams.get('ref') ?? '');
 	const page = Number(url.searchParams.get('page') ?? '1') || 1;
@@ -48,7 +50,7 @@ export async function GET({ params, url, setHeaders, locals }) {
 	const gloss = (url.searchParams.get('gloss') ?? '').trim().slice(0, 200) || undefined;
 
 	const [entry, statistics, bookCounts, glosses, occurrences, original] = await Promise.all([
-		loadStrongEntry(db, strong, resourceViewerId(locals)),
+		loadStrongEntry(db, strong, resourceViewerId(locals), 'api'),
 		statisticsResource
 			? loadStrongStatistics(db, strong, statisticsResource)
 			: Promise.resolve({ occurrences: 0, verseCount: 0 }),
@@ -63,12 +65,11 @@ export async function GET({ params, url, setHeaders, locals }) {
 					book: reference.book,
 					chapter: reference.chapter,
 					verse: reference.verse,
-					userId: resourceViewerId(locals)
+					userId: resourceViewerId(locals),
+					channel: 'api'
 				})
 			: Promise.resolve(undefined)
 	]);
-
-	setHeaders({ 'cache-control': 'public, max-age=60, s-maxage=3600' });
 
 	return json({
 		strong,

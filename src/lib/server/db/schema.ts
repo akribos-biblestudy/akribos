@@ -88,6 +88,8 @@ export const resources = pgTable(
 		/** Lower sorts first; controls the default column order in the reader. */
 		sortOrder: integer('sort_order').notNull().default(100),
 		isPublic: boolean('is_public').notNull().default(true),
+		/** Independent licence permission for the public /api/v1 interface; Reader access is separate. */
+		apiEnabled: boolean('api_enabled').notNull().default(true),
 		hasStrongs: boolean('has_strongs').notNull().default(false),
 		hasMorphology: boolean('has_morphology').notNull().default(false),
 		/** Rendered under each column; holds the rights notice a licence requires. */

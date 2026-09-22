@@ -16,6 +16,7 @@ import { apiError } from '$lib/server/api/errors';
  *   page    page of results (default 1)
  */
 export async function GET({ url, setHeaders, locals }) {
+	setHeaders({ 'cache-control': 'private, no-store' });
 	const query = (url.searchParams.get('q') ?? '').trim();
 	if (!query) return apiError(400, 'missing_query', 'The "q" query parameter is required.');
 
@@ -24,7 +25,7 @@ export async function GET({ url, setHeaders, locals }) {
 		.split(',')
 		.map((id) => id.trim())
 		.filter(Boolean);
-	const bibles = await listBibles(db, resourceViewerId(locals));
+	const bibles = await listBibles(db, resourceViewerId(locals), 'api');
 	const resourceIds =
 		requestedBibles.length > 0
 			? bibles.filter((bible) => requestedBibles.includes(bible.id)).map((bible) => bible.id)
@@ -36,6 +37,5 @@ export async function GET({ url, setHeaders, locals }) {
 
 	const results = await search(db, query, { resourceIds, page, book });
 
-	setHeaders({ 'cache-control': 'public, max-age=0, s-maxage=600' });
 	return json(results);
 }

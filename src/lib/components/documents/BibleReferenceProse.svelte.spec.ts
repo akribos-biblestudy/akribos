@@ -30,7 +30,7 @@ describe('BibleReferenceProse', () => {
 		const bibleId = `PREVIEW-${Date.now()}`;
 		const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
 			const url = String(input);
-			if (url === `/api/v1/bibles/${bibleId}/40/3`) {
+			if (url === `/api/reader/bibles/${bibleId}/40/3`) {
 				return new Response(
 					JSON.stringify({
 						verses: [
@@ -43,7 +43,7 @@ describe('BibleReferenceProse', () => {
 					{ status: 200, headers: { 'content-type': 'application/json' } }
 				);
 			}
-			if (url === '/api/v1/resources') {
+			if (url === '/api/reader/resources') {
 				return new Response(
 					JSON.stringify({ resources: [{ id: bibleId, tabTitle: 'Testbibel' }] }),
 					{ status: 200, headers: { 'content-type': 'application/json' } }

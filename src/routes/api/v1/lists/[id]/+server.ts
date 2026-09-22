@@ -19,7 +19,8 @@ import { apiError } from '$lib/server/api/errors';
  * Query parameters:
  *   bible  which translation's text to attach to each verse; defaults to the first available one
  */
-export async function GET({ params, url, locals }) {
+export async function GET({ params, url, locals, setHeaders }) {
+	setHeaders({ 'cache-control': 'private, no-store' });
 	const db = getDb();
 	const list = await findVerseList(db, { id: params.id });
 	if (!list) return apiError(404, 'list_not_found', 'No verse list with this id.');
@@ -33,10 +34,10 @@ export async function GET({ params, url, locals }) {
 		return apiError(404, 'list_not_found', 'No verse list with this id.');
 	}
 
-	const bibles = await listBibles(db, resourceViewerId(locals));
+	const bibles = await listBibles(db, resourceViewerId(locals), 'api');
 	const requestedBible = url.searchParams.get('bible');
 	const bible = requestedBible
-		? (bibles.find((candidate) => candidate.id === requestedBible) ?? bibles[0])
+		? bibles.find((candidate) => candidate.id === requestedBible)
 		: bibles[0];
 
 	return json({
@@ -44,6 +45,8 @@ export async function GET({ params, url, locals }) {
 		title: list.title,
 		introHtml: list.introHtml,
 		isPublic: list.isPublic,
-		items: await loadVerseListItems(db, list.id, bible?.id ?? null)
+		items: await loadVerseListItems(db, list.id, bible?.id ?? null, {
+			redactEmail: !hasPersonalAccess
+		})
 	});
 }

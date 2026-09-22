@@ -4,10 +4,10 @@ import { loadBibleQuotation } from './verse-hover-popover';
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Bible quotation loading', () => {
-	it('loads and joins an inclusive cross-chapter passage from the public Bible API', async () => {
+	it('loads and joins an inclusive cross-chapter passage from the internal Reader endpoint', async () => {
 		const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
 			const url = String(input);
-			if (url === '/api/v1/bibles/QUOTE-CROSS/1/1') {
+			if (url === '/api/reader/bibles/QUOTE-CROSS/1/1') {
 				return Response.json({
 					verses: [
 						{ verse: 30, segments: ['dreißig'] },
@@ -15,7 +15,7 @@ describe('Bible quotation loading', () => {
 					]
 				});
 			}
-			if (url === '/api/v1/bibles/QUOTE-CROSS/1/2') {
+			if (url === '/api/reader/bibles/QUOTE-CROSS/1/2') {
 				return Response.json({
 					verses: [
 						{ verse: 1, segments: ['vollendet'] },
@@ -25,7 +25,7 @@ describe('Bible quotation loading', () => {
 					]
 				});
 			}
-			if (url === '/api/v1/resources') {
+			if (url === '/api/reader/resources') {
 				return Response.json({ resources: [{ id: 'QUOTE-CROSS', tabTitle: 'Testübersetzung' }] });
 			}
 			return new Response(null, { status: 404 });
@@ -37,7 +37,7 @@ describe('Bible quotation loading', () => {
 			translation: 'Testübersetzung',
 			text: 'sehr gut vollendet ruhte segnete'
 		});
-		expect(fetchMock).not.toHaveBeenCalledWith('/api/v1/bibles/QUOTE-CROSS/1/2?anything');
+		expect(fetchMock).not.toHaveBeenCalledWith('/api/reader/bibles/QUOTE-CROSS/1/2?anything');
 	});
 
 	it('rejects text that is not a passage before issuing a request', async () => {
@@ -53,7 +53,7 @@ describe('Bible quotation loading', () => {
 		vi.stubGlobal(
 			'fetch',
 			vi.fn(async (input: RequestInfo | URL) =>
-				String(input) === '/api/v1/bibles/QUOTE-CHAPTER/1/1'
+				String(input) === '/api/reader/bibles/QUOTE-CHAPTER/1/1'
 					? Response.json({
 							verses: [
 								{ verse: 1, segments: ['Anfang'] },
