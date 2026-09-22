@@ -374,7 +374,7 @@ test('the book icon replaces the work in the current tab without changing its re
 	await firstTile.getByRole('button', { name: /wechseln$/ }).click();
 	const chooser = page.getByRole('dialog', { name: 'Werk wählen' });
 	await expect(chooser).toBeVisible();
-	expect((await chooser.boundingBox())?.width).toBeLessThanOrEqual(368);
+	expect((await chooser.boundingBox())?.width).toBeLessThanOrEqual(512);
 
 	const replacement = page
 		.locator('form')

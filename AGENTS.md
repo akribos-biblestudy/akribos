@@ -512,6 +512,13 @@ laufen bewusst als `manual`: Die gemeinsame Dismiss-Behandlung kann den aktuelle
 Außenklick ausnehmen, sodass ein zweiter Klick auf denselben Trigger zuverlässig schließt, statt das
 Popover beim `pointerdown` zu schließen und mit dem nachfolgenden `click` sofort wieder zu öffnen.
 
+Reader-Kacheln begrenzen auch ihre Headerflächen auf den gerundeten Kartenrahmen. Menüs müssen sowohl
+im nativen Top-Layer als auch mit dem Fixed-Fallback darüber hinausragen können; Tastaturumrandungen
+der randfüllenden Headerknöpfe liegen deshalb innen. Die Werkauswahl verankert sich an einem sichtbaren,
+kompakten Knopf, niemals an einer die gesamte leere Kachel füllenden Klickfläche. Sie misst den Dialog
+nach dem Rendern und bei Größenänderungen gegen den sichtbaren Viewport. Kategorien werden auf
+schmalen Bildschirmen umgebrochen und bleiben ohne horizontales Scrollen erreichbar.
+
 Eine Markierung (`verse_highlights`) gilt entweder für den ganzen Vers und damit für alle
 Übersetzungen (`resource_id`, `start_word`, `end_word` alle `NULL` — das ist auch die Form, in der
 jede Markierung aus der Zeit vor dieser Unterscheidung existiert und weiterhin funktioniert), oder für
