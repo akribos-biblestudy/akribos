@@ -2252,6 +2252,12 @@
 		const anchorInset = FLOW_EDGE_FADE_PX;
 		const anchor = firstVisibleVerse(source);
 		if (!anchor?.dataset.verseKey) return;
+		const bookTitle = anchor.closest('.flow-chapter')?.querySelector('.flow-book-title');
+		const visibleBookTitle =
+			bookTitle &&
+			bookTitle.getBoundingClientRect().bottom > source.getBoundingClientRect().top + anchorInset
+				? bookTitle
+				: null;
 		const anchorVerse = Number(anchor.dataset.verseKey.split(':')[2]);
 		if (trackAddress) scheduleAddressBarUpdate(sourceIndex, anchor.dataset.verseKey);
 		// A tab without a letter remains independent. A–E are separate groups: only currently active
@@ -2284,11 +2290,21 @@
 			if (trackAddress && book && chapter) {
 				visibleReferences[index] = { book, chapter, verse: anchorVerse };
 			}
-			if (lastAlignedElement[index] === target) continue;
-			lastAlignedElement[index] = target;
+			// While the source still shows the book title, retain it in linked translations too.
+			// Aligning verse 1 immediately would scroll their new title out of view.
+			const targetTitle = visibleBookTitle
+				? target.closest('.flow-chapter')?.querySelector('.flow-book-title')
+				: null;
+			const alignmentTarget = targetTitle ?? target;
+			if (lastAlignedElement[index] === alignmentTarget) continue;
+			lastAlignedElement[index] = alignmentTarget;
 
-			const columnTop = column.getBoundingClientRect().top + anchorInset;
-			const next = column.scrollTop + target.getBoundingClientRect().top - columnTop;
+			const inset =
+				targetTitle && visibleBookTitle
+					? visibleBookTitle.getBoundingClientRect().top - source.getBoundingClientRect().top
+					: anchorInset;
+			const columnTop = column.getBoundingClientRect().top + inset;
+			const next = column.scrollTop + alignmentTarget.getBoundingClientRect().top - columnTop;
 			suppressProgrammaticFlowScroll(index);
 			column.scrollTop = next;
 		}
@@ -2343,6 +2359,9 @@
 					: event.deltaY;
 		event.preventDefault();
 		column.scrollTop += normalizedDelta * WHEEL_SCROLL_FACTOR;
+		// At the book's opening heading the column is already at zero, so the browser emits no
+		// scroll event for an upward wheel. Still allow crossing back into the previous book.
+		if (normalizedDelta < 0 && column.scrollTop === 0) void loadStreamPrevious(columnIndex);
 	}
 
 	/**
@@ -2723,6 +2742,15 @@
 											class="flow-chapter"
 											data-chapter-key={`${stream.reference.book}:${stream.reference.chapter}`}
 										>
+											{#if stream.reference.chapter === 1 && !stream.chapter.empty}
+												<h2
+													class="flow-book-title"
+													lang={stream.bookTitle.language}
+													dir={stream.bookTitle.direction}
+												>
+													{stream.bookTitle.text}
+												</h2>
+											{/if}
 											{#each stream.chapter.rows as row (row.verse)}
 												{@const cell =
 													column.bibleCellIndex === null ? null : row.cells[column.bibleCellIndex]}
@@ -3410,6 +3438,25 @@
 		color: var(--color-stone-900);
 		text-decoration: none;
 		cursor: pointer;
+	}
+
+	.flow-book-title {
+		margin: 0 0 1rem;
+		padding-block: 0.5rem;
+		font-family: var(--font-serif);
+		font-size: calc(var(--reader-text-size) * 1.4);
+		font-weight: 600;
+		line-height: 1.35;
+		color: var(--color-stone-900);
+		overflow-wrap: anywhere;
+	}
+
+	.flow-book-title:lang(he) {
+		font-family: 'Noto Sans Hebrew', sans-serif;
+	}
+
+	:global(.dark) .flow-book-title {
+		color: var(--color-stone-50);
 	}
 
 	.flow-chapter-number:hover,
