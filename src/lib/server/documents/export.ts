@@ -10,10 +10,7 @@ import {
 	Paragraph,
 	TextRun
 } from 'docx';
-import PDFDocument from 'pdfkit';
 import { Lexer, type Token, type Tokens } from 'marked';
-import { createRequire } from 'node:module';
-import { findBibleReferences } from '$lib/bible/link-references';
 import { formatPassage, passageFromDbEndpoints } from '$lib/bible/passage';
 import { formatGermanCalendarDate } from '$lib/notes/calendar-date';
 import {
@@ -41,97 +38,9 @@ export type OwnedDocumentExport = {
 	deliveries: Array<{ date: Date; location: string }>;
 };
 
-export const PDF_LINK_COLOR = '#2f7d32';
-
-export type PdfInlineRun = {
-	text: string;
-	href?: string;
-	bibleReference?: boolean;
-	footnoteId?: string;
-};
-
-/** Turns portable inline Markdown into ordered text/link runs for PDFKit. */
-export function pdfInlineRuns(
-	markdown: string,
-	footnotes: readonly DocumentFootnote[] = []
-): PdfInlineRun[] {
-	const runs: PdfInlineRun[] = [];
-	const append = (text: string, href?: string, bibleReference = false) => {
-		if (!text) return;
-		const previous = runs.at(-1);
-		if (
-			previous &&
-			!previous.footnoteId &&
-			previous.href === href &&
-			Boolean(previous.bibleReference) === bibleReference
-		) {
-			previous.text += text;
-		} else {
-			runs.push({ text, ...(href ? { href } : {}), ...(bibleReference ? { bibleReference } : {}) });
-		}
-	};
-	const appendProse = (text: string, href?: string) => {
-		if (href) {
-			append(text, href);
-			return;
-		}
-		let offset = 0;
-		for (const reference of findBibleReferences(text)) {
-			append(text.slice(offset, reference.from));
-			append(reference.label, undefined, true);
-			offset = reference.to;
-		}
-		append(text.slice(offset));
-	};
-	const visit = (tokens: Token[], inheritedHref?: string) => {
-		for (const token of tokens) {
-			switch (token.type) {
-				case 'documentFootnoteReference': {
-					const reference = token as DocumentFootnoteReferenceToken;
-					runs.push({ text: `[${reference.number}]`, footnoteId: reference.id });
-					break;
-				}
-				case 'link': {
-					const link = token as Tokens.Link;
-					const href = safeLinkHref(link.href) ?? undefined;
-					visit(link.tokens, href);
-					break;
-				}
-				case 'text': {
-					const text = token as Tokens.Text;
-					if (text.tokens?.length) visit(text.tokens, inheritedHref);
-					else appendProse(decodeHtmlEntities(text.text), inheritedHref);
-					break;
-				}
-				case 'strong':
-				case 'em':
-				case 'del':
-					visit((token as Tokens.Strong | Tokens.Em | Tokens.Del).tokens, inheritedHref);
-					break;
-				case 'escape':
-					appendProse((token as Tokens.Escape).text, inheritedHref);
-					break;
-				case 'codespan':
-					append((token as Tokens.Codespan).text, inheritedHref);
-					break;
-				case 'br':
-					append('\n', inheritedHref);
-					break;
-				case 'image':
-					append((token as Tokens.Image).text, inheritedHref);
-					break;
-				case 'html':
-					break;
-				default:
-					if ('tokens' in token && Array.isArray(token.tokens)) {
-						visit(token.tokens, inheritedHref);
-					}
-			}
-		}
-	};
-	visit(createDocumentFootnoteLexer(footnotes).lexInline(markdown));
-	return runs;
-}
+export { pdfInlineRuns } from './pdf-model';
+import { createPdfModel } from './pdf-model';
+import { renderPdf } from './pdf-renderer';
 
 export async function loadOwnedDocumentExport(
 	db: Database,
@@ -424,211 +333,15 @@ export async function createDocxExport(
 
 export async function createPdfExport(
 	data: OwnedDocumentExport,
-	options: { baseUrl?: string; compress?: boolean } = {}
-): Promise<{
-	filename: string;
-	contentDisposition: string;
-	buffer: Buffer;
-}> {
-	const parsed = parseDocumentFootnotes(data.document.bodyMarkdown);
-	const pdf = new PDFDocument({
-		size: 'A4',
-		margins: { top: 68, right: 56, bottom: 68, left: 56 },
-		bufferPages: true,
-		compress: options.compress ?? true,
-		info: { Title: data.document.title, Creator: 'Akribos' }
-	});
-	const chunks: Buffer[] = [];
-	pdf.on('data', (chunk: Buffer) => chunks.push(chunk));
-	const completed = new Promise<Buffer>((resolve, reject) => {
-		pdf.on('end', () => resolve(Buffer.concat(chunks)));
-		pdf.on('error', reject);
-	});
-	const require = createRequire(import.meta.url);
-	const fonts = {
-		latin: require.resolve('@fontsource/noto-sans/files/noto-sans-latin-400-normal.woff'),
-		latinExt: require.resolve('@fontsource/noto-sans/files/noto-sans-latin-ext-400-normal.woff'),
-		greek: require.resolve('@fontsource/noto-sans/files/noto-sans-greek-400-normal.woff'),
-		greekExt: require.resolve('@fontsource/noto-sans/files/noto-sans-greek-ext-400-normal.woff'),
-		hebrew:
-			require.resolve('@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff')
-	} as const;
-	for (const [name, path] of Object.entries(fonts)) pdf.registerFont(name, path);
-
-	function fontForCharacter(character: string): keyof typeof fonts {
-		const code = character.codePointAt(0) ?? 0;
-		if ((code >= 0x0590 && code <= 0x05ff) || (code >= 0xfb1d && code <= 0xfb4f)) {
-			return 'hebrew';
-		}
-		if (code >= 0x1f00 && code <= 0x1fff) return 'greekExt';
-		if (code >= 0x0370 && code <= 0x03ff) return 'greek';
-		if ((code >= 0x0100 && code <= 0x024f) || (code >= 0x1e00 && code <= 0x1eff)) {
-			return 'latinExt';
-		}
-		return 'latin';
-	}
-
-	function fontRuns(text: string): Array<{ font: keyof typeof fonts; text: string }> {
-		const runs: Array<{ font: keyof typeof fonts; text: string }> = [];
-		for (const character of text) {
-			const font = fontForCharacter(character);
-			const previous = runs.at(-1);
-			if (previous?.font === font) previous.text += character;
-			else runs.push({ font, text: character });
-		}
-		return runs;
-	}
-
-	function writeText(
-		text: string,
-		options: PDFKit.Mixins.TextOptions = {},
-		continuedAfter = false
-	): void {
-		const runs = fontRuns(text);
-		if (runs.length === 0) {
-			pdf.font('latin').text('', { ...options, continued: continuedAfter });
-			return;
-		}
-		for (const [index, run] of runs.entries()) {
-			pdf
-				.font(run.font)
-				.text(run.text, { ...options, continued: index < runs.length - 1 || continuedAfter });
-		}
-	}
-
-	function absoluteHref(href: string): string {
-		if (!href.startsWith('/') && !href.startsWith('#')) return href;
-		return new URL(href, options.baseUrl ?? 'https://akribos.de').href;
-	}
-
-	function writeInlineMarkdown(
-		value: string,
-		textOptions: PDFKit.Mixins.TextOptions = {},
-		footnotes: readonly DocumentFootnote[] = []
-	): void {
-		const runs = pdfInlineRuns(value, footnotes);
-		if (runs.length === 0) {
-			writeText('', textOptions);
-			return;
-		}
-		for (const [index, run] of runs.entries()) {
-			const linked = Boolean(run.href || run.footnoteId);
-			const highlighted = linked || Boolean(run.bibleReference);
-			pdf.fillColor(highlighted ? PDF_LINK_COLOR : '#222222');
-			writeText(
-				run.text,
-				{
-					...textOptions,
-					link: run.href ? absoluteHref(run.href) : null,
-					goTo: run.footnoteId ? `akribos-footnote-${run.footnoteId}` : undefined,
-					underline: linked
-				},
-				index < runs.length - 1
-			);
-		}
-		pdf.fillColor('#222222');
-	}
-
-	function addPageFurniture(): void {
-		const range = pdf.bufferedPageRange();
-		for (let offset = 0; offset < range.count; offset += 1) {
-			pdf.switchToPage(range.start + offset);
-			const { width, height, margins } = pdf.page;
-			const savedBottom = margins.bottom;
-			margins.bottom = 0;
-			pdf.save();
-			pdf.font('Helvetica-Bold').fontSize(8).fillColor(PDF_LINK_COLOR);
-			pdf.text('AKRIBOS', margins.left, 29, { lineBreak: false });
-			pdf
-				.fillColor('#777777')
-				.text(data.document.kind === 'sermon' ? 'AUSARBEITUNG' : 'NOTIZ', margins.left + 55, 29, {
-					lineBreak: false
-				});
-			pdf
-				.moveTo(margins.left, 47)
-				.lineTo(width - margins.right, 47)
-				.lineWidth(0.6)
-				.strokeColor(PDF_LINK_COLOR)
-				.stroke();
-			pdf
-				.moveTo(margins.left, height - 45)
-				.lineTo(width - margins.right, height - 45)
-				.lineWidth(0.4)
-				.strokeColor('#bbbbbb')
-				.stroke();
-			pdf.font('Helvetica').fontSize(8).fillColor('#777777');
-			pdf.text('akribos.de', margins.left, height - 34, { lineBreak: false });
-			pdf.text(`Seite ${offset + 1} / ${range.count}`, width - margins.right - 80, height - 34, {
-				width: 80,
-				align: 'right',
-				lineBreak: false
-			});
-			pdf.restore();
-			margins.bottom = savedBottom;
-		}
-	}
-
-	pdf.font('latin').fontSize(22);
-	writeText(data.document.title);
-	pdf.moveDown(0.5).fontSize(9).fillColor('#666666');
-	for (const line of metadataLines(data)) writeText(line);
-	pdf.moveDown().fillColor('#222222').fontSize(11);
-	function writeBlocks(markdown: string, footnotes: readonly DocumentFootnote[] = [], prefix = '') {
-		for (const block of markdownExportBlocks(markdown)) {
-			if (block.kind === 'code') {
-				if (prefix) writeText(prefix);
-				pdf.moveDown(0.3);
-				writeText(block.text, { indent: 14 + block.indent * 14, paragraphGap: 5 });
-				pdf.moveDown(0.3);
-			} else if (block.kind === 'rule') {
-				if (prefix) writeText(prefix);
-				pdf.moveDown(0.45);
-				pdf
-					.moveTo(pdf.x, pdf.y)
-					.lineTo(pdf.page.width - pdf.page.margins.right, pdf.y)
-					.lineWidth(0.5)
-					.strokeColor('#bbbbbb')
-					.stroke();
-				pdf.moveDown(0.45);
-			} else {
-				if (block.heading)
-					pdf
-						.moveDown(block.heading === 1 ? 0.9 : 0.55)
-						.fontSize(Math.max(11, 18 - block.heading * 2));
-				if (prefix || block.prefix) writeText(prefix + (block.prefix ?? ''), {}, true);
-				writeInlineMarkdown(
-					block.text,
-					{
-						paragraphGap: 5,
-						...(block.indent ? { indent: block.indent * 14 } : {})
-					},
-					footnotes
-				);
-				if (block.heading) pdf.moveDown(0.25).fontSize(11);
-			}
-			prefix = '';
-		}
-		if (prefix) writeText(prefix);
-	}
-	writeBlocks(parsed.bodyMarkdown, parsed.footnotes);
-	if (parsed.footnotes.length) {
-		// A separate, linked section preserves rich multi-paragraph notes across PDF pagination.
-		pdf.moveDown().fontSize(14);
-		writeText('Fußnoten');
-		pdf.moveDown(0.3).fontSize(11);
-		for (const note of parsed.footnotes) {
-			pdf.addNamedDestination(`akribos-footnote-${note.id}`, 'XYZ', pdf.x, pdf.y, null);
-			writeBlocks(note.markdown, [], `${note.number}. `);
-			pdf.moveDown(0.3);
-		}
-	}
-
-	addPageFurniture();
-	pdf.end();
+	options: { baseUrl?: string; signal?: AbortSignal } = {}
+): Promise<{ filename: string; contentDisposition: string; buffer: Buffer }> {
+	const model = createPdfModel(
+		data.document.title,
+		data.document.bodyMarkdown,
+		metadataLines(data),
+		options.baseUrl
+	);
+	const buffer = await renderPdf(model, options.signal);
 	const filename = safeDocumentFilename(data.document.title, 'pdf');
-	return {
-		filename,
-		contentDisposition: documentContentDisposition(filename, 'pdf'),
-		buffer: await completed
-	};
+	return { filename, contentDisposition: documentContentDisposition(filename, 'pdf'), buffer };
 }

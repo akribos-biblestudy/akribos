@@ -33,6 +33,80 @@ No transactional-mail configuration is needed for notes, Markdown interchange, p
 When `BREVO_API_KEY` is absent, the existing authentication mail fallback logs messages as before; the
 two seeded accounts are already verified.
 
+## Local PDF compiler and print fonts
+
+PDF export uses the local **Typst 0.15.1** CLI. There is no rendering service, browser runtime,
+network font request or document upload to a third party. The application's reviewed template receives
+document data as JSON in a separate temporary directory. The export runner restricts its project root
+to that directory, disables system fonts, bounds execution time and output size, and removes temporary
+files afterwards. User content is data, not Typst source. The built-in DejaVu Sans Mono supplies code
+blocks; ordinary text uses the bundled Akribos Text and Noto Sans Hebrew faces.
+
+For local development and tests, install the compiler once from the repository root:
+
+```sh
+pnpm pdf:setup
+export PDF_TYPST_BIN="$PWD/var/tools/typst/bin/typst"
+"$PDF_TYPST_BIN" --version
+```
+
+`scripts/install-typst.sh` selects the official Linux or macOS archive for x86_64 or arm64. It verifies
+the hardcoded SHA256 before extraction and checks the binary's version before installing it. The
+digests come from the asset metadata of the
+[official 0.15.1 release](https://github.com/typst/typst/releases/tag/v0.15.1), not from a checksum served
+alongside an unpinned latest download. Downloads use HTTPS. `--prefix DIRECTORY` selects another
+installation directory; `--archive FILE` uses an already downloaded archive with the same mandatory
+checksum. Unsupported platforms fail explicitly. Without `PDF_TYPST_BIN`, the runner uses
+`var/tools/typst/bin/typst` under the application directory, matching `pnpm pdf:setup`; a different
+version is rejected. The binary and its license/third-party notices live under
+`var/tools/typst/{bin,share/typst}` by default; that directory is ignored by Git.
+
+The Dockerfile installs the same pinned binary in a separate stage and copies it to
+`/usr/local/bin/typst`, its notices to `/usr/local/share/typst`, and the committed fonts to
+`/app/data/fonts/pdf`. Download utilities from this stage do not enter the final image. The installer
+supports native amd64 and arm64 stages, so the Dockerfile also works with a configured cross-platform
+builder. The existing image workflow still builds its native runner architecture; this change does
+not introduce a new publishing matrix. No Python interpreter, Poppler tools, font conversion or
+network installation is required when the production application starts.
+
+`data/fonts/pdf/` contains nine real TTF faces: Akribos Text regular/italic in weights 400, 600 and 700,
+plus Noto Sans Hebrew upright in weights 400, 600 and 700. They are lossless decompressions of the
+existing WOFF2 assets, not newly drawn or synthesized fonts. The Akribos source manifest and the pinned
+`@fontsource/noto-sans-hebrew` 5.3.0 package identify the sources. The PDF manifest records source and
+output hashes, versions, weights, styles and verification coverage; both OFL licenses accompany the
+fonts. The full provenance of Akribos Text remains in [typography.md](typography.md).
+
+Rebuild or verify the committed fonts without downloading any new font source:
+
+```sh
+python3 -m venv /tmp/akribos-pdf-fonts
+/tmp/akribos-pdf-fonts/bin/pip install -r scripts/fonts/requirements.txt
+PATH="/tmp/akribos-pdf-fonts/bin:$PATH" pnpm fonts:pdf:check
+# Only after reviewing an intentional source change:
+PATH="/tmp/akribos-pdf-fonts/bin:$PATH" pnpm fonts:pdf
+```
+
+The converter pins FontTools, Brotli and HarfBuzz versions, keeps original font timestamps, and verifies
+every OpenType table before and after decompression. Only the container's master checksum may differ.
+It also checks real style metadata and equivalent NFC/NFD shaping for Latin/transliteration, polytonic
+Greek and Hebrew with vowel/cantillation marks. `--check` regenerates everything in memory and requires
+byte-identical committed outputs and license files. A font or converter update must include a reviewed
+manifest change and the verification run; do not bypass a source hash mismatch.
+
+Both CI test jobs install the pinned compiler and `poppler-utils`; real export tests inspect PDF text,
+page metadata and embedded fonts with `pdftotext`, `pdfinfo` and `pdffonts`. The unit-test job also
+rebuilds and verifies every print font. Normal `pnpm build` uses the committed artifacts directly.
+To inspect the exact fonts available to the isolated compiler:
+
+```sh
+"$PDF_TYPST_BIN" fonts --ignore-system-fonts --font-path data/fonts/pdf --variants
+```
+
+If PDF export fails, check the configured executable's version and that `data/fonts/pdf` is present and
+readable relative to the application's working directory. Run the real PDF tests with the same binary
+before changing layout or time limits. Do not log private document JSON or retain temporary exports for
+diagnostics. Compiler/template updates and any font update belong in a tested application release.
+
 ## Email-first sign-in
 
 `/login` first asks for an email address; `/register` redirects to the same entry point. Existing

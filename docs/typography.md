@@ -138,3 +138,16 @@ enthält die Fonts direkt und sendet keine Daten an externe Dienste.
 Die [redaktionelle Vorher-/Nachher-Schriftprobe](screenshots/issue-288-font-proof.png)
 wurde aus dieser Datei in Chromium bei 1440 CSS-Pixeln Breite aufgenommen. Sie ist
 eine eigens zusammengestellte Schriftprobe und keine Aufnahme der Produktionsseite.
+
+## PDF fonts
+
+The approved PDF Studienblatt uses the same six Akribos Text faces as the reader. The files under
+`data/fonts/pdf/` are losslessly decompressed TrueType versions of the versioned WOFF2 sources;
+this is a container conversion, not a second font design. Noto Sans Hebrew supplies regular, semibold
+and bold Hebrew. Typst embeds font subsets into every PDF, so recipients need no installed fonts.
+Code uses the pinned Typst release's embedded DejaVu Sans Mono. System font discovery is disabled.
+
+`pnpm fonts:pdf` regenerates the print files; `pnpm fonts:pdf:check` checks the manifest, original
+OpenType tables and representative NFC/NFD shaping. Tool versions, source hashes and OFL licenses
+are versioned with the assets. See [operations.md](operations.md) for the build environment and
+[pdf-export.md](pdf-export.md) for layout and failure behavior.

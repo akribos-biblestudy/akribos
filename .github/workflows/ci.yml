@@ -39,6 +39,19 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify reproducible PDF fonts
+        run: |
+          python -m pip install -r scripts/fonts/requirements.txt
+          pnpm fonts:pdf:check
+      - name: Install pinned PDF compiler and inspection tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils
+          pnpm pdf:setup
+          echo "PDF_TYPST_BIN=$PWD/var/tools/typst/bin/typst" >> "$GITHUB_ENV"
       - run: pnpm run lint
       - run: pnpm run check
       # Most unit tests need no database, but the activation-token repository tests exercise real
@@ -72,6 +85,12 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install pinned PDF compiler and inspection tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils
+          pnpm pdf:setup
+          echo "PDF_TYPST_BIN=$PWD/var/tools/typst/bin/typst" >> "$GITHUB_ENV"
       - run: pnpm exec playwright install --with-deps chromium
       # Ubuntu's own postgresql-client is older than the postgres:17-alpine service, and pg_dump
       # refuses to talk to a newer server; the admin backup feature needs the matching client.

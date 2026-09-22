@@ -183,8 +183,11 @@ Exports are owner-only and available as deterministic UTF-8 Markdown, editable W
 Markdown carries YAML frontmatter for title, kind, tags, passages, sermon metadata, delivery history and
 timestamps. Word/PDF contain readable metadata and body structure but may simplify Markdown-only layout.
 Word exports contain native footnotes; definitions without a body reference are preserved in a visible
-appendix. PDF exports contain linked numbered markers and all footnotes at the end of the document
-rather than allocating footnote space at each page bottom.
+appendix. PDF exports use native page footnotes at the first reference, with repeat markers linking
+to that definition. Long notes continue across pages; unreferenced definitions remain in a visible
+appendix. The approved Akribos Studienblatt layout uses embedded Akribos Text faces, Hebrew fallback,
+rich inline formatting and shaded quotations. See [pdf-export.md](pdf-export.md) for rendering and
+resource limits.
 PDF links remain clickable, use Akribos green in the page content, and relative targets are resolved
 against the exporting request's origin. Free inline Bible references recognized by the shared parser
 use the same green outside code spans. Every PDF page has an Akribos header and a numbered footer.

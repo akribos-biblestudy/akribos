@@ -830,9 +830,10 @@ auf den Dialog übernommen. Er liegt außerhalb von `.reading-preferences`; ohne
 persönliche Textvergrößerung verloren gehen. Die Skalierung wird dabei nicht nochmals multipliziert.
 
 Word-Import ordnet Mammoths Fußnoten/Endnoten vor der allgemeinen Bereinigung zu. Word-Export erzeugt
-native Fußnoten und erhält unreferenzierte Definitionen als sichtbaren Anhang. PDF verwendet verlinkte
-nummerierte Verweise und einen vollständigen Fußnotenabschnitt am Dokumentende, keine dynamischen
-Fußbereiche je Seite. Der idempotente `backfillDocumentFootnotes` läuft beim Start, nach Restore und
+native Fußnoten und erhält unreferenzierte Definitionen als sichtbaren Anhang. PDF verwendet native
+Typst-Seitenfußnoten am ersten Verweis; weitere Verweise derselben Definition verlinken auf diese Nummer.
+Lange Fußnoten dürfen über Seiten fortgesetzt werden. Unreferenzierte Definitionen bleiben im Anhang.
+Tabellenköpfe mit Fußnoten werden nicht wiederholt, damit ihre Definitionen und Sprungziele eindeutig bleiben. Der idempotente `backfillDocumentFootnotes` läuft beim Start, nach Restore und
 über `pnpm db:backfill-footnotes`: unter Dokumentzeilensperre erneut lesen, alle Textableitungen und
 Referenzindizes atomar aktualisieren, Revision erhöhen, Zeitstempel erhalten. Notizen, Ausarbeitungen
 und Papierkorb sind eingeschlossen. Veröffentlichungen werden ausschließlich aus ihrem eigenen
@@ -863,8 +864,15 @@ stehen owner-only als Markdown/YAML, Word `.docx` und PDF bereit, enthalten aber
 Eigentümer-ID oder Veröffentlichungsberechtigung. Import/Export von Anlagen und automatisches
 Zusammenführen sind nicht implementiert. Der PDF-Export löst relative Linkziele gegen den Request-Ursprung auf, bewahrt Links als
 klickbare grüne Annotationen und färbt auch freie, vom gemeinsamen Parser erkannte Bibelstellen grün;
-Inline-Code bleibt davon ausgenommen. Auf jeder gepufferten A4-Seite setzt er eine Akribos-Kopfzeile
-sowie eine Fußzeile mit Seitenzahl. Die Bereichsnavigation besteht aus „Notizen“, „Ausarbeitungen“ und „Stellensammlungen“; Import und
+Inline-Code bleibt davon ausgenommen. Auf jeder A4-Seite setzt er eine Akribos-Kopfzeile
+sowie eine Fußzeile mit Seitenzahl. Der gewählte Entwurf B „Akribos Studienblatt“ verwendet die echte
+Akribos-Text-Schriftfamilie, Noto Sans Hebrew, echte Fett-/Kursivschnitte und abgesetzte Zitatflächen.
+`pdf-model.ts` bildet Markdown in typisierte JSON-Daten ab; ausschließlich `pdf-template.typ` ist
+ausführbarer Typst-Code. Nutzereingaben dürfen niemals in Quelltext, Pfade oder Imports interpoliert
+werden. Der gepinnte Typst-0.15.1-Prozess arbeitet ohne Shell, Systemfonts oder geerbte App-Secrets in
+einem privaten temporären Verzeichnis. Eingabe, Ausgabe, Laufzeit und Warteschlange sind begrenzt;
+Abbruch/Fehler räumen Verzeichnis und Slot auf. Compilerdiagnosen dürfen privaten Text enthalten und
+werden nie protokolliert oder zurückgegeben. Details und Regressionen stehen in `docs/pdf-export.md`. Die Bereichsnavigation besteht aus „Notizen“, „Ausarbeitungen“ und „Stellensammlungen“; Import und
 veröffentlichte Notizen sind kontextuelle Aktionen, Vorlagen gehören in den Ausarbeitungsbereich. Ausarbeitungen
 bleiben normale Dokumente (`kind = sermon`); `/sermons` zeigt sie in kontoeigenen Spalten.
 `users.sermon_columns` speichert eine geordnete JSON-Liste aus stabiler ID und frei wählbarem Namen;
