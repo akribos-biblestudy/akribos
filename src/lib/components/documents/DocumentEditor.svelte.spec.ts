@@ -1,8 +1,9 @@
-import { page } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import '../../../routes/layout.css';
 import DocumentEditor from './DocumentEditor.svelte';
+import { documentMarkdownToHtml } from '$lib/notes/document-markdown';
 
 vi.mock('$app/navigation', () => ({ beforeNavigate: vi.fn(), goto: vi.fn() }));
 afterEach(() => vi.unstubAllGlobals());
@@ -35,6 +36,60 @@ function fullyVisible(element: HTMLElement, host: HTMLElement): boolean {
 	const box = visibility(element, host);
 	return box.top >= box.hostTop && box.bottom <= Math.min(box.hostBottom, window.innerHeight);
 }
+
+describe('DocumentEditor tables and autosave', () => {
+	it('saves an empty table, edits it on mobile and retains it across Markdown and remount', async () => {
+		await page.viewport(390, 844);
+		let saved = {
+			id: crypto.randomUUID(),
+			title: 'Gemeinde',
+			bodyMarkdown: '',
+			bodyHtml: '',
+			revision: 1
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn<typeof fetch>(async (_input, init) => {
+				if (init?.method !== 'PATCH') return Response.json({ incoming: [], outgoing: [] });
+				const payload = JSON.parse(String(init.body));
+				expect(payload.revision).toBe(saved.revision);
+				saved = {
+					...saved,
+					title: payload.title,
+					bodyMarkdown: payload.markdown,
+					bodyHtml: documentMarkdownToHtml(payload.markdown).html,
+					revision: saved.revision + 1
+				};
+				return Response.json({ document: saved });
+			})
+		);
+		const screen = await render(DocumentEditor, { document: saved, compact: true });
+		screen.container.style.cssText = 'width:390px;height:844px';
+		await page.getByRole('button', { name: 'Tabelle einfügen', exact: true }).click();
+		await expect.poll(() => saved.bodyHtml).toContain('<table>');
+		const table = screen.container.querySelector<HTMLTableElement>('.tiptap table')!;
+		expect(table.querySelectorAll('th,td')).toHaveLength(9);
+		table.querySelector<HTMLElement>('th p')!.click();
+		await userEvent.keyboard('Älteste');
+		await page.getByRole('tab', { name: 'Markdown', exact: true }).click();
+		expect(
+			(
+				page
+					.getByRole('textbox', { name: 'Markdown', exact: true })
+					.element() as HTMLTextAreaElement
+			).value
+		).toContain('| Älteste |');
+		await page.getByRole('tab', { name: 'Visuell', exact: true }).click();
+		await expect.poll(() => saved.bodyMarkdown).toContain('Älteste');
+		const currentTable = screen.container.querySelector<HTMLTableElement>('.tiptap table')!;
+		expect(currentTable.scrollWidth).toBeGreaterThan(currentTable.clientWidth);
+		expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(innerWidth);
+		await screen.unmount();
+		const reopened = await render(DocumentEditor, { document: saved, compact: true });
+		expect(reopened.container.querySelectorAll('.tiptap th,.tiptap td')).toHaveLength(9);
+		expect(reopened.container.querySelector('.tiptap th')?.textContent).toBe('Älteste');
+	});
+});
 
 describe('DocumentEditor footnote navigation', () => {
 	it('reveals the editable definition and the exact return reference after layout settles in mobile Zen', async () => {

@@ -18,6 +18,10 @@ import {
 	DocumentFootnoteBackfillError
 } from '$lib/server/documents/footnote-backfill';
 import { backfillResourceRevisions } from '$lib/server/import/backfill-resource-revisions';
+import {
+	backfillDocumentTables,
+	DocumentTableBackfillError
+} from '$lib/server/documents/table-backfill';
 import { backfillTskResourceKind } from '$lib/server/import/backfill-tsk-kind';
 
 /**
@@ -55,6 +59,19 @@ export const init: ServerInit = async () => {
 				code: error instanceof DocumentFootnoteBackfillError ? error.code : undefined
 			},
 			'document footnote backfill skipped'
+		);
+	}
+	try {
+		const result = await backfillDocumentTables(db);
+		if (result.updatedDocuments || result.updatedPublications || result.warnings)
+			logger.info(result, 'document tables repaired');
+	} catch (error) {
+		logger.warn(
+			{
+				name: 'DocumentTableBackfillError',
+				code: error instanceof DocumentTableBackfillError ? error.code : undefined
+			},
+			'document table backfill skipped'
 		);
 	}
 	try {

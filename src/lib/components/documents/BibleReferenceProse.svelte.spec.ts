@@ -2,9 +2,29 @@ import { page, userEvent } from 'vitest/browser';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import BibleReferenceProse from './BibleReferenceProse.svelte';
+import '../../../routes/layout.css';
 
 describe('BibleReferenceProse', () => {
 	afterEach(() => vi.unstubAllGlobals());
+
+	it('lets keyboard readers scroll a wide table without links on a narrow screen', async () => {
+		await page.viewport(390, 700);
+		const screen = await render(BibleReferenceProse, {
+			html: '<table><thead><tr><th>Älteste</th><th>Männer</th><th>Frauen</th></tr></thead><tbody><tr><td>Untadelig</td><td>Treu</td><td>Nüchtern</td></tr></tbody></table>',
+			bibleId: null,
+			tooltipId: 'table-only-prose'
+		});
+		screen.container.style.width = '300px';
+		const table = screen.getByRole('table').element() as HTMLElement;
+		expect(table.scrollWidth).toBeGreaterThan(table.clientWidth);
+		screen.container.tabIndex = -1;
+		screen.container.focus();
+		await userEvent.tab();
+		expect(document.activeElement).toBe(table);
+		await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}');
+		await expect.poll(() => table.scrollLeft).toBeGreaterThan(0);
+		expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+	});
 
 	it('links safe prose and exposes its verse preview on hover and keyboard focus', async () => {
 		const bibleId = `PREVIEW-${Date.now()}`;

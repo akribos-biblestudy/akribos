@@ -16,6 +16,20 @@
 	import { Editor } from '@tiptap/core';
 	import { Placeholder } from '@tiptap/extension-placeholder';
 	import { StarterKit } from '@tiptap/starter-kit';
+	import {
+		addRowBefore,
+		addRowAfter,
+		deleteRow,
+		addColumnBefore,
+		addColumnAfter,
+		deleteColumn,
+		deleteTable
+	} from '@tiptap/pm/tables';
+	import {
+		DocumentTables,
+		runDocumentTableCommand,
+		alignDocumentTableColumn
+	} from './document-tables';
 	import { onMount, tick, untrack } from 'svelte';
 	import Icon from '../Icon.svelte';
 	import { BibleReferenceDecorations } from './bible-reference-decorations';
@@ -130,7 +144,8 @@
 		| 'code-block'
 		| 'divider'
 		| 'bible'
-		| 'footnote';
+		| 'footnote'
+		| 'table';
 	type SlashCommand = {
 		id: SlashCommandId;
 		label: string;
@@ -156,6 +171,13 @@
 	const canInsertFootnote = $derived(editorState.editor?.can().insertDocumentFootnote() ?? false);
 
 	const slashCommands = $derived<SlashCommand[]>([
+		{
+			id: 'table',
+			label: t('documents.tables.insert'),
+			description: t('documents.tables.description'),
+			keywords: 'tabelle table raster zeilen spalten',
+			icon: 'file-text'
+		},
 		{
 			id: 'paragraph',
 			label: t('documents.editor.command.paragraph'),
@@ -272,6 +294,7 @@
 					'bulletList',
 					'orderedList',
 					'blockquote',
+					'table',
 					'code'
 				].filter((mark) => current?.isActive(mark))
 			),
@@ -506,6 +529,9 @@
 				break;
 			case 'divider':
 				chain.setHorizontalRule().run();
+				break;
+			case 'table':
+				chain.insertDocumentTable().run();
 				break;
 			case 'footnote':
 				chain.insertDocumentFootnote().run();
@@ -859,7 +885,8 @@
 
 	function syncMarkdownFromVisual(): void {
 		if (!editor || !visualDirty) return;
-		markdown = documentHtmlToMarkdown(editor.isEmpty ? '' : editor.getHTML());
+		// Tiptap considers an empty table textually empty, but its rows/columns are user content.
+		markdown = documentHtmlToMarkdown(editor.getHTML());
 		visualDirty = false;
 	}
 
@@ -1058,6 +1085,7 @@
 			element: editorHost,
 			extensions: [
 				...DocumentFootnotes,
+				...DocumentTables,
 				StarterKit.configure({
 					heading: { levels: [...headingLevels] },
 					trailingNode: { node: 'paragraph', notAfter: ['footnoteList'] },
@@ -1318,6 +1346,12 @@
 					onclick={() => editor.chain().focus().insertDocumentFootnote().run()}
 					><span aria-hidden="true">a<sup>1</sup></span> {t('documents.footnotes.label')}</button
 				>
+				<button
+					type="button"
+					disabled={!editor.can().insertDocumentTable()}
+					onclick={() => editor.chain().focus().insertDocumentTable().run()}
+					>{t('documents.tables.insert')}</button
+				>
 				{#if documentFootnotes.length}
 					<select
 						class="footnote-reuse"
@@ -1395,6 +1429,60 @@
 					disabled={!formatting.canRedo}
 					onclick={() => editor.chain().focus().redo().run()}
 					aria-label={t('documents.editor.redo')}><Icon name="redo" class="size-4" /></button
+				>
+			</div>
+		{/if}
+
+		{#if formatting.active.has('table') && editor}
+			<div class="table-actions" role="group" aria-label={t('documents.tables.edit')}>
+				<select
+					aria-label={t('documents.tables.rows')}
+					onchange={(event) => {
+						const command = { before: addRowBefore, after: addRowAfter, remove: deleteRow }[
+							event.currentTarget.value
+						];
+						if (command) runDocumentTableCommand(editor!, command);
+						event.currentTarget.value = '';
+					}}
+					><option value="">{t('documents.tables.rows')}</option><option value="before"
+						>{t('documents.tables.rowBefore')}</option
+					><option value="after">{t('documents.tables.rowAfter')}</option><option value="remove"
+						>{t('documents.tables.rowRemove')}</option
+					></select
+				>
+				<select
+					aria-label={t('documents.tables.columns')}
+					onchange={(event) => {
+						const command = {
+							before: addColumnBefore,
+							after: addColumnAfter,
+							remove: deleteColumn
+						}[event.currentTarget.value];
+						if (command) runDocumentTableCommand(editor!, command);
+						event.currentTarget.value = '';
+					}}
+					><option value="">{t('documents.tables.columns')}</option><option value="before"
+						>{t('documents.tables.columnBefore')}</option
+					><option value="after">{t('documents.tables.columnAfter')}</option><option value="remove"
+						>{t('documents.tables.columnRemove')}</option
+					></select
+				>
+				<select
+					aria-label={t('documents.tables.align')}
+					onchange={(event) => {
+						const value = event.currentTarget.value;
+						if (value === 'left' || value === 'center' || value === 'right')
+							runDocumentTableCommand(editor!, alignDocumentTableColumn(value));
+						event.currentTarget.value = '';
+					}}
+					><option value="">{t('documents.tables.align')}</option><option value="left"
+						>{t('documents.tables.left')}</option
+					><option value="center">{t('documents.tables.center')}</option><option value="right"
+						>{t('documents.tables.right')}</option
+					></select
+				>
+				<button type="button" onclick={() => runDocumentTableCommand(editor!, deleteTable)}
+					>{t('documents.tables.remove')}</button
 				>
 			</div>
 		{/if}
@@ -2163,6 +2251,21 @@
 	}
 	.save-status.error {
 		color: var(--color-red-700);
+	}
+	.table-actions {
+		display: flex;
+		flex-wrap: wrap;
+		flex: none;
+		gap: 0.4rem;
+		padding: 0.4rem 0.7rem;
+		border-bottom: 1px solid var(--line);
+		font-size: 0.75rem;
+	}
+	.table-actions select,
+	.table-actions button {
+		padding: 0.3rem;
+		border: 1px solid var(--line);
+		border-radius: 0.3rem;
 	}
 	.editor-toolbar {
 		display: flex;

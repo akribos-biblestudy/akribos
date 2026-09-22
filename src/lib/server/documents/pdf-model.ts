@@ -168,8 +168,9 @@ export function pdfInlineRuns(
 					append((token as Tokens.Image).text, style, href);
 					break;
 				case 'html': {
-					// These attribute-free tags are the editor's portable underline/highlight syntax.
+					// Only attribute-free editor formatting and hard breaks are portable.
 					const tag = (token as Tokens.Tag).text.toLowerCase();
+					if (/^<br\s*\/?\s*>$/u.test(tag)) append('\n', style, href);
 					if (tag === '<u>') underlineDepth += 1;
 					if (tag === '</u>') underlineDepth = Math.max(0, underlineDepth - 1);
 					if (tag === '<mark>') highlightDepth += 1;

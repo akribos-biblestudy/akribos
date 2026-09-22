@@ -780,7 +780,7 @@ Undo-Historie, Auswahl und Autosave bleiben erhalten. Escape verlässt den Modus
 muss innerhalb dieses Dialogs liegen, damit sie in der modalen Browser-Ebene bedienbar bleibt.
 
 Ein `/` an einer Wortgrenze öffnet im visuellen Editor ein an der Schreibmarke platziertes Befehlsmenü
-für Absatz, H1–H3, Listen, Zitat, Codeblock, Trennlinie und Bibeltext; `/bibel <Stelle>` plus Enter bleibt
+für Absatz, H1–H3, Listen, Zitat, Codeblock, Trennlinie, Tabelle und Bibeltext; `/bibel <Stelle>` plus Enter bleibt
 der direkte Tastaturweg. `@` öffnet dort die Suche nach ausschließlich eigenen, nicht gelöschten Notizen
 und Ausarbeitungen anhand von Titel, Fließtext oder Schlagwort. Eine Auswahl fügt einen gewöhnlichen
 Markdown-Link der Form `[Titel](/notes/<uuid>)` ein. `document_links` ist nur der daraus abgeleitete,
@@ -825,6 +825,33 @@ kontextuelle Dialog aus dem Versmenü und übergibt neu angelegte oder ausgewäh
 Sidecar, wenn JavaScript aktiv ist; der normale Form-Redirect bleibt der funktionsfähige No-JS-Pfad.
 Notizen erzeugen keine Icons oder Unterstreichungen im Bibeltext; der Sidecar und das Versmenü
 bleiben die Zugänge zu persönlichen Dokumenten.
+
+Dokumenttabellen verwenden echte rechteckige GFM-Tabellen: genau eine Kopfzeile, beliebig viele
+Datenzeilen, leere Zellen und Ausrichtung je Spalte. Die sichere HTML-Ableitung erlaubt `table`,
+`thead`, `tbody`, `tr`, `th` und `td`; nur `align="left|center|right"` bleibt als Tabellenattribut.
+Attributfreies `<br>` trägt harte Zellumbrüche portabel durch Markdown, Editor, Word und PDF.
+Code mit einem echten Backslash direkt vor einem Pipe-Zeichen verwendet in GFM-Zellen eine eng
+begrenzte attributfreie `<code>`-Kodierung mit numerischen Zeichenreferenzen. Der gemeinsame Lexer
+wandelt ausschließlich dieses Textpaar in einen normalen Code-Token um; HTML, Word und PDF rendern
+denselben literalen Inhalt. Dies ist keine allgemeine Raw-HTML-Freigabe.
+Zusammengeführte Zellen, Pixelbreiten und verschachtelte Tabellen gehören nicht zum Markdownvertrag.
+Der Editor verwendet vorhandene ProseMirror-Tabellenfunktionen: eine Inline-Absatzstruktur je Zelle,
+Enter als harter Umbruch, Tab/Shift+Tab als Zellnavigation. Zeilenaktionen erhalten genau die erste
+Zeile als Kopfzeile; Ausrichtung betrifft die ganze Spalte. Neue Tabellen, Zellenänderungen und
+Strukturaktionen gehören zur normalen Undo-/Autosave-Transaktion. Breite Tabellen scrollen innerhalb
+ihres eigenen Bereichs, ohne die gesamte mobile Seite zu verbreitern. Nur die Leseansicht ergänzt
+`tabindex="0"` für Tastatur-Scrolling; dieser Laufzeitwert wird niemals gespeichert. Tabellengrenzen trennen auch
+Suchtext und Bibelstellen-Erkennung, damit keine Referenz aus benachbarten Zellen zusammengesetzt wird.
+
+`backfillDocumentTables` läuft beim Start nach dem Fußnoten-Backfill, nach Restore und über
+`pnpm db:backfill-tables`. Wiederherstellbar sind ausschließlich echte Tabellen-Tokens im jeweils
+eigenen aktuellen Markdown von Entwurf oder Veröffentlichung; die Quelle bleibt bytegenau erhalten.
+Unter Dokument-/Snapshot-Zeilensperren werden erneut gelesen und HTML, Suchtext, Links und Bibelindex
+atomar erneuert. Nur geänderte Ableitungen erhöhen die Dokumentrevision; historische Zeitstempel
+bleiben erhalten. Nur ein zuvor aktueller öffentlicher Snapshot folgt dieser technischen Revision.
+Ein veralteter Snapshot bleibt veraltet und erhält niemals Inhalte des privaten Entwurfs. Flache
+„ · “-Prosa und HTML ohne passende Markdownquelle werden nicht erraten oder zurückverwandelt.
+Betriebslogs enthalten ausschließlich Zähler und gegebenenfalls SQLSTATE, keine privaten Texte.
 
 Dokumentfußnoten verwenden portable `[^id]`-Verweise und Definitionen am Markdown-Ende. Der reine
 Parser in `src/lib/notes/document-footnotes.ts` liefert einen pro Aufruf isolierten Marked-Lexer;

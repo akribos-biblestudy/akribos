@@ -24,7 +24,8 @@
 		linkDocumentFootnotes(
 			linkBibleReferences(rewriteBibleReferenceLinks(html, { tooltipId }), { tooltipId }),
 			footnoteInstance
-		)
+			// Rendering-only focusability lets keyboard readers scroll wide tables, even without links.
+		).replaceAll('<table>', '<table tabindex="0">')
 	);
 
 	function followFootnote(event: MouseEvent): void {

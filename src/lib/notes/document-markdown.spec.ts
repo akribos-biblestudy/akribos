@@ -190,7 +190,7 @@ const answer = 42 < 100;
 		expect(result.html).toContain('<code>inline</code>');
 		expect(result.html).toContain('<pre><code>const answer = 42 &lt; 100;</code></pre>');
 		expect(result.html).not.toContain('class=');
-		expect(result.html).not.toContain('<table');
+		expect(result.html).toContain('<table><thead><tr><th>A</th><th>B</th>');
 		expect(result.plainText).toContain('Ein starker, betonter und alter Gedanke');
 	});
 

@@ -2,6 +2,7 @@ import { isSermonWorkflowState } from './documents.ts';
 import { marked, Renderer, type Tokens } from 'marked';
 import TurndownService from 'turndown';
 import { parseDocument, stringify as stringifyYaml } from 'yaml';
+import { encodeDocumentInlineCode } from './document-inline-code.ts';
 import {
 	createDocumentFootnoteMarked,
 	isDocumentFootnoteId,
@@ -118,7 +119,7 @@ export class DocumentMarkdownError extends Error {
  */
 export const MARKDOWN_ROUND_TRIP_LIMITATIONS = [
 	'Raw HTML, media, embeds and attributes are removed.',
-	'Table layout, ordered-list start numbers and link titles are not retained.',
+	'Merged table cells, ordered-list start numbers and link titles are not retained.',
 	'Task checkboxes become ordinary readable text.',
 	'Line endings and trailing whitespace are normalised.'
 ] as const;
@@ -145,7 +146,13 @@ const ALLOWED_HTML_TAGS = new Set([
 	'hr',
 	'br',
 	'a',
-	'sup'
+	'sup',
+	'table',
+	'thead',
+	'tbody',
+	'tr',
+	'th',
+	'td'
 ]);
 const VOID_HTML_TAGS = new Set(['hr', 'br']);
 const DANGEROUS_RAW_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed', 'svg', 'math']);
@@ -202,6 +209,19 @@ export function documentMarkdownToHtml(markdown: string): { html: string; plainT
 	return { html, plainText: documentHtmlToPlainText(html) };
 }
 
+/** Original GFM structure is the only authority for restoring historical table renderings. */
+export function hasDocumentMarkdownTables(markdown: string): boolean {
+	const parsed = parseDocumentFootnotes(markdown);
+	const instance = createDocumentFootnoteMarked(parsed.footnotes, new SafeDocumentRenderer());
+	let found = false;
+	for (const source of [parsed.bodyMarkdown, ...parsed.footnotes.map((note) => note.markdown)]) {
+		instance.walkTokens(instance.lexer(source), (token) => {
+			if (token.type === 'table') found = true;
+		});
+	}
+	return found;
+}
+
 function renderDocumentFootnotes(
 	markdown: string,
 	renderer: SafeDocumentRenderer,
@@ -237,7 +257,10 @@ function documentBodyBibleReferences(html: string): BibleReferenceMatch[] {
 		}
 		const tag = /^<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)\b/.exec(part);
 		const name = tag?.[2]?.toLowerCase();
-		if (name && /^(?:p|h[1-6]|li|blockquote|ul|ol|hr|br|pre|code)$/.test(name)) {
+		if (
+			name &&
+			/^(?:p|h[1-6]|li|blockquote|ul|ol|hr|br|pre|code|table|thead|tbody|tr|th|td)$/.test(name)
+		) {
 			flush();
 		}
 		if (name === 'pre' || name === 'code') {
@@ -620,17 +643,22 @@ class SafeDocumentRenderer extends Renderer {
 	override html({ text }: Tokens.HTML | Tokens.Tag): string {
 		// Markdown has no underline/highlight syntax. Only these attribute-free inline tags survive.
 		if (/^<\/?(?:u|mark)>$/iu.test(text)) return text.toLowerCase();
+		// GFM cells use an explicit hard break because a physical newline ends their row.
+		if (/^<br\s*\/?>$/iu.test(text)) return '<br>';
 		this.warnings?.add('raw-html', 'Raw HTML was removed from the import.');
 		return escapeHtml(rawHtmlToText(text));
 	}
 
 	override table(token: Tokens.Table): string {
-		const rows = [token.header, ...token.rows];
-		return rows
-			.map(
-				(row) => `<p>${row.map((cell) => this.parser.parseInline(cell.tokens)).join(' · ')}</p>\n`
-			)
-			.join('');
+		const row = (cells: Tokens.TableCell[], tag: 'th' | 'td') =>
+			`<tr>${cells
+				.map((cell, index) => {
+					const align = token.align[index];
+					const attribute = align && /^(left|center|right)$/.test(align) ? ` align="${align}"` : '';
+					return `<${tag}${attribute}>${this.parser.parseInline(cell.tokens)}</${tag}>`;
+				})
+				.join('')}</tr>`;
+		return `<table><thead>${row(token.header, 'th')}</thead><tbody>${token.rows.map((cells) => row(cells, 'td')).join('')}</tbody></table>\n`;
 	}
 }
 
@@ -647,12 +675,13 @@ class WarningCollector {
 }
 
 function createTurndownService(
-	footnotes: Array<Pick<DocumentFootnote, 'id' | 'markdown'>>
+	footnotes: Array<Pick<DocumentFootnote, 'id' | 'markdown'>>,
+	tableCell = false
 ): TurndownService {
-	const service = new TurndownService({
+	const service: TurndownService = new TurndownService({
 		headingStyle: 'atx',
 		hr: '---',
-		br: '\\\n',
+		br: tableCell ? '<br>' : '\\\n',
 		bulletListMarker: '-',
 		codeBlockStyle: 'fenced',
 		fence: '```',
@@ -663,6 +692,7 @@ function createTurndownService(
 		// Empty newly inserted definitions still belong to the document during its first autosave.
 		blankReplacement: (_content, node) => {
 			const element = node as HTMLElement;
+			if (element.nodeName === 'TABLE') return tableMarkdown(element, footnotes);
 			const collect = (definition: HTMLElement) => {
 				const id = definition.getAttribute('data-footnote-id');
 				if (definition.nodeName === 'LI' && isDocumentFootnoteId(id))
@@ -683,6 +713,16 @@ function createTurndownService(
 			return 'isBlock' in node && node.isBlock ? '\n\n' : '';
 		}
 	});
+	service.addRule('table', {
+		filter: 'table',
+		replacement: (_content, node) => tableMarkdown(node as HTMLElement, footnotes)
+	});
+	if (tableCell) service.addRule('cellHardBreak', { filter: 'br', replacement: () => '<br>' });
+	if (tableCell)
+		service.addRule('literalCodeWithPipe', {
+			filter: (node) => node.nodeName === 'CODE' && /\\+\|/.test(node.textContent ?? ''),
+			replacement: (_content, node) => encodeDocumentInlineCode(node.textContent ?? '')
+		});
 	service.addRule('strikethrough', {
 		filter: ['s', 'del'],
 		replacement: (content) => (content.trim() ? `~~${content}~~` : '')
@@ -720,6 +760,45 @@ function createTurndownService(
 		replacement: (content) => (content ? `\n\n${content}\n\n` : '')
 	});
 	return service;
+}
+
+/** Cells stay explicit, including empty trailing cells; literal pipes never become separators. */
+function tableMarkdown(
+	table: HTMLElement,
+	footnotes: Array<Pick<DocumentFootnote, 'id' | 'markdown'>>
+): string {
+	const service = createTurndownService(footnotes, true);
+	const rows = Array.from(table.querySelectorAll('tr'))
+		.filter((row) => row.closest('table') === table)
+		.map((row) => Array.from(row.children).filter((cell) => /^(TH|TD)$/.test(cell.nodeName)));
+	const columns = rows.reduce((maximum, row) => Math.max(maximum, row.length), 0);
+	if (!columns) return '';
+	const row = (cells: Element[]) =>
+		`| ${Array.from({ length: columns }, (_, index) => {
+			const cell = cells[index];
+			if (!cell) return '';
+			return service
+				.turndown(cell.innerHTML)
+				.trim()
+				.replace(/\\\r?\n(?:[\t ]*\r?\n)+(?=\S)/g, '\\\n')
+				.replace(/\\\n/g, '<br>')
+				.replace(/\n/g, '<br>')
+				.replace(
+					/(\\*)\|/g,
+					(_match, slashes: string) => `${slashes}${slashes.length % 2 ? '' : '\\'}|`
+				);
+		}).join(' | ')} |`;
+	const alignment = Array.from({ length: columns }, (_, index) => {
+		const align = rows[0]?.[index]?.getAttribute('align');
+		return align === 'center'
+			? ':---:'
+			: align === 'right'
+				? '---:'
+				: align === 'left'
+					? ':---'
+					: '---';
+	});
+	return `\n\n${row(rows[0]!)}\n| ${alignment.join(' | ')} |\n${rows.slice(1).map(row).join('\n')}\n\n`;
 }
 
 function normaliseObsidianBody(body: string, warnings: WarningCollector): string {
@@ -1082,6 +1161,12 @@ function sanitiseDocumentHtml(input: string): string {
 			if (!ALLOWED_HTML_TAGS.has(tag)) return '';
 			if (slash) return VOID_HTML_TAGS.has(tag) ? '' : `</${tag}>`;
 			if (VOID_HTML_TAGS.has(tag)) return `<${tag}>`;
+			if (tag === 'th' || tag === 'td') {
+				const align = readHtmlAttribute(String(rest), 'align');
+				return align && /^(left|center|right)$/.test(align)
+					? `<${tag} align="${align}">`
+					: `<${tag}>`;
+			}
 			const footnoteAttribute =
 				tag === 'sup'
 					? 'data-footnote-ref'
@@ -1114,7 +1199,7 @@ function readHtmlAttribute(attributes: string, name: string): string | null {
 function documentHtmlToPlainText(html: string): string {
 	return decodeHtmlEntities(
 		html
-			.replace(/<\/?(?:h[1-6]|p|li|blockquote|pre|ul|ol)\b[^>]*>/gi, ' ')
+			.replace(/<\/?(?:h[1-6]|p|li|blockquote|pre|ul|ol|table|thead|tbody|tr|th|td)\b[^>]*>/gi, ' ')
 			.replace(/<br\s*\/?\s*>/gi, ' ')
 			.replace(/<[^>]*>/g, '')
 	)

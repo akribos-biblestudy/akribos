@@ -103,6 +103,45 @@
 		letter-spacing: -0.02em;
 	}
 
+	.document-prose table,
+	[data-bible-reference-prose] table {
+		display: block;
+		max-width: 100%;
+		overflow-x: auto;
+		border-collapse: collapse;
+		margin-block: 1em;
+	}
+	.document-prose :where(th, td),
+	[data-bible-reference-prose] :where(th, td) {
+		position: relative;
+		min-width: 8rem;
+		padding: 0.45em 0.65em;
+		border: 1px solid var(--line);
+		vertical-align: top;
+		text-align: left;
+		overflow-wrap: anywhere;
+	}
+	.document-prose th,
+	[data-bible-reference-prose] th {
+		background: var(--surface-raised);
+		font-weight: 600;
+	}
+	.document-prose :where(th, td) > p,
+	[data-bible-reference-prose] :where(th, td) > p {
+		margin: 0;
+	}
+	.document-prose [align='center'],
+	[data-bible-reference-prose] [align='center'] {
+		text-align: center;
+	}
+	.document-prose [align='right'],
+	[data-bible-reference-prose] [align='right'] {
+		text-align: right;
+	}
+	.document-prose .selectedCell {
+		background: color-mix(in srgb, var(--color-accent-400) 20%, var(--surface));
+	}
+
 	[data-bible-reference-prose] a {
 		color: var(--color-accent-700);
 		text-decoration: underline;
