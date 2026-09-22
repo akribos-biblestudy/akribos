@@ -26,7 +26,8 @@ export const PATCH: RequestHandler = async (event) => {
 				revision: parsed.data.revision,
 				name: parsed.data.name
 			},
-			event.locals.sessionId!
+			event.locals.sessionId!,
+			event.locals.readerBrowserTabId
 		)
 	);
 };
@@ -47,7 +48,8 @@ export const DELETE: RequestHandler = async (event) => {
 				id: event.params.id,
 				revision: parsed.data.revision
 			},
-			event.locals.sessionId!
+			event.locals.sessionId!,
+			event.locals.readerBrowserTabId
 		)
 	);
 };

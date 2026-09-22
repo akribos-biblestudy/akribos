@@ -458,6 +458,25 @@ export const sessions = pgTable(
 	]
 );
 
+/** A browser tab has an independent working copy; the session only remembers the next tab's choice. */
+export const readerBrowserTabs = pgTable(
+	'reader_browser_tabs',
+	{
+		id: uuid('id').notNull(),
+		sessionId: text('session_id')
+			.notNull()
+			.references(() => sessions.id, { onDelete: 'cascade' }),
+		workspaceId: uuid('workspace_id').references(() => savedReaderWorkspaces.id, {
+			onDelete: 'set null'
+		}),
+		selectionVersion: integer('selection_version').notNull().default(1),
+		contentVersion: integer('content_version').notNull().default(1),
+		snapshot: jsonb('snapshot').$type<SavedWorkspaceSnapshot>().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => [primaryKey({ columns: [table.sessionId, table.id] })]
+);
+
 export const passwordResets = pgTable(
 	'password_resets',
 	{

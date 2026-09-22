@@ -1,10 +1,17 @@
 <script lang="ts">
 	import './layout.css';
+	import {
+		browserReaderResume,
+		clearBrowserReaderResume,
+		restoreBrowserReaderResume,
+		markReaderBrowserReady,
+		rememberBrowserReaderView
+	} from '$lib/reader/browser-tab';
 	import readingFont from '$lib/assets/fonts/akribos-text-regular.woff2?url';
 	import Analytics from '$lib/components/Analytics.svelte';
 	import { page } from '$app/state';
 	import { onMount, setContext } from 'svelte';
-	import { goto, replaceState } from '$app/navigation';
+	import { goto, replaceState, beforeNavigate, invalidateAll } from '$app/navigation';
 	import { createWorkspacePersistence, readWorkspacePersistence } from '$lib/reader/persistence';
 	import { INITIAL_READER_COLUMNS_COOKIE, initialReaderColumns } from '$lib/reader/initial-layout';
 	import {
@@ -21,7 +28,47 @@
 	} from '$lib/reader/document-navigation';
 
 	let { children, data } = $props();
+	let browserWorkspaceError = $state('');
+	let resumeOwner: string | null | undefined;
+	$effect(() => {
+		const owner = data.user?.id ?? null;
+		if (resumeOwner !== undefined && owner !== resumeOwner) clearBrowserReaderResume();
+		resumeOwner = owner;
+	});
 	onMount(() => {
+		const resume = browserReaderResume(data.user?.id ?? null);
+		if (!data.user) clearBrowserReaderResume();
+		const isReaderPage = page.route.id === '/[...reference]';
+		const isWorkspaceOpening = page.route.id === '/workspaces/[id]';
+		if (!data.user || isWorkspaceOpening) markReaderBrowserReady();
+		if (data.user && !isWorkspaceOpening) {
+			const rootArrival = isReaderPage && page.url.searchParams.get('readerResume') === '1';
+			void (async () => {
+				const restored =
+					resume && rootArrival ? await restoreBrowserReaderResume(data.user?.id ?? null) : null;
+				if (resume && rootArrival && !restored) clearBrowserReaderResume();
+				if (rootArrival) {
+					await goto(restored ?? '/', { replaceState: true, invalidateAll: true, noScroll: true });
+				} else {
+					// Revalidate the tab context without performing another navigation: native POST responses
+					// carry success/error form data which goto() deliberately clears, while invalidation keeps it.
+					await invalidateAll();
+				}
+				markReaderBrowserReady();
+				const current = workspaceCapture.capture?.();
+				if (isReaderPage && current && !page.data.readerWorkspaceDetached)
+					rememberBrowserReaderView(
+						data.user?.id ?? null,
+						`${window.location.pathname}?${current.readerState}`,
+						workspaceCapture.persistence.read()
+					);
+			})().catch(() => {
+				browserWorkspaceError =
+					'Die lokale Leseansicht konnte nicht geladen werden. Bitte versuche es erneut.';
+				delete document.documentElement.dataset.readerBootstrapping;
+			});
+		}
+
 		// Send only a coarse width hint. Saved layouts ignore it, including on another device.
 		const value = String(initialReaderColumns(window.innerWidth));
 		try {
@@ -36,13 +83,26 @@
 			// Without cookies or JavaScript the first Bible remains usable in a single tile.
 		}
 	});
-	setContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT, {
+	const workspaceCapture: ReaderWorkspaceCapture = {
 		capture: null,
 		persistence: createWorkspacePersistence(
 			() => readWorkspacePersistence(page.data, page.state.readerWorkspacePersistence),
 			(token) =>
 				replaceState(window.location.href, { ...page.state, readerWorkspacePersistence: token })
 		)
+	};
+	setContext(READER_WORKSPACE_CONTEXT, workspaceCapture);
+	beforeNavigate((navigation) => {
+		if (navigation.to?.url.pathname !== '/' || navigation.willUnload) return;
+		const resume = browserReaderResume(data.user?.id ?? null);
+		if (!resume) return;
+		navigation.cancel();
+		void (async () => {
+			await workspaceCapture.flush?.();
+			const restored = await restoreBrowserReaderResume(data.user?.id ?? null);
+			if (!restored) clearBrowserReaderResume();
+			await goto(restored ?? '/', { invalidateAll: true });
+		})();
 	});
 	setContext<DocumentReaderNavigation>(DOCUMENT_READER_NAVIGATION, { pending: null });
 	setContext<ReferenceNavigation>(REFERENCE_NAVIGATION, {
@@ -76,11 +136,22 @@
 	{#if data.analytics.enabled}<meta name="referrer" content="same-origin" />{/if}
 </svelte:head>
 
+{#if browserWorkspaceError}
+	<main class="mx-auto max-w-xl p-8" role="alert">
+		<p>{browserWorkspaceError}</p>
+		<button class="mt-4 rounded border px-4 py-2" onclick={() => window.location.reload()}
+			>Erneut laden</button
+		>
+	</main>
+{/if}
+
 {#if standalonePage}
 	{@render children()}
 {:else}
 	<div
 		class="reading-preferences flex min-h-full flex-col"
+		data-reader-authenticated={data.user ? '' : undefined}
+		class:hidden={!!browserWorkspaceError}
 		style="--reader-font-scale: {data.readerFontScale / 100}; --header-height: {reader
 			? '3.25rem'
 			: '4rem'}"
@@ -106,3 +177,9 @@
 />
 
 <Analytics config={data.analytics} />
+
+<style>
+	:global(html[data-reader-bootstrapping]) .reading-preferences[data-reader-authenticated] {
+		visibility: hidden;
+	}
+</style>

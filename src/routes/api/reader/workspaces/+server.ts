@@ -18,6 +18,7 @@ export const GET: RequestHandler = async (event) => {
 	const userId = requireWorkspaceUser(event);
 	const context = await resolveReaderWorkspaceContext(event, true);
 	return json({
+		ownerId: userId,
 		workspaces: await listSavedReaderWorkspaces(
 			getDb(),
 			userId,
@@ -43,7 +44,8 @@ export const POST: RequestHandler = async (event) => {
 				name: parsed.data.name,
 				snapshot
 			},
-			event.locals.sessionId!
+			event.locals.sessionId!,
+			event.locals.readerBrowserTabId
 		),
 		201
 	);

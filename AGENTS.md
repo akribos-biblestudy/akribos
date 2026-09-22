@@ -173,12 +173,12 @@ Die Root-Route `/` leitet jeden Besucher unmittelbar zum Bibeltext weiter. Angem
 öffnen den auf diesem Gerät ausgewählten Snapshot mit dessen fokussierter Lesestelle, alle anderen
 starten bei Johannes 1. Das Akribos-Logo verlinkt auf `/`. Ein altes, ungebundenes `location`-Cookie
 darf keine inzwischen anders gewählte oder auf einem anderen Gerät geänderte Ansicht überschreiben.
-Echte Nutzerscrolls merken die genaue Versposition zusätzlich synchron vor dem URL-Debounce in einem
-an Auswahl-ID, Auswahlversion, Inhaltsversion und Quell-Tab gebundenen Resume-Hinweis. Beim erneuten
-Root-Aufruf darf dieser Hinweis nur bei exakt passendem Versionsstand unter denselben Schreibsperren
-übernommen werden; der Quell-Tab bestimmt dabei den Fokus. So bleibt auch eine echte vollständige
-Seitennavigation vor dem Debounce erhalten, ohne daraus einen unabhängigen URL-Zweig zu machen.
-Verspätete Scroll-Antworten dürfen nach einer Navigation weder URL noch neue Auswahl verändern.
+Echte Nutzerscrolls speichern die Lesestelle automatisch und halten zusätzlich vor dem URL-Debounce
+einen kontogebundenen Resume-Hinweis in `sessionStorage`. Dieser enthält die tab-lokalen Auswahl- und
+Inhaltsversionen. Nach vollständiger Navigation darf nur eine passende lokale Ansicht ihre Referenzen
+über die versionierte View-API wiederherstellen; fremde/detached URLs schreiben keinen Resume-Hinweis.
+Ein Browser-weites `reader-resume`-Cookie wird nicht mehr verwendet. Der Header-Logo-Link und ein
+vollständiger Root-Aufruf führen damit zur Ansicht dieses Browser-Tabs zurück.
 Die Marketing-Landingpage bleibt unter `/about` erreichbar. Sessionabhängige Root-Antworten sind
 `private, no-store`.
 
@@ -203,7 +203,8 @@ Die vorläufige Reader-Antwort ist `private, no-store`. Gespeicherte Konto-/Cook
 alte `columns`-/`reader_columns`-Auswahlen und geteilte URL-Ansichten haben immer Vorrang;
 Fenstergrößenänderungen ordnen einen bestehenden Arbeitsbereich nie automatisch neu an.
 
-Bei Konten ist der ausgewählte benannte Snapshot in `saved_reader_workspaces` maßgeblich. Das
+Bei Konten enthält `saved_reader_workspaces` den gemeinsam gespeicherten benannten Stand; die laufende
+Ansicht stammt aus der Browser-Tab-Arbeitskopie in `reader_browser_tabs`. Das
 Workspace-JSON in `users.reader_workspace` bleibt eine Legacy-/Kompatibilitätsprojektion; es darf
 keine andere Geräteauswahl bestimmen. Gäste speichern ihren Workspace weiterhin kompakt und
 Base64url-kodiert im Cookie `reader-workspace`. `reader_columns` und das alte `columns`-Cookie bleiben
@@ -213,21 +214,44 @@ weiterer Tab in der vierten Kachel.
 
 Benannte Arbeitsbereiche enthalten kanonischen Reader-URL-Zustand inklusive Suchen/Notizfiltern und
 Trennergrößen. Diese Inhalte und Namen gehören zum Konto und stehen auf allen Geräten zur Verfügung.
-Die aktive Auswahl gehört dagegen zur jeweiligen Browseranmeldung:
-`sessions.active_reader_workspace_id` und `sessions.reader_workspace_version`. Ein benutzergebundener
-HttpOnly-Cookie dient nach erneuter Anmeldung nur als geprüfter Auswahlhinweis; er erteilt keine
-Berechtigung. Die bisherige globale Aktivmarkierung dient nur der Übernahme bestehender Konten.
-Bei der ersten Nutzung wird der bisherige Konto-/Gerätestand unter „Standard“ übernommen, niemals eine
-fremde URL-Ansicht. Ein pro Request als Promise geteilter Resolver hält Layout, Header, Reader und
-Root-Navigation auf derselben Auswahl. Das Menü berechnet `isActive` aus der anfragenden Session.
+Die aktive Auswahl und vollständige Arbeitskopie gehören dagegen zum Browser-Tab in
+`reader_browser_tabs`, einschließlich eigener Auswahl- und Inhaltsversionen. Ein zufälliger Schlüssel
+liegt in `sessionStorage` und wird ausschließlich als `x-reader-browser-tab` an gleichursprüngliche
+Fetch-Anfragen gesendet. Der Server bindet ihn immer an die gültige Anmeldesession; er ist keine
+Berechtigung und erscheint nie in geteilten URLs. Web Locks trennen duplizierte Tabs mit kopiertem
+`sessionStorage`; ohne Web Locks erhält jedes Dokument einen neuen Schlüssel und übernimmt einmalig
+die vorherige Arbeitskopie derselben Session. Ein wirklich neuer Tab übernimmt hingegen die zuletzt
+ausgewählte benannte Ansicht aus `sessions.active_reader_workspace_id`. Bereits offene Tabs bleiben
+unverändert. Ohne JavaScript bleibt die bisherige Session-Auswahl als Rückfall erhalten.
+Der kontogebundene HttpOnly-Cookie ist nur ein geprüfter Hinweis nach erneuter Anmeldung. Ein
+Request-Resolver hält Layout, Header, Reader und Root auf derselben tab-lokalen Auswahl; das Menü
+berechnet `isActive` daraus. Fremde URL-Ansichten initialisieren weiterhin keinen benannten Stand.
+
+Automatische Scroll-, Such- und Filteränderungen speichern die lokale Arbeitskopie und veröffentlichen
+nur dort veränderte Felder im benannten Stand, sofern die Ressourcenanordnung noch übereinstimmt.
+Andere aktuelle Suchen, Stellen und Trennergrößen bleiben erhalten; ein Wortstudien-Kontext wird als
+Einheit veröffentlicht. Hat ein anderer Tab die Anordnung verändert, überschreibt bloßes Weiterlesen
+sie nicht. Eine explizite Strukturänderung veröffentlicht eine vollständige konsistente Anordnung.
+Änderungen desselben Feldes folgen der zuletzt gespeicherten expliziten Änderung. Andere offene Tabs
+behalten ihre Arbeitskopie, ohne Konfliktmeldung durch diese fremden Änderungen. Erst der Klick auf
+den aktiven Menüeintrag lädt den benannten Stand erneut. Er verwirft ausstehende Workspace-Timer,
+wartet laufende Workspace-Anfragen ab und lässt Dokumentänderungen weiterhin regulär speichern.
+
+Nach einer vollständigen Navigation lädt `invalidateAll()` den tab-lokalen Kontext auch für Suche,
+Markierungen und Sammlungen nach und erhält dabei Daten nativer Form Actions. Ein `goto()` an dieser
+Stelle würde Erfolgs-/Fehlermeldungen und Importvorschauen verwerfen. Die Öffnungsroute
+`/workspaces/[id]` ist davon ausgenommen: Ihre Aktivierungs-Action besitzt die Navigation.
+Resume-Wiederherstellung und Aufnahme neuer Reader-Hinweise bleiben auf die Reader-Route beschränkt.
+
 Neue Arbeitsbereiche kopieren die aktuell sichtbare Ansicht und werden anschließend geöffnet.
 
-Reader-Mutationen sperren Nutzer, aktuelle Session und Snapshot in dieser Reihenfolge. Sie prüfen
+Reader-Mutationen sperren Nutzer, aktuelle Session, Browser-Tab und benannten Snapshot in dieser Reihenfolge. Sie prüfen
 Eigentümer, gültige Session und drei vom Client mitgeführte Werte: `workspaceId`, `workspaceVersion`
 und `workspaceContentVersion`. Diese Werte gehören ausschließlich zu Schreibanfragen, niemals zu
 geteilten Reader-URLs. Die Auswahlversion steigt bei jeder Aktivierung, auch beim Wechsel A–B–A.
-Die unabhängige `saved_reader_workspaces.content_version` schützt den vollständigen Snapshot
-(einschließlich Suchen, Notizfiltern und Trennergrößen) vor konkurrierenden Änderungen. Unveränderte
+Die unabhängige `reader_browser_tabs.content_version` schützt die vollständige lokale Arbeitskopie
+(einschließlich Suchen, Notizfiltern und Trennergrößen) vor konkurrierenden Änderungen desselben Tabs.
+Die Inhaltsversion des benannten Stands ist davon getrennt. Unveränderte
 Snapshots erhöhen sie nicht; die Verwaltungsrevision für Umbenennen/Löschen bleibt davon getrennt.
 Ressourcenbereinigung verwendet den ursprünglichen Versionsstand für die Schreibprüfung.
 Eine native Erstaktion ohne JavaScript darf den provisorischen Standard ohne Clientversionen nur
@@ -251,7 +275,7 @@ einen vorhandenen Ersatz und erhöht die Auswahlversion; alte Anfragen bleiben d
 Namen sind pro Konto eindeutig; höchstens 100 Einträge sind erlaubt.
 
 `/workspaces/[id]` ist ein schreibfreier Öffnungs-GET. Erst nach dieser Navigation (und damit nach dem
-Flush ausstehender Dokumentänderungen) aktiviert eine Form Action den Eintrag für die aktuelle Session.
+Flush ausstehender Dokumentänderungen) aktiviert eine Form Action den Eintrag für den aktuellen Browser-Tab und merkt ihn für neue Tabs.
 Vorladen verändert weder Auswahl noch Auswahlcookie. Speichern und Öffnen prüfen Ressourcen erneut
 gegen die für das Konto verfügbaren, fertigen Werke; weggefallene Tabs und Kontexte werden beim Öffnen
 bereinigt und bei der nächsten Änderung fortgeschrieben.

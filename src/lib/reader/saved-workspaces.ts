@@ -29,7 +29,7 @@ export type SavedWorkspaceSummary = {
 export const READER_WORKSPACE_CONTEXT = Symbol('reader-workspace-capture');
 export type ReaderWorkspaceCapture = {
 	capture: (() => SavedWorkspaceSnapshot) | null;
-	flush?: (options?: { discardConflict?: boolean }) => Promise<void>;
+	flush?: (options?: { discardConflict?: boolean; reload?: boolean }) => Promise<void>;
 	persistence: WorkspacePersistence;
 	reportError?: (message: string) => void;
 };

@@ -1,11 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import { restoreSavedWorkspace } from '$lib/reader/saved-workspaces';
-import { parseReference } from '$lib/bible/reference';
-import { activeReaderTab } from '$lib/reader/workspace';
 import {
 	readActiveReaderWorkspaceHint,
-	readBoundReaderResume,
 	readWorkspaceVersion,
 	readerWorkspaceBibleColumns,
 	resolveReaderWorkspaceContext,
@@ -45,20 +42,9 @@ function context() {
 		}
 	} as ReaderWorkspaceContext;
 }
-function hint() {
-	const tile = restored.workspace.tiles[1]!;
-	return {
-		workspaceId: id,
-		workspaceVersion: 2,
-		workspaceContentVersion: 5,
-		sourceTileId: tile.id,
-		sourceTabId: tile.activeTabId,
-		reference: 'Mt16,18'
-	};
-}
 beforeEach(() => vi.clearAllMocks());
 
-describe('Reader request context and resume boundaries', () => {
+describe('Reader request context and selection boundaries', () => {
 	it('accepts only positive safe integer versions', () => {
 		expect([1, '2', Number.MAX_SAFE_INTEGER].map(readWorkspaceVersion)).toEqual([
 			1,
@@ -92,47 +78,6 @@ describe('Reader request context and resume boundaries', () => {
 				readActiveReaderWorkspaceHint(cookies({ 'reader-active-workspace': value }), owner)
 			).toBeNull();
 	});
-	it('resumes the actual active source tab and preserves the other group, searches and notes', () => {
-		const resume = readBoundReaderResume(
-			cookies({ 'reader-resume': JSON.stringify(hint()) }),
-			context()
-		)!;
-		expect(resume.workspace.focusedTileId).toBe(restored.workspace.tiles[1]!.id);
-		expect(activeReaderTab(resume.workspace.tiles[1]!)!.reference).toEqual(
-			parseReference('Mt16,18')
-		);
-		expect(activeReaderTab(resume.workspace.tiles[0]!)!.reference).toEqual(
-			parseReference('Joh3,16')
-		);
-		expect(resume.snapshot.readerState).toContain('search=1.1:Liebe');
-		expect(resume.snapshot.readerState).toContain('notesQuery=Gedanke');
-	});
-	it('ignores stale or unbound hints and nonexistent or inactive source tabs', () => {
-		for (const update of [
-			{ workspaceId: owner },
-			{ workspaceVersion: 1 },
-			{ workspaceContentVersion: 4 },
-			{ workspaceVersion: '2' },
-			{ sourceTileId: 'missing' },
-			{ sourceTabId: 'missing' },
-			{ reference: 'kein Vers' },
-			{ reference: 'Joh999,1' }
-		])
-			expect(
-				readBoundReaderResume(
-					cookies({ 'reader-resume': JSON.stringify({ ...hint(), ...update }) }),
-					context()
-				)
-			).toBeNull();
-		for (const raw of ['{', 'null', '[]', 'x'.repeat(2049)])
-			expect(readBoundReaderResume(cookies({ 'reader-resume': raw }), context())).toBeNull();
-		const changed = structuredClone(context());
-		changed.workspace.tiles[1]!.activeTabId = null;
-		expect(
-			readBoundReaderResume(cookies({ 'reader-resume': JSON.stringify(hint()) }), changed)
-		).toBeNull();
-	});
-
 	it('uses the selected snapshot for auxiliary Bible views despite stale cookies and legacy columns', async () => {
 		const bibles = [
 			{ id: 'SEEDDE', kind: 'bible' },

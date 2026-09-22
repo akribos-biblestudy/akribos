@@ -7,7 +7,8 @@ import {
 	type SavedWorkspaceSummary
 } from '../../reader/saved-workspaces';
 import type { Database } from '../db/client';
-import { savedReaderWorkspaces, sessions, users } from '../db/schema';
+import { savedReaderWorkspaces, sessions, users, readerBrowserTabs } from '../db/schema';
+import { publishWorkspaceChanges } from '../../reader/publish-workspace';
 import {
 	decodeReaderUrlState,
 	encodeReaderUrlState,
@@ -34,6 +35,7 @@ export function workspaceSelection(active: ActiveReaderWorkspace | null): Worksp
 }
 export type WorkspaceWriteGuard = {
 	sessionId: string;
+	browserTabId?: string;
 	activeId: string | null;
 	selectionVersion: number | null;
 	contentVersion: number | null;
@@ -88,6 +90,71 @@ export async function getActiveReaderWorkspace(db: Database, userId: string, ses
 	return row ? { ...row.saved, selectionVersion: row.selectionVersion } : null;
 }
 
+/** Resolve only this authenticated browser tab. Other tabs may select and publish independently. */
+export async function getBrowserTabReaderWorkspace(
+	db: Database,
+	userId: string,
+	sessionId: string,
+	browserTabId: string,
+	fallback: ActiveReaderWorkspace,
+	sourceId?: string
+): Promise<ActiveReaderWorkspace | null> {
+	return db.transaction(async (tx) => {
+		if (!(await lockReaderSession(tx, userId, sessionId))) return null;
+		const [tab] = await tx
+			.select()
+			.from(readerBrowserTabs)
+			.where(
+				and(eq(readerBrowserTabs.sessionId, sessionId), eq(readerBrowserTabs.id, browserTabId))
+			)
+			.for('update');
+		const [source] =
+			!tab && sourceId
+				? await tx
+						.select()
+						.from(readerBrowserTabs)
+						.where(
+							and(eq(readerBrowserTabs.sessionId, sessionId), eq(readerBrowserTabs.id, sourceId))
+						)
+				: [];
+		const [saved] = await tx
+			.select()
+			.from(savedReaderWorkspaces)
+			.where(
+				and(
+					eq(savedReaderWorkspaces.userId, userId),
+					eq(savedReaderWorkspaces.id, tab?.workspaceId ?? source?.workspaceId ?? fallback.id)
+				)
+			);
+		if (!saved) return null;
+		if (tab?.workspaceId)
+			return {
+				...saved,
+				snapshot: tab.snapshot,
+				selectionVersion: tab.selectionVersion,
+				contentVersion: tab.contentVersion
+			};
+		const values = {
+			workspaceId: saved.id,
+			snapshot: source?.workspaceId === saved.id ? source.snapshot : saved.snapshot,
+			selectionVersion:
+				source?.workspaceId === saved.id
+					? source.selectionVersion
+					: (tab?.selectionVersion ?? 0) + 1,
+			contentVersion: source?.workspaceId === saved.id ? source.contentVersion : 1,
+			updatedAt: new Date()
+		};
+		await tx
+			.insert(readerBrowserTabs)
+			.values({ id: browserTabId, sessionId, ...values })
+			.onConflictDoUpdate({
+				target: [readerBrowserTabs.sessionId, readerBrowserTabs.id],
+				set: values
+			});
+		return { ...saved, ...values };
+	});
+}
+
 /** Resolve a missing device selection once. A shared incoming Reader URL is never a fallback. */
 export async function ensureDefaultReaderWorkspace(
 	db: Database,
@@ -139,7 +206,8 @@ export async function activateSavedReaderWorkspace(
 	db: Database,
 	userId: string,
 	sessionId: string,
-	id: string
+	id: string,
+	browserTabId?: string
 ): Promise<ActiveReaderWorkspace | null> {
 	return db.transaction(async (tx) => {
 		const locked = await lockReaderSession(tx, userId, sessionId);
@@ -155,6 +223,30 @@ export async function activateSavedReaderWorkspace(
 			.update(sessions)
 			.set({ activeReaderWorkspaceId: id, readerWorkspaceVersion: selectionVersion })
 			.where(eq(sessions.id, sessionId));
+		if (browserTabId) {
+			const [tab] = await tx
+				.select()
+				.from(readerBrowserTabs)
+				.where(
+					and(eq(readerBrowserTabs.sessionId, sessionId), eq(readerBrowserTabs.id, browserTabId))
+				)
+				.for('update');
+			const values = {
+				workspaceId: id,
+				snapshot: saved.snapshot,
+				selectionVersion: (tab?.selectionVersion ?? 0) + 1,
+				contentVersion: 1,
+				updatedAt: new Date()
+			};
+			await tx
+				.insert(readerBrowserTabs)
+				.values({ id: browserTabId, sessionId, ...values })
+				.onConflictDoUpdate({
+					target: [readerBrowserTabs.sessionId, readerBrowserTabs.id],
+					set: values
+				});
+			return { ...saved, ...values };
+		}
 		return { ...saved, selectionVersion };
 	});
 }
@@ -168,19 +260,42 @@ export async function persistReaderWorkspace(
 ): Promise<WorkspaceWriteResult> {
 	return db.transaction(async (tx) => {
 		const locked = await lockReaderSession(tx, userId, options.guard.sessionId);
+		const [browserTab] =
+			locked && options.guard.browserTabId
+				? await tx
+						.select()
+						.from(readerBrowserTabs)
+						.where(
+							and(
+								eq(readerBrowserTabs.sessionId, options.guard.sessionId),
+								eq(readerBrowserTabs.id, options.guard.browserTabId)
+							)
+						)
+						.for('update')
+				: [];
+		const selectedId = options.guard.browserTabId
+			? browserTab?.workspaceId
+			: locked?.session.activeReaderWorkspaceId;
+		let shared: typeof savedReaderWorkspaces.$inferSelect | undefined;
 		let active: ActiveReaderWorkspace | null = null;
-		if (locked?.session.activeReaderWorkspaceId) {
+		if (selectedId) {
 			const [saved] = await tx
 				.select()
 				.from(savedReaderWorkspaces)
 				.where(
-					and(
-						eq(savedReaderWorkspaces.userId, userId),
-						eq(savedReaderWorkspaces.id, locked.session.activeReaderWorkspaceId)
-					)
+					and(eq(savedReaderWorkspaces.userId, userId), eq(savedReaderWorkspaces.id, selectedId))
 				)
 				.for('update');
-			if (saved) active = { ...saved, selectionVersion: locked.session.readerWorkspaceVersion };
+			shared = saved;
+			if (saved)
+				active = browserTab
+					? {
+							...saved,
+							snapshot: browserTab.snapshot,
+							contentVersion: browserTab.contentVersion,
+							selectionVersion: browserTab.selectionVersion
+						}
+					: { ...saved, selectionVersion: locked!.session.readerWorkspaceVersion };
 		}
 		// An explicitly opened foreign branch is always read-only. A stale owned snapshot must still
 		// fail its version check before an inferred snapshot mismatch can be treated as detached.
@@ -252,6 +367,31 @@ export async function persistReaderWorkspace(
 			readerState: readerStateFromUrl(new URL(`http://reader.invalid/?${state}`))!,
 			layoutSizes: workspace.layoutSizes
 		};
+		if (browserTab && shared) {
+			const published = publishWorkspaceChanges(active.snapshot, snapshot, shared.snapshot);
+			if (!isDeepStrictEqual(published, shared.snapshot))
+				await tx
+					.update(savedReaderWorkspaces)
+					.set({
+						snapshot: published,
+						contentVersion: shared.contentVersion + 1,
+						updatedAt: new Date()
+					})
+					.where(eq(savedReaderWorkspaces.id, active.id));
+			if (!isDeepStrictEqual(snapshot, active.snapshot)) {
+				active.contentVersion += 1;
+				await tx
+					.update(readerBrowserTabs)
+					.set({ snapshot, contentVersion: active.contentVersion, updatedAt: new Date() })
+					.where(
+						and(
+							eq(readerBrowserTabs.sessionId, options.guard.sessionId),
+							eq(readerBrowserTabs.id, browserTab.id)
+						)
+					);
+			}
+			return { saved: true, ...workspaceSelection(active) };
+		}
 		if (!isDeepStrictEqual(snapshot, active.snapshot)) {
 			active.contentVersion += 1;
 			await tx
@@ -343,11 +483,23 @@ export async function changeSavedReaderWorkspace(
 	db: Database,
 	userId: string,
 	change: Change,
-	sessionId: string
+	sessionId: string,
+	browserTabId?: string
 ): Promise<SavedWorkspaceMutationResult> {
 	return db.transaction(async (tx) => {
 		const locked = await lockReaderSession(tx, userId, sessionId);
 		if (!locked) return { ok: false, reason: 'notFound' };
+		const [browserTab] = browserTabId
+			? await tx
+					.select()
+					.from(readerBrowserTabs)
+					.where(
+						and(eq(readerBrowserTabs.sessionId, sessionId), eq(readerBrowserTabs.id, browserTabId))
+					)
+			: [];
+		const selectedId = browserTabId
+			? browserTab?.workspaceId
+			: locked.session.activeReaderWorkspaceId;
 		const rows = await tx
 			.select(summary)
 			.from(savedReaderWorkspaces)
@@ -358,8 +510,7 @@ export async function changeSavedReaderWorkspace(
 			if (current.revision !== change.revision) return { ok: false, reason: 'conflict' };
 		}
 		if (change.action === 'delete') {
-			if (current!.id === locked.session.activeReaderWorkspaceId)
-				return { ok: false, reason: 'active' };
+			if (current!.id === selectedId) return { ok: false, reason: 'active' };
 			await tx
 				.delete(savedReaderWorkspaces)
 				.where(
@@ -401,7 +552,7 @@ export async function changeSavedReaderWorkspace(
 			.returning(summary);
 		return {
 			ok: true,
-			workspace: { ...updated!, isActive: updated!.id === locked.session.activeReaderWorkspaceId }
+			workspace: { ...updated!, isActive: updated!.id === selectedId }
 		};
 	});
 }
