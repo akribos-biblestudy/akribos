@@ -1,4 +1,5 @@
 import { bookName, bookShortName } from '$lib/bible/book-names';
+import { bookTitle } from '$lib/bible/book-titles';
 import { nextChapter, previousChapter } from '$lib/bible/reference';
 import type { Database } from './db/client.ts';
 import { loadChapter } from './repositories/chapter.ts';
@@ -59,6 +60,7 @@ export async function loadReaderTabChapter(
 		reference,
 		fullTitle: `${bookName(reference.book)} ${reference.chapter}`,
 		shortBookName: bookShortName(reference.book),
+		bookTitle: bookTitle(reference.book, resource.language),
 		chapter: { ...chapter, headings: [...chapter.headings.entries()] },
 		highlights,
 		markedVerses,

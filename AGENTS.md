@@ -424,6 +424,18 @@ Die globale Sucheingabe ist auf allen Seiten aus der Top Bar entfernt, einschlie
 und globaler Tastatur-Fokussierung. Im Reader bleiben außerdem die globale Kapitelüberschrift und
 Kapitelpfeile entfernt; sein Header enthält nur die dezente Layoutwahl und Ansichts-/Kontofunktionen.
 Die Reader-Kacheln nutzen die gesamte verfügbare Seitenbreite mit lediglich schmalen Außenabständen.
+
+Im Kapitelstream steht vor jedem nicht leeren ersten Kapitel eine eigene Buchüberschrift. Sie gehört
+zum Kapitel, nicht zur Nachladerichtung: Beim Voranstellen des vorherigen Buchs bleibt sie vor Kapitel 1
+des aktuellen Buchs, und das Verkleinern des Kapitelfensters erzeugt keine falschen Buchanfänge.
+`book-titles.ts` liefert Anzeigetitel für Deutsch, Englisch, griechisches NT und hebräisches AT anhand
+der Ressourcensprache; unbekannte Sprachen verwenden neutrale OSIS-Kürzel mit `lang="und"`.
+Reader-SSR und Kapitel-API liefern denselben Titel samt Sprache und Schreibrichtung. Referenzparser,
+URL-Kürzel und der klickbare Kapitelzähler bleiben unabhängig davon.
+Solange die Quellspalte die Buchüberschrift zeigt, erhalten gekoppelte Spalten deren sichtbaren
+Abstand; erst darunter richten sie sich wieder am Versanker aus. Ein echtes Aufwärtsdrehen am oberen
+Scrollrand lädt auch bei `scrollTop = 0` das vorherige Kapitel, da dann kein Scroll-Event entsteht.
+
 Die allgemeine `--content-max-width` darf den Reader auch auf großen Bildschirmen nicht begrenzen;
 bei geöffnetem Notizbereich füllen die Kacheln die verbleibende Breite neben diesem Bereich.
 Das Konto-Menü ist mindestens 16 rem breit (am Viewport begrenzt), damit „Notizen & Ausarbeitungen“
