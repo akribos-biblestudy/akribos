@@ -685,7 +685,7 @@ const MATTHEW_PREVIEW_TEXT =
 
 function waitForMatthewChapter(page: import('@playwright/test').Page) {
 	return page.waitForResponse(
-		(response) => new URL(response.url()).pathname === '/api/v1/bibles/SEEDDE/40/3'
+		(response) => new URL(response.url()).pathname === '/api/reader/bibles/SEEDDE/40/3'
 	);
 }
 
@@ -1279,7 +1279,7 @@ test('a published note exposes inline references to keyboard users with public p
 	await expect(reference).toBeFocused();
 	const response = await responsePromise;
 	expect(response.status()).toBe(200);
-	expect(response.headers()['cache-control']).toContain('public');
+	expect(response.headers()['cache-control']).toBe('private, no-store');
 	const payload = await response.json();
 	expect(payload).toMatchObject({ bible: 'SEEDDE', book: 40, chapter: 3 });
 	expect(payload.verses).toEqual(expect.arrayContaining([expect.objectContaining({ verse: 12 })]));
@@ -2482,7 +2482,7 @@ test('the account default Bible controls preview and inserted quotations inside 
 	await page.getByRole('tab', { name: 'Visuell', exact: true }).click();
 	const reference = page.getByTestId('document-editor').locator('a.verse-ref').first();
 	const loaded = page.waitForResponse(
-		(response) => new URL(response.url()).pathname === '/api/v1/bibles/SEEDPLAIN/43/3'
+		(response) => new URL(response.url()).pathname === '/api/reader/bibles/SEEDPLAIN/43/3'
 	);
 	await reference.hover();
 	expect((await loaded).ok()).toBe(true);
@@ -2509,7 +2509,7 @@ test('the account default Bible controls preview and inserted quotations inside 
 	);
 	await sidecar.getByRole('tab', { name: 'Visuell', exact: true }).click();
 	const sidecarLoad = page.waitForResponse(
-		(response) => new URL(response.url()).pathname === '/api/v1/bibles/SEEDPLAIN/43/3'
+		(response) => new URL(response.url()).pathname === '/api/reader/bibles/SEEDPLAIN/43/3'
 	);
 	await sidecar.locator('a.verse-ref').first().hover();
 	expect((await sidecarLoad).ok()).toBe(true);

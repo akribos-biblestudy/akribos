@@ -1,0 +1,1 @@
+ALTER TABLE "resources" ADD COLUMN "api_enabled" boolean DEFAULT true NOT NULL;

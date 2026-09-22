@@ -306,6 +306,7 @@
 					class="grid gap-4 p-4 sm:grid-cols-2 sm:p-5"
 				>
 					<input type="hidden" name="id" value={selectedResource.id} />
+					<input type="hidden" name="apiAccessSettings" value="1" />
 					<div>
 						<label class="mb-1 block text-xs font-medium" for="cover-{selectedResource.id}"
 							>Cover-Titel</label
@@ -368,6 +369,25 @@
 						>
 						<p class="mt-1 text-xs text-stone-500">
 							Wird unter der entsprechenden Reader-Spalte angezeigt.
+						</p>
+					</div>
+
+					<div class="sm:col-span-2">
+						<label class="flex items-center gap-2 text-sm">
+							<input
+								type="checkbox"
+								name="apiEnabled"
+								checked={selectedResource.apiEnabled}
+								class="size-4"
+								aria-describedby="api-access-description"
+							/>
+							Über die öffentliche API abrufbar
+						</label>
+						<p id="api-access-description" class="mt-1 text-xs text-stone-500">
+							Erlaubt Abrufe über die öffentliche Programmierschnittstelle (/api/v1), auch mit
+							persönlichen API-Schlüsseln. Deaktiviere dies, wenn die Lizenz keine API-Nutzung
+							erlaubt. Die Lesbarkeit im Reader und persönliche Ressourcenfreigaben werden separat
+							festgelegt.
 						</p>
 					</div>
 

@@ -143,6 +143,30 @@ bleiben bei Widerruf erhalten, liefern aber keinen gesperrten Text. Teilmarkieru
 Wortgrenzen ausschließlich anhand einer aktuell verfügbaren, fertigen Bibel. API-Schlüssel beider
 Scopes sind bei gesperrtem Konto ungültig; nach Entsperren gelten nicht widerrufene Schlüssel wieder.
 
+## Ressourcenfreigabe für die öffentliche API
+
+`resources.api_enabled` ist die vom Administrator gesetzte Lizenzfreigabe für `/api/v1`; neue und
+bestehende Ressourcen starten kompatibel mit `true`. Reimporte verändern diese Einstellung nicht.
+Das Ressourcenformular speichert sie unabhängig von `is_public` und den privaten Kontofreigaben.
+`readableResourceCondition(userId, 'api')` kombiniert fertigen Import, öffentliche Sichtbarkeit oder
+einen gültigen persönlichen Grant und die API-Freigabe. Versionierte Ressourcenabfragen verwenden
+immer diesen Kanal, auch bei Same-Origin-Anfragen oder einem persönlichen API-Schlüssel. Der
+Reader-Kanal bleibt unverändert; Origin-/Fetch-Header sind keine Ausnahme von der API-Lizenzgrenze.
+
+Dies umfasst Ressourcenlisten, Kapitel, Suche, Strong-Statistiken/Vorkommen, die automatische Lexikon-
+und Originaltextauswahl sowie Bibeltext in Sammlungen und Markierungsübersichten. Teilmarkierungen
+prüfen ihre eigene Quellübersetzung im Text-Join; gesperrter Text bleibt `null`, die gespeicherte Stelle
+bleibt erhalten. Sammlungen mit ausdrücklich nicht verfügbarem `bible` behalten ihre Referenzen ohne
+Ersatzübersetzung. Eigene Dokumente und Kommentare bleiben eigene Inhalte und werden nicht umgeschrieben.
+API-Auswahlen verwenden keinen globalen Reader-Ressourcencache; ressourcenhaltige Antworten sind
+`private, no-store`, damit ein geänderter Zugriff bei der nächsten Anfrage erneut geprüft wird.
+
+Versvorschauen und Zitate verwenden intern `/api/reader/bibles/[bible]/[book]/[chapter]` und die
+minimalen Reader-Ressourcenlabels unter `/api/reader/resources`. Der gemeinsame Kapitel-Handler
+bekommt den Zugriffskanal explizit vom jeweiligen Endpunkt; interne Endpunkte übernehmen niemals
+private Grants eines API-Schlüssels. Die API-Einstellung ist keine Zusage gegen das Kopieren von
+rechtmäßig im Reader ausgelieferten Texten.
+
 ## Anmeldung und Registrierung
 
 `/login` fragt zuerst nur die normalisierte E-Mail-Adresse ab; `/register` führt in denselben Ablauf.
@@ -723,7 +747,7 @@ Erkennung; Parser-Version 3 lässt vorhandene Arbeitskopien beim Startup erneut 
 Unterstreichen und Hervorheben verwenden ausschließlich attributfreie `<u>`-/`<mark>`-Tags als
 Markdown-Erweiterung; alle sonstigen Roh-HTML-Regeln bleiben erhalten. Explizite Verse und kapitelübergreifende Bereiche zeigen über
 `verseHoverPopover` bei Maus-Hover und Tastaturfokus echten Bibeltext; dafür werden die bestehenden
-öffentlichen Resource-/Kapitel-APIs und ihr kapitelweiser Client-Cache wiederverwendet. Im eigenständigen
+internen Reader-Resource-/Kapitel-Endpunkte und ihr kapitelweiser Client-Cache wiederverwendet. Im eigenständigen
 Dokumenteditor und auf öffentlichen Notizseiten stammt der Text ohne persönliche Standardübersetzung
 aus der ersten sortierten öffentlichen, fertigen Bibel. Ohne persönliche Standardübersetzung verwendet der Reader-Sidecar die erste gerade sichtbare Bibelressource, damit
 die Vorschau mit dem unmittelbar daneben gelesenen Text übereinstimmt. Escape schließt die zugängliche
@@ -1049,7 +1073,10 @@ hat, wird Eigentümer und Mitgliedern gegenseitig mit Namen (Fallback: E-Mail-Ad
 kennen sich bereits über die Einladung. Der anonyme, öffentliche `/l/{slug}`-Link bekommt dagegen nie
 eine rohe E-Mail-Adresse zu sehen: `loadVerseListItems()`/`loadCommentsForList()` ersetzen einen
 fehlenden Anzeigenamen dort durch einen generischen Platzhalter (`redactEmail`-Option bzw.
-`currentUserId === null`). Ausstehende Einladungen (mit E-Mail-Adresse) werden im `load()` von
+`currentUserId === null`). Auch `/api/v1/lists/[id]` setzt `redactEmail`, solange kein persönlicher
+Besitzer-/Mitgliedszugriff vorliegt: Gäste, fremde Konten und öffentliche API-Schlüssel (auch des
+Besitzers) erhalten niemals die E-Mail als Ersatz für einen Anzeigenamen. Ausstehende Einladungen
+(mit E-Mail-Adresse) werden im `load()` von
 `/lists/[id]` nur an den Eigentümer ausgeliefert, nicht an andere Mitglieder — SvelteKit schickt die
 komplette `load()`-Rückgabe zum Browser, unabhängig davon, was die Vorlage tatsächlich rendert.
 

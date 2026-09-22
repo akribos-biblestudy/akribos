@@ -38,6 +38,8 @@ export type ReadableResource = Pick<
 	selectionSubtitle: string | null;
 };
 
+export type ResourceAccessChannel = 'reader' | 'api';
+
 const CACHE_TTL_MS = 30_000;
 
 let cache: { at: number; resources: ReadableResource[] } | undefined;
@@ -47,9 +49,13 @@ export function invalidateResourceCache(): void {
 }
 
 /** Apply to a query joined to resources. Grants are checked in the database on every private read. */
-export function readableResourceCondition(userId?: string | null) {
+export function readableResourceCondition(
+	userId?: string | null,
+	channel: ResourceAccessChannel = 'reader'
+) {
 	return and(
 		eq(resources.status, 'ready'),
+		channel === 'api' ? eq(resources.apiEnabled, true) : undefined,
 		userId
 			? sql`(${resources.isPublic} = true or exists (
        select 1 from ${resourceUserGrants}
@@ -64,9 +70,11 @@ export function readableResourceCondition(userId?: string | null) {
 /** Public and explicitly granted ready resources, in display order. */
 export async function listResources(
 	db: Database,
-	userId?: string | null
+	userId?: string | null,
+	channel: ResourceAccessChannel = 'reader'
 ): Promise<ReadableResource[]> {
-	if (!userId && cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.resources;
+	if (channel === 'reader' && !userId && cache && Date.now() - cache.at < CACHE_TTL_MS)
+		return cache.resources;
 
 	const rows = await db
 		.select({
@@ -91,19 +99,20 @@ export async function listResources(
 			usageNotesHtml: resources.usageNotesHtml
 		})
 		.from(resources)
-		.where(readableResourceCondition(userId))
+		.where(readableResourceCondition(userId, channel))
 		.orderBy(asc(resources.sortOrder), asc(resources.name));
 
-	if (!userId) cache = { at: Date.now(), resources: rows };
+	if (channel === 'reader' && !userId) cache = { at: Date.now(), resources: rows };
 	return rows;
 }
 
 /** Translations available to this viewer. */
 export async function listBibles(
 	db: Database,
-	userId?: string | null
+	userId?: string | null,
+	channel: ResourceAccessChannel = 'reader'
 ): Promise<ReadableResource[]> {
-	return (await listResources(db, userId)).filter((resource) => resource.kind === 'bible');
+	return (await listResources(db, userId, channel)).filter((resource) => resource.kind === 'bible');
 }
 
 /** Resources this viewer can open as workspace tabs. */

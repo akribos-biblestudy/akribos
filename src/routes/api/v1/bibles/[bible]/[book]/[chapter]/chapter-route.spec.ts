@@ -32,7 +32,7 @@ beforeEach(() => {
 });
 
 describe('public Bible chapter API', () => {
-	it('serves structured text from an explicitly readable Bible with public cache headers', async () => {
+	it('serves structured text from an explicitly readable Bible without a stale public cache', async () => {
 		mocks.listBibles.mockResolvedValue([publicBible]);
 		mocks.loadChapter.mockResolvedValue({
 			book: 40,
@@ -72,14 +72,14 @@ describe('public Bible chapter API', () => {
 			],
 			headings: [[12, 'Die kommende Ernte']]
 		});
-		expect(mocks.listBibles).toHaveBeenCalledWith(mocks.db, null);
+		expect(mocks.listBibles).toHaveBeenCalledWith(mocks.db, null, 'api');
 		expect(mocks.loadChapter).toHaveBeenCalledWith(mocks.db, {
 			resourceIds: ['PUBLIC'],
 			book: 40,
 			chapter: 3
 		});
 		expect(requestEvent.setHeaders).toHaveBeenCalledWith({
-			'cache-control': 'public, max-age=60, s-maxage=3600'
+			'cache-control': 'private, no-store'
 		});
 	});
 
@@ -96,10 +96,10 @@ describe('public Bible chapter API', () => {
 			}
 		});
 		expect(mocks.loadChapter).not.toHaveBeenCalled();
-		expect(requestEvent.setHeaders).not.toHaveBeenCalled();
+		expect(requestEvent.setHeaders).toHaveBeenCalledWith({ 'cache-control': 'private, no-store' });
 	});
 
-	it('does not advertise an empty or malformed chapter as cacheable content', async () => {
+	it('prevents cached errors for empty or malformed chapters', async () => {
 		mocks.listBibles.mockResolvedValue([publicBible]);
 		mocks.loadChapter.mockResolvedValue({
 			book: 40,
@@ -111,12 +111,14 @@ describe('public Bible chapter API', () => {
 		const missingEvent = event({ bible: 'PUBLIC' });
 		const missing = await GET(missingEvent as never);
 		expect(missing.status).toBe(404);
-		expect(missingEvent.setHeaders).not.toHaveBeenCalled();
+		expect(missingEvent.setHeaders).toHaveBeenCalledWith({ 'cache-control': 'private, no-store' });
 
 		const malformedEvent = event({ bible: 'PUBLIC', chapter: '3.5' });
 		const malformed = await GET(malformedEvent as never);
 		expect(malformed.status).toBe(404);
 		expect(mocks.loadChapter).toHaveBeenCalledTimes(1);
-		expect(malformedEvent.setHeaders).not.toHaveBeenCalled();
+		expect(malformedEvent.setHeaders).toHaveBeenCalledWith({
+			'cache-control': 'private, no-store'
+		});
 	});
 });

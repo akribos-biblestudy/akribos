@@ -1,4 +1,4 @@
-import { readableResourceCondition } from './resources.ts';
+import { readableResourceCondition, type ResourceAccessChannel } from './resources.ts';
 /**
  * Everything a Strong word study shows for a Strong's number.
  *
@@ -94,7 +94,8 @@ export async function loadStrongAssignmentStatus(
 export async function loadStrongEntry(
 	db: Database,
 	strong: StrongId,
-	userId?: string | null
+	userId?: string | null,
+	channel: ResourceAccessChannel = 'reader'
 ): Promise<StrongEntry | undefined> {
 	const [row] = await db
 		.select({
@@ -113,7 +114,7 @@ export async function loadStrongEntry(
 		})
 		.from(lexiconEntries)
 		.innerJoin(resources, eq(resources.id, lexiconEntries.resourceId))
-		.where(and(eq(lexiconEntries.strong, strong), readableResourceCondition(userId)))
+		.where(and(eq(lexiconEntries.strong, strong), readableResourceCondition(userId, channel)))
 		.orderBy(asc(resources.sortOrder))
 		.limit(1);
 
@@ -378,6 +379,7 @@ export async function loadOriginalWord(
 		chapter: number;
 		verse: number;
 		userId?: string | null;
+		channel?: ResourceAccessChannel;
 	}
 ): Promise<
 	{ word: string; morph: string | null; lemma: string | null; resourceId: string } | undefined
@@ -401,7 +403,7 @@ export async function loadOriginalWord(
 				eq(verses.chapter, options.chapter),
 				eq(verses.verse, options.verse),
 				eq(resources.language, language),
-				readableResourceCondition(options.userId)
+				readableResourceCondition(options.userId, options.channel)
 			)
 		)
 		// Several original-language resources may cover the verse. Prefer an actual morphology code,
@@ -426,7 +428,8 @@ export async function pickStatisticsResource(
 	db: Database,
 	resourceIds: string[],
 	strong: StrongId,
-	userId?: string | null
+	userId?: string | null,
+	channel: ResourceAccessChannel = 'reader'
 ): Promise<string | undefined> {
 	if (resourceIds.length === 0) return undefined;
 
@@ -440,7 +443,7 @@ export async function pickStatisticsResource(
 				inArray(resources.id, resourceIds),
 				eq(resources.hasStrongs, true),
 				eq(resources.kind, 'bible'),
-				readableResourceCondition(userId)
+				readableResourceCondition(userId, channel)
 			)
 		)
 		.orderBy(asc(resources.sortOrder));
@@ -459,7 +462,7 @@ export async function pickStatisticsResource(
 			and(
 				eq(resources.hasStrongs, true),
 				eq(resources.kind, 'bible'),
-				readableResourceCondition(userId),
+				readableResourceCondition(userId, channel),
 				inArray(resources.canon, [canon, 'both'])
 			)
 		)

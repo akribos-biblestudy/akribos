@@ -72,6 +72,7 @@ export const actions = {
 				// abbreviation is still used as the fallback.
 				selectionSubtitle: String(form.get('selectionSubtitle') ?? '').trim(),
 				isPublic: form.get('isPublic') === 'on',
+				...(form.has('apiAccessSettings') ? { apiEnabled: form.get('apiEnabled') === 'on' } : {}),
 				licenseHtml: String(form.get('licenseHtml') ?? '').trim() || null,
 				updatedAt: new Date()
 			})

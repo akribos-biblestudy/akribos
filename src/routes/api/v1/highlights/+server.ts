@@ -8,7 +8,8 @@ import { listHighlightStyles } from '$lib/server/repositories/highlight-styles';
 import { listHighlightedVerses } from '$lib/server/repositories/verse-highlights';
 
 /** The caller's own highlighted verses, filtered by one palette style. */
-export async function GET({ url, locals }) {
+export async function GET({ url, locals, setHeaders }) {
+	setHeaders({ 'cache-control': 'private, no-store' });
 	const identity = resolveApiIdentity(locals);
 	if (identity.scope !== 'personal' || !identity.userId) {
 		return apiError(
@@ -33,7 +34,7 @@ export async function GET({ url, locals }) {
 		);
 	}
 
-	const bibles = await listBibles(db, resourceViewerId(locals));
+	const bibles = await listBibles(db, resourceViewerId(locals), 'api');
 	const requestedResource = url.searchParams.get('resource')?.trim();
 	const resource = requestedResource
 		? bibles.find((bible) => bible.id === requestedResource)
@@ -42,7 +43,13 @@ export async function GET({ url, locals }) {
 		return apiError(404, 'unknown_bible', `No bible with id "${requestedResource}".`);
 	}
 
-	const result = await listHighlightedVerses(db, identity.userId, styleId, resource?.id ?? null);
+	const result = await listHighlightedVerses(
+		db,
+		identity.userId,
+		styleId,
+		resource?.id ?? null,
+		'api'
+	);
 	if (!result) return apiError(404, 'unknown_highlight_style', 'No such highlight style.');
 
 	return json({ ...result, resource: resource?.id ?? null });

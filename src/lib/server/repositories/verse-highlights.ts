@@ -12,7 +12,7 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { countVerseWords, type VerseSegment } from '../../bible/segments.ts';
 import { highlightStyles, resources, verseHighlights, verses } from '../db/schema.ts';
-import { readableResourceCondition } from './resources.ts';
+import { readableResourceCondition, type ResourceAccessChannel } from './resources.ts';
 
 export type ChapterHighlight = {
 	verse: number;
@@ -69,7 +69,8 @@ export async function listHighlightedVerses(
 	db: Database,
 	userId: string,
 	styleId: string,
-	defaultResourceId: string | null
+	defaultResourceId: string | null,
+	channel: ResourceAccessChannel = 'reader'
 ): Promise<{
 	style: { id: string; color: string; name: string | null };
 	verses: HighlightedVerse[];
@@ -100,7 +101,7 @@ export async function listHighlightedVerses(
 			and(
 				eq(resources.id, sql`coalesce(${verseHighlights.resourceId}, ${defaultResourceId})`),
 				eq(resources.kind, 'bible'),
-				readableResourceCondition(userId)
+				readableResourceCondition(userId, channel)
 			)
 		)
 		.leftJoin(

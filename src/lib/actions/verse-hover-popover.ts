@@ -33,7 +33,7 @@ function loadChapterVerses(
 	const cached = chapterCache.get(key);
 	if (cached) return cached;
 
-	const pending = fetch(`/api/v1/bibles/${encodeURIComponent(bibleId)}/${book}/${chapter}`)
+	const pending = fetch(`/api/reader/bibles/${encodeURIComponent(bibleId)}/${book}/${chapter}`)
 		.then((response) => (response.ok ? response.json() : Promise.reject(new Error('not found'))))
 		.then((data: { verses: ChapterVerseRow[] }) => data.verses);
 
@@ -48,7 +48,7 @@ type ResourceLabel = { id: string; tabTitle: string };
 let resourceLabelsPromise: Promise<ResourceLabel[]> | null = null;
 
 function loadResourceLabels(): Promise<ResourceLabel[]> {
-	resourceLabelsPromise ??= fetch('/api/v1/resources')
+	resourceLabelsPromise ??= fetch('/api/reader/resources')
 		.then((response) => (response.ok ? response.json() : Promise.reject(new Error('failed'))))
 		.then((data: { resources: ResourceLabel[] }) => data.resources)
 		.catch((error) => {
