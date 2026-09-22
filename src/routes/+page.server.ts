@@ -1,15 +1,9 @@
 import { redirect } from '@sveltejs/kit';
 import { parseReference, referencePath } from '$lib/bible/reference';
 
-import {
-	readBoundReaderResume,
-	resolveReaderWorkspaceContext
-} from '$lib/server/reader-workspace-context';
+import { resolveReaderWorkspaceContext } from '$lib/server/reader-workspace-context';
 import { activeReaderTab } from '$lib/reader/workspace';
 import { readerUrl } from '$lib/reader/url-state';
-
-import { persistReaderWorkspace } from '$lib/server/repositories/saved-reader-workspaces';
-import { getDb } from '$lib/server/db';
 
 const LOCATION_COOKIE = 'location';
 
@@ -26,20 +20,16 @@ export async function load({ cookies, locals, setHeaders }) {
 	if (locals.user) {
 		const context = await resolveReaderWorkspaceContext({ cookies, locals });
 		if (context.activeSaved && context.snapshot) {
-			const resume = readBoundReaderResume(cookies, context);
-			if (resume && context.guard) {
-				const result = await persistReaderWorkspace(getDb(), locals.user.id, resume.workspace, {
-					guard: context.guard,
-					readerState: resume.snapshot.readerState
-				});
-				// Another device may have changed the content while this request was resolving it.
-				if (!result.saved) redirect(307, '/');
-			}
-			const workspace = resume?.workspace ?? context.workspace;
-			const snapshot = resume?.snapshot ?? context.snapshot;
+			const workspace = context.workspace;
+			const snapshot = context.snapshot;
 			const tile = workspace.tiles.find((entry) => entry.id === workspace.focusedTileId);
 			const reference = tile && activeReaderTab(tile)?.reference;
-			if (reference) redirect(307, readerUrl(referencePath(reference), snapshot.readerState));
+			if (reference)
+				redirect(
+					307,
+					readerUrl(referencePath(reference), snapshot.readerState) +
+						(locals.readerBrowserTabId ? '' : '&readerResume=1')
+				);
 		}
 	}
 	const stored = locals.user ? cookies.get(LOCATION_COOKIE) : null;

@@ -212,36 +212,44 @@ shape; those collaborative threads are not unified documents. See
 
 Named workspaces are stored in `saved_reader_workspaces`, scoped to their owner. Each entry combines
 the canonical Reader URL state (including searches and note filters) with divider sizes. Names and
-snapshots are shared across the account's devices; the active selection belongs to the current browser
-session through `sessions.active_reader_workspace_id`. A user-bound HttpOnly cookie is only a checked
-selection hint after signing in again. The former global active flag and `users.reader_workspace`
-are legacy/bootstrap projections, never the source of another device's active selection. Initial use
-adopts the previous account/device workspace as “Standard”; shared URLs never initialize it. A
-request-local resolver Promise gives layout, header, root and Reader the same selection and snapshot.
+snapshots are shared across the account's devices. Each open browser tab has its own complete working
+copy and selection in `reader_browser_tabs`, scoped to the authenticated session. Its UUID lives in
+`sessionStorage` and travels only in a same-origin `x-reader-browser-tab` request header, never shared
+Reader URLs. Web Locks detect copied storage in duplicated tabs and allocate an independent copy;
+without Web Locks, each document gets a fresh UUID and clones its previous session-scoped copy.
+Session deletion cascades to these rows. `sessions.active_reader_workspace_id` remembers the last
+explicit choice for genuinely new tabs and remains the no-JavaScript fallback. Existing tabs never
+adopt another tab's selection. A user-bound HttpOnly cookie is only a checked hint after signing in.
 
-Writes lock owner, current session and snapshot in that order, rechecking ownership, account/session
-validity and the client's workspace ID, session selection version and snapshot content version. A
-selection version increases on activation, including A–B–A switches. An independent `content_version`
-protects the entire snapshot, including searches, note filters and divider sizes. Actual snapshot
-changes increase it; no-op saves do not. Rename/delete continue to use a separate management revision.
-Permission normalization never substitutes a new expected version for the client's original one.
+Writes lock owner, session, browser tab and named snapshot in that order. Ownership, account/session
+validity and the client's workspace ID, local selection version and local content version are checked.
+A selection version increases on activation, including reloading the current workspace. Local content
+versions cover the complete working copy; another device's write cannot invalidate them. The named
+snapshot has its own version. Rename/delete retain their independent management revision.
 
-Every successful Reader action and `PUT /api/reader/workspaces/[id]/view` returns the current selection
-and content versions. Client writes are serialized and consume the previous acknowledgement before
-sending the next request. Late responses cannot replace a different selection. These internal versions
-and IDs belong to write requests only, not shareable URLs. Shallow URL changes additionally update
-`page.state.readerState`. Independent URL branches remain detached and do not overwrite a named
-snapshot. Conflicts are reported explicitly; opening a workspace may discard a known rejected workspace
-save, while pending document writes and transport failures must still be handled successfully.
+Scroll, search and note-filter saves publish the changed fields into the current named snapshot when
+its resource arrangement still matches. Unrelated remote fields remain intact; lexicon lookup and
+source context publish atomically. If the remote arrangement changed, position/search saves retain it
+and only update the local working copy. Explicit structural edits publish a coherent arrangement.
+Same-field edits use the last save. The merged snapshot is canonicalized and length checked before
+publication. No remote publication replaces another open working copy. Clicking the active workspace
+menu entry explicitly reloads the shared named snapshot; it discards pending workspace timers and
+waits for in-flight saves, while document edits still flush through the regular navigation guard.
 
-The root URL resumes the selected device snapshot, rather than letting an unrelated old location
-cookie change it. A synchronous scroll-resume hint additionally binds reference and source tab to the
-workspace ID, selection version and content version. Root can save that hint only under the regular
-locks with all three values still matching, before redirecting to the resulting owned snapshot. This
-preserves a full page exit before the scroll debounce, including focus in an independent tab group.
+Reader actions and `PUT /api/reader/workspaces/[id]/view` return local selection/content versions.
+Client writes remain serialized, and delayed responses cannot replace a different local selection.
+Detached shared URLs stay independent and never become a resume hint. Shallow changes also update
+`page.state.readerState`.
+
+The root URL restores this browser tab's view. A synchronous account-bound `sessionStorage` hint
+bridges a full document navigation before the scroll debounce. Its versioned resume request permits
+only positions in the same local arrangement and preserves stored searches, note filters and divider
+sizes. Headerless JavaScript document loads do not write a plain passage into the session's last-used
+workspace before the browser can supply its own tab header. Hydration resolves the local working copy
+before recording another resume hint. No global scroll-resume cookie is consumed.
 
 Opening uses `/workspaces/[id]`: GET only reads the owned entry. After navigation has allowed document
-editors to flush, an explicit form action validates resources, activates the entry for this session and
+editors to flush, an explicit form action validates resources, activates the entry for this browser tab and
 redirects to its restored Reader URL. Prefetch changes neither selection nor its cookie. Removed
 resources are pruned when opening and persisted on a later edit. Deleting the requesting device's active
 entry requires switching first. If another device's active entry is deleted, that device atomically

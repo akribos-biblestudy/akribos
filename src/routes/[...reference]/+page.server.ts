@@ -196,10 +196,22 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 		context.snapshot?.readerState ??
 		encodeReaderUrlState(workspaceAtReference(persistedWorkspace, reference));
 	const readerWorkspaceDetached = !!decodedUrlState && readerState !== ownedReaderState;
-	if (!awaitingInitialViewport && readerStateFromUrl(url) !== readerState) {
+	if (
+		!awaitingInitialViewport &&
+		readerStateFromUrl(url) !== readerState &&
+		!(
+			!decodedUrlState &&
+			locals.user &&
+			!locals.readerBrowserTabId &&
+			cookies.get('reader-browser-enabled') === '1'
+		)
+	) {
 		// A plain passage URL starts a personal branch and may safely become the account/device default.
 		// A valid URL snapshot is never persisted by this GET: it may have come from somebody else.
-		if (!decodedUrlState) {
+		if (
+			!decodedUrlState &&
+			(!locals.user || locals.readerBrowserTabId || cookies.get('reader-browser-enabled') !== '1')
+		) {
 			const result = await commitWorkspace(
 				cookies,
 				locals.user,
@@ -270,6 +282,7 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 	return {
 		...context.selection,
 		readerWorkspaceDetached,
+		readerRootEntry: url.searchParams.get('readerResume') === '1',
 		reference,
 		title: formatReference(reference),
 		fullTitle: `${bookName(reference.book)} ${reference.chapter}`,
@@ -1002,6 +1015,7 @@ async function currentWorkspace(
 		locals.user && locals.sessionId
 			? {
 					sessionId: locals.sessionId,
+					browserTabId: locals.readerBrowserTabId,
 					activeId: url.searchParams.get('workspaceId'),
 					selectionVersion: readWorkspaceVersion(url.searchParams.get('workspaceVersion')),
 					contentVersion: readWorkspaceVersion(url.searchParams.get('workspaceContentVersion')),

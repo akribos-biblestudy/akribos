@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { rememberBrowserReaderView } from '$lib/reader/browser-tab';
 	import { deserialize, enhance } from '$app/forms';
 	import { beforeNavigate, onNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
@@ -69,6 +70,7 @@
 		readerPathFromActionData,
 		readerStateFromActionData,
 		readerStateFromPage,
+		readerStateFromUrl,
 		readerUrl,
 		type ReaderSearchQueries
 	} from '$lib/reader/url-state';
@@ -137,6 +139,24 @@
 			workspaceCapture.reportError = undefined;
 		};
 	});
+	$effect(() => {
+		// During departure an acknowledgement can arrive after the browser already shows /notes. Keep
+		// the synchronous scroll hint until the next Reader view is fully active, and derive its path
+		// from that snapshot rather than from the browser's independently changing route.
+		if (data.readerWorkspaceDetached || readerNavigationInProgress) return;
+		const state = page.state.readerState ?? data.readerState;
+		const workspace = decodeReaderUrlState(new URLSearchParams(state))?.workspace as
+			ReaderWorkspace | undefined;
+		const tile = workspace?.tiles.find((entry) => entry.id === workspace.focusedTileId);
+		const reference = tile && activeReaderTab(tile)?.reference;
+		if (!reference) return;
+		rememberBrowserReaderView(
+			data.user?.id ?? null,
+			readerUrl(referencePath(reference), state),
+			persistence.read()
+		);
+	});
+
 	let workspaceSaveError = $state('');
 	let viewSaveTimer: ReturnType<typeof setTimeout> | undefined;
 	let viewDirty = false;
@@ -145,7 +165,7 @@
 	let referenceWriteState: string | undefined;
 	let referenceWriteDataState: string | undefined;
 	let flushReference: (() => void) | undefined;
-	let readerNavigationInProgress = false;
+	let readerNavigationInProgress = $state(false);
 	let readerNavigationGeneration = 0;
 	let workspaceWriteGeneration = 0;
 	const persistence = workspaceCapture.persistence;
@@ -161,8 +181,8 @@
 		workspaceSaveError = error instanceof Error ? error.message : fallback;
 	}
 
-	function discardWorkspaceConflict(): boolean {
-		if (!persistence.discardConflict()) return false;
+	function discardWorkspaceConflict(force = false): boolean {
+		if (!persistence.discardConflict() && !force) return false;
 		workspaceWriteGeneration += 1;
 		addressBarGeneration += 1;
 		if (viewSaveTimer) clearTimeout(viewSaveTimer);
@@ -188,7 +208,15 @@
 		}, 250);
 	}
 
-	async function flushWorkspace(options: { discardConflict?: boolean } = {}): Promise<void> {
+	async function flushWorkspace(
+		options: { discardConflict?: boolean; reload?: boolean } = {}
+	): Promise<void> {
+		if (options.reload) {
+			const pending = [pendingViewSave, pendingReferenceSave];
+			discardWorkspaceConflict(true);
+			await Promise.allSettled(pending);
+			return;
+		}
 		if (options.discardConflict && discardWorkspaceConflict()) return;
 		try {
 			await flushWorkspaceChanges();
@@ -2042,17 +2070,19 @@
 		readerLocation.reference = reference;
 		// Remember the exact verse synchronously, including leaving the Reader during the URL debounce.
 		document.cookie = `location=${encodeURIComponent(formatReference(reference))}; Path=/; Max-Age=31536000; SameSite=Lax`;
-		const resumeToken = persistence.read();
-		const resumeSource = data.columns[columnIndex];
-		if (resumeToken && resumeSource && !data.readerWorkspaceDetached) {
-			const resume = {
-				...resumeToken,
-				reference: formatReference(reference),
-				sourceTileId: resumeSource.tileId,
-				sourceTabId: resumeSource.activeTab.id
-			};
-			document.cookie = `reader-resume=${encodeURIComponent(JSON.stringify(resume))}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
-		}
+		if (!data.readerWorkspaceDetached)
+			rememberBrowserReaderView(
+				data.user?.id ?? null,
+				readerUrl(
+					referencePath(reference),
+					encodeReaderUrlState(
+						workspaceAtVisibleReferences(columnIndex),
+						currentSearchQueries(),
+						notesFilters
+					)
+				),
+				persistence.read()
+			);
 		const generation = ++addressBarGeneration;
 
 		if (addressBarTimer) clearTimeout(addressBarTimer);
@@ -2145,11 +2175,18 @@
 		};
 		void navigation.complete.then(reset, reset);
 		flushReference?.();
-		for (const stream of columnStreams) {
-			stream.generation += 1;
-			stream.loadingPrevious = false;
-			stream.loadingNext = false;
-		}
+		// Bootstrap revalidates the same URL with this tab's identity. Its initial chapter fetches remain
+		// useful; cancelling them without a new stream signature would leave endless loading unstarted.
+		if (
+			navigation.to?.url.pathname !== window.location.pathname ||
+			readerStateFromUrl(navigation.to?.url ?? new URL(window.location.href)) !==
+				readerStateFromUrl(new URL(window.location.href))
+		)
+			for (const stream of columnStreams) {
+				stream.generation += 1;
+				stream.loadingPrevious = false;
+				stream.loadingNext = false;
+			}
 		cancelScheduledReaderWork();
 	});
 

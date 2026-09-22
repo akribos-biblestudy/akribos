@@ -1,3 +1,4 @@
+import { isUuid } from '$lib/server/documents/application';
 import { redirect, type Handle, type ServerInit } from '@sveltejs/kit';
 import { getDb } from '$lib/server/db';
 import { resolveSession } from '$lib/server/auth/session';
@@ -97,6 +98,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const session = await resolveSession(getDb(), event.cookies);
 	event.locals.user = session?.user ?? null;
 	event.locals.sessionId = session?.sessionId ?? null;
+	const browserTabId = event.request.headers.get('x-reader-browser-tab');
+	if (browserTabId && isUuid(browserTabId)) event.locals.readerBrowserTabId = browserTabId;
+	const sourceTabId = event.request.headers.get('x-reader-browser-source');
+	if (sourceTabId && isUuid(sourceTabId)) event.locals.readerBrowserSourceId = sourceTabId;
 
 	if (event.url.pathname.startsWith('/admin')) {
 		if (!event.locals.user) {

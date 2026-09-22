@@ -309,6 +309,13 @@
       "when": 1790032398121,
       "tag": "0043_outstanding_robbie_robertson",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1790076186941,
+      "tag": "0044_browser_tab_workspaces",
+      "breakpoints": true
     }
   ]
 }

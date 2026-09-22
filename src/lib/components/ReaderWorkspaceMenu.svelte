@@ -123,7 +123,7 @@
 				<a
 					href={`/workspaces/${entry.id}`}
 					role="menuitem"
-					title={entry.name}
+					title={entry.isActive ? 'Gespeicherten Stand neu laden' : entry.name}
 					aria-current={entry.isActive ? 'true' : undefined}
 					onclick={async (event) => {
 						if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
@@ -131,7 +131,7 @@
 						menu?.close();
 						openError = '';
 						try {
-							await capture.flush?.({ discardConflict: true });
+							await capture.flush?.({ discardConflict: true, reload: entry.isActive });
 							await goto(`/workspaces/${entry.id}`, { invalidateAll: true });
 						} catch (caught) {
 							openError =
@@ -159,6 +159,7 @@
 			</div>
 		{/each}
 	{/if}
+	<p class="empty-hint">Aktiven Eintrag anklicken, um den gespeicherten Stand neu zu laden.</p>
 	<hr />
 	{#if reader}
 		<button type="button" role="menuitem" onclick={() => edit(null)}

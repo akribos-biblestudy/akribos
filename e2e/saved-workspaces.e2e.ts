@@ -416,8 +416,8 @@ test('creating a workspace flushes the visible passage before copying it', async
 	}
 });
 
-const singleBibleState = (reference: string) =>
-	`layout=single&tab=1.1:SEEDDE:A:${reference}&active=1.1&focus=1`;
+const singleBibleState = (reference: string, resourceId = 'SEEDDE') =>
+	`layout=single&tab=1.1:${resourceId}:A:${reference}&active=1.1&focus=1`;
 
 type WorkspaceSelection = {
 	activeSavedWorkspaceId: string;
@@ -426,14 +426,24 @@ type WorkspaceSelection = {
 };
 
 async function workspaceSelection(page: Page): Promise<WorkspaceSelection> {
-	const response = await page.request.get('/api/reader/workspaces');
-	expect(response.ok()).toBe(true);
-	return response.json();
+	return page.evaluate(async () => {
+		const response = await fetch('/api/reader/workspaces');
+		if (!response.ok) throw new Error('workspace selection failed');
+		return response.json();
+	});
 }
 
-async function createNamedWorkspace(page: Page, name: string, reference: string) {
+async function createNamedWorkspace(
+	page: Page,
+	name: string,
+	reference: string,
+	resourceId = 'SEEDDE'
+) {
 	const response = await page.request.post('/api/reader/workspaces', {
-		data: { name, snapshot: { readerState: singleBibleState(reference), layoutSizes: {} } }
+		data: {
+			name,
+			snapshot: { readerState: singleBibleState(reference, resourceId), layoutSizes: {} }
+		}
 	});
 	expect(response.status()).toBe(201);
 	return (await response.json()).workspace as { id: string; revision: number };
@@ -518,57 +528,74 @@ test('two devices keep their own active workspace through edits, logo navigation
 	}
 });
 
-test('a stale tab cannot save after the same device switches A to B and back to A', async ({
+test('browser tabs sharing a login retain independent selections and new tabs inherit the last choice', async ({
 	page,
 	context
 }) => {
 	test.setTimeout(60_000);
 	await loginReader(page);
-	const first = await createNamedWorkspace(page, 'Erster', 'Joh1');
+	await createNamedWorkspace(page, 'Erster', 'Joh1');
 	await createNamedWorkspace(page, 'Zweiter', '1Mo1');
 	await openNamedWorkspace(page, 'Erster', '/Joh1');
-	const stale = await workspaceSelection(page);
-	const otherTab = await context.newPage();
+	const first = await workspaceSelection(page);
+	const other = await context.newPage();
+	const newest = await context.newPage();
 	try {
-		await otherTab.goto('/account');
-		await openNamedWorkspace(otherTab, 'Zweiter', '/1Mo1');
-		await openNamedWorkspace(otherTab, 'Erster', '/Joh1');
-		const current = await workspaceSelection(otherTab);
-		expect(current.activeSavedWorkspaceId).toBe(stale.activeSavedWorkspaceId);
-		expect(current.activeSavedWorkspaceVersion).toBeGreaterThan(stale.activeSavedWorkspaceVersion);
-		const rejected = await page.request.put(`/api/reader/workspaces/${first.id}/view`, {
-			data: {
-				snapshot: {
-					readerState: `${singleBibleState('Joh1')}&search=1.1:veraltet`,
-					layoutSizes: {}
-				},
-				workspaceVersion: stale.activeSavedWorkspaceVersion,
-				workspaceContentVersion: stale.activeSavedWorkspaceContentVersion
-			}
-		});
-		expect(rejected.status()).toBe(409);
-		expect(await rejected.json()).toMatchObject({ saved: false, reason: 'conflict' });
-		const failedSave = page.waitForResponse(
-			(response) =>
-				response.url().endsWith(`/api/reader/workspaces/${first.id}/view`) &&
-				response.status() === 409
+		await other.goto('/');
+		await expectActiveName(other, 'Erster');
+		await openNamedWorkspace(other, 'Zweiter', '/1Mo1');
+		await expectActiveName(page, 'Erster');
+		expect((await workspaceSelection(page)).activeSavedWorkspaceVersion).toBe(
+			first.activeSavedWorkspaceVersion
 		);
+		await newest.goto('/');
+		await expectActiveName(newest, 'Zweiter');
+		await page.reload();
+		await expectActiveName(page, 'Erster');
+		await page.goto('/notes');
+		await page.getByRole('link', { name: 'Akribos – Startseite' }).click();
+		await expect(page).toHaveURL((url) => url.pathname === '/Joh1');
+		await expectActiveName(page, 'Erster');
 		const search = page.locator('.reader-tile').first().getByRole('searchbox');
 		await search.fill('Anfang');
 		await search.press('Enter');
-		await failedSave;
-		await expect(page.getByRole('alert')).toContainText(/Arbeitsbereich/);
-		// Explicit opening resolves a rejected workspace save instead of retrying it forever.
-		await openNamedWorkspace(page, 'Zweiter', '/1Mo1');
-		await openNamedWorkspace(page, 'Erster', '/Joh1');
-		await expect(search).toHaveValue('Joh 1');
-		await expect(page).toHaveURL((url) => !url.searchParams.has('search'));
+		await expect(page).toHaveURL((url) => url.searchParams.get('search') === '1.1:Anfang');
+		await expect(page.getByRole('alert')).toHaveCount(0);
+		await expectActiveName(other, 'Zweiter');
 	} finally {
-		await otherTab.close();
+		await other.close();
+		await newest.close();
 	}
 });
 
-test('concurrent searches in one shared workspace report a conflict and preserve the saved search', async ({
+test("a full navigation to search uses this browser tab's Bible after another tab changes workspace", async ({
+	page,
+	context
+}) => {
+	test.setTimeout(60_000);
+	await loginReader(page);
+	await createNamedWorkspace(page, 'Studium A', 'Joh1', 'SEEDDE');
+	await createNamedWorkspace(page, 'Studium B', 'Joh1', 'SEEDPLAIN');
+	await openNamedWorkspace(page, 'Studium A', '/Joh1');
+	const other = await context.newPage();
+	try {
+		await other.goto('/');
+		await openNamedWorkspace(other, 'Studium B', '/Joh1');
+		await expect(other.locator('.flow-column[data-resource-id="SEEDPLAIN"]')).toBeVisible();
+
+		// A full document request cannot carry the tab header. Hydration must resolve the search's
+		// resource selection from this tab, instead of retaining the login session's last choice B.
+		await page.goto('/search?q=Anfang');
+		await expect(page.locator('[data-bible-id="SEEDDE"]').first()).toBeVisible();
+		await expect(page.locator('[data-bible-id="SEEDPLAIN"]')).toHaveCount(0);
+		await expectActiveName(page, 'Studium A');
+		await expectActiveName(other, 'Studium B');
+	} finally {
+		await other.close();
+	}
+});
+
+test('remote saves preserve the local view until the active workspace is explicitly reloaded', async ({
 	page,
 	browser,
 	baseURL
@@ -586,27 +613,30 @@ test('concurrent searches in one shared workspace report a conflict and preserve
 		const saved = other.waitForResponse(
 			(response) =>
 				response.url().endsWith(`/api/reader/workspaces/${shared.id}/view`) &&
-				response.request().method() === 'PUT'
+				response.request().method() === 'PUT' &&
+				!response.request().postDataJSON()?.resume
 		);
 		const otherSearch = other.locator('.reader-tile').first().getByRole('searchbox');
 		await otherSearch.fill('Liebe');
 		await otherSearch.press('Enter');
 		expect((await saved).status()).toBe(200);
-		const rejected = page.waitForResponse(
+		const localSaved = page.waitForResponse(
 			(response) =>
 				response.url().endsWith(`/api/reader/workspaces/${shared.id}/view`) &&
-				response.status() === 409
+				response.status() === 200
 		);
 		const search = page.locator('.reader-tile').first().getByRole('searchbox');
 		await search.fill('Wort');
 		await search.press('Enter');
-		await rejected;
-		await expect(page.getByRole('alert')).toContainText(/Arbeitsbereich/);
-		await openNamedWorkspace(page, 'Andere Ansicht', '/1Mo1');
-		await openNamedWorkspace(page, 'Gemeinsam geöffnet', '/Joh3,16');
-		await expect(search).toHaveValue('Liebe');
+		await localSaved;
+		await expect(page.getByRole('alert')).toHaveCount(0);
+		await expect(search).toHaveValue('Wort');
 		await expect(otherSearch).toHaveValue('Liebe');
-		await expect(page).toHaveURL((url) => url.searchParams.get('search') === '1.1:Liebe');
+		await other.reload();
+		await expect(otherSearch).toHaveValue('Liebe');
+		await openNamedWorkspace(other, 'Gemeinsam geöffnet', '/Joh3,16');
+		await expect(otherSearch).toHaveValue('Wort');
+		await expect(search).toHaveValue('Wort');
 	} finally {
 		await otherContext.close();
 	}
@@ -639,7 +669,8 @@ test('deleting a workspace active on another device gives that device a writable
 		const persisted = other.waitForResponse(
 			(response) =>
 				response.url().endsWith(`/api/reader/workspaces/${after.activeSavedWorkspaceId}/view`) &&
-				response.request().method() === 'PUT'
+				response.request().method() === 'PUT' &&
+				!response.request().postDataJSON()?.resume
 		);
 		const search = other.locator('.reader-tile').first().getByRole('searchbox');
 		await search.fill('Wort');
@@ -786,3 +817,96 @@ for (const outcome of ['success', 'server error'] as const) {
 		}
 	});
 }
+
+test('scrolling publishes the exact verse for a new tab while an already open tab stays put', async ({
+	page,
+	context
+}) => {
+	await loginReader(page);
+	await page.setViewportSize({ width: 900, height: 300 });
+	await createNamedWorkspace(page, 'Lesefortschritt', 'Joh3');
+	await openNamedWorkspace(page, 'Lesefortschritt', '/Joh3');
+	const other = await context.newPage();
+	const fresh = await context.newPage();
+	try {
+		await other.goto('/');
+		await expect(other.locator('.reader-tile').first().getByRole('searchbox')).toHaveValue('Joh 3');
+		const saved = page.waitForResponse(
+			(response) =>
+				new URL(response.url()).searchParams.has('/setTabReference') && response.status() === 200
+		);
+		await page
+			.locator('.flow-column')
+			.first()
+			.evaluate((element) => {
+				const verse = element.querySelector<HTMLElement>('[data-verse-key="43:3:16"]')!;
+				const distance =
+					verse.getBoundingClientRect().bottom - element.getBoundingClientRect().top - 22;
+				element.dispatchEvent(
+					new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: distance / 0.55 })
+				);
+				element.dispatchEvent(new Event('scroll'));
+			});
+		await saved;
+		await expect(page.locator('.reader-tile').first().getByRole('searchbox')).toHaveValue(
+			'Joh 3,17'
+		);
+		await expect(other.locator('.reader-tile').first().getByRole('searchbox')).toHaveValue('Joh 3');
+		await fresh.goto('/');
+		await expect(fresh.locator('.reader-tile').first().getByRole('searchbox')).toHaveValue(
+			'Joh 3,17'
+		);
+		await page.goto('/notes');
+		await page.getByRole('link', { name: 'Akribos – Startseite' }).click();
+		await expect(page.locator('.reader-tile').first().getByRole('searchbox')).toHaveValue(
+			'Joh 3,17'
+		);
+	} finally {
+		await other.close();
+		await fresh.close();
+	}
+});
+
+for (const webLocks of [true, false])
+	test(`a duplicated browser tab clones its view and selects independently with Web Locks ${webLocks}`, async ({
+		page,
+		context
+	}) => {
+		if (!webLocks)
+			await context.addInitScript(() =>
+				Object.defineProperty(navigator, 'locks', { value: undefined })
+			);
+		await loginReader(page);
+		await createNamedWorkspace(page, 'Original', 'Joh1');
+		await createNamedWorkspace(page, 'Kopie', '1Mo1');
+		await openNamedWorkspace(page, 'Original', '/Joh1');
+		const opened = context.waitForEvent('page');
+		await page.evaluate(() => window.open(location.href, '_blank'));
+		const duplicate = await opened;
+		try {
+			await expectActiveName(duplicate, 'Original');
+			await openNamedWorkspace(duplicate, 'Kopie', '/1Mo1');
+			await expectActiveName(page, 'Original');
+			await page.reload();
+			await expectActiveName(page, 'Original');
+			await expectActiveName(duplicate, 'Kopie');
+		} finally {
+			await duplicate.close();
+		}
+	});
+
+test('a shared same-layout passage remains detached after scrolling and a root visit', async ({
+	page
+}) => {
+	await loginReader(page);
+	await createNamedWorkspace(page, 'Eigene Stelle', 'Joh1');
+	await openNamedWorkspace(page, 'Eigene Stelle', '/Joh1');
+	await page.setViewportSize({ width: 900, height: 300 });
+	await page.goto(`/Joh3,16?${singleBibleState('Joh3,16')}`);
+	await expect(page.locator('.reader-tile').first().getByRole('searchbox')).toHaveValue('Joh 3,16');
+	await page.locator('.flow-column').first().hover();
+	await page.mouse.wheel(0, 130);
+	await page.getByRole('link', { name: 'Akribos – Startseite' }).click();
+	await expect(page).toHaveURL((url) => url.pathname === '/Joh1');
+	await expectActiveName(page, 'Eigene Stelle');
+});

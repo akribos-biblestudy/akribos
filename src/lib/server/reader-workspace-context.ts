@@ -1,11 +1,5 @@
 import type { Cookies, RequestEvent } from '@sveltejs/kit';
-import { isReferenceInCanon, parseReference } from '$lib/bible/reference';
-import {
-	decodeReaderUrlState,
-	encodeReaderUrlState,
-	readReaderNotesFilters
-} from '$lib/reader/url-state';
-import { activeReaderTab, setReaderTabReference } from '$lib/reader/workspace';
+import { parseReference } from '$lib/bible/reference';
 import { restoreSavedWorkspace } from '$lib/reader/saved-workspaces';
 import { getDb } from './db';
 import { defaultColumns } from './columns';
@@ -19,6 +13,7 @@ import { listReaderResources, type ReadableResource } from './repositories/resou
 import {
 	ensureDefaultReaderWorkspace,
 	getActiveReaderWorkspace,
+	getBrowserTabReaderWorkspace,
 	workspaceSelection,
 	type WorkspaceWriteGuard
 } from './repositories/saved-reader-workspaces';
@@ -88,6 +83,16 @@ async function loadReaderWorkspaceContext({ cookies, locals }: ContextEvent, ini
 		);
 		if (activeSaved) awaitingInitialViewport = false;
 	}
+	if (activeSaved && locals.user && locals.sessionId && locals.readerBrowserTabId) {
+		activeSaved = await getBrowserTabReaderWorkspace(
+			db,
+			locals.user.id,
+			locals.sessionId,
+			locals.readerBrowserTabId,
+			activeSaved,
+			locals.readerBrowserSourceId
+		);
+	}
 	const restored = activeSaved
 		? restoreSavedWorkspace(
 				activeSaved.snapshot,
@@ -107,6 +112,7 @@ async function loadReaderWorkspaceContext({ cookies, locals }: ContextEvent, ini
 		locals.user && locals.sessionId
 			? {
 					sessionId: locals.sessionId,
+					browserTabId: locals.readerBrowserTabId,
 					activeId: activeSaved?.id ?? null,
 					selectionVersion: activeSaved?.selectionVersion ?? null,
 					contentVersion: activeSaved?.contentVersion ?? null
@@ -128,42 +134,6 @@ export function readWorkspaceVersion(value: unknown): number | null {
 	if (typeof value === 'string' && !/^[1-9]\d*$/.test(value)) return null;
 	const version = Number(value);
 	return Number.isSafeInteger(version) && version > 0 ? version : null;
-}
-
-/** A scroll before the autosave debounce may be resumed only against its exact confirmed snapshot. */
-export function readBoundReaderResume(cookies: Cookies, context: ReaderWorkspaceContext) {
-	const raw = cookies.get('reader-resume');
-	if (!raw || raw.length > 2048 || !context.snapshot || !context.activeSaved) return null;
-	try {
-		const hint: unknown = JSON.parse(raw);
-		if (!hint || typeof hint !== 'object' || Array.isArray(hint)) return null;
-		const value = hint as Record<string, unknown>;
-		if (
-			value.workspaceId !== context.selection.activeSavedWorkspaceId ||
-			value.workspaceVersion !== context.selection.activeSavedWorkspaceVersion ||
-			value.workspaceContentVersion !== context.selection.activeSavedWorkspaceContentVersion ||
-			typeof value.reference !== 'string'
-		)
-			return null;
-		const reference = parseReference(value.reference);
-		if (!reference || !isReferenceInCanon(reference)) return null;
-		const tile = context.workspace.tiles.find((entry) => entry.id === value.sourceTileId);
-		const tab = tile && activeReaderTab(tile);
-		if (!tile || !tab || tile.activeTabId !== value.sourceTabId || tab.id !== value.sourceTabId)
-			return null;
-		const workspace = setReaderTabReference(context.workspace, tile.id, tab.id, reference);
-		const params = new URLSearchParams(context.snapshot.readerState);
-		const searches = decodeReaderUrlState(params)?.searchQueries ?? {};
-		return {
-			workspace,
-			snapshot: {
-				readerState: encodeReaderUrlState(workspace, searches, readReaderNotesFilters(params)),
-				layoutSizes: workspace.layoutSizes
-			}
-		};
-	} catch {
-		return null;
-	}
 }
 
 /** Search, lists and highlights use the same selected device view as the Reader header. */

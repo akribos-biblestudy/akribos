@@ -33,7 +33,8 @@ export const actions: Actions = {
 			db,
 			locals.user.id,
 			locals.sessionId!,
-			params.id
+			params.id,
+			locals.readerBrowserTabId
 		);
 		if (!activated) error(404, 'Arbeitsbereich nicht gefunden.');
 		const resources = await listReaderResources(db, locals.user.id);

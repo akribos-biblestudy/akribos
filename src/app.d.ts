@@ -48,6 +48,8 @@ declare global {
 			> | null;
 			/** Session id, needed to renew or revoke the session. */
 			sessionId: string | null;
+			readerBrowserTabId?: string;
+			readerBrowserSourceId?: string;
 			/** One shared promise for concurrent root/page reader loads in this request. */
 			readerWorkspaceContext?: Promise<
 				import('$lib/server/reader-workspace-context').ReaderWorkspaceContext
