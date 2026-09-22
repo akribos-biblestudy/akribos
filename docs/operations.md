@@ -186,6 +186,27 @@ are never published by this operation. Only a previously current snapshot follow
 increment; an already stale snapshot remains stale. Ambiguous HTML-only sources without matching Markdown
 remain intact and contribute to the warning count. Logs expose counts, never footnote text.
 
+## Restoring existing document tables
+
+The application runs `backfillDocumentTables` after the footnote repair at startup and after backup
+restoration. Repeat it manually with `pnpm db:backfill-tables`; it uses the configured database and
+requires no schema migration or external service.
+
+Only actual GFM table tokens in each stored Markdown source qualify, including nested tables in
+lists, quotations and footnotes. Flat text joined with `·`, code examples and HTML-only remnants
+are never guessed back into tables. HTML-only tables without a matching Markdown table remain
+untouched and contribute to the warning count. Notes, sermons, trash and existing publication
+snapshots are processed in bounded candidate batches.
+
+The operation preserves Markdown byte for byte, including deliberate whitespace. Each document and
+its publication are locked and re-read before changing derived HTML/search text, document links and
+Bible-reference indexes in one transaction. A changed working copy gains one technical revision to
+reject stale editor saves; timestamps, title, owner, visibility and publication metadata remain intact.
+Only an already current publication follows that revision. Every publication's HTML comes exclusively
+from its own stored Markdown, never from the newer private draft; absent publications are not created.
+Repeating the command makes no further changes. Console and application logs expose counts and a safe
+SQLSTATE on failure, never document text or database query parameters.
+
 ## Re-scanning document Bible references
 
 Migration `0038_document_reference_parser_version.sql` marks existing derived indexes with the legacy

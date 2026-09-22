@@ -54,6 +54,26 @@ async function inspectPdf(markdown: string, title = fixture.document.title) {
 }
 
 describe('PDF document model', () => {
+	it('keeps empty table cells and accepts only attribute-free hard-break markup', () => {
+		const model = createPdfModel(
+			'Tabelle',
+			'| A | B | C |\n| :--- | :---: | ---: |\n| Erste<br>Zweite | | `literal<br>` |',
+			[]
+		);
+		expect(model.blocks[0]).toMatchObject({
+			kind: 'table',
+			align: ['left', 'center', 'right'],
+			rows: [
+				[
+					[{ text: 'Erste' }, { text: '\n' }, { text: 'Zweite' }],
+					[],
+					[{ text: 'literal<br>', code: true }]
+				]
+			]
+		});
+		expect(pdfInlineRuns('A<br onclick="evil()">B')).toEqual([{ text: 'A' }, { text: 'B' }]);
+	});
+
 	it('preserves nested emphasis, strike, safe links and Hebrew while keeping code literal', () => {
 		const runs = pdfInlineRuns(
 			'**fett *beides*** ~~weg~~ שָׁלוֹם Joh 3,16 `Mt 5,3` [intern](/notes/example) [unsicher](javascript:alert)',
@@ -135,6 +155,38 @@ describe('PDF document model', () => {
 });
 
 describe('production Typst PDF export', () => {
+	it('renders actual table columns, an empty middle cell and separate hard-break lines', async () => {
+		const pdf = await inspectPdf(
+			'| Linkskopf | Mittekopf | Rechtskopf |\n| :--- | :---: | ---: |\n| ERSTE<br>ZWEITE[^t] | | RAND |\n| **Fettzelle** | Zentrum | Ende |\n\n[^t]: Echte Tabellenfußnote.'
+		);
+		for (const text of [
+			'Linkskopf',
+			'Mittekopf',
+			'Rechtskopf',
+			'ERSTE',
+			'ZWEITE',
+			'RAND',
+			'Fettzelle',
+			'Zentrum',
+			'Ende',
+			'Tabellenfußnote'
+		])
+			expect(pdf.text).toContain(text);
+		const words = [
+			...pdf.bbox.matchAll(/<word xMin="([^"]+)" yMin="([^"]+)"[^>]*>([^<]+)<\/word>/g)
+		];
+		const at = (text: string) => {
+			const match = words.find((word) => word[3] === text || word[3] === `${text}1`)!;
+			expect(match).toBeDefined();
+			return { x: Number(match[1]), y: Number(match[2]) };
+		};
+		expect(at('ZWEITE').y).toBeGreaterThan(at('ERSTE').y);
+		expect(at('ZWEITE').x).toBeCloseTo(at('ERSTE').x, 1);
+		expect(at('RAND').x).toBeGreaterThan(at('Zentrum').x);
+		expect(at('Zentrum').x).toBeGreaterThan(at('Fettzelle').x);
+		expect(pdf.text).not.toContain('<br>');
+	});
+
 	it('embeds genuine font faces, rich content, metadata, safe annotations and portable filenames', async () => {
 		const pdf = await inspectPdf(
 			'# Hoffnung\n\nNormal **fett** *kursiv* ***beides*** ~~gestrichen~~ χάρις שָׁלוֹם.\n\n> Ein hervorgehobenes Zitat.\n\n[Notiz](/notes/example) [Quelle](https://example.test/source) [unsicher](javascript:alert)\n\n- Erster Punkt\n- Zweiter Punkt\n\n| Begriff | Erklärung |\n| --- | --- |\n| Liebe | Annahme |\n\n`x_y *= 2`'

@@ -27,6 +27,7 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "node --env-file-if-exists=.env scripts/migrate.ts",
 		"db:backfill-footnotes": "node --env-file-if-exists=.env scripts/backfill-document-footnotes.ts",
+		"db:backfill-tables": "node --env-file-if-exists=.env scripts/backfill-document-tables.ts",
 		"db:backfill-notes": "node --env-file-if-exists=.env scripts/backfill-verse-comments.ts",
 		"db:reindex-documents": "node --env-file-if-exists=.env scripts/reindex-document-references.ts",
 		"db:studio": "drizzle-kit studio",

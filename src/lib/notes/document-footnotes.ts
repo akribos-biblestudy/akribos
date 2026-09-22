@@ -1,4 +1,5 @@
 import { Marked, type Renderer, type Token, type TokensList } from 'marked';
+import { readDocumentInlineCode } from './document-inline-code.ts';
 
 export type DocumentFootnote = { id: string; number: number; markdown: string };
 export type ParsedDocumentFootnotes = {
@@ -29,6 +30,15 @@ export function createDocumentFootnoteMarked(
 		pedantic: false,
 		async: false,
 		extensions: [
+			{
+				name: 'codespan',
+				level: 'inline',
+				start: (source) => source.indexOf('<code>'),
+				tokenizer(source) {
+					const code = readDocumentInlineCode(source);
+					return code ? { type: 'codespan', ...code } : undefined;
+				}
+			},
 			{
 				name: 'documentFootnoteReference',
 				level: 'inline',

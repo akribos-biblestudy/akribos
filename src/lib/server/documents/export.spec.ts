@@ -1,7 +1,12 @@
+import { execFile } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { unzipSync, strFromU8 } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import type { OwnedDocumentExport } from './export';
-import { createDocxExport } from './export';
+import { createDocxExport, createPdfExport } from './export';
 import { parseDocumentFootnotes } from '$lib/notes/document-footnotes';
 import { previewWordDocument } from './word-import';
 
@@ -22,6 +27,77 @@ const fixture = {
 } as OwnedDocumentExport;
 
 describe('portable rich document exports', () => {
+	it('preserves encoded table code punctuation in actual DOCX and PDF output', async () => {
+		const markdown =
+			'| Code |\n| --- |\n' +
+			'| <code>x&#92;&#124;y</code> |\n' +
+			'| <code>x&#92;&#92;&#124;y</code> |\n' +
+			'| <code>x&#92;&#92;&#92;&#124;y&#96;&#95;&#42;&#91;&#93;</code> |\n';
+		const expected = ['x\\|y', 'x\\\\|y', 'x\\\\\\|y`_*[]'];
+		const data = { ...fixture, document: { ...fixture.document, bodyMarkdown: markdown } };
+		const docx = await createDocxExport(data);
+		const xml = strFromU8(unzipSync(docx.buffer)['word/document.xml']!);
+		const codeRuns = [...xml.matchAll(/<w:r>([\s\S]*?)<\/w:r>/gu)]
+			.filter((match) => match[1]!.includes('w:ascii="Courier New"'))
+			.map((match) => match[1]!.match(/<w:t(?: [^>]*)?>([\s\S]*?)<\/w:t>/u)?.[1]);
+		expect(codeRuns).toEqual(expected);
+		expect(xml).not.toMatch(/&lt;code&gt;|&#92;|&#124;/u);
+
+		const pdf = await createPdfExport(data);
+		const directory = await mkdtemp(join(tmpdir(), 'akribos-table-code-export-'));
+		try {
+			const path = join(directory, 'code.pdf');
+			await writeFile(path, pdf.buffer);
+			const exec = promisify(execFile);
+			const [text, fonts] = await Promise.all([
+				exec('pdftotext', ['-layout', path, '-']),
+				exec('pdffonts', [path])
+			]);
+			for (const value of expected) expect(text.stdout).toContain(value);
+			expect(text.stdout).not.toMatch(/<\/?code>|&#\d+;/u);
+			expect(fonts.stdout).toContain('DejaVuSansMono');
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	it('exports real aligned Word table cells with empty cells, hard breaks, links and native footnotes', async () => {
+		const markdown =
+			'| Links | Mitte | Rechts |\n| :--- | :---: | ---: |\n| **Fett**<br>Zweite[^n] | | [Quelle][url] |\n| A \\| B | *kursiv* | Ende |\n\n[url]: https://example.test/table\n\n[^n]:\n\n    | Notizkopf | Zweiter Kopf |\n    | --- | --- |\n    | Tabellenfußnote | Inhalt |\n';
+		const result = await createDocxExport({
+			...fixture,
+			document: { ...fixture.document, bodyMarkdown: markdown }
+		});
+		const zip = unzipSync(result.buffer);
+		const xml = strFromU8(zip['word/document.xml']!);
+		const tableXml = xml.match(/<w:tbl>[\s\S]*?<\/w:tbl>/u)![0];
+		expect(tableXml.match(/<w:tr>/gu)).toHaveLength(3);
+		expect(tableXml.match(/<w:tc>/gu)).toHaveLength(9);
+		expect(tableXml).toContain('<w:tblHeader');
+		for (const alignment of ['left', 'center', 'right'])
+			expect(tableXml).toContain(`<w:jc w:val="${alignment}"/>`);
+		expect(tableXml).toContain('<w:b/>');
+		expect(tableXml).toContain('<w:i/>');
+		expect(tableXml).toContain('<w:br/>');
+		expect(tableXml).toContain('<w:footnoteReference w:id="1"/>');
+		expect(strFromU8(zip['word/_rels/document.xml.rels']!)).toContain('https://example.test/table');
+		const notes = strFromU8(zip['word/footnotes.xml']!);
+		expect(notes).toMatch(
+			/<w:footnote w:id="1"><w:p>[\s\S]*?<w:footnoteRef\/>[\s\S]*?<\/w:p><w:tbl>/u
+		);
+		expect(notes).toContain('Tabellenfußnote');
+		const imported = await previewWordDocument(result.filename, result.buffer);
+		expect(imported.html.match(/<table>/gu)).toHaveLength(2);
+		expect(imported.html).toContain('<strong>Fett</strong><br>Zweite');
+		expect(imported.html).toContain('<em>kursiv</em>');
+		expect(imported.html).toContain('<td></td>');
+		expect(imported.html).toContain('A | B');
+		expect(imported.html).toContain('href="https://example.test/table"');
+		expect(parseDocumentFootnotes(imported.markdown).footnotes[0]!.markdown).toContain(
+			'Tabellenfußnote'
+		);
+	});
+
 	const footnoteMarkdown =
 		'Text[^zweite], danach[^erste] und erneut[^zweite]. Code `[^erste]` und literal \\[^erste].\n\n' +
 		'[^erste]: Erste Erklärung.\n\n' +

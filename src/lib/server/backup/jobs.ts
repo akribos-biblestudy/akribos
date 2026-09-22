@@ -23,6 +23,7 @@ import { backfillHebrewTranslations } from '../import/backfill-hebrew-translatio
 import { backfillDocumentBodyReferenceIndexes } from '../repositories/document-reference-index.ts';
 import { backfillDocumentFootnotes } from '../documents/footnote-backfill.ts';
 import { backfillResourceRevisions } from '../import/backfill-resource-revisions.ts';
+import { backfillDocumentTables } from '../documents/table-backfill.ts';
 import { backfillTskResourceKind } from '../import/backfill-tsk-kind.ts';
 import { invalidateResourceCache } from '../repositories/resources.ts';
 import { pruneExpiredSessions } from '../auth/session.ts';
@@ -504,6 +505,9 @@ async function executeRestore(
 			const footnotes = await backfillDocumentFootnotes(db);
 			if (footnotes.updatedDocuments || footnotes.updatedPublications || footnotes.warnings)
 				logger.info(footnotes, 'restored document footnotes repaired');
+			const tables = await backfillDocumentTables(db);
+			if (tables.updatedDocuments || tables.updatedPublications || tables.warnings)
+				logger.info(tables, 'restored document tables repaired');
 			await backfillDocumentBodyReferenceIndexes(db);
 			await backfillHebrewTranslations(db);
 			await backfillTskResourceKind(db);

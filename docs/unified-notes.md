@@ -118,8 +118,8 @@ cacheable with `max-age=0, must-revalidate`.
 
 Markdown is the portable representation and sanitised HTML is the rendering/editor representation.
 The supported round-trip subset includes paragraphs, headings H1–H6, emphasis, strong text, strike-through,
-lists, block quotes, inline/fenced code, horizontal rules and safe links. Underline and highlighting
-round-trip as attribute-free `<u>` and `<mark>` tags; other raw HTML remains unsupported.
+lists, block quotes, inline/fenced code, horizontal rules, safe links and rectangular GFM tables. Underline and highlighting
+round-trip as attribute-free `<u>` and `<mark>` tags; `<br>` preserves hard breaks in table cells. Other raw HTML remains unsupported.
 The editor toolbar and selection popup can add, edit and remove links. Link editing is anchored at
 the selection. Ordinary clicks position the caret; opening a destination uses the explicit action in
 the link editor or Bible preview, including on touch devices. Ctrl/Cmd-click no longer opens links.
@@ -129,6 +129,27 @@ A collapsible outline navigates H1–H6 without persisting generated IDs. Zen mo
 the standalone editor and Reader sidecar via its button or Ctrl/Cmd+Shift+F while focused in the editor;
 Escape exits it. The existing editor moves into a modal dialog, preserving undo history and autosave.
 Bible previews join that same dialog so their buttons remain usable in the browser's modal top layer.
+
+Tables preserve their header row, column alignment, empty cells, rich inline formatting, links and
+footnote references. **Tabelle einfügen** or `/tabelle` creates three columns with a header and two
+body rows. The contextual row/column controls add or remove rows and columns and align an entire
+column. Enter inserts a hard break inside a cell; Tab moves to the next cell, adding a final row when
+needed, and Shift+Tab moves back. Markdown stays authoritative across save/reload and exports.
+The first row is always the header. Read-only tables receive a rendering-only `tabindex="0"` so
+keyboard users can scroll wide tables even when they contain no links. Literal code containing a
+backslash before a pipe uses a strict attribute-free `<code>` pair with numeric character references;
+the shared lexer turns it into an ordinary code token for HTML, Word and PDF. Other raw HTML is not
+accepted by this fallback. Merged cells, nested tables and pixel widths are outside this
+portable subset. Wide tables scroll horizontally within the editor/read-only prose on mobile.
+Word export produces actual editable tables; PDF uses its existing structured table renderer.
+
+Historical Markdown imports are restored only when their own stored source still contains a parsed
+GFM table. `backfillDocumentTables` locks/re-reads each draft and publication independently and updates
+only derivatives, preserving Markdown bytes and timestamps. Changed drafts receive a technical
+revision and refreshed links/reference indexes. Previously current publications follow that revision;
+stale publications remain stale. No private draft is copied into a publication, and flattened `·`
+prose is never guessed back into a table. Startup, backup restore and `pnpm db:backfill-tables` share
+the idempotent implementation. Operational logs contain counters, never source contents.
 
 Footnotes use stable portable `[^id]` markers and indented definitions. The editor provides a visible
 **Fußnote** button, Ctrl/Cmd+Alt+F and `/fußnote`; inserting a reference and its editable definition is

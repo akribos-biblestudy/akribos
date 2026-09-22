@@ -8,9 +8,13 @@ import {
 	type IRunStylePropertiesOptions,
 	Packer,
 	Paragraph,
-	TextRun
+	TextRun,
+	Table,
+	TableCell,
+	TableRow,
+	WidthType
 } from 'docx';
-import { Lexer, type Token, type Tokens } from 'marked';
+import { type Token, type Tokens } from 'marked';
 import { formatPassage, passageFromDbEndpoints } from '$lib/bible/passage';
 import { formatGermanCalendarDate } from '$lib/notes/calendar-date';
 import {
@@ -85,16 +89,16 @@ function metadataLines(data: OwnedDocumentExport): string[] {
 	return lines;
 }
 
-type MarkdownExportBlock = {
-	kind: 'text' | 'code' | 'rule';
-	text: string;
-	heading?: number;
-	indent: number;
-	prefix?: string;
-};
+type MarkdownExportBlock = { indent: number; prefix?: string } & (
+	| { kind: 'table'; table: Tokens.Table }
+	| { kind: 'text' | 'code' | 'rule'; text: string; tokens?: Token[]; heading?: number }
+);
 
 /** Parse block structure once so literal code is never interpreted as prose or inline Markdown. */
-function markdownExportBlocks(markdown: string): MarkdownExportBlock[] {
+function markdownExportBlocks(
+	markdown: string,
+	definitions: readonly DocumentFootnote[] = []
+): MarkdownExportBlock[] {
 	const blocks: MarkdownExportBlock[] = [];
 	const visit = (tokens: Token[], indent = 0) => {
 		for (const token of tokens) {
@@ -111,6 +115,7 @@ function markdownExportBlocks(markdown: string): MarkdownExportBlock[] {
 					blocks.push({
 						kind: 'text',
 						text: (token as Tokens.Heading).text,
+						tokens: (token as Tokens.Heading).tokens,
 						heading: (token as Tokens.Heading).depth,
 						indent
 					});
@@ -135,9 +140,7 @@ function markdownExportBlocks(markdown: string): MarkdownExportBlock[] {
 					break;
 				}
 				case 'table': {
-					const table = token as Tokens.Table;
-					for (const row of [table.header, ...table.rows])
-						blocks.push({ kind: 'text', text: row.map((cell) => cell.text).join(' | '), indent });
+					blocks.push({ kind: 'table', table: token as Tokens.Table, indent });
 					break;
 				}
 				case 'paragraph':
@@ -145,13 +148,14 @@ function markdownExportBlocks(markdown: string): MarkdownExportBlock[] {
 					blocks.push({
 						kind: 'text',
 						text: (token as Tokens.Paragraph | Tokens.Text).text,
+						tokens: (token as Tokens.Paragraph | Tokens.Text).tokens,
 						indent
 					});
 					break;
 			}
 		}
 	};
-	visit(Lexer.lex(markdown, { gfm: true }));
+	visit(createDocumentFootnoteLexer(definitions).lex(markdown));
 	return blocks;
 }
 
@@ -163,7 +167,9 @@ type WordFootnoteContext = {
 function wordInlineRuns(
 	markdown: string,
 	baseUrl: string,
-	footnotes?: WordFootnoteContext
+	footnotes?: WordFootnoteContext,
+	initialStyle: IRunStylePropertiesOptions = {},
+	tokens?: Token[]
 ): Array<TextRun | ExternalHyperlink | FootnoteReferenceRun> {
 	const runs: Array<TextRun | ExternalHyperlink | FootnoteReferenceRun> = [];
 	const append = (
@@ -220,21 +226,27 @@ function wordInlineRuns(
 				case 'br':
 					append('', style, href, true);
 					break;
+				case 'html':
+					if (/^<br\s*\/?\s*>$/iu.test((token as Tokens.Tag).text)) append('', style, href, true);
+					break;
 				case 'image':
 					append((token as Tokens.Image).text, style, href);
 					break;
 			}
 		}
 	};
-	visit(createDocumentFootnoteLexer(footnotes?.definitions ?? []).lexInline(markdown));
+	visit(
+		tokens ?? createDocumentFootnoteLexer(footnotes?.definitions ?? []).lexInline(markdown),
+		initialStyle
+	);
 	return runs;
 }
 
-function markdownParagraphs(
+function markdownWordBlocks(
 	markdown: string,
 	baseUrl: string,
 	footnotes?: WordFootnoteContext
-): Paragraph[] {
+): Array<Paragraph | Table> {
 	const headings = [
 		HeadingLevel.HEADING_1,
 		HeadingLevel.HEADING_2,
@@ -243,27 +255,72 @@ function markdownParagraphs(
 		HeadingLevel.HEADING_5,
 		HeadingLevel.HEADING_6
 	];
-	return markdownExportBlocks(markdown).map(
-		(block) =>
-			new Paragraph({
-				children:
-					block.kind === 'code'
-						? block.text
-								.split('\n')
-								.map(
-									(text, index) =>
-										new TextRun({ text, font: 'Courier New', ...(index ? { break: 1 } : {}) })
-								)
-						: block.kind === 'rule'
-							? [new TextRun('────────')]
-							: [
-									...(block.prefix ? [new TextRun(block.prefix)] : []),
-									...wordInlineRuns(block.text, baseUrl, footnotes)
-								],
-				...(block.heading ? { heading: headings[block.heading - 1] } : {}),
-				...(block.indent ? { indent: { left: block.indent * 360 } } : {}),
-				spacing: { after: 120 }
-			})
+	return markdownExportBlocks(markdown, footnotes?.definitions).flatMap(
+		(block): Array<Paragraph | Table> => {
+			if (block.kind === 'table') {
+				const { table } = block;
+				return [
+					...(block.prefix
+						? [new Paragraph({ text: block.prefix.trim(), indent: { left: block.indent * 360 } })]
+						: []),
+					new Table({
+						width: { size: 100, type: WidthType.PERCENTAGE },
+						...(block.indent ? { indent: { size: block.indent * 360, type: WidthType.DXA } } : {}),
+						rows: [table.header, ...table.rows].map(
+							(row, rowIndex) =>
+								new TableRow({
+									tableHeader: rowIndex === 0,
+									children: row.map(
+										(cell, column) =>
+											new TableCell({
+												...(rowIndex === 0 ? { shading: { fill: 'EAF2EA' } } : {}),
+												children: [
+													new Paragraph({
+														children: wordInlineRuns(
+															cell.text,
+															baseUrl,
+															footnotes,
+															{ bold: rowIndex === 0 },
+															cell.tokens
+														),
+														alignment:
+															table.align[column] === 'center'
+																? AlignmentType.CENTER
+																: table.align[column] === 'right'
+																	? AlignmentType.RIGHT
+																	: AlignmentType.LEFT,
+														spacing: { after: 80 }
+													})
+												]
+											})
+									)
+								})
+						)
+					})
+				];
+			}
+			return [
+				new Paragraph({
+					children:
+						block.kind === 'code'
+							? block.text
+									.split('\n')
+									.map(
+										(text, index) =>
+											new TextRun({ text, font: 'Courier New', ...(index ? { break: 1 } : {}) })
+									)
+							: block.kind === 'rule'
+								? [new TextRun('────────')]
+								: [
+										...(block.prefix ? [new TextRun(block.prefix)] : []),
+										...wordInlineRuns(block.text, baseUrl, footnotes, {}, block.tokens)
+									],
+					...(block.heading ? { heading: headings[block.heading - 1] } : {}),
+					...(block.indent ? { indent: { left: block.indent * 360 } } : {}),
+					spacing: { after: 120 }
+				})
+			];
+		}
 	);
 }
 
@@ -289,7 +346,7 @@ export async function createDocxExport(
 				new Paragraph({ children: [new TextRun({ text: line, color: '666666', size: 18 })] })
 		),
 		new Paragraph({ text: '' }),
-		...markdownParagraphs(parsed.bodyMarkdown, baseUrl, footnotes)
+		...markdownWordBlocks(parsed.bodyMarkdown, baseUrl, footnotes)
 	];
 	const orphaned = parsed.footnotes.filter((note) => !footnotes.referenced.has(note.id));
 	if (orphaned.length) {
@@ -300,7 +357,7 @@ export async function createDocxExport(
 		);
 		for (const note of orphaned) {
 			children.push(new Paragraph({ text: `Fußnote ${note.number}` }));
-			children.push(...markdownParagraphs(note.markdown, baseUrl));
+			children.push(...markdownWordBlocks(note.markdown, baseUrl));
 		}
 	}
 	const file = new WordDocument({
@@ -308,9 +365,13 @@ export async function createDocxExport(
 			parsed.footnotes
 				.filter((note) => footnotes.referenced.has(note.id))
 				.map((note) => {
-					const paragraphs = markdownParagraphs(note.markdown, baseUrl);
-					// An empty editable note still needs a paragraph for Word's reference mark.
-					return [note.number, { children: paragraphs.length ? paragraphs : [new Paragraph('')] }];
+					const blocks = markdownWordBlocks(note.markdown, baseUrl);
+					// docx 9 adds the reference run to the first child, which must be a paragraph.
+					if (!(blocks[0] instanceof Paragraph)) blocks.unshift(new Paragraph(''));
+					// OOXML permits block-level tables in footnotes. The library serializes subsequent
+					// blocks unchanged but types this collection too narrowly as Paragraph[]. The native
+					// archive/import regression covers this deliberately localized compatibility boundary.
+					return [note.number, { children: blocks as Paragraph[] }];
 				})
 		),
 		numbering: {
