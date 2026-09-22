@@ -4,7 +4,7 @@ import { encodeReaderUrlState } from './url-state';
 import { normalizeReaderWorkspace } from './workspace';
 
 const readerState =
-	'layout=grid-4&tab=1.1:BIBLE:A:Joh3,16&tab=1.2:OTHER:A:Joh3,16&tab=2.1:LEXICON:A:Joh3,16&tab=3.1:BIBLE:B:Röm8,1&active=1.1&active=2.1&active=3.1&focus=3&lookup=2.1:G26&source=2.1:BIBLE&sourceRef=2.1:Joh3,16&word=2.1:Liebe&search=1.1:Liebe&notesQuery=Glaube&notesFilter=current';
+	'layout=grid-4&tab=1.1:BIBLE:A:Joh3,16&tab=1.2:OTHER:A:Joh3,16&tab=2.1:LEXICON:A:Joh3,16&tab=3.1:BIBLE:B:Röm8,1&active=1.1&active=2.1&active=3.1&focus=3&lookup=2.1:G26&source=2.1:BIBLE&sourceRef=2.1:Joh3,16&word=2.1:Liebe&wordPosition=2.1:0&search=1.1:Liebe&notesQuery=Glaube&notesFilter=current';
 
 describe('saved Reader snapshots', () => {
 	it('restores all tabs, independent groups, the focused passage, searches, lexicon context and sizes', () => {
@@ -17,7 +17,7 @@ describe('saved Reader snapshots', () => {
 		expect(result.workspace.tiles.map((tile) => tile.tabs.length)).toEqual([2, 1, 1, 0]);
 		expect(result.workspace.tiles[1]!.tabs[0]).toMatchObject({
 			lookup: 'G26',
-			studyContext: { sourceResourceId: 'BIBLE', word: 'Liebe' }
+			studyContext: { sourceResourceId: 'BIBLE', word: 'Liebe', wordPosition: 0 }
 		});
 		expect(result.snapshot.layoutSizes['grid-4']).toEqual({
 			columns: [0.65, 0.35],
@@ -25,6 +25,7 @@ describe('saved Reader snapshots', () => {
 		});
 		const params = new URLSearchParams(result.snapshot.readerState);
 		expect(params.get('search')).toBe('1.1:Liebe');
+		expect(params.get('wordPosition')).toBe('2.1:0');
 		expect(params.get('notesQuery')).toBe('Glaube');
 		expect(params.get('notesFilter')).toBe('current');
 	});

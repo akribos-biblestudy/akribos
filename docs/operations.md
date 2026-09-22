@@ -33,6 +33,28 @@ No transactional-mail configuration is needed for notes, Markdown interchange, p
 When `BREVO_API_KEY` is absent, the existing authentication mail fallback logs messages as before; the
 two seeded accounts are already verified.
 
+## Imported Bible edition revisions
+
+Migration `0045_resource_source_revision` adds nullable source provenance without changing Bible
+content or administrator-edited labels. Startup and backup restoration run `backfillResourceRevisions`
+for ready Zefania Bibles whose revision is still unknown. Each candidate uses only its own archived
+`resources.source_file` inside `UPLOAD_DIR`; symlinks escaping that directory, non-files, missing
+uploads, malformed/unfinished headers and document types are skipped. Reads stop at the end of
+`INFORMATION` and are capped at 256 KiB per archive. Only the root `revision` attribute is authoritative;
+filenames, labels, licence text, another edition and XML format `version` never establish provenance.
+
+The backfill reads bounded batches and updates only the revision. It compares the resource row version,
+source path, ready state and unknown revision again on write, so an intervening import or admin edit
+cannot receive stale provenance. Files modified during reading are skipped. Existing known revisions,
+verse text, word indexes, labels and resource timestamps remain unchanged. Repeated execution is
+idempotent. Upload archives must be retained unchanged: a database backup alone does not include them,
+so restored databases without their corresponding archives legitimately keep unknown revisions.
+
+If a legacy revision remains unknown, check that its original archived upload still exists under the
+configured `UPLOAD_DIR` and contains a valid `revision` in its Zefania header. Do not relabel it from
+another resource or reimport Bible text merely to guess a version; restoring the actual archive allows
+the next startup to recover the metadata. New imports record source revisions atomically themselves.
+
 ## Local PDF compiler and print fonts
 
 PDF export uses the local **Typst 0.15.1** CLI. There is no rendering service, browser runtime,

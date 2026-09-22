@@ -47,8 +47,12 @@ wird als sichere strukturierte Segmente plus flacher Suchtext gespeichert. Die U
 fachlich noch nicht bestätigt.“ aus. Bestehende Importe enthalten deren XML-Typ nicht mehr; erkannt
 wird deshalb ausschließlich dieser whitespace-normalisierte Text mit leerem Marker. Normale Fußnoten
 bleiben sichtbar. Die Fundstellen im Lexikon-Tab und auf den Strong-Seiten aktivieren ausdrücklich
-`showStrongAssignmentNotes`, damit der Hinweis dort weiter abrufbar ist. Gespeicherte Segmente,
-Strong-Zuordnungen, Wortindizes und API-Daten werden dabei nicht verändert.
+`showStrongAssignmentNotes`; dort benennt der Hinweis das unmittelbar vorhergehende Wort und die
+studierte Strong-Nummer. Nur reine Leerzeichen dürfen Wort und Hinweis trennen. Hinweise zu anderen
+Strong-Nummern im selben Vers werden in dieser Wortstudie nicht gezeigt. Gespeicherte Segmente,
+Strong-Zuordnungen und Wortindizes werden dabei nicht verändert. Die Zuordnungsunsicherheit gilt nach
+demselben Quellsignal im Alten und Neuen Testament; sie ist unabhängig von der Übersetzung eines
+Lexikonartikels. Ein fehlender Hinweis belegt keine abgeschlossene fachliche Prüfung.
 
 ## Nutzerhilfe, Administrationshilfe und Produktbilder
 
@@ -285,7 +289,7 @@ Referenzen sonst noch unvollständig und könnten die gerade geöffnete Momentau
 
 Die aktuelle Reader-Adresse trägt zusätzlich eine lesbare Momentaufnahme aus wiederholbaren Parametern
 von `src/lib/reader/url-state.ts`: `layout`, `tab`, `active`, `focus`, `lookup`, `source`, `sourceRef`,
-`word`, `search`, `notesQuery`, `notesTag` und `notesFilter`. Tab-Koordinaten verwenden die Form `Kachel.Tab`, beispielsweise
+`word`, `wordPosition`, `search`, `notesQuery`, `notesTag` und `notesFilter`. Tab-Koordinaten verwenden die Form `Kachel.Tab`, beispielsweise
 `tab=1.2:SEEDDE:A:Joh3,16`. Die Parameter enthalten Layout, Kachel-/Tabreihenfolge, aktiven und
 fokussierten Tab, die Stelle jedes Tabs, Tabgruppen, Lexikon-Kontext und die gerade sichtbare Tab-Suche.
 Nur persönliche Trennergrößen und interne UUIDs bleiben außen vor. Damit stellen Reload,
@@ -379,7 +383,16 @@ tab-eigener `lookup` wird neben `reference` im Workspace gespeichert und von `fi
 innerhalb genau der Tab-Ressource aufgelöst: Strong-Nummern exakt, Lemma/Umschrift erst exakt und dann
 als Präfix. Lexikon-Tabs nehmen nicht am Kapitel-Endless-Scroll teil. Ein Klick auf ein Strong-Wort öffnet
 die vollständige Wortstudie im Lexikon-Tab; eine separate Seitenleiste existiert nicht mehr. Der Tab
-speichert Quellübersetzung, Klickstelle und Wort als `studyContext`. Grammatik wird unabhängig vom
+speichert Quellübersetzung, Klickstelle, Wort und optional die nullbasierte `wordPosition` als
+`studyContext`. Die Position zählt ausschließlich getaggte Wortsegmente, rekursiv in Jesusworten;
+mehrere Strong-Nummern eines Worts teilen eine Position. Sie entspricht `verse_words.position`,
+nicht dem sichtbaren Wortindex für Markierungen. Der getrennte Versanfang übergibt deshalb seinen
+getaggten Wortoffset. URL, Gastcookie, benannte Ansichten, Delta-Veröffentlichung und Tab-Historie
+bewahren diesen Kontext gemeinsam; ein anderer Lookup löscht Wort und Position gemeinsam. Die
+Strong-API prüft Quellressource, Vers, Wort, Strong und Position am gespeicherten Segment. Alte Links
+ohne Position melden bei gemischten Wiederholungen ausdrücklich die Mehrdeutigkeit, niemals eine
+angeblich bestimmte unsichere Auswahl. Historien-Replay prüft die Quellfreigabe erneut.
+Grammatik wird unabhängig vom
 gewählten Lexikon aus einem verfügbaren hebräischen beziehungsweise griechischen Ausgangstext ergänzt;
 bei mehreren Quellen gewinnt ein tatsächlich vorhandener Morphologiecode und danach `sortOrder`;
 Vorkommen, Buchverteilung und „Übersetzt als“ stammen dagegen exakt aus der Quellübersetzung, die auch im
@@ -1115,6 +1128,15 @@ erzeugt eine Warnung; die abschließenden Zähler stammen aus dem tatsächlich g
 USFM-Strukturmarker gelten unabhängig von Zeilenumbrüchen; Buchwechsel schließen zuerst den alten
 Vers ab. Abschnittsüberschriften in USFM und USX gehören zum folgenden Vers.
 
+`resources.source_revision` (Migration 0045) enthält ausschließlich die vom letzten erfolgreichen
+Import deklarierte Quellrevision, bei Zefania `XMLBIBLE/@revision`; Name, Kürzel, Rechte und
+administrative Anzeigetexte sind keine Versionsquelle. Reimporte aktualisieren die separate Revision
+atomisch. Startup und Backup-Restore ergänzen alte fertige Ressourcen idempotent aus höchstens
+256 KiB des archivierten, realpath-geprüften Upload-Headers; fehlende oder ungültige Quellen bleiben
+`NULL`. Status, Quellpfad und Zeilenversion schützen den Backfill vor parallelem Reimport. Das
+Lexikon-Quellbadge verwendet `selectionTitle` und zeigt im Tooltip diese Revision beziehungsweise
+„Importversion nicht ermittelt“, niemals eine aus alten Labels geratene Version.
+
 Mehrere Lexika können dieselbe Strong-Nummer abdecken (`lexicon_entries` hat einen zusammengesetzten
 Schlüssel aus `resourceId` und `strong`); `loadStrongEntry()` zeigt davon nur das mit der niedrigsten
 `resources.sortOrder`, ohne die anderen zu verschmelzen. Griechische Strong-Nummern reichen bis 6020,
@@ -1127,7 +1149,9 @@ Das hebräische Open-Scriptures-Lexikon speichert die deutsche Fassung getrennt 
 `data/hebrewstrong.xml` ergänzt je Eintrag einen `translation`-Block mit `xml:lang="de"` und
 `method="machine"|"human"`. Unvollständige Übersetzungen werden mit Warnung verworfen. Deutsch wird
 standardmäßig gezeigt, das englische Original bleibt über ein natives Details-Element zugänglich.
-Die gebündelte deutsche Fassung ist eine gekennzeichnete Vorübersetzung und fachlich noch zu prüfen.
+Die gebündelte deutsche Fassung ist fachlich noch zu prüfen; ihre automatische Herkunft wird im
+aufklappbaren englischen Original eindeutig als Übersetzung des Lexikonartikels erklärt. Sie erzeugt
+keinen pauschalen Hinweis auf unsichere Strong-Zuordnungen.
 Die Ressourcensprache bleibt `hbo`. Startup und Backup-Wiederherstellung ergänzen vorhandene fertige
 `hebrew-lexicon-xml`-Ressourcen nur bei exakt übereinstimmenden Originalfeldern; bestehende Übersetzungen
 und andere Lexika bleiben erhalten. GETs schreiben nicht. Schema, Herkunft, Reproduktion und

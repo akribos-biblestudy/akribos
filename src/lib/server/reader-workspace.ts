@@ -9,6 +9,7 @@ import {
 	type ReaderWorkspace
 } from '$lib/reader/workspace';
 import type { VerseRef } from '$lib/bible/reference';
+import { normalizeWordPosition } from '$lib/bible/strong-assignment';
 import {
 	INITIAL_READER_COLUMNS_COOKIE,
 	readInitialReaderColumns
@@ -42,7 +43,8 @@ type CompactWorkspace = [
 					number | 0,
 					number | 0,
 					number | 0,
-					string | 0
+					string | 0,
+					number
 				]
 			>
 		]
@@ -183,7 +185,8 @@ function encodeWorkspace(workspace: ReaderWorkspace): string {
 				tab.studyContext?.reference.book ?? 0,
 				tab.studyContext?.reference.chapter ?? 0,
 				tab.studyContext?.reference.verse ?? 0,
-				tab.studyContext?.word ?? 0
+				tab.studyContext?.word ?? 0,
+				tab.studyContext?.wordPosition ?? -1
 			])
 		]),
 		Object.entries(workspace.layoutSizes).flatMap(([layout, size]) =>
@@ -235,7 +238,11 @@ function expandWorkspace(value: unknown): unknown {
 																? { verse: tab[10] }
 																: {})
 														},
-														word: typeof tab[11] === 'string' ? tab[11] : null
+														word: typeof tab[11] === 'string' ? tab[11] : null,
+														...(typeof tab[11] === 'string' &&
+														normalizeWordPosition(tab[12]) !== undefined
+															? { wordPosition: normalizeWordPosition(tab[12]) }
+															: {})
 													}
 												: null
 									};

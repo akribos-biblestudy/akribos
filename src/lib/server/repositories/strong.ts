@@ -16,6 +16,8 @@ import { normalizeStrongId, strongLanguage, type StrongId } from '../../bible/st
 import type { VerseSegment } from '../../bible/segments.ts';
 import { groupStrongGlosses, type StrongGlossGroup } from '../../bible/glosses.ts';
 import { loadLemmaLookup } from '../lemmas.ts';
+import { strongAssignmentStatus } from '../../bible/strong-assignment.ts';
+import type { VerseRef } from '../../bible/reference.ts';
 import type { Database } from '../db/client.ts';
 import { lexiconEntries, resources, verses, verseWords } from '../db/schema.ts';
 
@@ -62,6 +64,31 @@ export type StrongBookCount = {
 	book: number;
 	count: number;
 };
+
+/** Called only after the API has resolved a currently readable source Bible. */
+export async function loadStrongAssignmentStatus(
+	db: Database,
+	sourceId: string,
+	reference: VerseRef,
+	strong: string,
+	word: string,
+	position?: number
+) {
+	if (reference.verse === undefined) return null;
+	const [row] = await db
+		.select({ segments: verses.segments })
+		.from(verses)
+		.where(
+			and(
+				eq(verses.resourceId, sourceId),
+				eq(verses.bookId, reference.book),
+				eq(verses.chapter, reference.chapter),
+				eq(verses.verse, reference.verse)
+			)
+		)
+		.limit(1);
+	return row ? strongAssignmentStatus(row.segments, strong, word, position) : null;
+}
 
 /** The dictionary entry, from whichever lexicon covers the number. */
 export async function loadStrongEntry(

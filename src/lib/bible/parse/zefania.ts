@@ -25,6 +25,7 @@
  *   `src/lib/server/import/ingest-bible.ts` for the rule and why.
  */
 
+import { normalizeSourceRevision } from './source-revision.ts';
 import { strongIdsFromSource } from '../strong.ts';
 import { finalizeSegments, pushText, tidySegmentSpacing, type VerseSegment } from '../segments.ts';
 import { attribute, intAttribute, readXml } from './xml.ts';
@@ -36,6 +37,8 @@ const UNASSIGNED_STRONG_PLACEHOLDER = '[?]';
 export async function* parseZefania(input: SourceInput): ParseStream {
 	const information: Record<string, string> = {};
 	let biblename: string | undefined;
+	let sourceRevision: string | undefined;
+	let firstElement = true;
 
 	let book: number | undefined;
 	let chapter: number | undefined;
@@ -53,6 +56,10 @@ export async function* parseZefania(input: SourceInput): ParseStream {
 
 	for await (const event of readXml(input)) {
 		if (event.type === 'open') {
+			if (firstElement && (event.name === 'xmlbible' || event.name === 'x-bible')) {
+				sourceRevision = normalizeSourceRevision(attribute(event.attributes, 'revision'));
+			}
+			firstElement = false;
 			switch (event.name) {
 				case 'xmlbible':
 				case 'x-bible':
@@ -183,7 +190,10 @@ export async function* parseZefania(input: SourceInput): ParseStream {
 
 				if (!metadataEmitted) {
 					// Metadata is complete by the time the first verse closes.
-					yield { type: 'metadata', metadata: buildMetadata(information, biblename) };
+					yield {
+						type: 'metadata',
+						metadata: buildMetadata(information, biblename, sourceRevision)
+					};
 					metadataEmitted = true;
 				}
 
@@ -225,7 +235,7 @@ export async function* parseZefania(input: SourceInput): ParseStream {
 	}
 
 	if (!metadataEmitted) {
-		yield { type: 'metadata', metadata: buildMetadata(information, biblename) };
+		yield { type: 'metadata', metadata: buildMetadata(information, biblename, sourceRevision) };
 	}
 	yield { type: 'progress', done: versesSeen, total: versesSeen };
 }
@@ -236,7 +246,8 @@ function warn(message: string): ParseEvent {
 
 function buildMetadata(
 	information: Record<string, string>,
-	biblename: string | undefined
+	biblename: string | undefined,
+	sourceRevision: string | undefined
 ): ResourceMetadata {
 	const clean = (value: string | undefined) => value?.replace(/\s+/g, ' ').trim() || undefined;
 
@@ -248,6 +259,7 @@ function buildMetadata(
 	return {
 		id: identifier.toUpperCase(),
 		name: title,
+		...(sourceRevision ? { sourceRevision } : {}),
 		abbrev: shortenTitle(title),
 		language,
 		direction: language === 'hbo' ? 'rtl' : 'ltr',

@@ -30,6 +30,7 @@ export type ReadableResource = Pick<
 	| 'hasMorphology'
 	| 'licenseHtml'
 	| 'usageNotesHtml'
+	| 'sourceRevision'
 > & {
 	coverTitle: string;
 	tabTitle: string;
@@ -72,6 +73,7 @@ export async function listResources(
 			id: resources.id,
 			kind: resources.kind,
 			name: resources.name,
+			sourceRevision: resources.sourceRevision,
 			abbrev: resources.abbrev,
 			coverTitle: sql<string>`coalesce(${resources.coverTitle}, ${resources.abbrev})`,
 			tabTitle: sql<string>`coalesce(${resources.tabTitle}, ${resources.abbrev})`,

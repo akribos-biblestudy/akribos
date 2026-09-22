@@ -100,6 +100,15 @@ import. Duplicate references use the first nonempty text throughout the entire s
 across batch and book boundaries; each duplicate produces a warning. Final counts reflect stored
 verses and words rather than the number of input rows.
 
+Zefania imports record the explicit `XMLBIBLE/@revision` separately as `resources.source_revision`
+(`sourceRevision` in the resources API). This is the imported edition, independent of editable titles,
+subtitles and rights text. The root `version` attribute describes the XML format and is never used as
+an edition version. Revision text is whitespace-normalized, limited to 80 characters and rejects
+control/bidirectional formatting characters and markup delimiters. A successful reimport replaces
+this provenance together with the verses; a source without a usable revision clears the old value.
+A failed import preserves both content and its previous revision. Other formats remain unknown until
+their own parser supplies explicit edition provenance.
+
 ## Bible translations
 
 | Format                  | Recognised by                   | Notes                                                                                                          |

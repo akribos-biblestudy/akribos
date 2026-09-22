@@ -28,6 +28,7 @@ function resource(id: string, kind: ReadableResource['kind'] = 'bible'): Readabl
 		hasStrongs: false,
 		hasMorphology: false,
 		licenseHtml: null,
+		sourceRevision: null,
 		usageNotesHtml: null
 	};
 }
@@ -44,17 +45,25 @@ function cookieJar(initial: Record<string, string> = {}) {
 
 describe('reader workspace persistence', () => {
 	it('round-trips the compact cookie including link sets and layout sizes', () => {
-		const { cookies } = cookieJar();
+		const { cookies, values } = cookieJar();
 		const workspace = workspaceFromColumns(['a', 'b']);
 		workspace.tiles[0]!.tabs[0]!.linkSet = 'D';
 		workspace.tiles[0]!.tabs[0]!.lookup = 'G25';
 		workspace.tiles[0]!.tabs[0]!.studyContext = {
 			sourceResourceId: 'b',
 			reference: { book: 43, chapter: 3, verse: 16 },
-			word: 'geliebt'
+			word: 'geliebt',
+			wordPosition: 0
 		};
 		workspace.layoutSizes['columns-2'] = { columns: [0.65, 0.35], rows: [1] };
 		expect(writeReaderWorkspace(cookies, workspace)).toBe(true);
+		expect(readReaderWorkspaceCookie(cookies)).toEqual(workspace);
+		const compact = JSON.parse(
+			Buffer.from(values.get('reader-workspace')!, 'base64url').toString()
+		);
+		compact[2][0][2][0].pop(); // Existing cookies have no thirteenth position field.
+		values.set('reader-workspace', Buffer.from(JSON.stringify(compact)).toString('base64url'));
+		delete workspace.tiles[0]!.tabs[0]!.studyContext!.wordPosition;
 		expect(readReaderWorkspaceCookie(cookies)).toEqual(workspace);
 	});
 

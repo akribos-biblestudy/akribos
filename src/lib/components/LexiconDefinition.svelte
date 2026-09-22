@@ -27,13 +27,13 @@
 {/snippet}
 
 <div class="lexicon-definition" data-bible-id={bibleId ?? undefined}>
-	{#if entry.germanTranslation?.machineTranslated}
-		<p class="translation-note">{t('strong.machineTranslation')}</p>
-	{/if}
 	{@render fields(text, entry.germanTranslation ? 'de' : undefined)}
 	{#if entry.germanTranslation}
 		<details class="original-edition">
 			<summary>{t('strong.englishOriginal')}</summary>
+			{#if entry.germanTranslation.machineTranslated}
+				<p class="translation-note">{t('strong.translationProvenance')}</p>
+			{/if}
 			{@render fields(entry, 'en')}
 		</details>
 	{/if}
@@ -67,7 +67,7 @@
 		font-family: 'Akribos Text', 'Noto Sans Hebrew', serif;
 	}
 	.translation-note {
-		margin: 0;
+		margin: 0 0 1rem;
 		color: var(--color-stone-500);
 		font-size: 0.75rem;
 	}

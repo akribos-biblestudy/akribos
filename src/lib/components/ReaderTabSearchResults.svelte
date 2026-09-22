@@ -40,7 +40,12 @@
 		onSearch: (query: string, page?: number, book?: number | null) => void;
 		onOpenReference: (reference: VerseRef) => void;
 		referenceHref: (reference: VerseRef) => string;
-		onStrongClick: (strong: string, word: string, reference: VerseRef) => void;
+		onStrongClick: (
+			strong: string,
+			word: string,
+			reference: VerseRef,
+			wordPosition: number
+		) => void;
 	} = $props();
 
 	function referenceFor(hit: {
@@ -188,7 +193,8 @@
 								<VerseText
 									segments={hit.segments}
 									activeStrong={result.strong}
-									onStrongClick={(strong, word) => onStrongClick(strong, word, referenceFor(hit))}
+									onStrongClick={(strong, word, wordPosition) =>
+										onStrongClick(strong, word, referenceFor(hit), wordPosition)}
 								/>
 							</p>
 						</div>

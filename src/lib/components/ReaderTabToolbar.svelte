@@ -24,6 +24,7 @@
 	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
 	import ResourceKindIcon from './ResourceKindIcon.svelte';
+	import StudySourceBadge from './StudySourceBadge.svelte';
 
 	let {
 		tileId,
@@ -32,7 +33,7 @@
 		resource,
 		reference,
 		searchQuery = null,
-		studyResourceTitle = null,
+		studyResource = null,
 		onOpenResource,
 		onSearch,
 		onOpenReference,
@@ -47,7 +48,7 @@
 		resource: ReadableResource;
 		reference: VerseRef;
 		searchQuery?: string | null;
-		studyResourceTitle?: string | null;
+		studyResource?: ReadableResource | null;
 		onOpenResource: (tileId: string, tabId: string, anchor: HTMLElement) => void;
 		onSearch: (query: string) => void;
 		onOpenReference: (reference: VerseRef) => void;
@@ -213,10 +214,8 @@
 			onfocus={() => (focused = true)}
 			onblur={() => (focused = false)}
 		/>
-		{#if resource.kind === 'lexicon' && studyResourceTitle}
-			<span class="study-source" title="Vorkommen aus {studyResourceTitle}">
-				{studyResourceTitle}
-			</span>
+		{#if resource.kind === 'lexicon' && studyResource}
+			<StudySourceBadge source={studyResource} />
 		{/if}
 	</form>
 
@@ -373,21 +372,6 @@
 		padding: 0.35rem 0.25rem 0.35rem 0.55rem;
 		font-size: 0.78rem;
 		outline: none;
-	}
-	.study-source {
-		max-width: 6.5rem;
-		flex: none;
-		overflow: hidden;
-		margin-right: 0.3rem;
-		padding: 0.15rem 0.35rem;
-		border: 1px solid color-mix(in oklab, #39834b 30%, var(--line));
-		border-radius: 999px;
-		background: color-mix(in oklab, #39834b 9%, transparent);
-		color: color-mix(in oklab, #39834b 85%, var(--color-stone-800));
-		font-size: 0.58rem;
-		font-weight: 700;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 
 	.link-button {

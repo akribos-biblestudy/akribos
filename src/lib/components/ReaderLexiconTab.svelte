@@ -42,6 +42,7 @@
 			lemma: string | null;
 			resourceId: string;
 		} | null;
+		assignmentStatus?: 'unconfirmed' | 'ambiguous' | null;
 		morphology: {
 			code: string;
 			partOfSpeech: string;
@@ -58,6 +59,7 @@
 		sourceResource = null,
 		studyReference = null,
 		studyWord = null,
+		studyWordPosition = undefined,
 		onLookup,
 		onOpenReference,
 		lookupHref,
@@ -70,6 +72,7 @@
 		sourceResource?: ReadableResource | null;
 		studyReference?: VerseRef | null;
 		studyWord?: string | null;
+		studyWordPosition?: number;
 		onLookup: (lookup: string) => void;
 		onOpenReference: (reference: VerseRef) => void;
 		lookupHref: (lookup: string) => string;
@@ -84,7 +87,7 @@
 	let baseKey = $state('');
 
 	$effect(() => {
-		const nextKey = `${entry?.strong ?? ''}:${lexiconId}:${sourceResource?.id ?? ''}:${studyReference?.book ?? ''}:${studyReference?.chapter ?? ''}:${studyReference?.verse ?? ''}`;
+		const nextKey = `${entry?.strong ?? ''}:${lexiconId}:${sourceResource?.id ?? ''}:${studyReference?.book ?? ''}:${studyReference?.chapter ?? ''}:${studyReference?.verse ?? ''}:${studyWord ?? ''}:${studyWordPosition ?? ''}`;
 		if (nextKey !== baseKey) {
 			baseKey = nextKey;
 			page = 1;
@@ -109,16 +112,23 @@
 			page: String(page)
 		});
 		if (studyReference) params.set('ref', formatReference(studyReference));
+		if (studyWord) params.set('word', studyWord);
+		if (studyWordPosition !== undefined) params.set('wordPosition', String(studyWordPosition));
 		if (activeBook !== null) params.set('book', String(activeBook));
 		loading = true;
 		loadError = false;
 		fetch(`/api/strong/${encodeURIComponent(strong)}?${params}`, { signal: controller.signal })
 			.then(async (response) => {
 				if (!response.ok) throw new Error(String(response.status));
-				study = (await response.json()) as StudyPayload;
+				const result = (await response.json()) as StudyPayload;
+				if (!controller.signal.aborted) study = result;
 			})
 			.catch((error: unknown) => {
-				if (error instanceof DOMException && error.name === 'AbortError') return;
+				if (
+					controller.signal.aborted ||
+					(error instanceof DOMException && error.name === 'AbortError')
+				)
+					return;
 				loadError = true;
 			})
 			.finally(() => {
@@ -185,6 +195,19 @@
 					</p>
 				{/if}
 			</header>
+			{#if study?.assignmentStatus && studyReference && studyWord}
+				<p class="assignment-note" role="note">
+					{#if study.assignmentStatus === 'unconfirmed'}
+						Die Strong-Zuordnung von „{studyWord}“ zu {entry.strong} in {formatReference(
+							studyReference
+						)} ist fachlich noch nicht bestätigt.
+					{:else}
+						In {formatReference(studyReference)} kommt „{studyWord}“ mehrfach mit {entry.strong} vor;
+						mindestens eine dieser Zuordnungen ist fachlich noch nicht bestätigt. Der gespeicherte Link
+						bezeichnet keine einzelne Wortposition.
+					{/if}
+				</p>
+			{/if}
 
 			{#if study?.original?.morph}
 				<section>
@@ -204,7 +227,9 @@
 				</section>
 			{/if}
 
-			<LexiconDefinition {entry} bibleId={sourceResource?.id ?? null} />
+			<section class="definition-section">
+				<LexiconDefinition {entry} bibleId={sourceResource?.id ?? null} />
+			</section>
 			{#if entry.seeAlso.length > 0}
 				<section>
 					<h3>Siehe auch</h3>
@@ -385,6 +410,15 @@
 		font-family: ui-sans-serif, system-ui, sans-serif;
 		font-size: 0.82rem;
 		line-height: 1.45;
+	}
+	.assignment-note {
+		margin-top: 0.85rem;
+		padding: 0.6rem 0.75rem;
+		border-left: 2px solid var(--color-amber-500);
+		background: color-mix(in oklab, var(--color-amber-500) 8%, var(--surface));
+		font-family: ui-sans-serif, system-ui, sans-serif;
+		font-size: 0.78rem;
+		line-height: 1.5;
 	}
 	.see-also {
 		display: flex;

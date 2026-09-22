@@ -24,7 +24,7 @@ export function publishWorkspaceChanges(
 			[...params].map(([key, value]) => [
 				key === 'active'
 					? `active:${value.split('.')[0]}`
-					: ['tab', 'lookup', 'source', 'sourceRef', 'word', 'search'].includes(key)
+					: ['tab', 'lookup', 'source', 'sourceRef', 'word', 'wordPosition', 'search'].includes(key)
 						? `${key}:${value.slice(0, value.indexOf(':'))}`
 						: key,
 				[key, value] as const
@@ -42,12 +42,12 @@ export function publishWorkspaceChanges(
 	// A word study is one context: never combine a locally changed lookup with a remote source.
 	for (const key of new Set([...oldFields.keys(), ...newFields.keys()])) {
 		if (
-			!/^(lookup|source|sourceRef|word):/.test(key) ||
+			!/^(lookup|source|sourceRef|word|wordPosition):/.test(key) ||
 			JSON.stringify(oldFields.get(key)) === JSON.stringify(newFields.get(key))
 		)
 			continue;
 		const coordinate = key.slice(key.indexOf(':') + 1);
-		for (const field of ['lookup', 'source', 'sourceRef', 'word']) {
+		for (const field of ['lookup', 'source', 'sourceRef', 'word', 'wordPosition']) {
 			const contextKey = `${field}:${coordinate}`;
 			const value = newFields.get(contextKey);
 			if (value) merged.set(contextKey, value);

@@ -43,6 +43,8 @@ export type ResourceMetadata = {
 	/** Rights notice, shown beneath the column in the reader. */
 	licenseHtml?: string;
 	description?: string;
+	/** Edition revision declared by the source, independent of administrator-edited labels. */
+	sourceRevision?: string;
 };
 
 export type ParsedVerse = {

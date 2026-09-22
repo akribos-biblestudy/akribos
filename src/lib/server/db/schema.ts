@@ -95,6 +95,8 @@ export const resources = pgTable(
 		/** A dictionary's own "how to read this" preface, e.g. Kautz' "Hinweise zur Benützung des
 		 *  Lexikons" — shown collapsed next to a lexicon entry rather than repeated inline everywhere. */
 		usageNotesHtml: text('usage_notes_html'),
+		/** Edition revision from the imported source; never inferred from editable display labels. */
+		sourceRevision: text('source_revision'),
 		sourceFormat: text('source_format'),
 		/** Path of the archived upload inside UPLOAD_DIR, so an import can be repeated. */
 		sourceFile: text('source_file'),

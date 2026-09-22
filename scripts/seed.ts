@@ -55,7 +55,7 @@ const SEED_READER_COLUMNS = ['SEEDDE', 'SEEDCOMMENTARY', 'STRONGS_GREEK'] as con
 
 /** A German translation with Strong's numbers, in the format of the bundled files. */
 const GERMAN = `<?xml version="1.0" encoding="utf-8"?>
-<XMLBIBLE biblename="Testübersetzung" type="x-bible">
+<XMLBIBLE biblename="Testübersetzung" type="x-bible" revision="1.2">
 	<INFORMATION>
 		<title>Testübersetzung</title><identifier>SEEDDE</identifier>
 		<language>GER</language><rights>Public Domain</rights>

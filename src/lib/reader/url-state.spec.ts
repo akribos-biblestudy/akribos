@@ -9,7 +9,7 @@ import {
 	withReaderNotesFilters,
 	sameReaderUrlWorkspace
 } from './url-state';
-import { workspaceFromColumns } from './workspace';
+import { normalizeReaderWorkspace, workspaceFromColumns } from './workspace';
 
 describe('reader URL state', () => {
 	it('sends selection, content and detached guards only with the action, never in shared state', () => {
@@ -55,7 +55,8 @@ describe('reader URL state', () => {
 			studyContext: {
 				sourceResourceId: 'bible',
 				reference: { book: 43, chapter: 3, verse: 16 },
-				word: 'geliebt'
+				word: 'geliebt',
+				wordPosition: 0
 			}
 		});
 		workspace.tiles[0]!.activeTabId = 'second-tab';
@@ -69,6 +70,7 @@ describe('reader URL state', () => {
 		expect(encoded).toContain('layout=columns-3');
 		expect(encoded).toContain('tab=1.2:lexicon:C:1Mo2');
 		expect(encoded).toContain('lookup=1.2:');
+		expect(encoded).toContain('wordPosition=1.2:0');
 		expect(encoded).toContain('search=1.2:Liebe');
 		expect(encoded).not.toContain('w=');
 		const decoded = decodeReaderUrlState(new URLSearchParams(encoded))!;
@@ -89,7 +91,8 @@ describe('reader URL state', () => {
 			studyContext: {
 				sourceResourceId: 'bible',
 				reference: { book: 43, chapter: 3, verse: 16 },
-				word: 'geliebt'
+				word: 'geliebt',
+				wordPosition: 0
 			}
 		});
 		expect(value.layoutSizes).toEqual({});
@@ -108,6 +111,32 @@ describe('reader URL state', () => {
 		expect(sameReaderUrlWorkspace(left, right)).toBe(true);
 		right.tiles[0]!.tabs[0]!.reference = { book: 43, chapter: 3 };
 		expect(sameReaderUrlWorkspace(left, right)).toBe(false);
+	});
+
+	it('distinguishes selected occurrences and preserves them when filters change', () => {
+		const left = workspaceFromColumns(['bible', 'lexicon']);
+		left.tiles[1]!.tabs[0]!.studyContext = {
+			sourceResourceId: 'bible',
+			reference: { book: 40, chapter: 1, verse: 17 },
+			word: 'bis',
+			wordPosition: 0
+		};
+		const right = structuredClone(left);
+		right.tiles[1]!.tabs[0]!.studyContext!.wordPosition = 2;
+		expect(sameReaderUrlWorkspace(left, right)).toBe(false);
+		delete right.tiles[1]!.tabs[0]!.studyContext!.wordPosition;
+		expect(sameReaderUrlWorkspace(left, right)).toBe(false);
+		const filtered = withReaderNotesFilters(encodeReaderUrlState(left), {
+			query: 'Glaube',
+			tag: '',
+			onlyCurrentPassage: true
+		});
+		expect(new URLSearchParams(filtered).get('wordPosition')).toBe('2.1:0');
+		const legacy = normalizeReaderWorkspace(
+			decodeReaderUrlState(new URLSearchParams(encodeReaderUrlState(right)))!.workspace,
+			['bible', 'lexicon']
+		);
+		expect(legacy.tiles[1]!.tabs[0]!.studyContext).not.toHaveProperty('wordPosition');
 	});
 
 	it('canonicalizes escaped data-request separators without obscuring the address-bar state', () => {

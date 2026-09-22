@@ -121,22 +121,26 @@ describe('publishing independent browser-tab working copies', () => {
 			params.set('source', '2.1:BIBLE');
 			params.set('sourceRef', '2.1:Joh3,16');
 			params.set('word', '2.1:Liebe');
+			params.set('wordPosition', '2.1:0');
 		});
 		const after = change(before, (params) => {
 			params.set('lookup', '2.1:G3056');
 			params.set('word', '2.1:Wort');
+			params.set('wordPosition', '2.1:2');
 		});
 		const shared = change(before, (params) => {
 			params.set('lookup', '2.1:G746');
 			params.set('source', '2.1:OTHER');
 			params.set('sourceRef', '2.1:Joh1,1');
 			params.set('word', '2.1:Anfang');
+			params.set('wordPosition', '2.1:5');
 		});
 		const result = new URLSearchParams(publishWorkspaceChanges(before, after, shared).readerState);
 		expect(result.get('lookup')).toBe('2.1:G3056');
 		expect(result.get('source')).toBe('2.1:BIBLE');
 		expect(result.get('sourceRef')).toBe('2.1:Joh3,16');
 		expect(result.get('word')).toBe('2.1:Wort');
+		expect(result.get('wordPosition')).toBe('2.1:2');
 	});
 
 	it('does not publish stale fields or mutate inputs when there is no local change', () => {
