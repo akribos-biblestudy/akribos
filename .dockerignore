@@ -18,6 +18,11 @@ data/*
 !data/hebrewstrong.xml
 !data/lemmas/
 !data/lemmas/**
+# Versioned, losslessly decompressed fonts for the offline PDF compiler.
+!data/fonts/
+data/fonts/*
+!data/fonts/pdf/
+!data/fonts/pdf/**
 
 .env
 .env.*

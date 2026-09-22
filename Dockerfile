@@ -1,5 +1,16 @@
 # syntax=docker/dockerfile:1
 
+# ---- pinned local PDF compiler -----------------------------------------------
+# The installer selects the official x86_64/arm64 artifact for this stage and checks its SHA256.
+# Keep download tools out of the runtime image. No external renderer is called during export.
+FROM node:24-bookworm-slim AS pdf-tools
+WORKDIR /tools
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+COPY scripts/install-typst.sh ./install-typst.sh
+RUN sh ./install-typst.sh --prefix /opt/typst
+
 # ---- build ------------------------------------------------------------------
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
@@ -47,7 +58,8 @@ ENV NODE_ENV=production \
     PORT=3000 \
     BODY_SIZE_LIMIT=Infinity \
     UPLOAD_DIR=/app/var/uploads \
-    BACKUP_TMP_DIR=/app/var/backups
+    BACKUP_TMP_DIR=/app/var/backups \
+    PDF_TYPST_BIN=/usr/local/bin/typst
 
 # Resource imports read the uploaded file back from disk, and backup dumps are staged before they are
 # streamed to the browser or to S3, so both directories must survive restarts; both are mounted as
@@ -59,6 +71,9 @@ COPY --from=build --chown=node:node /app/build ./build
 COPY --from=build --chown=node:node /app/drizzle ./drizzle
 COPY --from=build --chown=node:node /app/data/hebrewstrong.xml ./data/hebrewstrong.xml
 COPY --from=build --chown=node:node /app/data/lemmas ./data/lemmas
+COPY --from=build --chown=node:node /app/data/fonts/pdf ./data/fonts/pdf
+COPY --from=pdf-tools /opt/typst/bin/typst /usr/local/bin/typst
+COPY --from=pdf-tools /opt/typst/share/typst /usr/local/share/typst
 COPY --from=build --chown=node:node /app/scripts/migrate.ts ./scripts/migrate.ts
 COPY --from=build --chown=node:node /app/package.json ./package.json
 

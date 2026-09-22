@@ -389,7 +389,10 @@ content cannot be recalled from a browser after revocation. Backups include the 
 rendering, portable Markdown and rich exports. Stable IDs and first-reference numbering are separate
 from per-instance DOM navigation targets. `DocumentEditor` uses three Tiptap nodes so references and
 editable definitions round-trip through the existing autosave revision queue. No render-only IDs are
-persisted. Native Word imports and exports use the same definitions; PDF provides linked endnotes.
+persisted. Native Word imports and exports use the same definitions; PDF uses native page footnotes.
+The PDF adapter builds typed JSON data; a fixed local Typst template lays out the approved Studienblatt
+with embedded local fonts. An isolated pinned CLI process enforces bounded execution and never treats
+authored content as code. See [pdf-export.md](pdf-export.md) for the trust boundary and layout rules.
 
 `server/documents/footnote-backfill.ts` repairs working copies and publication snapshots independently,
 under the existing document lock, and refreshes links/reference indexes atomically. It preserves
