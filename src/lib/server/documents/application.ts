@@ -7,9 +7,12 @@
  */
 
 import { redirect } from '@sveltejs/kit';
-import { documentMarkdownToHtml, normalizeDocumentMarkdown } from '$lib/notes/document-markdown';
-import { parseCalendarDateValue } from '$lib/notes/calendar-date';
-import type { PreparedDocumentBody } from '$lib/server/repositories/documents';
+import {
+	documentMarkdownToHtml,
+	normalizeDocumentMarkdown
+} from '../../notes/document-markdown.ts';
+import { parseCalendarDateValue } from '../../notes/calendar-date.ts';
+import type { PreparedDocumentBody } from '../repositories/documents.ts';
 
 export const PRIVATE_NO_STORE = 'private, no-store';
 export const MAX_DOCUMENT_JSON_BYTES = 2 * 1024 * 1024 + 64 * 1024;

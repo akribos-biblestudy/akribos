@@ -36,15 +36,19 @@ async function seed(
 		updatedAt: new Date(Date.now() - age - index * 1000),
 		...(kind === 'sermon' ? { sermonStatus: 'idea' } : {})
 	}));
-	await db.insert(documents).values(rows);
-	await db.insert(documentBodyReferenceIndexes).values(
-		rows.map((row) => ({
-			documentId: row.id,
-			userId,
-			...reference,
-			parserVersion: DOCUMENT_REFERENCE_PARSER_VERSION
-		}))
-	);
+	// Publish complete fixtures atomically, as document creation does, so concurrent backfills
+	// cannot lock their documents between the body insert and the reference-index insert.
+	await db.transaction(async (tx) => {
+		await tx.insert(documents).values(rows);
+		await tx.insert(documentBodyReferenceIndexes).values(
+			rows.map((row) => ({
+				documentId: row.id,
+				userId,
+				...reference,
+				parserVersion: DOCUMENT_REFERENCE_PARSER_VERSION
+			}))
+		);
+	});
 	return rows;
 }
 async function summaries(userId: string, query = '') {

@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { passageToDbEndpoints } from '../../bible/passage.ts';
 import { MAX_DOCUMENT_PASSAGES } from '../../notes/documents.ts';
 import { prepareDocumentBody } from '../documents/application.ts';
-import { closeDb, getDb } from '../db/index.ts';
+import { config } from '../config.ts';
+import { createDb } from '../db/client.ts';
 import {
 	documentBodyReferenceIndexes,
 	documents,
@@ -55,13 +58,25 @@ function passage(start: { book: number; chapter: number; verse: number }, end = 
 }
 
 describe.sequential('unified document repositories', () => {
-	const db = getDb();
+	// These tests intentionally exercise the global backfill, so their whole database must be
+	// isolated from other files that concurrently create missing or outdated reference indexes.
+	const databaseName = `documents_spec_${randomUUID().replaceAll('-', '')}`;
+	const databaseUrl = new URL(config().DATABASE_URL);
+	databaseUrl.pathname = `/${databaseName}`;
+	const maintenanceUrl = new URL(databaseUrl);
+	maintenanceUrl.pathname = '/postgres';
+	const maintenance = postgres(maintenanceUrl.toString(), { max: 1, onnotice: () => {} });
+	const { db, client } = createDb(databaseUrl.toString());
+	let databaseCreated = false;
 	const resourceId = `DOCSPEC-${randomUUID()}`;
 	const privateResourceId = `DOCSPEC-PRIVATE-${randomUUID()}`;
 	let ownerId: string;
 	let adminId: string;
 
 	beforeAll(async () => {
+		await maintenance.unsafe(`CREATE DATABASE "${databaseName}"`);
+		databaseCreated = true;
+		await migrate(db, { migrationsFolder: './drizzle' });
 		const owner = await createUser(db, {
 			email: `document-owner-${randomUUID()}@example.com`,
 			password: 'a-fairly-good-password',
@@ -96,14 +111,18 @@ describe.sequential('unified document repositories', () => {
 				isPublic: false
 			}
 		]);
-	});
+	}, 30_000);
 
 	afterAll(async () => {
-		if (ownerId) await db.delete(users).where(eq(users.id, ownerId));
-		if (adminId) await db.delete(users).where(eq(users.id, adminId));
-		await db.delete(resources).where(eq(resources.id, privateResourceId));
-		await db.delete(resources).where(eq(resources.id, resourceId));
-		await closeDb();
+		try {
+			await client.end();
+		} finally {
+			try {
+				if (databaseCreated) await maintenance.unsafe(`DROP DATABASE "${databaseName}"`);
+			} finally {
+				await maintenance.end();
+			}
+		}
 	});
 
 	it('enforces ownership, optimistic revisions, soft deletion and explicit restore', async () => {

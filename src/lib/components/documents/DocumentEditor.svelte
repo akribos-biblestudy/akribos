@@ -20,6 +20,14 @@
 	import Icon from '../Icon.svelte';
 	import { BibleReferenceDecorations } from './bible-reference-decorations';
 	import { DocumentHighlight } from './document-highlight';
+	import { copyEditorReadingPreferences } from './editor-reading-preferences';
+	import {
+		DocumentFootnotes,
+		documentFootnoteNavigationMeta,
+		editorFootnotes,
+		selectedEditorFootnote,
+		footnoteClipboardHtml
+	} from './document-footnotes';
 	import { editorAssistantTrigger, type EditorAssistantTrigger } from './editor-assistant';
 
 	type EditableDocument = {
@@ -121,7 +129,8 @@
 		| 'quote'
 		| 'code-block'
 		| 'divider'
-		| 'bible';
+		| 'bible'
+		| 'footnote';
 	type SlashCommand = {
 		id: SlashCommandId;
 		label: string;
@@ -137,6 +146,14 @@
 			| 'more-horizontal'
 			| 'book-open';
 	};
+
+	const documentFootnotes = $derived(
+		editorState.editor ? editorFootnotes(editorState.editor.state.doc) : []
+	);
+	const activeFootnote = $derived(
+		editorState.editor ? selectedEditorFootnote(editorState.editor.state) : undefined
+	);
+	const canInsertFootnote = $derived(editorState.editor?.can().insertDocumentFootnote() ?? false);
 
 	const slashCommands = $derived<SlashCommand[]>([
 		{
@@ -201,6 +218,13 @@
 			description: t('documents.editor.command.dividerDescription'),
 			keywords: 'linie trennlinie horizontal',
 			icon: 'more-horizontal'
+		},
+		{
+			id: 'footnote',
+			label: t('documents.footnotes.insert'),
+			description: t('documents.footnotes.insertDescription'),
+			keywords: 'fußnote fussnote footnote anmerkung quelle',
+			icon: 'file-text'
 		},
 		{
 			id: 'bible',
@@ -288,6 +312,7 @@
 		const dialog = window.document.createElement('dialog');
 		dialog.className = 'document-zen-dialog';
 		dialog.setAttribute('aria-label', t('documents.editor.zen'));
+		copyEditorReadingPreferences(root, dialog);
 		window.document.body.append(dialog);
 		const focused = window.document.activeElement as HTMLElement | null;
 		const scrollTop = editorHost?.scrollTop ?? 0;
@@ -482,6 +507,9 @@
 			case 'divider':
 				chain.setHorizontalRule().run();
 				break;
+			case 'footnote':
+				chain.insertDocumentFootnote().run();
+				break;
 			case 'bible':
 				chain.insertContent('/bibel ').run();
 				break;
@@ -559,6 +587,26 @@
 			.run();
 		const node = editor.view.nodeDOM(position);
 		if (node instanceof HTMLElement) node.scrollIntoView({ block: 'start' });
+	}
+
+	async function revealFootnoteSelection(instance: Editor): Promise<void> {
+		const { doc, selection } = instance.state;
+		// The contextual footnote toolbar changes the scroll viewport after Tiptap's own scroll.
+		await tick();
+		if (
+			destroyed ||
+			instance.isDestroyed ||
+			!editorHost?.isConnected ||
+			instance.state.doc !== doc ||
+			!instance.state.selection.eq(selection)
+		)
+			return;
+		const caret = instance.view.coordsAtPos(selection.head);
+		const viewport = editorHost.getBoundingClientRect();
+		const top = Math.max(0, viewport.top) + 8;
+		const bottom = Math.min(window.innerHeight, viewport.bottom) - 8;
+		if (caret.top < top) editorHost.scrollTop += caret.top - top;
+		else if (caret.bottom > bottom) editorHost.scrollTop += caret.bottom - bottom;
 	}
 
 	const statusText = $derived(
@@ -980,6 +1028,17 @@
 		return true;
 	}
 
+	function onCopyFootnotes(event: ClipboardEvent, cut = false): boolean {
+		if (!editor || !event.clipboardData || editor.state.selection.empty) return false;
+		const html = footnoteClipboardHtml(editor, editor.state.selection.content());
+		if (!html) return false;
+		event.clipboardData.setData('text/html', html);
+		event.clipboardData.setData('text/plain', documentHtmlToMarkdown(html));
+		event.preventDefault();
+		if (cut) editor.chain().focus().deleteSelection().run();
+		return true;
+	}
+
 	async function insertBibleQuotationFromReference(reference: string): Promise<void> {
 		if (!editor || !bibleId || !parsePassage(reference)) {
 			quotationState = 'error';
@@ -998,8 +1057,10 @@
 		const instance = new Editor({
 			element: editorHost,
 			extensions: [
+				...DocumentFootnotes,
 				StarterKit.configure({
 					heading: { levels: [...headingLevels] },
+					trailingNode: { node: 'paragraph', notAfter: ['footnoteList'] },
 					link: { openOnClick: false, isAllowedUri: (url) => safeLinkHref(url) !== null }
 				}),
 				DocumentHighlight,
@@ -1010,7 +1071,9 @@
 			editorProps: {
 				handleDOMEvents: {
 					click: (_view, event) => onEditorLinkClick(event),
-					auxclick: (_view, event) => onEditorLinkClick(event)
+					auxclick: (_view, event) => onEditorLinkClick(event),
+					copy: (_view, event) => onCopyFootnotes(event),
+					cut: (_view, event) => onCopyFootnotes(event, true)
 				},
 				attributes: {
 					class: 'document-prose prose-like',
@@ -1067,10 +1130,12 @@
 				selectionDismissed = false;
 				queuePlacement();
 			},
-			onTransaction: ({ editor }) => {
+			onTransaction: ({ editor, transaction }) => {
 				editorState = { editor };
 				updateAssistantMenu(editor);
 				queuePlacement();
+				if (transaction.getMeta(documentFootnoteNavigationMeta))
+					void revealFootnoteSelection(editor);
 			}
 		});
 		editorState = { editor: instance };
@@ -1243,6 +1308,36 @@
 					aria-label={t('documents.editor.link')}
 					onclick={editLink}><Icon name="link" class="size-4" /></button
 				>
+				<button
+					type="button"
+					class="footnote-insert"
+					disabled={!canInsertFootnote}
+					aria-label={t('documents.footnotes.insert')}
+					title={`${t('documents.footnotes.insert')} · Strg/Cmd+Alt+F`}
+					aria-keyshortcuts="Control+Alt+F Meta+Alt+F"
+					onclick={() => editor.chain().focus().insertDocumentFootnote().run()}
+					><span aria-hidden="true">a<sup>1</sup></span> {t('documents.footnotes.label')}</button
+				>
+				{#if documentFootnotes.length}
+					<select
+						class="footnote-reuse"
+						aria-label={t('documents.footnotes.reuse')}
+						disabled={!canInsertFootnote}
+						onchange={(event) => {
+							const id = event.currentTarget.value;
+							if (id) editor.chain().focus().insertDocumentFootnote(id).run();
+							event.currentTarget.value = '';
+						}}
+					>
+						<option value="">{t('documents.footnotes.reuse')}</option>
+						{#each documentFootnotes as note (note.id)}
+							<option value={note.id}
+								>{note.number}. {note.definition.textContent.slice(0, 65) ||
+									t('documents.footnotes.empty')}</option
+							>
+						{/each}
+					</select>
+				{/if}
 				<select
 					aria-label={t('documents.editor.heading')}
 					value={formatting.heading}
@@ -1300,6 +1395,36 @@
 					disabled={!formatting.canRedo}
 					onclick={() => editor.chain().focus().redo().run()}
 					aria-label={t('documents.editor.redo')}><Icon name="redo" class="size-4" /></button
+				>
+			</div>
+		{/if}
+
+		{#if activeFootnote && editor}
+			<div
+				class="footnote-actions"
+				role="group"
+				aria-label={t('documents.footnotes.edit', { number: activeFootnote.number })}
+			>
+				<span>{t('documents.footnotes.number', { number: activeFootnote.number })}</span>
+				{#if activeFootnote.references.length}
+					<button
+						type="button"
+						onclick={() =>
+							editor?.chain().focus().returnFromDocumentFootnote(activeFootnote!.id).run()}
+						>{t('documents.footnotes.return')}</button
+					>
+				{:else}
+					<span>{t('documents.footnotes.unreferenced')}</span>
+				{/if}
+				<button
+					type="button"
+					onclick={() =>
+						editor?.chain().focus().removeDocumentFootnoteReference(activeFootnote!.id).run()}
+					>{t(
+						activeFootnote.references.length > 1
+							? 'documents.footnotes.removeReference'
+							: 'documents.footnotes.remove'
+					)}</button
 				>
 			</div>
 		{/if}
@@ -2060,6 +2185,33 @@
 		color: var(--color-stone-600);
 		font-size: 0.78rem;
 		line-height: 1.1;
+	}
+	.editor-toolbar .footnote-insert {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+	.editor-toolbar .footnote-reuse {
+		max-width: min(12rem, 100%);
+		font-size: 0.72rem;
+	}
+	.footnote-actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.35rem 0.8rem;
+		border-bottom: 1px solid var(--line);
+		padding: 0.4rem 1rem;
+		font-size: 0.75rem;
+	}
+	.footnote-actions button {
+		min-height: 2rem;
+		color: var(--color-accent-700);
+		text-decoration: underline;
+		text-underline-offset: 0.15em;
+	}
+	:global(.dark) .footnote-actions button {
+		color: var(--color-accent-300);
 	}
 	.quotation-hint {
 		margin: 0;

@@ -3,6 +3,8 @@ import PDFDocument from 'pdfkit';
 import { describe, expect, it, vi } from 'vitest';
 import type { OwnedDocumentExport } from './export';
 import { createDocxExport, createPdfExport, pdfInlineRuns } from './export';
+import { parseDocumentFootnotes } from '$lib/notes/document-footnotes';
+import { previewWordDocument } from './word-import';
 
 const fixture = {
 	document: {
@@ -21,6 +23,97 @@ const fixture = {
 } as OwnedDocumentExport;
 
 describe('portable rich document exports', () => {
+	const footnoteMarkdown =
+		'Text[^zweite], danach[^erste] und erneut[^zweite]. Code `[^erste]` und literal \\[^erste].\n\n' +
+		'[^erste]: Erste Erklärung.\n\n' +
+		'[^zweite]: **Zweite Erklärung** mit [Quelle](https://example.test/footnote).\n\n' +
+		'    Ein weiterer Absatz mit Joh 3,16.\n\n' +
+		'[^unbenutzt]: Unreferenzierter Inhalt bleibt erhalten.\n';
+
+	it('exports native numbered Word footnotes with repeats, rich content and visible orphaned notes', async () => {
+		const result = await createDocxExport({
+			...fixture,
+			document: { ...fixture.document, bodyMarkdown: footnoteMarkdown }
+		});
+		const zip = unzipSync(result.buffer);
+		const body = strFromU8(zip['word/document.xml']!);
+		const notes = strFromU8(zip['word/footnotes.xml']!);
+		expect(
+			[...body.matchAll(/<w:footnoteReference w:id="(\d+)"\/>/g)].map((match) => match[1])
+		).toEqual(['1', '2', '1']);
+		expect(notes).toContain('Zweite Erklärung');
+		expect(notes).toContain('Erste Erklärung');
+		expect(notes).toContain('Ein weiterer Absatz mit Joh 3,16.');
+		expect(notes).toContain('<w:b/>');
+		expect(notes).toContain('<w:footnoteRef/>');
+		expect(strFromU8(zip['word/_rels/footnotes.xml.rels']!)).toContain(
+			'https://example.test/footnote'
+		);
+		expect(body).toContain('Unreferenzierter Inhalt bleibt erhalten.');
+		expect(body).toContain('Fußnoten ohne Verweis');
+		expect(body).toContain('[^erste]');
+		expect(body).not.toContain('Zweite Erklärung');
+	});
+
+	it('round-trips real DOCX footnotes through the Word importer with their formatting and text', async () => {
+		const result = await createDocxExport({
+			...fixture,
+			document: { ...fixture.document, bodyMarkdown: footnoteMarkdown }
+		});
+		const imported = await previewWordDocument(result.filename, result.buffer);
+		expect(imported.html.match(/<sup data-footnote-ref=/g)).toHaveLength(3);
+		expect(imported.html).toContain('<strong>Zweite Erklärung</strong>');
+		expect(imported.plainText).toContain('Erste Erklärung');
+		expect(imported.plainText).toContain('Ein weiterer Absatz mit Joh 3,16.');
+		expect(imported.plainText).toContain('Unreferenzierter Inhalt bleibt erhalten.');
+		expect(imported.html).toContain('href="https://example.test/footnote"');
+	});
+
+	it('keeps a newly inserted empty footnote valid and editable in Word', async () => {
+		const result = await createDocxExport({
+			...fixture,
+			document: { ...fixture.document, bodyMarkdown: 'Text[^leer].\n\n[^leer]:\n' }
+		});
+		const zip = unzipSync(result.buffer);
+		const notes = strFromU8(zip['word/footnotes.xml']!);
+		expect(notes).toMatch(
+			/<w:footnote w:id="1"><w:p>[\s\S]*?<w:footnoteRef\/>[\s\S]*?<\/w:p><\/w:footnote>/
+		);
+		const imported = await previewWordDocument(result.filename, result.buffer);
+		expect(imported.html.match(/<sup data-footnote-ref=/g)).toHaveLength(1);
+		expect(parseDocumentFootnotes(imported.markdown).footnotes).toHaveLength(1);
+	});
+
+	it('links PDF markers to complete numbered endnotes while keeping code and escaped markers literal', async () => {
+		const parsed = parseDocumentFootnotes(footnoteMarkdown);
+		const runs = pdfInlineRuns('Text[^zweite] und `[^erste]` und \\[^erste]', parsed.footnotes);
+		expect(runs).toEqual([
+			{ text: 'Text' },
+			{ text: '[1]', footnoteId: 'zweite' },
+			{ text: ' und [^erste] und [^erste]' }
+		]);
+		const text = vi.spyOn(PDFDocument.prototype, 'text');
+		try {
+			const result = await createPdfExport(
+				{
+					...fixture,
+					document: { ...fixture.document, bodyMarkdown: footnoteMarkdown }
+				},
+				{ compress: false }
+			);
+			const written = text.mock.calls.map(([value]) => value).join('');
+			expect(written).toContain('Fußnoten');
+			expect(written).toContain('Zweite Erklärung');
+			expect(written).toContain('Erste Erklärung');
+			expect(written).toContain('Unreferenzierter Inhalt bleibt erhalten.');
+			expect(written).toContain('Ein weiterer Absatz mit Joh 3,16.');
+			expect(result.buffer.toString('latin1')).toContain('akribos-footnote-zweite');
+			expect(result.buffer.toString('latin1')).toContain('/URI (https://example.test/footnote)');
+		} finally {
+			text.mockRestore();
+		}
+	});
+
 	it('retains safe Markdown links as ordered PDF text runs', () => {
 		expect(
 			pdfInlineRuns('Vor [der Notiz](/notes/5eed0000-0000-4000-8000-000000000005) danach')

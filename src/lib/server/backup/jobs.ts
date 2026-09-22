@@ -21,6 +21,7 @@ import { backupJobs, users, type BackupJob } from '../db/schema.ts';
 import { refreshStrongStatisticsBlocking } from '../db/statistics.ts';
 import { backfillHebrewTranslations } from '../import/backfill-hebrew-translations.ts';
 import { backfillDocumentBodyReferenceIndexes } from '../repositories/document-reference-index.ts';
+import { backfillDocumentFootnotes } from '../documents/footnote-backfill.ts';
 import { backfillTskResourceKind } from '../import/backfill-tsk-kind.ts';
 import { invalidateResourceCache } from '../repositories/resources.ts';
 import { pruneExpiredSessions } from '../auth/session.ts';
@@ -499,6 +500,9 @@ async function executeRestore(
 			// history table, so pending migrations must be re-applied for the running code to match.
 			await migrate(db, { migrationsFolder: './drizzle' });
 			await reconcileRestoredBackupJobs(db, currentJobs);
+			const footnotes = await backfillDocumentFootnotes(db);
+			if (footnotes.updatedDocuments || footnotes.updatedPublications || footnotes.warnings)
+				logger.info(footnotes, 'restored document footnotes repaired');
 			await backfillDocumentBodyReferenceIndexes(db);
 			await backfillHebrewTranslations(db);
 			await backfillTskResourceKind(db);

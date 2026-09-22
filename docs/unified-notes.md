@@ -130,6 +130,27 @@ the standalone editor and Reader sidecar via its button or Ctrl/Cmd+Shift+F whil
 Escape exits it. The existing editor moves into a modal dialog, preserving undo history and autosave.
 Bible previews join that same dialog so their buttons remain usable in the browser's modal top layer.
 
+Footnotes use stable portable `[^id]` markers and indented definitions. The editor provides a visible
+**Fußnote** button, Ctrl/Cmd+Alt+F and `/fußnote`; inserting a reference and its editable definition is
+one undo step. Numbering follows the first reference and repeated references share a definition.
+Backspace or cutting a reference preserves its definition; explicit removal is available in the
+footnote controls. Notes and sermons share these controls in the normal editor, Zen and Reader sidecar.
+Rich paragraphs, lists, code and safe links remain editable inside definitions. Read-only views provide
+per-instance links to each footnote and back to each reference, without storing generated DOM IDs.
+The Zen dialog lives outside `.reading-preferences`. Before moving the existing editor into it,
+`copyEditorReadingPreferences()` copies the resolved reader font variables onto the dialog, preserving
+the selected text scale without applying it twice.
+
+The pure footnote parser owns its local Marked extension and supports alphanumeric IDs with underscores
+and hyphens, up to 64 characters. The HTML contract consists only of `sup[data-footnote-ref]`,
+`ol[data-footnotes="true"]` and `li[data-footnote-id]`; ordinary lists stay ordinary lists. Missing,
+duplicate, unsupported or nested markers are retained as text with warnings. Unique unreferenced
+definitions remain visible. Strict rendering respects escaped literal markers and code; legacy repair
+is a separate import/backfill operation and acts only on unambiguous reference/definition pairs.
+It also separates the historically merged `[^first]: … [^second]: …` definitions and reconstructs
+old escaped Markdown and identifiable Mammoth links. Warnings are bounded and private bodies never
+appear in operational logs.
+
 Import accepts Word `.docx` and UTF-8 `.md` files, or exactly one ZIP containing Markdown files, and always
 presents one shared side-effect-free preview before creation. Each document has at most 1 MiB of
 Markdown and 64 KiB of YAML frontmatter. A batch has at most 100 Markdown files; the upload and relevant
@@ -149,7 +170,8 @@ Preview reports each invalid Markdown source with its filename (or ZIP entry pat
 loose-file count reports the actual count and limit, rather than suggesting that one file is corrupt.
 
 Word files use [Mammoth](https://github.com/mwilliamson/mammoth.js) to convert semantic headings,
-lists, emphasis and links to HTML, followed by the existing allow-list and Markdown conversion.
+lists, emphasis and links to HTML. Native footnotes and endnotes are matched before the allow-list
+and converted to the same portable footnote model; ambiguous content is retained with a warning.
 Every DOCX ZIP part is bounded (16 MiB total expanded data), XML rejects DTDs and nesting beyond 100
 elements, and external file access and embedded style maps are disabled. Images, attachments, comments
 and page layout are omitted with a visible notice. Confirmation reparses the original Base64-encoded
@@ -160,10 +182,14 @@ publication state. ZIP uploads still contain Markdown only.
 Exports are owner-only and available as deterministic UTF-8 Markdown, editable Word `.docx` and A4 PDF.
 Markdown carries YAML frontmatter for title, kind, tags, passages, sermon metadata, delivery history and
 timestamps. Word/PDF contain readable metadata and body structure but may simplify Markdown-only layout.
+Word exports contain native footnotes; definitions without a body reference are preserved in a visible
+appendix. PDF exports contain linked numbered markers and all footnotes at the end of the document
+rather than allocating footnote space at each page bottom.
 PDF links remain clickable, use Akribos green in the page content, and relative targets are resolved
 against the exporting request's origin. Free inline Bible references recognized by the shared parser
 use the same green outside code spans. Every PDF page has an Akribos header and a numbered footer.
-No export contains an email address, owner/internal id or publication authority; download responses are
+Exports do not add email addresses, owner/document IDs as metadata or publication authority; authored
+links and portable footnote IDs remain intact; download responses are
 `private, no-store` and use portable filenames.
 
 The accepted/exported frontmatter uses `title`, `type` (`kind` is accepted on import), `tags`,

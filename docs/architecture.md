@@ -374,3 +374,17 @@ not confer access. Public document/list pages and the sitemap still select publi
 Versioned APIs resolve a session or personal-scope key; public-scope keys never inherit private grants.
 The request hook marks both session and personal-key responses `private, no-store`. Already delivered
 content cannot be recalled from a browser after revocation. Backups include the grant table automatically.
+
+## Document footnotes
+
+`lib/notes/document-footnotes.ts` is the shared, I/O-free source parser and local Marked tokenizer for
+rendering, portable Markdown and rich exports. Stable IDs and first-reference numbering are separate
+from per-instance DOM navigation targets. `DocumentEditor` uses three Tiptap nodes so references and
+editable definitions round-trip through the existing autosave revision queue. No render-only IDs are
+persisted. Native Word imports and exports use the same definitions; PDF provides linked endnotes.
+
+`server/documents/footnote-backfill.ts` repairs working copies and publication snapshots independently,
+under the existing document lock, and refreshes links/reference indexes atomically. It preserves
+historical timestamps, advances only changed draft revisions, and cannot publish private draft content.
+Startup, backup restoration and the native CLI all call this same idempotent operation. See
+[unified-notes.md](unified-notes.md) for format/UI boundaries and [operations.md](operations.md) for replay.

@@ -72,6 +72,24 @@ the newer saved snapshot intact. Reopening a workspace resolves its latest state
 removes it from the account; another device that still selected it receives an existing fallback on
 its next access. No separate service or periodic job is required.
 
+## Repairing existing document footnotes
+
+The application runs `backfillDocumentFootnotes` at startup and after a restored backup. To repeat it
+manually, run `pnpm db:backfill-footnotes`. No schema migration, new service or external provider is
+required. The native Node CLI uses the configured database and reports counts only.
+
+The backfill scans bounded batches of notes and sermons, including trashed documents and their own
+publication snapshots. It repairs unambiguous legacy Markdown/Word reference pairs, splits merged
+footnote definitions, and refreshes derived HTML/text even when canonical Markdown was already present.
+Each document is locked and re-read before updating content, links and reference indexes in one
+transaction. A real draft change increments its revision so a stale editor cannot overwrite the repair;
+creation and update timestamps remain unchanged. Repeating the operation produces no further changes.
+
+Published content is regenerated exclusively from the publication's own Markdown. Newer private drafts
+are never published by this operation. Only a previously current snapshot follows the technical revision
+increment; an already stale snapshot remains stale. Ambiguous HTML-only sources without matching Markdown
+remain intact and contribute to the warning count. Logs expose counts, never footnote text.
+
 ## Re-scanning document Bible references
 
 Migration `0038_document_reference_parser_version.sql` marks existing derived indexes with the legacy

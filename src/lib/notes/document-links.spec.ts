@@ -5,6 +5,13 @@ const FIRST = '5eed0000-0000-4000-8000-000000000001';
 const SECOND = '5eed0000-0000-4000-8000-000000000002';
 
 describe('document links', () => {
+	it('indexes links in rich footnote definitions including unused notes without indexing code', () => {
+		expect(
+			documentLinkTargetIds(
+				`Text[^a].\n\n[^a]: [Erste](/notes/${FIRST}) und \`[Code](/notes/${SECOND})\`.\n\n[^unused]: [Zweite](/notes/${SECOND})\n`
+			)
+		).toEqual([FIRST, SECOND]);
+	});
 	it('extracts unique owned-document Markdown targets without treating text or code as links', () => {
 		expect(
 			documentLinkTargetIds(

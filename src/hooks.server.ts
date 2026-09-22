@@ -12,6 +12,10 @@ import { cleanStaleStagedFiles, failInterruptedBackupJobs } from '$lib/server/ba
 import { startBackupScheduler } from '$lib/server/backup/scheduler';
 import { backfillHebrewTranslations } from '$lib/server/import/backfill-hebrew-translations';
 import { backfillDocumentBodyReferenceIndexes } from '$lib/server/repositories/document-reference-index';
+import {
+	backfillDocumentFootnotes,
+	DocumentFootnoteBackfillError
+} from '$lib/server/documents/footnote-backfill';
 import { backfillTskResourceKind } from '$lib/server/import/backfill-tsk-kind';
 
 /**
@@ -37,6 +41,19 @@ export const init: ServerInit = async () => {
 		// A database that is not up yet must not stop the server from booting: the healthcheck will
 		// report unhealthy until it is, which is the signal the deployment watches.
 		logger.warn({ err: error }, 'startup housekeeping skipped');
+	}
+	try {
+		const result = await backfillDocumentFootnotes(db);
+		if (result.updatedDocuments || result.updatedPublications || result.warnings)
+			logger.info(result, 'document footnotes repaired');
+	} catch (error) {
+		logger.warn(
+			{
+				name: 'DocumentFootnoteBackfillError',
+				code: error instanceof DocumentFootnoteBackfillError ? error.code : undefined
+			},
+			'document footnote backfill skipped'
+		);
 	}
 	try {
 		const indexedDocuments = await backfillDocumentBodyReferenceIndexes(db);

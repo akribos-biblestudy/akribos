@@ -1,7 +1,57 @@
 import { describe, expect, it } from 'vitest';
-import { Document, ExternalHyperlink, HeadingLevel, Packer, Paragraph, TextRun } from 'docx';
+import {
+	Document,
+	ExternalHyperlink,
+	FootnoteReferenceRun,
+	HeadingLevel,
+	Packer,
+	Paragraph,
+	TextRun
+} from 'docx';
 import { strToU8, unzipSync, zipSync } from 'fflate';
 import { previewWordDocument, WordImportError } from './word-import';
+import { parseDocumentFootnotes } from '../../notes/document-footnotes.ts';
+
+async function footnoteFixture() {
+	return Packer.toBuffer(
+		new Document({
+			footnotes: {
+				1: {
+					children: [
+						new Paragraph({
+							children: [
+								new TextRun({ text: 'Fette Erklärung', bold: true }),
+								new TextRun(' mit '),
+								new ExternalHyperlink({
+									link: 'https://example.com',
+									children: [new TextRun('Quelle')]
+								})
+							]
+						}),
+						new Paragraph('Zweiter Absatz.')
+					]
+				},
+				2: { children: [new Paragraph('Andere Erklärung.')] }
+			},
+			sections: [
+				{
+					children: [
+						new Paragraph({
+							children: [
+								new TextRun('Text'),
+								new FootnoteReferenceRun(1),
+								new TextRun(' wieder'),
+								new FootnoteReferenceRun(1),
+								new TextRun(' andere'),
+								new FootnoteReferenceRun(2)
+							]
+						})
+					]
+				}
+			]
+		})
+	);
+}
 
 async function fixture() {
 	return Packer.toBuffer(
@@ -33,6 +83,31 @@ async function fixture() {
 }
 
 describe('Word document import', () => {
+	it('imports native repeated Word footnotes as one stable definition with rich content', async () => {
+		const preview = await previewWordDocument('Fußnoten.docx', await footnoteFixture());
+		const parsed = parseDocumentFootnotes(preview.markdown);
+		expect(parsed.footnotes).toHaveLength(2);
+		expect(preview.html.match(/data-footnote-ref="footnote-1"/g)).toHaveLength(2);
+		expect(preview.html.match(/<li data-footnote-id=/g)).toHaveLength(2);
+		expect(preview.html).toContain('<strong>Fette Erklärung</strong>');
+		expect(preview.html).toContain('<a href="https://example.com">Quelle</a>');
+		expect(preview.html).toContain('Zweiter Absatz.');
+		expect(preview.html).toContain('Andere Erklärung.');
+		expect(preview.markdown).not.toMatch(/footnote-ref-|\[↑\]/);
+	});
+
+	it('sanitises links inside native footnote definitions after identifying their structure', async () => {
+		const entries = unzipSync(await footnoteFixture());
+		const path = 'word/_rels/footnotes.xml.rels';
+		entries[path] = strToU8(
+			new TextDecoder().decode(entries[path]).replace('https://example.com', 'javascript:alert(1)')
+		);
+		const preview = await previewWordDocument('Unsicher.docx', zipSync(entries));
+		expect(parseDocumentFootnotes(preview.markdown).footnotes).toHaveLength(2);
+		expect(preview.markdown).not.toContain('javascript:');
+		expect(preview.html).not.toContain('javascript:');
+		expect(preview.plainText).toContain('Quelle');
+	});
 	it('preserves headings, emphasis, lists, links and scripture text as private note content', async () => {
 		const preview = await previewWordDocument('Meine-Notiz.docx', await fixture());
 		expect(preview).toMatchObject({

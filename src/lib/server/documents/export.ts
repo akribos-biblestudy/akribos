@@ -4,6 +4,7 @@ import {
 	Document as WordDocument,
 	HeadingLevel,
 	ExternalHyperlink,
+	FootnoteReferenceRun,
 	type IRunStylePropertiesOptions,
 	Packer,
 	Paragraph,
@@ -15,6 +16,12 @@ import { createRequire } from 'node:module';
 import { findBibleReferences } from '$lib/bible/link-references';
 import { formatPassage, passageFromDbEndpoints } from '$lib/bible/passage';
 import { formatGermanCalendarDate } from '$lib/notes/calendar-date';
+import {
+	createDocumentFootnoteLexer,
+	parseDocumentFootnotes,
+	type DocumentFootnote,
+	type DocumentFootnoteReferenceToken
+} from '$lib/notes/document-footnotes';
 import {
 	documentContentDisposition,
 	decodeHtmlEntities,
@@ -36,15 +43,28 @@ export type OwnedDocumentExport = {
 
 export const PDF_LINK_COLOR = '#2f7d32';
 
-export type PdfInlineRun = { text: string; href?: string; bibleReference?: boolean };
+export type PdfInlineRun = {
+	text: string;
+	href?: string;
+	bibleReference?: boolean;
+	footnoteId?: string;
+};
 
 /** Turns portable inline Markdown into ordered text/link runs for PDFKit. */
-export function pdfInlineRuns(markdown: string): PdfInlineRun[] {
+export function pdfInlineRuns(
+	markdown: string,
+	footnotes: readonly DocumentFootnote[] = []
+): PdfInlineRun[] {
 	const runs: PdfInlineRun[] = [];
 	const append = (text: string, href?: string, bibleReference = false) => {
 		if (!text) return;
 		const previous = runs.at(-1);
-		if (previous && previous.href === href && Boolean(previous.bibleReference) === bibleReference) {
+		if (
+			previous &&
+			!previous.footnoteId &&
+			previous.href === href &&
+			Boolean(previous.bibleReference) === bibleReference
+		) {
 			previous.text += text;
 		} else {
 			runs.push({ text, ...(href ? { href } : {}), ...(bibleReference ? { bibleReference } : {}) });
@@ -66,6 +86,11 @@ export function pdfInlineRuns(markdown: string): PdfInlineRun[] {
 	const visit = (tokens: Token[], inheritedHref?: string) => {
 		for (const token of tokens) {
 			switch (token.type) {
+				case 'documentFootnoteReference': {
+					const reference = token as DocumentFootnoteReferenceToken;
+					runs.push({ text: `[${reference.number}]`, footnoteId: reference.id });
+					break;
+				}
 				case 'link': {
 					const link = token as Tokens.Link;
 					const href = safeLinkHref(link.href) ?? undefined;
@@ -104,7 +129,7 @@ export function pdfInlineRuns(markdown: string): PdfInlineRun[] {
 			}
 		}
 	};
-	visit(Lexer.lexInline(markdown, { gfm: true }));
+	visit(createDocumentFootnoteLexer(footnotes).lexInline(markdown));
 	return runs;
 }
 
@@ -221,8 +246,17 @@ function markdownExportBlocks(markdown: string): MarkdownExportBlock[] {
 	return blocks;
 }
 
-function wordInlineRuns(markdown: string, baseUrl: string): Array<TextRun | ExternalHyperlink> {
-	const runs: Array<TextRun | ExternalHyperlink> = [];
+type WordFootnoteContext = {
+	definitions: readonly DocumentFootnote[];
+	referenced: Set<string>;
+};
+
+function wordInlineRuns(
+	markdown: string,
+	baseUrl: string,
+	footnotes?: WordFootnoteContext
+): Array<TextRun | ExternalHyperlink | FootnoteReferenceRun> {
+	const runs: Array<TextRun | ExternalHyperlink | FootnoteReferenceRun> = [];
 	const append = (
 		text: string,
 		style: IRunStylePropertiesOptions,
@@ -242,6 +276,12 @@ function wordInlineRuns(markdown: string, baseUrl: string): Array<TextRun | Exte
 	const visit = (tokens: Token[], style: IRunStylePropertiesOptions = {}, href?: string) => {
 		for (const token of tokens) {
 			switch (token.type) {
+				case 'documentFootnoteReference': {
+					const reference = token as DocumentFootnoteReferenceToken;
+					footnotes?.referenced.add(reference.id);
+					runs.push(new FootnoteReferenceRun(reference.number));
+					break;
+				}
 				case 'link': {
 					const link = token as Tokens.Link;
 					visit(link.tokens, style, safeLinkHref(link.href) ?? undefined);
@@ -277,11 +317,15 @@ function wordInlineRuns(markdown: string, baseUrl: string): Array<TextRun | Exte
 			}
 		}
 	};
-	visit(Lexer.lexInline(markdown, { gfm: true }));
+	visit(createDocumentFootnoteLexer(footnotes?.definitions ?? []).lexInline(markdown));
 	return runs;
 }
 
-function markdownParagraphs(markdown: string, baseUrl: string): Paragraph[] {
+function markdownParagraphs(
+	markdown: string,
+	baseUrl: string,
+	footnotes?: WordFootnoteContext
+): Paragraph[] {
 	const headings = [
 		HeadingLevel.HEADING_1,
 		HeadingLevel.HEADING_2,
@@ -305,7 +349,7 @@ function markdownParagraphs(markdown: string, baseUrl: string): Paragraph[] {
 							? [new TextRun('────────')]
 							: [
 									...(block.prefix ? [new TextRun(block.prefix)] : []),
-									...wordInlineRuns(block.text, baseUrl)
+									...wordInlineRuns(block.text, baseUrl, footnotes)
 								],
 				...(block.heading ? { heading: headings[block.heading - 1] } : {}),
 				...(block.indent ? { indent: { left: block.indent * 360 } } : {}),
@@ -322,6 +366,9 @@ export async function createDocxExport(
 	contentDisposition: string;
 	buffer: Buffer;
 }> {
+	const parsed = parseDocumentFootnotes(data.document.bodyMarkdown);
+	const baseUrl = options.baseUrl ?? 'https://akribos.de';
+	const footnotes: WordFootnoteContext = { definitions: parsed.footnotes, referenced: new Set() };
 	const children = [
 		new Paragraph({
 			children: [new TextRun({ text: data.document.title, bold: true, size: 36 })],
@@ -333,9 +380,30 @@ export async function createDocxExport(
 				new Paragraph({ children: [new TextRun({ text: line, color: '666666', size: 18 })] })
 		),
 		new Paragraph({ text: '' }),
-		...markdownParagraphs(data.document.bodyMarkdown, options.baseUrl ?? 'https://akribos.de')
+		...markdownParagraphs(parsed.bodyMarkdown, baseUrl, footnotes)
 	];
+	const orphaned = parsed.footnotes.filter((note) => !footnotes.referenced.has(note.id));
+	if (orphaned.length) {
+		// Word does not display a native footnote that has no reference in the document body.
+		// Preserve these imported definitions visibly instead of leaving them hidden in the archive.
+		children.push(
+			new Paragraph({ text: 'Fußnoten ohne Verweis', heading: HeadingLevel.HEADING_2 })
+		);
+		for (const note of orphaned) {
+			children.push(new Paragraph({ text: `Fußnote ${note.number}` }));
+			children.push(...markdownParagraphs(note.markdown, baseUrl));
+		}
+	}
 	const file = new WordDocument({
+		footnotes: Object.fromEntries(
+			parsed.footnotes
+				.filter((note) => footnotes.referenced.has(note.id))
+				.map((note) => {
+					const paragraphs = markdownParagraphs(note.markdown, baseUrl);
+					// An empty editable note still needs a paragraph for Word's reference mark.
+					return [note.number, { children: paragraphs.length ? paragraphs : [new Paragraph('')] }];
+				})
+		),
 		numbering: {
 			config: [
 				{
@@ -362,6 +430,7 @@ export async function createPdfExport(
 	contentDisposition: string;
 	buffer: Buffer;
 }> {
+	const parsed = parseDocumentFootnotes(data.document.bodyMarkdown);
 	const pdf = new PDFDocument({
 		size: 'A4',
 		margins: { top: 68, right: 56, bottom: 68, left: 56 },
@@ -432,14 +501,18 @@ export async function createPdfExport(
 		return new URL(href, options.baseUrl ?? 'https://akribos.de').href;
 	}
 
-	function writeInlineMarkdown(value: string, textOptions: PDFKit.Mixins.TextOptions = {}): void {
-		const runs = pdfInlineRuns(value);
+	function writeInlineMarkdown(
+		value: string,
+		textOptions: PDFKit.Mixins.TextOptions = {},
+		footnotes: readonly DocumentFootnote[] = []
+	): void {
+		const runs = pdfInlineRuns(value, footnotes);
 		if (runs.length === 0) {
 			writeText('', textOptions);
 			return;
 		}
 		for (const [index, run] of runs.entries()) {
-			const linked = Boolean(run.href);
+			const linked = Boolean(run.href || run.footnoteId);
 			const highlighted = linked || Boolean(run.bibleReference);
 			pdf.fillColor(highlighted ? PDF_LINK_COLOR : '#222222');
 			writeText(
@@ -447,6 +520,7 @@ export async function createPdfExport(
 				{
 					...textOptions,
 					link: run.href ? absoluteHref(run.href) : null,
+					goTo: run.footnoteId ? `akribos-footnote-${run.footnoteId}` : undefined,
 					underline: linked
 				},
 				index < runs.length - 1
@@ -499,31 +573,53 @@ export async function createPdfExport(
 	pdf.moveDown(0.5).fontSize(9).fillColor('#666666');
 	for (const line of metadataLines(data)) writeText(line);
 	pdf.moveDown().fillColor('#222222').fontSize(11);
-	for (const block of markdownExportBlocks(data.document.bodyMarkdown)) {
-		if (block.kind === 'code') {
-			pdf.moveDown(0.3);
-			writeText(block.text, { indent: 14 + block.indent * 14, paragraphGap: 5 });
-			pdf.moveDown(0.3);
-		} else if (block.kind === 'rule') {
-			pdf.moveDown(0.45);
-			pdf
-				.moveTo(pdf.x, pdf.y)
-				.lineTo(pdf.page.width - pdf.page.margins.right, pdf.y)
-				.lineWidth(0.5)
-				.strokeColor('#bbbbbb')
-				.stroke();
-			pdf.moveDown(0.45);
-		} else {
-			if (block.heading)
+	function writeBlocks(markdown: string, footnotes: readonly DocumentFootnote[] = [], prefix = '') {
+		for (const block of markdownExportBlocks(markdown)) {
+			if (block.kind === 'code') {
+				if (prefix) writeText(prefix);
+				pdf.moveDown(0.3);
+				writeText(block.text, { indent: 14 + block.indent * 14, paragraphGap: 5 });
+				pdf.moveDown(0.3);
+			} else if (block.kind === 'rule') {
+				if (prefix) writeText(prefix);
+				pdf.moveDown(0.45);
 				pdf
-					.moveDown(block.heading === 1 ? 0.9 : 0.55)
-					.fontSize(Math.max(11, 18 - block.heading * 2));
-			if (block.prefix) writeText(block.prefix, {}, true);
-			writeInlineMarkdown(block.text, {
-				paragraphGap: 5,
-				...(block.indent ? { indent: block.indent * 14 } : {})
-			});
-			if (block.heading) pdf.moveDown(0.25).fontSize(11);
+					.moveTo(pdf.x, pdf.y)
+					.lineTo(pdf.page.width - pdf.page.margins.right, pdf.y)
+					.lineWidth(0.5)
+					.strokeColor('#bbbbbb')
+					.stroke();
+				pdf.moveDown(0.45);
+			} else {
+				if (block.heading)
+					pdf
+						.moveDown(block.heading === 1 ? 0.9 : 0.55)
+						.fontSize(Math.max(11, 18 - block.heading * 2));
+				if (prefix || block.prefix) writeText(prefix + (block.prefix ?? ''), {}, true);
+				writeInlineMarkdown(
+					block.text,
+					{
+						paragraphGap: 5,
+						...(block.indent ? { indent: block.indent * 14 } : {})
+					},
+					footnotes
+				);
+				if (block.heading) pdf.moveDown(0.25).fontSize(11);
+			}
+			prefix = '';
+		}
+		if (prefix) writeText(prefix);
+	}
+	writeBlocks(parsed.bodyMarkdown, parsed.footnotes);
+	if (parsed.footnotes.length) {
+		// A separate, linked section preserves rich multi-paragraph notes across PDF pagination.
+		pdf.moveDown().fontSize(14);
+		writeText('Fußnoten');
+		pdf.moveDown(0.3).fontSize(11);
+		for (const note of parsed.footnotes) {
+			pdf.addNamedDestination(`akribos-footnote-${note.id}`, 'XYZ', pdf.x, pdf.y, null);
+			writeBlocks(note.markdown, [], `${note.number}. `);
+			pdf.moveDown(0.3);
 		}
 	}
 
