@@ -6,6 +6,7 @@ import { queueImport, listJobs, hasRunningJob } from '$lib/server/import/jobs';
 import { resourceKindForFormat } from '$lib/server/import';
 import { morphologyTargets } from '$lib/server/import/ingest-morphology';
 import { detectSwordFormat } from '$lib/server/import/sword';
+import { detectUsxArchive } from '$lib/server/import/usx-archive';
 
 /**
  * Upload and import.
@@ -41,9 +42,18 @@ export const actions = {
 		const prefix = new TextDecoder('utf-8').decode(contents.slice(0, DETECTION_PREFIX_BYTES));
 
 		const chosen = String(form.get('format') ?? '');
-		const format: SourceFormat | undefined = SOURCE_FORMATS.includes(chosen as SourceFormat)
-			? (chosen as SourceFormat)
-			: (detectSwordFormat(new Uint8Array(contents)) ?? detectFormat(prefix, file.name)?.format);
+		let format: SourceFormat | undefined;
+		try {
+			format = SOURCE_FORMATS.includes(chosen as SourceFormat)
+				? (chosen as SourceFormat)
+				: (detectSwordFormat(new Uint8Array(contents)) ??
+					detectUsxArchive(new Uint8Array(contents)) ??
+					detectFormat(prefix, file.name)?.format);
+		} catch (error) {
+			return fail(400, {
+				error: error instanceof Error ? error.message : 'Die ZIP-Datei konnte nicht gelesen werden.'
+			});
+		}
 
 		if (!format) {
 			return fail(400, {

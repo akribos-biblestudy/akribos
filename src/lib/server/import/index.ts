@@ -14,6 +14,7 @@ import { ingestLexicon } from './ingest-lexicon.ts';
 import { ingestMorphology } from './ingest-morphology.ts';
 import { ingestCommentary, ingestCrossReferences } from './ingest-simple.ts';
 import { readSwordModule } from './sword.ts';
+import { readUsxArchive } from './usx-archive.ts';
 
 export type ResourceKind = 'bible' | 'lexicon' | 'commentary' | 'xrefs' | 'morphology';
 
@@ -25,6 +26,7 @@ const KIND_BY_FORMAT: Record<SourceFormat, ResourceKind> = {
 	osis: 'bible',
 	usfm: 'bible',
 	usx: 'bible',
+	'usx-zip': 'bible',
 	usfx: 'bible',
 	vpl: 'bible',
 	'strongs-xml': 'lexicon',
@@ -43,6 +45,8 @@ export type RunImportOptions = {
 	format: SourceFormat;
 	input: SourceInput;
 	sourceFile?: string;
+	/** Original upload name, before storage adds a timestamp. */
+	sourceName?: string;
 	overrides?: IngestOptions['overrides'];
 	/** Target resource for kinds that annotate an existing one, such as morphology overlays. */
 	targetResourceId?: string;
@@ -68,7 +72,13 @@ export async function runImport(db: Database, options: RunImportOptions): Promis
 				: (() => {
 						throw new Error('SWORD imports require the original archive file');
 					})()
-			: parserFor(options.format)(options.input);
+			: options.format === 'usx-zip'
+				? options.sourceFile
+					? readUsxArchive(options.sourceFile, options.sourceName)
+					: (() => {
+							throw new Error('USX ZIP imports require the original archive file');
+						})()
+				: parserFor(options.format)(options.input);
 
 	switch (kind) {
 		case 'bible': {

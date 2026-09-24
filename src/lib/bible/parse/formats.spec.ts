@@ -267,7 +267,7 @@ describe('USX and USFX', () => {
 		expect(verses[0]?.segments).toContainEqual({ kind: 'w', text: 'Gott', strong: 'H430' });
 	});
 
-	it('drops USX notes', async () => {
+	it('excludes USX notes from searchable verse text', async () => {
 		const { verses } = await drain(
 			parseUsx(`<usx><book code="JHN"/><chapter number="3"/>
 				<para style="p"><verse number="16"/>Denn also hat Gott<note caller="+" style="f"><char style="ft">Oder: so sehr</char></note> die Welt geliebt.</para>

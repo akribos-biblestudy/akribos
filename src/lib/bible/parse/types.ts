@@ -19,6 +19,7 @@ export const SOURCE_FORMATS = [
 	'osis',
 	'usfm',
 	'usx',
+	'usx-zip',
 	'usfx',
 	'vpl',
 	'strongs-xml',

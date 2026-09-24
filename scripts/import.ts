@@ -19,6 +19,7 @@ import type { SourceFormat } from '../src/lib/bible/parse/types.ts';
 import { createDb } from '../src/lib/server/db/client.ts';
 import { runImport } from '../src/lib/server/import/index.ts';
 import { detectSwordFormat } from '../src/lib/server/import/sword.ts';
+import { detectUsxArchive } from '../src/lib/server/import/usx-archive.ts';
 
 type Options = {
 	file: string;
@@ -142,11 +143,12 @@ let resolvedDetection: { format: SourceFormat; reason: string } | null = options
 	: null;
 if (!options.format) {
 	const first = inputs[0]!;
-	const sword = first.toLowerCase().endsWith('.zip')
-		? detectSwordFormat(new Uint8Array(await readFile(first)))
-		: null;
-	resolvedDetection = sword
-		? { format: sword, reason: 'CrossWire SWORD module configuration' }
+	const bytes = first.toLowerCase().endsWith('.zip')
+		? new Uint8Array(await readFile(first))
+		: undefined;
+	const archive = bytes ? (detectSwordFormat(bytes) ?? detectUsxArchive(bytes)) : null;
+	resolvedDetection = archive
+		? { format: archive, reason: 'ZIP archive contents' }
 		: detectFormat(await readPrefix(first), basename(first));
 }
 
@@ -155,6 +157,10 @@ if (!resolvedDetection) {
 		`could not recognise the format of ${options.file}. Pass --format explicitly; see docs/importing.md`
 	);
 	process.exit(1);
+}
+
+if (resolvedDetection.format === 'usx-zip' && (inputs.length !== 1 || inputs[0] !== path)) {
+	throw new Error('Please import one USX ZIP file at a time.');
 }
 
 console.log(`format: ${resolvedDetection.format} (${resolvedDetection.reason})`);

@@ -1182,6 +1182,21 @@ erzeugt eine Warnung; die abschließenden Zähler stammen aus dem tatsächlich g
 USFM-Strukturmarker gelten unabhängig von Zeilenumbrüchen; Buchwechsel schließen zuerst den alten
 Vers ab. Abschnittsüberschriften in USFM und USX gehören zum folgenden Vers.
 
+USX-ZIP (`usx-zip`) bündelt alle enthaltenen `.usx`-Buchdateien zu genau einem atomaren
+Bibelimport. Optionale DBL-`metadata.xml` liefert Werkname, Kürzel, Sprache, Copyright und
+`revision`; USX-/DBL-Formatversionen sind keine Quellrevision. Ohne Metadaten gilt der originale
+ZIP-Dateiname, niemals der Zeitstempel des gespeicherten Uploads oder der Titel eines Einzelbuchs.
+ZIP-Einträge werden nur im Speicher gelesen: höchstens 64 MiB Archiv, 500 Einträge, 32 MiB je
+entpackter Datei und 256 MiB insgesamt. Pfade, lokale Dateiköpfe, Kompression, Größen und CRC
+werden geprüft; mehrere Metadatendateien werden als mehrdeutige Werkauswahl abgewiesen.
+USX-3-Endmarken schließen Verse ohne Warnung. Fußnoten und Querverweise bleiben sichere
+`note`-Segmente außerhalb des Suchtexts; Überschriften und Abschnittsverweise gehören zum nächsten
+Vers, ebenso Fußnoten in Abschnittsüberschriften. Überschriften innerhalb eines laufenden Verses
+schließen diesen nicht ab; seine Fortsetzung bleibt bis zur nächsten Versmarke erhalten.
+Nummerierte Psalmüberschriften bleiben Versinhalt. Nicht abbildbare Versnummern (z.B.
+Buchstabensuffixe oder nicht zusammenhängende Listen) brechen den Import ab, statt Text durch
+gekürzte Nummern zu überschreiben. Ein defektes oder leeres Buch bricht den gesamten ZIP-Import ab.
+
 `resources.source_revision` (Migration 0045) enthält ausschließlich die vom letzten erfolgreichen
 Import deklarierte Quellrevision, bei Zefania `XMLBIBLE/@revision`; Name, Kürzel, Rechte und
 administrative Anzeigetexte sind keine Versionsquelle. Reimporte aktualisieren die separate Revision
