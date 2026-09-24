@@ -36,7 +36,8 @@
 		'sword-commentary': 'SWORD-Modul (Kommentar)',
 		osis: 'OSIS XML (Bibel)',
 		usfm: 'USFM (Bibel)',
-		usx: 'USX (Bibel)',
+		usx: 'USX (Bibel, Einzeldatei)',
+		'usx-zip': 'USX-ZIP (Bibel, mehrere Bücher)',
 		usfx: 'USFX (Bibel)',
 		vpl: 'Ein Vers pro Zeile / CSV (Bibel)',
 		'strongs-xml': "Strong's Wörterbuch (XML)",
@@ -55,7 +56,7 @@
 		<h1 class="text-2xl font-semibold tracking-tight">Ressource importieren</h1>
 		<p class="mt-1 max-w-2xl text-sm text-stone-600 dark:text-stone-300">
 			Neue Bibeln und Nachschlagewerke einlesen. Das Dateiformat wird normalerweise automatisch
-			erkannt.
+			erkannt. USX-Bibeln mit einer Datei je Buch kannst du direkt als ZIP hochladen.
 		</p>
 	</div>
 	<a

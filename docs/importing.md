@@ -106,8 +106,8 @@ subtitles and rights text. The root `version` attribute describes the XML format
 an edition version. Revision text is whitespace-normalized, limited to 80 characters and rejects
 control/bidirectional formatting characters and markup delimiters. A successful reimport replaces
 this provenance together with the verses; a source without a usable revision clears the old value.
-A failed import preserves both content and its previous revision. Other formats remain unknown until
-their own parser supplies explicit edition provenance.
+A failed import preserves both content and its previous revision. Formats without declared edition provenance remain unknown. USX ZIP also records the explicit
+DBL metadata revision as described below.
 
 ## Bible translations
 
@@ -117,9 +117,46 @@ their own parser supplies explicit edition provenance.
 | CrossWire SWORD raw ZIP | `mods.d/*.conf` plus `modules/` | Bible drivers `RawText`/`zText` (including their v4 variants). The runtime uses CrossWire's `diatheke` reader. |
 | OSIS                    | `<osis>`                        | Both container (`<verse>text</verse>`) and milestone (`<verse sID=…/>`) styles.                                |
 | USFM                    | `\id`, `\c`, `\v` markers       | Word-level Strong's attributes are read; footnotes and cross references are dropped.                           |
-| USX                     | `<usx>`                         | What eBible.org publishes.                                                                                     |
+| USX / USX ZIP           | `<usx>` / ZIP with `.usx` files | Single book or one ZIP per translation; notes and cross references are preserved.                              |
 | USFX                    | `<usfx>`                        | Same content, different shape.                                                                                 |
 | Verse per line          | a reference and text per row    | Tab, pipe, semicolon or comma separated; also `book`/`chapter`/`verse`/`text` columns.                         |
+
+### USX ZIP
+
+Upload the original ZIP under **Administration → Import** with automatic detection, or select
+**USX-ZIP (Bibel, mehrere Bücher)**. The CLI uses the same importer:
+
+```sh
+pnpm data:import "translation.zip"
+pnpm data:import --format usx-zip --id MYBIBLE --name "My Bible" "translation.zip"
+```
+
+All `.usx` files, including files in subdirectories, become one Bible resource. Each XML document is
+parsed separately; accompanying styles, LDML and versification files are not imported. Optional DBL
+`metadata.xml` supplies the translation name, abbreviation, language, direction, copyright and declared
+revision. The ASCII abbreviation is the resource identifier; the local abbreviation is the display
+label. Without metadata, the original archive filename supplies the default name and identifier.
+Administrator overrides still take precedence. Archives with multiple `metadata.xml` files are rejected
+rather than combining different editions.
+
+USX 2/3 verse milestones, merged verse ranges, Strong words, emphasis, poetry line breaks, section
+headings and numbered Psalm superscriptions are retained. Footnotes and cross references become plain
+note segments, excluded from searchable scripture text. Section references accompany the next heading;
+heading notes accompany the following verse.
+A heading inside an open verse never discards the continuation of that verse.
+Book introductions, book titles, editorial remarks, illustrations and alternate printed numbering are
+not stored as verses. Letter-suffixed or discontinuous verse numbers are rejected with a filename and
+error instead of silently truncating them. The existing 66-book canon applies; a file with no usable
+verses fails the entire import. A late XML failure also rolls back every book of a reimport.
+
+ZIPs are never extracted to the filesystem. Limits are 64 MiB uploaded, 500 entries, 32 MiB per
+uncompressed file and 256 MiB in total. Unsafe/duplicate paths, symlinks, encryption, multipart ZIPs,
+ZIP64, unsupported compression, inconsistent headers and incorrect sizes/checksums are rejected.
+Only UTF-8 XML is accepted. Synthetic fixtures cover these cases; publisher source archives stay
+outside the repository.
+
+The parser follows the [USX milestone structure](https://ubsicap.github.io/usx/elements.html)
+and [note model](https://ubsicap.github.io/usx/notes.html).
 
 USFM carries Strong's numbers as word attributes, which the importer reads:
 

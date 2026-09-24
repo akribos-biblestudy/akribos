@@ -28,6 +28,9 @@ const parsers: Record<SourceFormat, Parser> = {
 	osis: parseOsis,
 	usfm: (input) => parseUsfm(input),
 	usx: (input) => parseUsx(input),
+	'usx-zip': () => {
+		throw new Error('USX ZIP imports require the original archive file');
+	},
 	usfx: (input) => parseUsfx(input),
 	vpl: (input) => parseVpl(input),
 	'strongs-xml': parseStrongsXml,

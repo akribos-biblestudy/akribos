@@ -85,6 +85,7 @@ async function execute(db: Database, jobId: string, options: QueueOptions): Prom
 			format: options.format,
 			input: readFileChunks(job.sourceFile),
 			sourceFile: job.sourceFile,
+			sourceName: options.fileName,
 			...(options.overrides ? { overrides: options.overrides } : {}),
 			...(options.targetResourceId ? { targetResourceId: options.targetResourceId } : {}),
 			onProgress: async ({ done, message }) => {
