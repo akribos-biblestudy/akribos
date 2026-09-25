@@ -5,15 +5,16 @@ import {
 	type WordSegment
 } from './segments.ts';
 
-/** Older imports retained the source's exact text, but not NOTE's uncertainty metadata. */
-const LEGACY_ASSIGNMENT_NOTE = 'Automatische Wortzuordnung; fachlich noch nicht bestätigt.';
+/** Shared import signal; older stored notes retain this text without the source's XML metadata. */
+export const STRONG_ASSIGNMENT_NOTE_TEXT =
+	'Automatische Wortzuordnung; fachlich noch nicht bestätigt.';
 
 export function isStrongAssignmentNote(segment: VerseSegment): segment is NoteSegment {
 	return (
 		typeof segment !== 'string' &&
 		segment.kind === 'note' &&
 		segment.marker.trim() === '' &&
-		segment.text.trim().replace(/\s+/gu, ' ') === LEGACY_ASSIGNMENT_NOTE
+		segment.text.trim().replace(/\s+/gu, ' ') === STRONG_ASSIGNMENT_NOTE_TEXT
 	);
 }
 

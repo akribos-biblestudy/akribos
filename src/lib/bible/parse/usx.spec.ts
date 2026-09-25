@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { segmentsToText } from '../segments.ts';
+import { segmentsToText, wordsFromSegments } from '../segments.ts';
+import { isStrongAssignmentNote, strongAssignmentNotes } from '../strong-assignment.ts';
 import type { ParseEvent } from './types.ts';
-import { parseUsx } from './usx.ts';
+import { parseUsfx, parseUsx } from './usx.ts';
 
 async function parse(xml: string) {
 	const events: ParseEvent[] = [];
@@ -15,6 +16,74 @@ const source = (body: string) =>
 	`<usx version="3.0"><book code="JHN"/><chapter number="3"/>${body}<chapter eid="JHN 3"/></usx>`;
 
 describe('USX publisher exports', () => {
+	it('preserves unreviewed Strong words without changing text, word positions or confirmed words', async () => {
+		const { verses, warnings } = await parse(
+			source(
+				'<para style="p"><verse number="1"/><char style="w" strong="G25" x-akribos-status="unreviewed"> Probe </char><char style="w" strong="G25" x-akribos-status="confirmed">Probe</char> <char style="w" strong="G25">Probe</char> <char style="w" strong="G25 G3056" x-akribos-status=" UNREVIEWED ">Ende</char>.<verse eid="JHN 3:1"/></para>'
+			)
+		);
+		const segments = verses[0]!.segments;
+		expect(warnings).toEqual([]);
+		expect(segmentsToText(segments)).toBe('Probe Probe Probe Ende.');
+		expect(wordsFromSegments(segments).map(({ position, strong }) => [position, strong])).toEqual([
+			[0, 'G25'],
+			[1, 'G25'],
+			[2, 'G25'],
+			[3, 'G25'],
+			[3, 'G3056']
+		]);
+		expect(strongAssignmentNotes(segments).map(({ word }) => word.text)).toEqual(['Probe', 'Ende']);
+		expect(segments.filter(isStrongAssignmentNote)).toHaveLength(2);
+	});
+
+	it('does not duplicate an existing assignment note and preserves ordinary source notes', async () => {
+		const { verses } = await parse(
+			source(
+				'<para style="p"><verse number="1"/><char style="w" strong="G25" x-akribos-status="unreviewed">Probe</char> <note style="f" caller="+"><char style="ft"> Automatische Wortzuordnung;\n fachlich noch nicht bestätigt. </char></note><char style="w" strong="G3056" x-akribos-status="unreviewed">bleibt</char><note style="f" caller="a"><char style="ft">Normale Quellenanmerkung.</char></note>.<verse eid="JHN 3:1"/></para>'
+			)
+		);
+		const segments = verses[0]!.segments;
+		expect(segmentsToText(segments)).toBe('Probe bleibt.');
+		expect(segments.filter(isStrongAssignmentNote)).toHaveLength(2);
+		expect(strongAssignmentNotes(segments).map(({ word }) => word.text)).toEqual([
+			'Probe',
+			'bleibt'
+		]);
+		expect(segments).toContainEqual({
+			kind: 'note',
+			marker: 'a',
+			text: 'Normale Quellenanmerkung.'
+		});
+	});
+
+	it('does not create orphan warnings from unusable Strong values or note and heading contents', async () => {
+		const { verses } = await parse(
+			source(
+				'<para style="s1"><char style="w" strong="G25" x-akribos-status="unreviewed">Titel</char></para><para style="p"><verse number="1"/><char style="w" x-akribos-status="unreviewed">Ohne</char> <char style="w" strong="invalid" x-akribos-status="unreviewed">Nummer</char><note style="f" caller="a"><char style="w" strong="G25" x-akribos-status="unreviewed">Notizwort</char></note>.<verse eid="JHN 3:1"/><verse number="2"/><char style="w" strong="G25" x-akribos-status="unknown">Text</char>.</para>'
+			)
+		);
+		expect(verses.map((v) => segmentsToText(v.segments))).toEqual(['Ohne Nummer.', 'Text.']);
+		expect(verses[0]!.heading).toBe('Titel');
+		expect(verses.flatMap((v) => strongAssignmentNotes(v.segments))).toEqual([]);
+		expect(verses[0]!.segments).toContainEqual({ kind: 'note', marker: 'a', text: 'Notizwort' });
+	});
+
+	it('keeps status scoped to its word across Hebrew USFX verses and book boundaries', async () => {
+		const verses = [];
+		for await (const event of parseUsfx(
+			'<usfx><book id="GEN"><c id="1"/><p><v id="1"/><w s="430" x-akribos-status="unreviewed">Probe</w><ve/><v id="2"/><w s="430" x-akribos-status="confirmed">Probe</w></p></book><book id="EXO"><c id="1"/><p><v id="1"/><w s="430">Probe</w></p></book></usfx>'
+		)) {
+			if (event.type === 'verse') verses.push(event.verse);
+		}
+		expect(verses.map((v) => [v.book, v.verse])).toEqual([
+			[1, 1],
+			[1, 2],
+			[2, 1]
+		]);
+		expect(verses.map((v) => strongAssignmentNotes(v.segments).length)).toEqual([1, 0, 0]);
+		expect(strongAssignmentNotes(verses[0]!.segments)[0]!.word.strong).toBe('H430');
+	});
+
 	it('keeps footnotes and cross references out of scripture and preserves punctuation and nested note text', async () => {
 		const { verses, warnings } = await parse(
 			source(

@@ -54,6 +54,14 @@ Strong-Zuordnungen und Wortindizes werden dabei nicht verändert. Die Zuordnungs
 demselben Quellsignal im Alten und Neuen Testament; sie ist unabhängig von der Übersetzung eines
 Lexikonartikels. Ein fehlender Hinweis belegt keine abgeschlossene fachliche Prüfung.
 
+USX-/USFX-Importe übernehmen `x-akribos-status="unreviewed"` an Strong-Wörtern in
+dasselbe Notizsegment. Ein bereits unmittelbar wortgebundener Hinweis wird nicht doppelt erzeugt;
+Originalnotizen bleiben erhalten. `confirmed`, fehlende und unbekannte Statuswerte erzeugen keinen
+neuen Hinweis und werden nicht als positive Prüfbestätigung gespeichert. Die Zuordnung bleibt an
+der konkreten getaggten Wortposition; Text, Suchtext und Wortindex ändern sich dadurch nicht.
+Frühere USX-Importe benötigen einen Reimport, da der verworfene Quellstatus nicht aus den gespeicherten
+Segmenten rekonstruiert werden kann. Es gibt keinen automatischen Backfill oder schreibenden GET.
+
 ## Nutzerhilfe, Administrationshilfe und Produktbilder
 
 `/help` bietet Themenübersicht und eine serverseitige GET-Suche über `q`. Der statische,

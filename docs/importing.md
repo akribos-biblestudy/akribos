@@ -144,6 +144,17 @@ headings and numbered Psalm superscriptions are retained. Footnotes and cross re
 note segments, excluded from searchable scripture text. Section references accompany the next heading;
 heading notes accompany the following verse.
 A heading inside an open verse never discards the continuation of that verse.
+
+USX/USFX Strong words with `x-akribos-status="unreviewed"` receive the existing Akribos
+assignment note, bound to that exact word position. An equivalent source note already attached to the
+word is retained without adding a duplicate. Ordinary notes remain unchanged. `confirmed`, missing
+and unknown status values add no warning; an absent warning is not a stored proof of scholarly review.
+Assignment notes stay outside scripture/search text and do not alter Strong word positions. The reader
+hides them in running text and shows them in the clicked word's lexicon study and matching occurrences.
+Earlier USX imports need a normal reimport to recover these statuses from the source file. A successful
+reimport also removes an earlier generated warning when that source word is now `confirmed` and has no
+explicit uncertainty note. There is no automatic backfill from already imported segments.
+
 Book introductions, book titles, editorial remarks, illustrations and alternate printed numbering are
 not stored as verses. Letter-suffixed or discontinuous verse numbers are rejected with a filename and
 error instead of silently truncating them. The existing 66-book canon applies; a file with no usable

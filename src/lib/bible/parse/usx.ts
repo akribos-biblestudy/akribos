@@ -1,6 +1,13 @@
 /** USX/USFX milestone parsers. XML structure and verse boundaries overlap. */
 import { strongIdsFromSource } from '../strong.ts';
-import { finalizeSegments, normalizeWhitespace, pushText, type VerseSegment } from '../segments.ts';
+import {
+	finalizeSegments,
+	normalizeWhitespace,
+	pushText,
+	type VerseSegment,
+	type WordSegment
+} from '../segments.ts';
+import { STRONG_ASSIGNMENT_NOTE_TEXT, strongAssignmentNotes } from '../strong-assignment.ts';
 import { bookFromUsfmCode } from './usfm.ts';
 import { attribute, readXml } from './xml.ts';
 import type { ParseEvent, ParseStream, ResourceMetadata, SourceInput } from './types.ts';
@@ -14,7 +21,7 @@ type Frame = {
 	heading?: string;
 	title?: string;
 	note?: { marker: string; text: string };
-	word?: { strong?: string; text: string };
+	word?: { strong?: string; text: string; unreviewed: boolean };
 };
 
 export function parseUsx(input: SourceInput, options: Options = {}): ParseStream {
@@ -30,6 +37,7 @@ async function* parse(input: SourceInput, options: Options, flavour: 'usx' | 'us
 	let verse = 0;
 	let verseEnd: number | undefined;
 	let segments: VerseSegment[] = [];
+	const unreviewedWords = new Set<WordSegment>();
 	let heading: string | undefined;
 	let verseHeading: string | undefined;
 	let headingNotes: VerseSegment[] = [];
@@ -51,10 +59,26 @@ async function* parse(input: SourceInput, options: Options, flavour: 'usx' | 'us
 		}
 	});
 	const flushVerse = (): ParseEvent | undefined => {
-		const finalized = finalizeSegments(segments);
+		// Use the existing word-bound note contract. Explicit source notes already attached to a
+		// word take precedence, so a status attribute and a note never create duplicate warnings.
+		const alreadyMarked = new Set(strongAssignmentNotes(segments).map(({ word }) => word));
+		const annotated: VerseSegment[] = [];
+		for (const segment of segments) {
+			annotated.push(segment);
+			if (
+				typeof segment !== 'string' &&
+				segment.kind === 'w' &&
+				unreviewedWords.has(segment) &&
+				!alreadyMarked.has(segment)
+			) {
+				annotated.push({ kind: 'note', marker: '', text: STRONG_ASSIGNMENT_NOTE_TEXT });
+			}
+		}
+		const finalized = finalizeSegments(annotated);
 		const start = verse;
 		const end = verseEnd;
 		segments = [];
+		unreviewedWords.clear();
 		verse = 0;
 		verseEnd = undefined;
 		if (!book || !chapter || !start || finalized.length === 0) return;
@@ -153,7 +177,12 @@ async function* parse(input: SourceInput, options: Options, flavour: 'usx' | 'us
 			} else if (event.name === 'char' || event.name === 'w') {
 				if (/^(ca|va|vp|cat)$/.test(style)) frame.suppressed = true;
 				else if (style === 'w')
-					frame.word = { strong: attribute(event.attributes, 'strong', 's', 'lemma'), text: '' };
+					frame.word = {
+						strong: attribute(event.attributes, 'strong', 's', 'lemma'),
+						text: '',
+						unreviewed:
+							attribute(event.attributes, 'x-akribos-status')?.trim().toLowerCase() === 'unreviewed'
+					};
 				else if (/^(add|it|bd|bdit|em|tl)$/.test(style)) frame.emphasis = true;
 			} else if (event.name === 'figure') frame.suppressed = true;
 			else if (['optionalline', 'optbreak', 'ob'].includes(event.name) && verse > 0)
@@ -191,14 +220,16 @@ async function* parse(input: SourceInput, options: Options, flavour: 'usx' | 'us
 			const text = frame.word.text.trim();
 			const strongs = frame.word.strong && book ? strongIdsFromSource(frame.word.strong, book) : [];
 			if (/^\s/.test(frame.word.text)) pushText(segments, ' ');
-			if (text && strongs[0])
-				segments.push({
+			if (text && strongs[0]) {
+				const word: WordSegment = {
 					kind: 'w',
 					text,
 					strong: strongs[0],
 					...(strongs.length > 1 ? { strongs } : {})
-				});
-			else pushText(segments, text);
+				};
+				segments.push(word);
+				if (frame.word.unreviewed) unreviewedWords.add(word);
+			} else pushText(segments, text);
 			if (/\s$/.test(frame.word.text)) pushText(segments, ' ');
 		} else if (frame.heading !== undefined) {
 			heading =
