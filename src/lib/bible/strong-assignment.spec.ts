@@ -12,6 +12,7 @@ import {
 	strongAssignmentStatus
 } from './strong-assignment';
 import { parseZefania } from './parse/zefania';
+import { parseUsx } from './parse/usx';
 
 const note = () =>
 	({
@@ -22,6 +23,20 @@ const note = () =>
 const word = (text: string, strong: string) => ({ kind: 'w', text, strong }) as const;
 
 describe('source-bound Strong assignment uncertainty', () => {
+	it('uses imported USX status at the exact repeated word position and keeps confirmed words unmarked', async () => {
+		const xml =
+			'<usx><book code="JHN"/><chapter number="3"/><para style="p"><verse number="16"/><char style="w" strong="G25" x-akribos-status="unreviewed">Probe</char> <char style="w" strong="G25" x-akribos-status="confirmed">Probe</char> <char style="w" strong="G25">Probe</char>.</para></usx>';
+		for await (const event of parseUsx(xml)) {
+			if (event.type !== 'verse') continue;
+			const segments = event.verse.segments;
+			expect(strongAssignmentStatus(segments, 'G25', 'Probe', 0)).toBe('unconfirmed');
+			expect(strongAssignmentStatus(segments, 'G25', 'Probe', 1)).toBeNull();
+			expect(strongAssignmentStatus(segments, 'G25', 'Probe', 2)).toBeNull();
+			expect(strongAssignmentStatus(segments, 'G25', 'Probe')).toBe('ambiguous');
+			expect(strongAssignmentStatus(segments, 'G3056', 'Probe', 0)).toBeNull();
+		}
+	});
+
 	it('keeps an unmarked God occurrence distinct from uncertain conjunctions with the same Strong', () => {
 		const segments = [
 			word('Gott', 'H430'),
