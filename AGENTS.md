@@ -273,7 +273,13 @@ ungekoppelten Tab. Koordinaten allein identifizieren in fremden Anordnungen kein
 Eine explizite Strukturänderung veröffentlicht eine vollständige konsistente Anordnung.
 Änderungen desselben Feldes folgen der zuletzt gespeicherten expliziten Änderung. Andere offene Tabs
 behalten Anordnung, Suchen und Filter ihrer Arbeitskopie, ohne Konfliktmeldung durch fremde
-Änderungen. Erst der Klick auf den aktiven Menüeintrag lädt den benannten Stand erneut. Er verwirft ausstehende Workspace-Timer,
+Änderungen. Nach jedem vollständigen Laden und beim erneuten Sichtbarwerden übernehmen sie jedoch
+über `POST /api/reader/workspaces/[id]/follow` die anderswo veröffentlichten Lesepositionen nach
+derselben Zuordnung; zuvor werden eigene ausstehende Positionen gespeichert. Der Abgleich ist durch
+dieselben Auswahl-/Inhaltsversionen geschützt und findet bewusst nicht in Reader-GETs statt, weil
+eine Dokumentnavigation den Browser-Tab-Schlüssel nicht mitsendet und nachfolgende Aktionen sonst
+als detached gelten würden. Erst der Klick auf den aktiven Menüeintrag lädt den gesamten benannten
+Stand einschließlich Anordnung erneut. Er verwirft ausstehende Workspace-Timer,
 wartet laufende Workspace-Anfragen ab und lässt Dokumentänderungen weiterhin regulär speichern.
 
 Nach einer vollständigen Navigation lädt `invalidateAll()` den tab-lokalen Kontext auch für Suche,

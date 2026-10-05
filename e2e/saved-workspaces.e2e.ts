@@ -964,3 +964,50 @@ test('reading progress still reaches a workspace another device rearranged', asy
 		await otherContext.close();
 	}
 });
+
+test('an already open browser tab follows reading progress after a reload and when shown again', async ({
+	page,
+	browser,
+	baseURL
+}) => {
+	test.setTimeout(60_000);
+	const credentials = await loginReader(page);
+	await createLinkedWorkspace(page, 'Unterwegs', 'Joh3');
+	const otherContext = await browser.newContext({ baseURL });
+	try {
+		const other = await otherContext.newPage();
+		await loginExistingReader(other, credentials.email, credentials.password);
+		await openNamedWorkspace(other, 'Unterwegs', '/Joh3');
+		const otherSearch = other.locator('.reader-tile').nth(1).getByRole('searchbox');
+		await otherSearch.fill('Liebe');
+		await otherSearch.press('Enter');
+		await expect(other).toHaveURL((url) => url.searchParams.get('search') === '2.1:Liebe');
+		await openNamedWorkspace(page, 'Unterwegs', '/Joh3');
+
+		await readOnToJohn317(page);
+		await other.reload();
+		await expect(other).toHaveURL((url) => url.pathname === '/Joh3,17');
+		await expect(other.locator('.reader-tile').first().getByRole('searchbox')).toHaveValue(
+			'Joh 3,17'
+		);
+		// Only positions follow; this tab's own search stays local.
+		expect(new URL(other.url()).searchParams.get('search')).toBe('2.1:Liebe');
+
+		const field = page.locator('.reader-tile').first().getByRole('searchbox');
+		const navigated = page.waitForResponse(
+			(response) =>
+				response.request().method() === 'POST' &&
+				[...new URL(response.url()).searchParams.keys()].some((key) => key.startsWith('/')) &&
+				response.ok()
+		);
+		await field.fill('Joh 3,16');
+		await field.press('Enter');
+		await navigated;
+		await expect(page).toHaveURL((url) => url.pathname === '/Joh3,16');
+		await other.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+		await expect(other).toHaveURL((url) => url.pathname === '/Joh3,16');
+		await expect(other.getByRole('alert')).toHaveCount(0);
+	} finally {
+		await otherContext.close();
+	}
+});

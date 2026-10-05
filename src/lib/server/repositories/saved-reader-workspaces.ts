@@ -8,7 +8,10 @@ import {
 } from '../../reader/saved-workspaces';
 import type { Database } from '../db/client';
 import { savedReaderWorkspaces, sessions, users, readerBrowserTabs } from '../db/schema';
-import { publishWorkspaceChanges } from '../../reader/publish-workspace';
+import {
+	followSharedReadingPositions,
+	publishWorkspaceChanges
+} from '../../reader/publish-workspace';
 import {
 	decodeReaderUrlState,
 	encodeReaderUrlState,
@@ -409,6 +412,85 @@ export async function persistReaderWorkspace(
 			})
 			.where(eq(users.id, userId));
 		return { saved: true, ...workspaceSelection(active) };
+	});
+}
+
+export type FollowWorkspaceResult =
+	| (WorkspaceSelection & { saved: true; changed: boolean; readerState: string })
+	| (WorkspaceSelection & { saved: false; reason: 'conflict'; message: string });
+
+/**
+ * An already open browser tab adopts reading positions that another device or tab published since.
+ * The same versions as every other write guard it, so a stale or replaced view never moves.
+ */
+export async function followSharedWorkspacePositions(
+	db: Database,
+	userId: string,
+	guard: WorkspaceWriteGuard & { browserTabId: string }
+): Promise<FollowWorkspaceResult> {
+	return db.transaction(async (tx) => {
+		const conflict = (active: ActiveReaderWorkspace | null) => ({
+			saved: false as const,
+			reason: 'conflict' as const,
+			message: WORKSPACE_CONFLICT_MESSAGE,
+			...workspaceSelection(active)
+		});
+		if (!(await lockReaderSession(tx, userId, guard.sessionId))) return conflict(null);
+		const [browserTab] = await tx
+			.select()
+			.from(readerBrowserTabs)
+			.where(
+				and(
+					eq(readerBrowserTabs.sessionId, guard.sessionId),
+					eq(readerBrowserTabs.id, guard.browserTabId)
+				)
+			)
+			.for('update');
+		const [shared] = browserTab?.workspaceId
+			? await tx
+					.select()
+					.from(savedReaderWorkspaces)
+					.where(
+						and(
+							eq(savedReaderWorkspaces.userId, userId),
+							eq(savedReaderWorkspaces.id, browserTab.workspaceId)
+						)
+					)
+			: [];
+		if (!browserTab || !shared) return conflict(null);
+		const active: ActiveReaderWorkspace = {
+			...shared,
+			snapshot: browserTab.snapshot,
+			selectionVersion: browserTab.selectionVersion,
+			contentVersion: browserTab.contentVersion
+		};
+		if (
+			active.id !== guard.activeId ||
+			active.selectionVersion !== guard.selectionVersion ||
+			active.contentVersion !== guard.contentVersion
+		)
+			return conflict(active);
+		const snapshot = followSharedReadingPositions(browserTab.snapshot, shared.snapshot);
+		const changed = !isDeepStrictEqual(snapshot, browserTab.snapshot);
+		if (changed) {
+			active.snapshot = snapshot;
+			active.contentVersion += 1;
+			await tx
+				.update(readerBrowserTabs)
+				.set({ snapshot, contentVersion: active.contentVersion, updatedAt: new Date() })
+				.where(
+					and(
+						eq(readerBrowserTabs.sessionId, guard.sessionId),
+						eq(readerBrowserTabs.id, browserTab.id)
+					)
+				);
+		}
+		return {
+			saved: true,
+			changed,
+			readerState: snapshot.readerState,
+			...workspaceSelection(active)
+		};
 	});
 }
 

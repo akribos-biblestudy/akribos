@@ -133,3 +133,14 @@ function withReadingPositions(
 		return target;
 	}
 }
+
+/**
+ * Lets an already open browser tab follow reading progress published by another device or tab. Its
+ * own arrangement, searches, filters and divider sizes stay local; only matching positions move.
+ */
+export function followSharedReadingPositions(
+	local: SavedWorkspaceSnapshot,
+	shared: SavedWorkspaceSnapshot
+): SavedWorkspaceSnapshot {
+	return withReadingPositions(local, tabPositions(new URLSearchParams(shared.readerState)));
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { publishWorkspaceChanges } from './publish-workspace';
+import { followSharedReadingPositions, publishWorkspaceChanges } from './publish-workspace';
 import { restoreSavedWorkspace, type SavedWorkspaceSnapshot } from './saved-workspaces';
 import { MAX_READER_URL_STATE_LENGTH } from './url-state';
 
@@ -214,5 +214,30 @@ describe('publishing independent browser-tab working copies', () => {
 		expect(result.readerState.length).toBeLessThanOrEqual(MAX_READER_URL_STATE_LENGTH);
 		expect(restoreSavedWorkspace(result, ['BIBLE'])).not.toBeNull();
 		expect(entries(result)).toEqual(entries(shared));
+	});
+});
+
+describe('following shared reading progress in an open browser tab', () => {
+	it('moves only positions and keeps the local arrangement, searches and sizes', () => {
+		const local = change(initial, (params) => params.set('search', '1.2:Wort'));
+		const shared: SavedWorkspaceSnapshot = {
+			readerState:
+				'layout=single&tab=1.1:OTHER:A:Röm8,1&tab=1.2:BIBLE:B:1Mo1&active=1.1&focus=1&search=1.1:Liebe',
+			layoutSizes: {}
+		};
+		const result = followSharedReadingPositions(local, shared);
+		const params = new URLSearchParams(result.readerState);
+		expect(params.getAll('tab')).toEqual([
+			'1.1:BIBLE:A:Röm8,1',
+			'1.2:OTHER:A:Röm8,1',
+			'2.1:LEXICON:A:Röm8,1'
+		]);
+		expect(params.get('layout')).toBe('columns-2');
+		expect(params.get('search')).toBe('1.2:Wort');
+		expect(result.layoutSizes).toEqual(local.layoutSizes);
+	});
+
+	it('returns the same snapshot when nothing newer is shared', () => {
+		expect(followSharedReadingPositions(initial, structuredClone(initial))).toEqual(initial);
 	});
 });
