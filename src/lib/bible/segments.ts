@@ -55,8 +55,30 @@ export type RedLetterSegment = {
 	readonly children: readonly VerseSegment[];
 };
 
+/**
+ * The name of God where a source marks it (USFM/USX `nd`), printed in small capitals — the "HERR"
+ * that distinguishes YHWH from "Herr" (Adonai). The stored text keeps the source's spelling.
+ */
+export type DivineNameSegment = {
+	readonly kind: 'nd';
+	readonly children: readonly VerseSegment[];
+};
+
+/** Segments that only style their children; words inside still count and link as usual. */
+export type ContainerSegment = RedLetterSegment | DivineNameSegment;
+
 export type VerseSegment =
-	TextSegment | WordSegment | NoteSegment | EmphasisSegment | BreakSegment | RedLetterSegment;
+	| TextSegment
+	| WordSegment
+	| NoteSegment
+	| EmphasisSegment
+	| BreakSegment
+	| RedLetterSegment
+	| DivineNameSegment;
+
+export function isContainerSegment(segment: VerseSegment): segment is ContainerSegment {
+	return typeof segment !== 'string' && (segment.kind === 'wj' || segment.kind === 'nd');
+}
 
 export function isTextSegment(segment: VerseSegment): segment is TextSegment {
 	return typeof segment === 'string';
@@ -88,7 +110,7 @@ export function splitVerseLead(
 		}
 
 		lead.push(segment);
-		if (segment.kind === 'w' || segment.kind === 'em' || segment.kind === 'wj') break;
+		if (segment.kind === 'w' || segment.kind === 'em' || isContainerSegment(segment)) break;
 		if (segment.kind === 'br') break;
 	}
 
@@ -119,7 +141,7 @@ export function segmentsToText(segments: readonly VerseSegment[]): string {
 		if (typeof segment === 'string') out += segment;
 		else if (segment.kind === 'w' || segment.kind === 'em') out += segment.text;
 		else if (segment.kind === 'br') out += ' ';
-		else if (segment.kind === 'wj') out += segmentsToText(segment.children);
+		else if (isContainerSegment(segment)) out += segmentsToText(segment.children);
 	}
 	return normalizeWhitespace(out);
 }
@@ -163,7 +185,7 @@ export function taggedWordSegments(segments: readonly VerseSegment[]): WordSegme
 			? []
 			: segment.kind === 'w'
 				? [segment]
-				: segment.kind === 'wj'
+				: isContainerSegment(segment)
 					? taggedWordSegments(segment.children)
 					: []
 	);
@@ -249,7 +271,7 @@ export type DisplayChunk =
 	| { kind: 'em'; text: string; color: string | null }
 	| { kind: 'note'; segment: NoteSegment }
 	| { kind: 'br' }
-	| { kind: 'wj'; children: DisplayChunk[] };
+	| { kind: 'wj' | 'nd'; children: DisplayChunk[] };
 
 function colorAt(word: number, ranges: readonly HighlightRange[]): string | null {
 	let color: string | null = null;
@@ -340,8 +362,8 @@ export function highlightSegment(
 		return [{ kind: 'br' }];
 	}
 
-	// 'wj': words of Jesus recurse, sharing the same running cursor.
-	return [{ kind: 'wj', children: highlightSegments(segment.children, ranges, cursor) }];
+	// Containers (words of Jesus, divine name) recurse, sharing the same running cursor.
+	return [{ kind: segment.kind, children: highlightSegments(segment.children, ranges, cursor) }];
 }
 
 export function highlightSegments(

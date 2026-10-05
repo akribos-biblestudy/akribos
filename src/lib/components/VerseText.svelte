@@ -144,6 +144,10 @@
 		<span class="words-of-jesus"
 			>{#each item.children as child, index (index)}{@render chunk(child)}{/each}</span
 		>
+	{:else if item.kind === 'nd'}
+		<span class="divine-name"
+			>{#each item.children as child, index (index)}{@render chunk(child)}{/each}</span
+		>
 	{/if}
 {/snippet}
 
@@ -205,6 +209,10 @@
 
 	:global(.dark) .words-of-jesus {
 		color: oklch(0.72 0.15 25);
+	}
+
+	.divine-name {
+		font-variant-caps: small-caps;
 	}
 
 	/* A translation-specific highlight, painted directly on the run of text it covers rather than the

@@ -196,6 +196,23 @@ it('passes tagged positions across a split lead and nested red-letter words inde
 	]);
 });
 
+it('renders the divine name in small capitals and keeps its Strong word clickable', async () => {
+	const clicked = vi.fn();
+	const screen = await render(VerseText, {
+		segments: [
+			'Der ',
+			{ kind: 'nd', children: [{ kind: 'w', strong: 'H3068', text: 'Herr' }] },
+			' ist mein Hirte.'
+		],
+		onStrongClick: clicked
+	});
+	const word = screen.getByRole('button', { name: 'Herr', exact: true });
+	await expect.element(word).toBeVisible();
+	expect(getComputedStyle(word.element()).fontVariantCaps).toBe('small-caps');
+	await word.click();
+	expect(clicked).toHaveBeenCalledWith('H3068', 'Herr', 0);
+});
+
 it('shows occurrence notes only for the studied Strong and explains the affected word', async () => {
 	const note = {
 		kind: 'note',

@@ -849,6 +849,18 @@
 								"items": { "$ref": "#/components/schemas/VerseSegment" }
 							}
 						}
+					},
+					{
+						"type": "object",
+						"description": "The name of God where a source marks it (USFM/USX nd), conventionally printed in small capitals. The children keep the source spelling.",
+						"required": ["kind", "children"],
+						"properties": {
+							"kind": { "const": "nd" },
+							"children": {
+								"type": "array",
+								"items": { "$ref": "#/components/schemas/VerseSegment" }
+							}
+						}
 					}
 				]
 			},

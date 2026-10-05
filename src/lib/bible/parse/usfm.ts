@@ -368,11 +368,11 @@ function appendInline(segments: VerseSegment[], text: string, book: number): voi
 			continue;
 		}
 
-		if (marker === 'wj') {
-			// Words of Jesus may contain further markup; recurse into them.
+		if (marker === 'wj' || marker === 'nd') {
+			// Words of Jesus and the divine name may contain further markup; recurse into them.
 			const children: VerseSegment[] = [];
 			appendInline(children, content, book);
-			if (children.length > 0) segments.push({ kind: 'wj', children });
+			if (children.length > 0) segments.push({ kind: marker, children });
 			continue;
 		}
 

@@ -2,6 +2,7 @@
 import { strongIdsFromSource } from '../strong.ts';
 import {
 	finalizeSegments,
+	isContainerSegment,
 	normalizeWhitespace,
 	pushText,
 	type VerseSegment,
@@ -22,6 +23,8 @@ type Frame = {
 	title?: string;
 	note?: { marker: string; text: string };
 	word?: { strong?: string; text: string; unreviewed: boolean };
+	/** Open divine-name span: the verse content collected before it began. */
+	divineName?: { outer: VerseSegment[] };
 };
 
 export function parseUsx(input: SourceInput, options: Options = {}): ParseStream {
@@ -58,12 +61,31 @@ async function* parse(input: SourceInput, options: Options, flavour: 'usx' | 'us
 			...options.metadata
 		}
 	});
-	const flushVerse = (): ParseEvent | undefined => {
-		// Use the existing word-bound note contract. Explicit source notes already attached to a
-		// word take precedence, so a status attribute and a note never create duplicate warnings.
-		const alreadyMarked = new Set(strongAssignmentNotes(segments).map(({ word }) => word));
+	const openDivineNames = () => stack.filter((frame) => frame.divineName);
+	const closeDivineName = (frame: Frame) => {
+		const children = segments;
+		segments = frame.divineName!.outer;
+		// Separating whitespace belongs to the surrounding prose, not to the small capitals.
+		const first = children[0];
+		const last = children.at(-1);
+		if (typeof first === 'string' && /^\s/.test(first)) pushText(segments, ' ');
+		const content = finalizeSegments(children);
+		if (content.length > 0) segments.push({ kind: 'nd', children: content });
+		if (typeof last === 'string' && /\s$/.test(last) && content.length > 0) pushText(segments, ' ');
+	};
+	const annotateUnreviewed = (
+		list: readonly VerseSegment[],
+		alreadyMarked: ReadonlySet<WordSegment>
+	): VerseSegment[] => {
 		const annotated: VerseSegment[] = [];
-		for (const segment of segments) {
+		for (const segment of list) {
+			if (isContainerSegment(segment)) {
+				annotated.push({
+					kind: segment.kind,
+					children: annotateUnreviewed(segment.children, alreadyMarked)
+				});
+				continue;
+			}
 			annotated.push(segment);
 			if (
 				typeof segment !== 'string' &&
@@ -74,10 +96,23 @@ async function* parse(input: SourceInput, options: Options, flavour: 'usx' | 'us
 				annotated.push({ kind: 'note', marker: '', text: STRONG_ASSIGNMENT_NOTE_TEXT });
 			}
 		}
-		const finalized = finalizeSegments(annotated);
+		return annotated;
+	};
+	const flushVerse = (): ParseEvent | undefined => {
+		// A divine-name span crossing a verse milestone is closed here and reopened afterwards.
+		const spans = openDivineNames();
+		for (const frame of spans.toReversed()) closeDivineName(frame);
+		// Use the existing word-bound note contract. Explicit source notes already attached to a
+		// word take precedence, so a status attribute and a note never create duplicate warnings.
+		const alreadyMarked = new Set(strongAssignmentNotes(segments).map(({ word }) => word));
+		const finalized = finalizeSegments(annotateUnreviewed(segments, alreadyMarked));
 		const start = verse;
 		const end = verseEnd;
 		segments = [];
+		for (const frame of spans) {
+			frame.divineName = { outer: segments };
+			segments = [];
+		}
 		unreviewedWords.clear();
 		verse = 0;
 		verseEnd = undefined;
@@ -184,6 +219,14 @@ async function* parse(input: SourceInput, options: Options, flavour: 'usx' | 'us
 							attribute(event.attributes, 'x-akribos-status')?.trim().toLowerCase() === 'unreviewed'
 					};
 				else if (/^(add|it|bd|bdit|em|tl)$/.test(style)) frame.emphasis = true;
+				else if (
+					style === 'nd' &&
+					verse > 0 &&
+					!stack.some((parent) => parent.heading !== undefined || parent.title !== undefined)
+				) {
+					frame.divineName = { outer: segments };
+					segments = [];
+				}
 			} else if (event.name === 'figure') frame.suppressed = true;
 			else if (['optionalline', 'optbreak', 'ob'].includes(event.name) && verse > 0)
 				segments.push({ kind: 'br' });
@@ -208,7 +251,8 @@ async function* parse(input: SourceInput, options: Options, flavour: 'usx' | 'us
 		}
 
 		const frame = stack.pop()!;
-		if (frame.note) {
+		if (frame.divineName) closeDivineName(frame);
+		else if (frame.note) {
 			const text = normalizeWhitespace(frame.note.text);
 			if (text)
 				(stack.some((parent) => parent.heading !== undefined) ? headingNotes : segments).push({

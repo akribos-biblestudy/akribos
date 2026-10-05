@@ -1,4 +1,5 @@
 import {
+	isContainerSegment,
 	taggedWordSegments,
 	type NoteSegment,
 	type VerseSegment,
@@ -36,7 +37,7 @@ export function strongAssignmentNotes(segments: readonly VerseSegment[]): Strong
 		} else {
 			if (isStrongAssignmentNote(segment) && precedingWord) {
 				result.push({ note: segment, word: precedingWord });
-			} else if (segment.kind === 'wj') {
+			} else if (isContainerSegment(segment)) {
 				result.push(...strongAssignmentNotes(segment.children));
 			}
 			precedingWord = null;

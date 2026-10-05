@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { segmentsToText, wordsFromSegments } from '../segments.ts';
-import { isStrongAssignmentNote, strongAssignmentNotes } from '../strong-assignment.ts';
+import {
+	isStrongAssignmentNote,
+	STRONG_ASSIGNMENT_NOTE_TEXT,
+	strongAssignmentNotes
+} from '../strong-assignment.ts';
 import type { ParseEvent } from './types.ts';
 import { parseUsfx, parseUsx } from './usx.ts';
 
@@ -34,6 +38,55 @@ describe('USX publisher exports', () => {
 		]);
 		expect(strongAssignmentNotes(segments).map(({ word }) => word.text)).toEqual(['Probe', 'Ende']);
 		expect(segments.filter(isStrongAssignmentNote)).toHaveLength(2);
+	});
+
+	it('keeps the divine name as small-caps container around tagged and plain words', async () => {
+		const { verses } = await parse(
+			source(
+				'<para style="p"><verse number="1"/>Und der<char style="nd"> <char style="w" strong="H3068" x-akribos-status="unreviewed">Herr</char></char> sprach zum <char style="nd">Herrn</char>, dem <char style="w" strong="H430">Gott</char>.<verse eid="JHN 3:1"/></para>' +
+					'<para style="s1">Der <char style="nd">Herr</char> als Hirte</para>' +
+					'<para style="p"><verse number="2"/><char style="w" strong="H3068">Herr</char><note style="f" caller="+"><char style="ft">Der <char style="nd">Herr</char>.</char></note><verse eid="JHN 3:2"/></para>'
+			)
+		);
+		const [first, second] = verses;
+		expect(segmentsToText(first!.segments)).toBe('Und der Herr sprach zum Herrn, dem Gott.');
+		expect(first!.segments).toEqual([
+			'Und der ',
+			{
+				kind: 'nd',
+				children: [
+					{ kind: 'w', text: 'Herr', strong: 'H3068' },
+					{ kind: 'note', marker: '', text: STRONG_ASSIGNMENT_NOTE_TEXT }
+				]
+			},
+			' sprach zum ',
+			{ kind: 'nd', children: ['Herrn'] },
+			', dem ',
+			{ kind: 'w', text: 'Gott', strong: 'H430' },
+			'.'
+		]);
+		expect(
+			wordsFromSegments(first!.segments).map(({ position, strong }) => [position, strong])
+		).toEqual([
+			[0, 'H3068'],
+			[1, 'H430']
+		]);
+		expect(strongAssignmentNotes(first!.segments).map(({ word }) => word.text)).toEqual(['Herr']);
+		expect(second!.heading).toBe('Der Herr als Hirte');
+		expect(second!.segments).toContainEqual({ kind: 'note', marker: '', text: 'Der Herr.' });
+		expect(JSON.stringify(second!.segments)).not.toContain('"nd"');
+	});
+
+	it('splits a divine-name span at a verse milestone without losing either part', async () => {
+		const { verses } = await parse(
+			source(
+				'<para style="p"><verse number="1"/>des <char style="nd">Herrn<verse eid="JHN 3:1"/><verse number="2"/>Herr</char> ja<verse eid="JHN 3:2"/></para>'
+			)
+		);
+		expect(verses.map((verse) => verse.segments)).toEqual([
+			['des ', { kind: 'nd', children: ['Herrn'] }],
+			[{ kind: 'nd', children: ['Herr'] }, ' ja']
+		]);
 	});
 
 	it('does not duplicate an existing assignment note and preserves ordinary source notes', async () => {
