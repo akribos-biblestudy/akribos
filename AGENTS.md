@@ -386,7 +386,10 @@ Jeder Tab besitzt außerdem eine eigene `reference`. Der zuletzt fokussierte Tab
 Reader-Pfadstelle; Aktivieren stellt die gespeicherte Stelle des Tabs wieder her. Eine Buchstaben-Tabgruppe gleicht
 die Referenz **aller** Tabs dieser Gruppe an, auch der inaktiven. Dadurch kann ein später aktivierter Tab
 keine veraltete Stelle in die sichtbare Gruppe zurücktragen. Tabs mit anderem Buchstaben oder ohne
-Tabgruppe behalten ihre eigene Stelle. Wird ein inaktiver Tab aktiviert, dessen Tabgruppe bereits in
+Tabgruppe behalten ihre eigene Stelle. `restoreSavedWorkspace()` repariert gespeicherte Stände mit
+abweichenden Stellen innerhalb einer Gruppe über `alignReaderLinkGroups()` (fokussierter Tab vor dem
+ersten aktiven Tab der Gruppe). Ohne diese Angleichung wiche die kanonische Reader-URL von der eigenen
+Arbeitskopie ab; der Tab gälte dauerhaft als `detached` und verwürfe jede weitere Änderung still. Wird ein inaktiver Tab aktiviert, dessen Tabgruppe bereits in
 einer anderen Kachel sichtbar ist, übernimmt er deren aktuelle sichtbare Stelle; seine eigene zuvor
 gespeicherte Stelle darf die sichtbare Gruppe nicht verschieben. Der Client sendet diese Zielstelle
 explizit mit, damit das auch vor der verzögerten URL-Persistierung gilt. Aktionen, die aus einer

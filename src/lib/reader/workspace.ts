@@ -511,6 +511,28 @@ export function setReaderTabReference(
 	return next;
 }
 
+/**
+ * Every A–E link group shares one position. A stored view whose group disagrees (written by an
+ * older version) would otherwise differ from its own canonical Reader URL and stay detached, so
+ * no later change could be saved. The focused tab wins, then the first active tab of the group.
+ */
+export function alignReaderLinkGroups(workspace: ReaderWorkspace): ReaderWorkspace {
+	const next = cloneWorkspace(workspace);
+	const focused = next.tiles.find((tile) => tile.id === next.focusedTileId);
+	const candidates = [
+		...(focused ? [activeReaderTab(focused)] : []),
+		...next.tiles.map(activeReaderTab),
+		...next.tiles.flatMap((tile) => tile.tabs)
+	];
+	const positions = new Map<string, VerseRef>();
+	for (const tab of candidates)
+		if (tab?.linkSet && !positions.has(tab.linkSet)) positions.set(tab.linkSet, tab.reference);
+	for (const tile of next.tiles)
+		for (const tab of tile.tabs)
+			if (tab.linkSet) tab.reference = { ...positions.get(tab.linkSet)! };
+	return next;
+}
+
 /** Stores and activates the entry shown by one lexicon tab. */
 export function setReaderTabLookup(
 	workspace: ReaderWorkspace,

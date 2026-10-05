@@ -7,6 +7,24 @@ const readerState =
 	'layout=grid-4&tab=1.1:BIBLE:A:Joh3,16&tab=1.2:OTHER:A:Joh3,16&tab=2.1:LEXICON:A:Joh3,16&tab=3.1:BIBLE:B:Röm8,1&active=1.1&active=2.1&active=3.1&focus=3&lookup=2.1:G26&source=2.1:BIBLE&sourceRef=2.1:Joh3,16&word=2.1:Liebe&wordPosition=2.1:0&search=1.1:Liebe&notesQuery=Glaube&notesFilter=current';
 
 describe('saved Reader snapshots', () => {
+	it('repairs a stored link group whose positions disagree, keeping other groups independent', () => {
+		const restored = restoreSavedWorkspace(
+			{
+				readerState:
+					'layout=columns-2&tab=1.1:BIBLE:A:Phil2&tab=1.2:BIBLE:C:Gal1&tab=1.3:OTHER:C:Röm1&active=1.1&tab=2.1:OTHER:A:1Tim3,1&active=2.1&focus=2',
+				layoutSizes: {}
+			},
+			['BIBLE', 'OTHER']
+		)!;
+		expect(new URLSearchParams(restored.snapshot.readerState).getAll('tab')).toEqual([
+			'1.1:BIBLE:A:1Tim3,1',
+			'1.2:BIBLE:C:Gal1',
+			'1.3:OTHER:C:Gal1',
+			'2.1:OTHER:A:1Tim3,1'
+		]);
+		expect(restored.url.startsWith('/1Tim3,1?')).toBe(true);
+	});
+
 	it('restores all tabs, independent groups, the focused passage, searches, lexicon context and sizes', () => {
 		const result = restoreSavedWorkspace(
 			{ readerState, layoutSizes: { 'grid-4': { columns: [0.65, 0.35], rows: [0.4, 0.6] } } },
