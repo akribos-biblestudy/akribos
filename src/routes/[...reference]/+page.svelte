@@ -138,10 +138,18 @@
 			}
 		});
 		workspaceCapture.flush = flushWorkspace;
+		workspaceCapture.follow = followSharedPositions;
 		workspaceCapture.reportError = (message) => (workspaceSaveError = message);
+		// Returning to an open tab (typically on a phone) continues where another device stopped.
+		const followWhenVisible = () => {
+			if (document.visibilityState === 'visible') void followSharedPositions();
+		};
+		document.addEventListener('visibilitychange', followWhenVisible);
 		return () => {
+			document.removeEventListener('visibilitychange', followWhenVisible);
 			workspaceCapture.capture = null;
 			workspaceCapture.flush = undefined;
+			workspaceCapture.follow = undefined;
 			workspaceCapture.reportError = undefined;
 		};
 	});
@@ -301,6 +309,39 @@
 				}
 			});
 		return pendingViewSave;
+	}
+	/**
+	 * Best effort: own pending positions are published first, then positions published elsewhere
+	 * replace only those of matching tabs. Arrangement, searches and filters stay local.
+	 */
+	async function followSharedPositions(): Promise<void> {
+		const id = data.activeSavedWorkspaceId;
+		if (!data.user || !id || data.readerWorkspaceDetached || readerNavigationInProgress) return;
+		try {
+			await flushWorkspace();
+			const lease = await persistence.acquireWrite();
+			let target: string | null = null;
+			try {
+				const response = await fetch(`/api/reader/workspaces/${id}/follow`, {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({
+						workspaceVersion: lease.token?.workspaceVersion,
+						workspaceContentVersion: lease.token?.workspaceContentVersion
+					})
+				});
+				const result = await response.json();
+				if (!response.ok || !result.changed) return;
+				if (persistence.acceptResponse(result, response.status, lease) === 'ignored') return;
+				target = readerUrl(result.path, result.readerState);
+			} finally {
+				lease.release();
+			}
+			if (!readerNavigationInProgress && data.activeSavedWorkspaceId === id)
+				await goto(target, { replaceState: true, invalidateAll: true, noScroll: true });
+		} catch {
+			// Keep reading the local copy; the next explicit write still reports real conflicts.
+		}
 	}
 	onNavigate(async (navigation) => {
 		await flushWorkspace({

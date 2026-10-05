@@ -16,6 +16,7 @@ import {
 	ensureDefaultReaderWorkspace,
 	getActiveReaderWorkspace,
 	activateSavedReaderWorkspace,
+	followSharedWorkspacePositions,
 	persistReaderWorkspace,
 	saveActiveWorkspaceView,
 	workspaceSelection,
@@ -154,6 +155,65 @@ describe('device selections and shared Reader snapshots', () => {
 				await listSavedReaderWorkspaces(db, userId, desktop, workspaceSelection(desktopStandard))
 			).find((row) => row.isActive)?.id
 		).toBe(desktopStandard!.id);
+	});
+
+	it('lets an open browser tab follow positions published by another tab, guarded by its versions', async () => {
+		const { userId, sessionId } = await account();
+		const saved = await create(userId, sessionId, 'Gemeinsam');
+		const reader = randomUUID();
+		const writer = randomUUID();
+		const readerTab = (await activateSavedReaderWorkspace(
+			db,
+			userId,
+			sessionId,
+			saved.id,
+			reader
+		))!;
+		const writerTab = (await activateSavedReaderWorkspace(
+			db,
+			userId,
+			sessionId,
+			saved.id,
+			writer
+		))!;
+		const moved = await persistReaderWorkspace(
+			db,
+			userId,
+			{
+				...original,
+				tiles: original.tiles.map((tile) => ({
+					...tile,
+					tabs: tile.tabs.map((tab) => ({ ...tab, reference: { book: 43, chapter: 3, verse: 17 } }))
+				}))
+			},
+			{ guard: { ...guard(sessionId, writerTab), browserTabId: writer } }
+		);
+		expect(moved.saved).toBe(true);
+
+		const stale = await followSharedWorkspacePositions(db, userId, {
+			...guard(sessionId, readerTab),
+			contentVersion: readerTab.contentVersion + 1,
+			browserTabId: reader
+		});
+		expect(stale).toMatchObject({ saved: false, reason: 'conflict' });
+
+		const followed = await followSharedWorkspacePositions(db, userId, {
+			...guard(sessionId, readerTab),
+			browserTabId: reader
+		});
+		expect(followed).toMatchObject({
+			saved: true,
+			changed: true,
+			activeSavedWorkspaceContentVersion: readerTab.contentVersion + 1
+		});
+		expect(followed.saved && followed.readerState).toContain('tab=1.1:SEEDDE:A:Joh3,17');
+
+		const again = await followSharedWorkspacePositions(db, userId, {
+			...guard(sessionId, readerTab),
+			contentVersion: readerTab.contentVersion + 1,
+			browserTabId: reader
+		});
+		expect(again).toMatchObject({ saved: true, changed: false });
 	});
 
 	it('rejects old selection epochs after A to B to A and missing client versions', async () => {

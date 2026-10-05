@@ -54,6 +54,7 @@
 					// carry success/error form data which goto() deliberately clears, while invalidation keeps it.
 					await invalidateAll();
 				}
+				if (isReaderPage) await workspaceCapture.follow?.();
 				markReaderBrowserReady();
 				const current = workspaceCapture.capture?.();
 				if (isReaderPage && current && !page.data.readerWorkspaceDetached)

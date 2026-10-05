@@ -30,6 +30,8 @@ export const READER_WORKSPACE_CONTEXT = Symbol('reader-workspace-capture');
 export type ReaderWorkspaceCapture = {
 	capture: (() => SavedWorkspaceSnapshot) | null;
 	flush?: (options?: { discardConflict?: boolean; reload?: boolean }) => Promise<void>;
+	/** Adopts reading positions another device or browser tab published for this selection. */
+	follow?: () => Promise<void>;
 	persistence: WorkspacePersistence;
 	reportError?: (message: string) => void;
 };
