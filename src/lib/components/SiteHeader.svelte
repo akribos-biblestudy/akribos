@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import { t } from '$lib/i18n';
+	import { FONT_SCALE_STEP, MAX_FONT_SCALE, MIN_FONT_SCALE } from '$lib/reader/font-scale';
 	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
 	import ProductTour from './ProductTour.svelte';
@@ -140,6 +142,38 @@
 			</button>
 
 			<Menu bind:this={userMenu} label={t('nav.userMenu')} minWidth="16rem">
+				{#if readerPreferences}
+					<!-- The header's A−/A+ controls do not fit narrow screens; this row replaces them there. -->
+					<div
+						class="font-size-row flex items-center gap-1 sm:hidden"
+						role="group"
+						aria-label={t('account.readerFontSize')}
+					>
+						<span class="font-size-label">{t('reader.textSize')}</span>
+						<form method="POST" action="?/adjustFontSize" use:enhance role="none">
+							<input type="hidden" name="delta" value={-FONT_SCALE_STEP} />
+							<button
+								type="submit"
+								role="menuitem"
+								class="font-size-step"
+								disabled={readerPreferences.fontScale <= MIN_FONT_SCALE}
+								aria-label={t('reader.fontSmaller')}>A−</button
+							>
+						</form>
+						<span class="font-size-value" aria-live="polite">{readerPreferences.fontScale} %</span>
+						<form method="POST" action="?/adjustFontSize" use:enhance role="none">
+							<input type="hidden" name="delta" value={FONT_SCALE_STEP} />
+							<button
+								type="submit"
+								role="menuitem"
+								class="font-size-step"
+								disabled={readerPreferences.fontScale >= MAX_FONT_SCALE}
+								aria-label={t('reader.fontLarger')}>A+</button
+							>
+						</form>
+					</div>
+					<hr class="sm:hidden" />
+				{/if}
 				{#if user}
 					<a href="/notes" role="menuitem" data-sveltekit-preload-data="hover"
 						>{t('nav.documents')}</a
@@ -177,6 +211,32 @@
 </header>
 
 <style>
+	.font-size-row {
+		padding: 0.15rem 0.15rem 0.15rem 0.6rem;
+	}
+
+	.font-size-label {
+		flex: 1;
+	}
+
+	.font-size-row .font-size-step {
+		width: 2.75rem;
+		min-height: 2.75rem;
+		justify-content: center;
+		font-weight: 700;
+	}
+
+	.font-size-row .font-size-step:disabled {
+		cursor: default;
+		opacity: 0.35;
+	}
+
+	.font-size-value {
+		min-width: 3.25rem;
+		text-align: center;
+		font-variant-numeric: tabular-nums;
+	}
+
 	/* Medium-width screens need generous targets, but the regular header controls remain visually
 	   borderless. A viewport width alone does not mean that the device is an e-ink display. */
 	@media (min-width: 640px) and (max-width: 1280px) {

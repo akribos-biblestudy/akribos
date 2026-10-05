@@ -359,7 +359,7 @@ export const users = pgTable(
 	},
 	(table) => [
 		uniqueIndex('users_email_idx').on(table.email),
-		check('users_reader_font_scale_check', sql`${table.readerFontScale} between 85 and 140`)
+		check('users_reader_font_scale_check', sql`${table.readerFontScale} between 70 and 200`)
 	]
 );
 

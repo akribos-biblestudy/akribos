@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { t } from '$lib/i18n';
+	import { FONT_SCALE_STEP, MAX_FONT_SCALE, MIN_FONT_SCALE } from '$lib/reader/font-scale';
 	import Button from '$lib/components/Button.svelte';
 	import Card from '$lib/components/Card.svelte';
 	import TextField from '$lib/components/TextField.svelte';
@@ -331,18 +332,26 @@
 						</div>
 						<div class="mt-2 flex items-center gap-2">
 							<form method="POST" action="?/reader" use:enhance>
-								<input type="hidden" name="fontScale" value={data.readerFontScale - 5} />
+								<input
+									type="hidden"
+									name="fontScale"
+									value={data.readerFontScale - FONT_SCALE_STEP}
+								/>
 								<Button
 									type="submit"
-									disabled={data.readerFontScale <= 85}
+									disabled={data.readerFontScale <= MIN_FONT_SCALE}
 									ariaLabel={t('reader.fontSmaller')}>A−</Button
 								>
 							</form>
 							<form method="POST" action="?/reader" use:enhance>
-								<input type="hidden" name="fontScale" value={data.readerFontScale + 5} />
+								<input
+									type="hidden"
+									name="fontScale"
+									value={data.readerFontScale + FONT_SCALE_STEP}
+								/>
 								<Button
 									type="submit"
-									disabled={data.readerFontScale >= 140}
+									disabled={data.readerFontScale >= MAX_FONT_SCALE}
 									ariaLabel={t('reader.fontLarger')}>A+</Button
 								>
 							</form>

@@ -1,0 +1,2 @@
+ALTER TABLE "users" DROP CONSTRAINT "users_reader_font_scale_check";--> statement-breakpoint
+ALTER TABLE "users" ADD CONSTRAINT "users_reader_font_scale_check" CHECK ("users"."reader_font_scale" between 70 and 200);
