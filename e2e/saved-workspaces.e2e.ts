@@ -910,3 +910,57 @@ test('a shared same-layout passage remains detached after scrolling and a root v
 	await expect(page).toHaveURL((url) => url.pathname === '/Joh1');
 	await expectActiveName(page, 'Eigene Stelle');
 });
+
+const linkedPairState = (reference: string) =>
+	`layout=columns-2&tab=1.1:SEEDDE:A:${reference}&tab=2.1:SEEDPLAIN:A:${reference}&active=1.1&active=2.1&focus=1`;
+
+async function createLinkedWorkspace(page: Page, name: string, reference: string) {
+	const response = await page.request.post('/api/reader/workspaces', {
+		data: { name, snapshot: { readerState: linkedPairState(reference), layoutSizes: {} } }
+	});
+	expect(response.status()).toBe(201);
+}
+
+async function readOnToJohn317(page: Page) {
+	await page.setViewportSize({ width: 1000, height: 400 });
+	const saved = page.waitForResponse(
+		(response) =>
+			new URL(response.url()).searchParams.has('/setTabReference') && response.status() === 200
+	);
+	await page.locator('.flow-column').first().hover();
+	for (let step = 0; step < 3; step++) await page.mouse.wheel(0, 150);
+	await saved;
+	await expect(page.locator('.reader-tile').first().getByRole('searchbox')).toHaveValue('Joh 3,17');
+}
+
+test('reading progress still reaches a workspace another device rearranged', async ({
+	page,
+	browser,
+	baseURL
+}) => {
+	test.setTimeout(60_000);
+	const credentials = await loginReader(page);
+	await createLinkedWorkspace(page, 'Lesung', 'Joh3');
+	await createLinkedWorkspace(page, 'Andere', '1Mo1');
+	await openNamedWorkspace(page, 'Lesung', '/Joh3');
+	const otherContext = await browser.newContext({ baseURL });
+	try {
+		const other = await otherContext.newPage();
+		await loginExistingReader(other, credentials.email, credentials.password);
+		await openNamedWorkspace(other, 'Lesung', '/Joh3');
+		await other.getByTestId('layout-picker').click();
+		await other.getByRole('menuitemradio', { name: /Eine Kachel/ }).click();
+		await expect(other).toHaveURL((url) => url.searchParams.get('layout') === 'single');
+
+		await readOnToJohn317(page);
+		await openNamedWorkspace(page, 'Andere', '/1Mo1');
+		await openNamedWorkspace(page, 'Lesung', '/Joh3,17');
+		// The remote arrangement is kept; only the reading position of link group A moved into it.
+		expect(new URL(page.url()).searchParams.getAll('tab')).toEqual([
+			'1.1:SEEDDE:A:Joh3,17',
+			'1.2:SEEDPLAIN:A:Joh3,17'
+		]);
+	} finally {
+		await otherContext.close();
+	}
+});

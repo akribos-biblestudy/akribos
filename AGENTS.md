@@ -267,10 +267,13 @@ Automatische Scroll-, Such- und Filteränderungen speichern die lokale Arbeitsko
 nur dort veränderte Felder im benannten Stand, sofern die Ressourcenanordnung noch übereinstimmt.
 Andere aktuelle Suchen, Stellen und Trennergrößen bleiben erhalten; ein Wortstudien-Kontext wird als
 Einheit veröffentlicht. Hat ein anderer Tab die Anordnung verändert, überschreibt bloßes Weiterlesen
-sie nicht. Eine explizite Strukturänderung veröffentlicht eine vollständige konsistente Anordnung.
+sie nicht; die Leseposition wird aber weiterhin übertragen: auf alle Tabs derselben A–E-Tabgruppe,
+bei ungekoppelten Tabs nur auf dieselbe Ressource an derselben Koordinate oder deren eindeutigen
+ungekoppelten Tab. Koordinaten allein identifizieren in fremden Anordnungen keinen Tab.
+Eine explizite Strukturänderung veröffentlicht eine vollständige konsistente Anordnung.
 Änderungen desselben Feldes folgen der zuletzt gespeicherten expliziten Änderung. Andere offene Tabs
-behalten ihre Arbeitskopie, ohne Konfliktmeldung durch diese fremden Änderungen. Erst der Klick auf
-den aktiven Menüeintrag lädt den benannten Stand erneut. Er verwirft ausstehende Workspace-Timer,
+behalten Anordnung, Suchen und Filter ihrer Arbeitskopie, ohne Konfliktmeldung durch fremde
+Änderungen. Erst der Klick auf den aktiven Menüeintrag lädt den benannten Stand erneut. Er verwirft ausstehende Workspace-Timer,
 wartet laufende Workspace-Anfragen ab und lässt Dokumentänderungen weiterhin regulär speichern.
 
 Nach einer vollständigen Navigation lädt `invalidateAll()` den tab-lokalen Kontext auch für Suche,

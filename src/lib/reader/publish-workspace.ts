@@ -18,7 +18,8 @@ export function publishWorkspaceChanges(
 	// Structural edits publish a coherent new arrangement. Position/search edits must never rebuild
 	// an arrangement that another tab changed, because coordinates are intentionally URL-local.
 	if (structure(previous) !== structure(next)) return after;
-	if (structure(previous) !== structure(current)) return shared;
+	if (structure(previous) !== structure(current))
+		return withReadingPositions(shared, changedPositions(previous, next));
 	const fields = (params: URLSearchParams) =>
 		new Map(
 			[...params].map(([key, value]) => [
@@ -66,5 +67,69 @@ export function publishWorkspaceChanges(
 		return readerState ? { readerState, layoutSizes } : shared;
 	} catch {
 		return shared;
+	}
+}
+
+type TabPosition = { coordinate: string; resource: string; linkSet: string; reference: string };
+
+function tabPositions(params: URLSearchParams): TabPosition[] {
+	return params.getAll('tab').map((value) => {
+		const split = value.lastIndexOf(':');
+		const [coordinate = '', resource = '', linkSet = ''] = value.slice(0, split).split(':');
+		return { coordinate, resource, linkSet, reference: value.slice(split + 1) };
+	});
+}
+
+function changedPositions(previous: URLSearchParams, next: URLSearchParams): TabPosition[] {
+	const before = new Map(tabPositions(previous).map((tab) => [tab.coordinate, tab.reference]));
+	return tabPositions(next).filter((tab) => before.get(tab.coordinate) !== tab.reference);
+}
+
+/**
+ * Coordinates of two different arrangements do not identify the same tab. A link group does: all of
+ * its tabs share one reading position. An unlinked tab only matches the same resource at the same
+ * coordinate, or that resource's single unlinked tab on both sides.
+ */
+function positionFor(target: TabPosition, targets: TabPosition[], sources: TabPosition[]) {
+	if (target.linkSet !== '-')
+		return sources.findLast((source) => source.linkSet === target.linkSet)?.reference;
+	const unlinked = (tabs: TabPosition[]) =>
+		tabs.filter((tab) => tab.linkSet === '-' && tab.resource === target.resource);
+	const candidates = unlinked(sources);
+	return (
+		candidates.find((source) => source.coordinate === target.coordinate)?.reference ??
+		(candidates.length === 1 && unlinked(targets).length === 1
+			? candidates[0]!.reference
+			: undefined)
+	);
+}
+
+/** Moves reading positions into another arrangement without changing that arrangement itself. */
+function withReadingPositions(
+	target: SavedWorkspaceSnapshot,
+	sources: TabPosition[]
+): SavedWorkspaceSnapshot {
+	if (sources.length === 0) return target;
+	const params = new URLSearchParams(target.readerState);
+	const targets = tabPositions(params);
+	const result = new URLSearchParams();
+	let index = 0;
+	let moved = false;
+	for (const [key, value] of params) {
+		if (key !== 'tab') {
+			result.append(key, value);
+			continue;
+		}
+		const tab = targets[index++]!;
+		const reference = positionFor(tab, targets, sources) ?? tab.reference;
+		moved ||= reference !== tab.reference;
+		result.append(key, `${tab.coordinate}:${tab.resource}:${tab.linkSet}:${reference}`);
+	}
+	if (!moved) return target;
+	try {
+		const readerState = readerStateFromUrl(new URL(`http://reader.invalid/?${result}`));
+		return readerState ? { readerState, layoutSizes: target.layoutSizes } : target;
+	} catch {
+		return target;
 	}
 }
