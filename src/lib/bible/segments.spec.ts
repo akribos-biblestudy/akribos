@@ -38,6 +38,16 @@ describe('segmentsToText', () => {
 		).toBe('ist Ich bin der Weg');
 	});
 
+	it('includes the divine name with its tagged word', () => {
+		expect(
+			segmentsToText([
+				'Der ',
+				{ kind: 'nd', children: [{ kind: 'w', text: 'Herr', strong: 'H3068' }] },
+				' ist mein Hirte'
+			])
+		).toBe('Der Herr ist mein Hirte');
+	});
+
 	it('turns a line break into a space', () => {
 		expect(segmentsToText(['Zeile eins', { kind: 'br' }, 'Zeile zwei'])).toBe(
 			'Zeile eins Zeile zwei'
@@ -56,6 +66,31 @@ describe('splitVerseLead', () => {
 	it('attaches punctuation from the next segment to a tagged word', () => {
 		const word = { kind: 'w', text: 'Jesus', strong: 'G2424' } as const;
 		expect(splitVerseLead([word, '? Danach'])).toEqual([[word, '?'], [' Danach']]);
+	});
+});
+
+describe('divine name', () => {
+	const name: VerseSegment = {
+		kind: 'nd',
+		children: [{ kind: 'w', text: 'Herr', strong: 'H3068' }]
+	};
+
+	it('keeps a leading divine name whole in the verse lead', () => {
+		expect(splitVerseLead([name, ', du bist'])).toEqual([[name, ','], [' du bist']]);
+	});
+
+	it('counts, highlights and indexes the words inside it like any other word', () => {
+		const segments: VerseSegment[] = ['der ', name, ' sprach'];
+		expect(countVerseWords(segments)).toBe(3);
+		expect(wordsFromSegments(segments)).toEqual([{ position: 0, text: 'Herr', strong: 'H3068' }]);
+		expect(
+			highlightSegments(segments, [{ start: 1, end: 1, color: '#ff0' }], initHighlightCursor())
+		).toContainEqual({
+			kind: 'nd',
+			children: [
+				{ kind: 'w', segment: { kind: 'w', text: 'Herr', strong: 'H3068' }, color: '#ff0' }
+			]
+		});
 	});
 });
 

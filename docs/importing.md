@@ -155,6 +155,13 @@ Earlier USX imports need a normal reimport to recover these statuses from the so
 reimport also removes an earlier generated warning when that source word is now `confirmed` and has no
 explicit uncertainty note. There is no automatic backfill from already imported segments.
 
+The divine name (USX/USFX `<char style="nd">`, USFM `\nd … \nd*`) becomes an `nd` container
+segment around its words, so a tagged „Herr“ stays a clickable Strong word. The reader prints it in
+small capitals („HERR“, as in the printed Schlachter 2000); stored text, search text and word
+positions keep the source spelling. A span crossing a verse milestone is split between both verses.
+Headings and notes are plain text and therefore keep the name without small capitals. Earlier imports
+need a reimport to gain the marking; there is no backfill.
+
 Book introductions, book titles, editorial remarks, illustrations and alternate printed numbering are
 not stored as verses. Letter-suffixed or discontinuous verse numbers are rejected with a filename and
 error instead of silently truncating them. The existing 66-book canon applies; a file with no usable

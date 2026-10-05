@@ -235,6 +235,22 @@ describe('USFM', () => {
 		expect(text(verses[0])).toBe('Ich bin der Weg');
 	});
 
+	it('marks the divine name, including a tagged word inside it', async () => {
+		const { verses } = await drain(
+			parseUsfm(`\\id PSA
+\\c 23
+\\v 1 Der \\nd \\w Herr|strong="H3068"\\w*\\nd* ist mein Hirte.
+`)
+		);
+
+		expect(verses[0]?.segments).toEqual([
+			'Der ',
+			{ kind: 'nd', children: [{ kind: 'w', text: 'Herr', strong: 'H3068' }] },
+			' ist mein Hirte.'
+		]);
+		expect(text(verses[0])).toBe('Der Herr ist mein Hirte.');
+	});
+
 	it('continues a verse across following lines', async () => {
 		const { verses } = await drain(
 			parseUsfm(`\\id PSA

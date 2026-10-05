@@ -62,6 +62,11 @@ der konkreten getaggten Wortposition; Text, Suchtext und Wortindex ändern sich 
 Frühere USX-Importe benötigen einen Reimport, da der verworfene Quellstatus nicht aus den gespeicherten
 Segmenten rekonstruiert werden kann. Es gibt keinen automatischen Backfill oder schreibenden GET.
 
+Der Gottesname (`nd` in USX/USFX/USFM) ist wie `wj` ein Containersegment (`isContainerSegment()`):
+Wörter darin bleiben Strong-Wörter mit unveränderten Positionen, Suchtext und Wortzählung. `VerseText`
+setzt ihn in Kapitälchen („HERR“). Überschriften und Fußnoten bleiben reiner Text ohne Kapitälchen.
+Bestehende Importe erhalten die Kennzeichnung nur durch Reimport, nicht per Backfill.
+
 ## Nutzerhilfe, Administrationshilfe und Produktbilder
 
 `/help` bietet Themenübersicht und eine serverseitige GET-Suche über `q`. Der statische,
