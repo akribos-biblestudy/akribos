@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { t } from '$lib/i18n';
+	import { FONT_SCALE_STEP, MAX_FONT_SCALE, MIN_FONT_SCALE } from '$lib/reader/font-scale';
 	import ThemeToggle from './ThemeToggle.svelte';
 
 	let {
@@ -16,10 +17,10 @@
 		aria-label={t('account.readerFontSize')}
 	>
 		<form method="POST" action="?/adjustFontSize" use:enhance>
-			<input type="hidden" name="delta" value="-5" />
+			<input type="hidden" name="delta" value={-FONT_SCALE_STEP} />
 			<button
 				type="submit"
-				disabled={fontScale <= 85}
+				disabled={fontScale <= MIN_FONT_SCALE}
 				aria-label={t('reader.fontSmaller')}
 				class="text-size-button"
 			>
@@ -27,10 +28,10 @@
 			</button>
 		</form>
 		<form method="POST" action="?/adjustFontSize" use:enhance>
-			<input type="hidden" name="delta" value="5" />
+			<input type="hidden" name="delta" value={FONT_SCALE_STEP} />
 			<button
 				type="submit"
-				disabled={fontScale >= 140}
+				disabled={fontScale >= MAX_FONT_SCALE}
 				aria-label={t('reader.fontLarger')}
 				class="text-size-button"
 			>

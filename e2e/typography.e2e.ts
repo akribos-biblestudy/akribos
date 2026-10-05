@@ -61,8 +61,9 @@ test('Akribos Text renders Latin and polytonic Greek with real styles and matchi
 
 for (const [width, scale, theme] of [
 	[320, 140, 'light'],
-	[390, 85, 'dark'],
-	[1440, 140, 'dark']
+	[320, 200, 'dark'],
+	[390, 70, 'light'],
+	[1440, 200, 'dark']
 ] as const) {
 	test(`reading typography fits ${width}px at ${scale}% in ${theme}`, async ({
 		page,
@@ -169,4 +170,48 @@ test('account preview and size controls use this device even when the account ha
 	await page.getByRole('button', { name: 'Bibeltext vergrößern' }).click();
 	await expect(page.getByText('90 %', { exact: true })).toBeVisible();
 	await expect(preview).toHaveCSS('font-size', '16.2px');
+});
+
+test('the text size can be changed on a phone through the user menu, up to 200%', async ({
+	page,
+	context,
+	baseURL
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await context.addCookies([{ name: 'reader-font-scale', value: '190', url: baseURL! }]);
+	await page.goto('/Joh3,16');
+	const verse = page.locator('.flow-verse').first();
+	await expect(verse).toHaveCSS('font-size', '34.2px');
+	await expect(page.getByRole('button', { name: 'Bibeltext vergrößern' })).toBeHidden();
+
+	await page.getByRole('button', { name: 'Konto-Menü' }).click();
+	const menu = page.getByRole('menu', { name: 'Konto-Menü' });
+	const sizes = menu.getByRole('group', { name: 'Textgröße im Bibeltext' });
+	await expect(sizes).toContainText('190 %');
+	await sizes.getByRole('menuitem', { name: 'Bibeltext vergrößern' }).click();
+	await expect(sizes).toContainText('195 %');
+	await sizes.getByRole('menuitem', { name: 'Bibeltext vergrößern' }).click();
+	await expect(sizes).toContainText('200 %');
+	await expect(sizes.getByRole('menuitem', { name: 'Bibeltext vergrößern' })).toBeDisabled();
+	await expect(verse).toHaveCSS('font-size', '36px');
+	await sizes.getByRole('menuitem', { name: 'Bibeltext verkleinern' }).click();
+	await expect(sizes).toContainText('195 %');
+	await expect(menu).toBeVisible();
+
+	await page.reload();
+	await expect(page.locator('.flow-verse').first()).toHaveCSS('font-size', '35.1px');
+});
+
+test('the desktop header keeps its own size controls and the menu omits the duplicate row', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await page.goto('/Joh3,16');
+	await expect(page.getByRole('button', { name: 'Bibeltext vergrößern' })).toBeVisible();
+	await page.getByRole('button', { name: 'Konto-Menü' }).click();
+	await expect(
+		page
+			.getByRole('menu', { name: 'Konto-Menü' })
+			.getByRole('group', { name: 'Textgröße im Bibeltext' })
+	).toBeHidden();
 });

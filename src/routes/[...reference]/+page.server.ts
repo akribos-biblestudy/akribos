@@ -68,6 +68,7 @@ import {
 	resolveReaderWorkspaceContext
 } from '$lib/server/reader-workspace-context';
 import {
+	FONT_SCALE_STEP,
 	MAX_FONT_SCALE,
 	MIN_FONT_SCALE,
 	readFontScale,
@@ -800,7 +801,7 @@ export const actions = {
 	adjustFontSize: async ({ request, cookies, locals }) => {
 		const form = await request.formData();
 		const delta = Number(form.get('delta'));
-		if (delta !== -5 && delta !== 5) return fail(400, { error: 'fontScale' });
+		if (Math.abs(delta) !== FONT_SCALE_STEP) return fail(400, { error: 'fontScale' });
 
 		const current = readFontScale(cookies, locals.user?.readerFontScale);
 		const next = Math.min(MAX_FONT_SCALE, Math.max(MIN_FONT_SCALE, current + delta));

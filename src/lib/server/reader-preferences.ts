@@ -1,4 +1,12 @@
 import type { Cookies } from '@sveltejs/kit';
+import { normalizeFontScale } from '../reader/font-scale.ts';
+
+export {
+	FONT_SCALE_STEP,
+	MAX_FONT_SCALE,
+	MIN_FONT_SCALE,
+	normalizeFontScale
+} from '../reader/font-scale.ts';
 
 /**
  * Device-local reader preferences: font size and colour scheme.
@@ -12,21 +20,10 @@ import type { Cookies } from '@sveltejs/kit';
  */
 
 export const FONT_SCALE_COOKIE = 'reader-font-scale';
-export const MIN_FONT_SCALE = 85;
-export const MAX_FONT_SCALE = 140;
-export const FONT_SCALE_STEP = 5;
 export const THEME_COOKIE = 'theme';
 export type Theme = 'light' | 'dark';
 
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
-
-export function normalizeFontScale(value: number): number {
-	if (!Number.isFinite(value)) return 100;
-	return Math.min(
-		MAX_FONT_SCALE,
-		Math.max(MIN_FONT_SCALE, Math.round(value / FONT_SCALE_STEP) * FONT_SCALE_STEP)
-	);
-}
 
 /** This device's cookie wins when set; otherwise the account's value seeds it; otherwise 100%. */
 export function readFontScale(cookies: Cookies, accountScale?: number | null): number {

@@ -119,6 +119,11 @@ Bibeltext 1,125 rem, Kommentar-/Lexikon-/Dokumenttext 1,0625 rem, Zeilenhöhe 1,
 werden an `.reading-preferences` mit dem Geräteskalierungswert erneut aufgelöst, damit vererbte
 CSS-Variablen die persönliche Vergrößerung nicht verlieren. Bedienelemente und Lexikonlabels bleiben
 in festen rem-Größen. Auch die Kontovorschau liest den gerätelokalen Schriftgrößenwert.
+Die persönliche Skalierung reicht von 70 bis 200 % in 5-%-Schritten; `src/lib/reader/font-scale.ts`
+ist die gemeinsame Quelle für Server, Bedienelemente und Hilfetext, der DB-Check in `users` muss
+übereinstimmen. Unterhalb von `sm` sind A−/A+ im Reader-Header ausgeblendet und stehen stattdessen als
+eigene Zeile im Konto-Menü; deren Sichtbarkeit hängt ausschließlich an Utility-Klassen, weil
+komponenteneigenes `display` Tailwinds `sm:hidden` überschreiben würde.
 
 Nach einem verspäteten Schrift-Download richtet der Reader die aktuell sichtbaren Tab-Referenzen
 programmatisch erneut aus; er schreibt dabei weder eine neue URL noch einen neuen Workspace.
