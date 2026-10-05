@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createDb } from '../src/lib/server/db/client.ts';
-import { users, passwordResets } from '../src/lib/server/db/schema.ts';
+import { eq } from 'drizzle-orm';
+import { users, passwordResets, savedReaderWorkspaces } from '../src/lib/server/db/schema.ts';
 import { createHash } from 'node:crypto';
 import { hashPassword } from '../src/lib/server/auth/password.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
@@ -1010,4 +1011,59 @@ test('an already open browser tab follows reading progress after a reload and wh
 	} finally {
 		await otherContext.close();
 	}
+});
+
+test('a stored link group with disagreeing positions still saves reading and survives switching', async ({
+	page
+}) => {
+	test.setTimeout(60_000);
+	await loginReader(page);
+	await page.setViewportSize({ width: 1400, height: 600 });
+	const research = await createNamedWorkspace(page, 'Research', 'Joh3');
+	await createNamedWorkspace(page, 'Andere', 'Mt3,12');
+	// Written by an earlier version: link group A disagrees, the focused tile shows 1. Mose 1.
+	const { db, client } = createDb(
+		process.env.E2E_DATABASE_URL ??
+			testDatabaseUrl(
+				process.env.DATABASE_URL ?? 'postgres://strongs:strongs@localhost:5432/strongs'
+			),
+		{ max: 1 }
+	);
+	try {
+		await db
+			.update(savedReaderWorkspaces)
+			.set({
+				snapshot: {
+					readerState:
+						'layout=columns-2&tab=1.1:SEEDDE:A:Joh3&tab=1.2:SEEDPLAIN:C:Joh3&active=1.1&tab=2.1:SEEDCOMMENTARY:A:1Mo1&active=2.1&focus=2',
+					layoutSizes: {}
+				}
+			})
+			.where(eq(savedReaderWorkspaces.id, research.id));
+	} finally {
+		await client.end();
+	}
+	await openNamedWorkspace(page, 'Andere', '/Mt3,12');
+	await openNamedWorkspace(page, 'Research', '/1Mo1');
+	expect(new URL(page.url()).searchParams.getAll('tab')).toEqual([
+		'1.1:SEEDDE:A:1Mo1',
+		'1.2:SEEDPLAIN:C:Joh3',
+		'2.1:SEEDCOMMENTARY:A:1Mo1'
+	]);
+
+	const field = page.locator('.reader-tile').first().getByRole('searchbox');
+	const saved = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'POST' &&
+			[...new URL(response.url()).searchParams.keys()].some((key) => key.startsWith('/')) &&
+			response.ok()
+	);
+	await field.fill('Joh 3,16');
+	await field.press('Enter');
+	expect(new URL((await saved).url()).searchParams.get('workspaceDetached')).toBeNull();
+	await expect(page).toHaveURL((url) => url.pathname === '/Joh3,16');
+	await openNamedWorkspace(page, 'Andere', '/Mt3,12');
+	await openNamedWorkspace(page, 'Research', '/Joh3,16');
+	await page.goto('/');
+	await expect(page).toHaveURL((url) => url.pathname === '/Joh3,16');
 });

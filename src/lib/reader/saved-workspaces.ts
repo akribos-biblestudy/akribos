@@ -6,7 +6,12 @@ import {
 	readReaderNotesFilters,
 	readerUrl
 } from './url-state';
-import { activeReaderTab, normalizeReaderWorkspace, type ReaderWorkspace } from './workspace';
+import {
+	activeReaderTab,
+	alignReaderLinkGroups,
+	normalizeReaderWorkspace,
+	type ReaderWorkspace
+} from './workspace';
 import type { WorkspacePersistence } from './persistence';
 
 export const MAX_SAVED_WORKSPACES = 100;
@@ -50,9 +55,11 @@ export function restoreSavedWorkspace(
 	const params = new URLSearchParams(value.readerState);
 	const decoded = decodeReaderUrlState(params);
 	if (!decoded) return null;
-	const workspace = normalizeReaderWorkspace(
-		{ ...(decoded.workspace as object), layoutSizes: value.layoutSizes },
-		availableResourceIds
+	const workspace = alignReaderLinkGroups(
+		normalizeReaderWorkspace(
+			{ ...(decoded.workspace as object), layoutSizes: value.layoutSizes },
+			availableResourceIds
+		)
 	);
 	const focusedTile = workspace.tiles.find((tile) => tile.id === workspace.focusedTileId);
 	const reference = (focusedTile && activeReaderTab(focusedTile)?.reference) ?? {
