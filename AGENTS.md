@@ -382,6 +382,14 @@ zuvor aktiven Tabs
 (beziehungsweise `A` in einer leeren Kachel), damit die bisher standardmäßig gekoppelte Leseansicht
 erhalten bleibt.
 
+Beim Ändern der Tabgruppe übernimmt der wechselnde Tab die vorhandene Stelle der Zielgruppe,
+auch wenn deren bisherige Mitglieder alle inaktiv sind. Die Zielgruppe und die zurückbleibenden Tabs
+der Quellgruppe behalten ihre Stellen. Nur beim ersten Tab einer bisher leeren Gruppe oder bei
+„Keine“ bleibt die eigene Stelle erhalten. Der Wechsel verwendet den vor der Mutation gespeicherten
+aktuellen Scrollstand; die Gruppenangleichung darf nie die alte Stelle des wechselnden Tabs verbreiten.
+Die Action liest dafür die aktuelle URL-Momentaufnahme, ohne den möglicherweise noch älteren
+Formularpfad erneut auf deren fokussierte Gruppe anzuwenden.
+
 Jeder Tab besitzt außerdem eine eigene `reference`. Der zuletzt fokussierte Tab bestimmt die kanonische
 Reader-Pfadstelle; Aktivieren stellt die gespeicherte Stelle des Tabs wieder her. Eine Buchstaben-Tabgruppe gleicht
 die Referenz **aller** Tabs dieser Gruppe an, auch der inaktiven. Dadurch kann ein später aktivierter Tab

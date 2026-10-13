@@ -488,20 +488,16 @@ export const actions = {
 		);
 	},
 
-	setTabLinkSet: async ({ request, cookies, locals, params, url }) => {
+	setTabLinkSet: async ({ request, cookies, locals, url }) => {
 		const form = await request.formData();
 		const tileId = String(form.get('tileId') ?? '');
 		const tabId = String(form.get('tabId') ?? '');
 		const rawLinkSet = form.get('linkSet');
 		const linkSet = rawLinkSet === '' ? null : rawLinkSet;
 		if (!isReaderLinkSet(linkSet)) return fail(400, { error: 'linkSet' });
-		const current = await currentWorkspace(
-			cookies,
-			locals,
-			url,
-			undefined,
-			actionReference(params)
-		);
+		// The flushed snapshot can be newer than the form's captured pathname. Reapplying that
+		// path would overwrite the destination group's live position before the tab joins it.
+		const current = await currentWorkspace(cookies, locals, url);
 		return finishWorkspaceMutation(
 			request,
 			cookies,

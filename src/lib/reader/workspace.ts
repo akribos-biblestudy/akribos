@@ -586,7 +586,19 @@ export function setReaderTabLinkSet(
 ): ReaderWorkspace {
 	const next = cloneWorkspace(workspace);
 	const tab = next.tiles.find((tile) => tile.id === tileId)?.tabs.find((item) => item.id === tabId);
-	if (tab) tab.linkSet = linkSet;
+	if (!tab || tab.linkSet === linkSet) return next;
+	if (linkSet) {
+		// Join the destination's position before changing membership, so later URL/group alignment
+		// cannot let the joining tab overwrite it. Inactive members also define an existing group.
+		const focused = next.tiles.find((tile) => tile.id === next.focusedTileId);
+		const peer = [
+			...(focused ? [activeReaderTab(focused)] : []),
+			...next.tiles.map(activeReaderTab),
+			...next.tiles.flatMap((tile) => tile.tabs)
+		].find((candidate) => candidate?.id !== tabId && candidate?.linkSet === linkSet);
+		if (peer) tab.reference = { ...peer.reference };
+	}
+	tab.linkSet = linkSet;
 	return next;
 }
 

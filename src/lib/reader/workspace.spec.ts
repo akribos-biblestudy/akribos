@@ -79,6 +79,57 @@ describe('reader workspace', () => {
 		});
 	});
 
+	it('joins the existing group reference without moving either group or changing the input', () => {
+		let workspace = workspaceFromColumns(['joining', 'target', 'source'], { book: 43, chapter: 1 });
+		workspace = setReaderTabLinkSet(workspace, 'tile-2', 'tab-2', 'B');
+		workspace = setReaderTabReference(workspace, 'tile-2', 'tab-2', { book: 1, chapter: 1 });
+		workspace = activateReaderTab(workspace, 'tile-1', 'tab-1');
+		const before = structuredClone(workspace);
+
+		const next = setReaderTabLinkSet(workspace, 'tile-1', 'tab-1', 'B');
+
+		expect(next.tiles[0]!.tabs[0]).toMatchObject({
+			linkSet: 'B',
+			reference: { book: 1, chapter: 1 }
+		});
+		expect(next.tiles.slice(1)).toEqual(before.tiles.slice(1));
+		expect(next.focusedTileId).toBe('tile-1');
+		expect(workspace).toEqual(before);
+	});
+
+	it('joins a group whose only other member is inactive in the same tile', () => {
+		let workspace = workspaceFromColumns(['target'], { book: 1, chapter: 1 });
+		workspace = setReaderTabLinkSet(workspace, 'tile-1', 'tab-1', 'B');
+		workspace = addReaderTab(workspace, 'tile-1', 'joining', () => 'joining');
+		workspace = setReaderTabLinkSet(workspace, 'tile-1', 'joining', 'A');
+		workspace = setReaderTabReference(workspace, 'tile-1', 'joining', { book: 43, chapter: 1 });
+
+		const next = setReaderTabLinkSet(workspace, 'tile-1', 'joining', 'B');
+
+		expect(next.tiles[0]!.tabs.map((tab) => tab.reference)).toEqual([
+			{ book: 1, chapter: 1 },
+			{ book: 1, chapter: 1 }
+		]);
+		expect(next.tiles[0]!.activeTabId).toBe('joining');
+	});
+
+	it.each(['C', null] as const)(
+		'keeps its own position when changing to %s without a target group',
+		(linkSet) => {
+			let workspace = workspaceFromColumns(['joining', 'independent'], { book: 1, chapter: 1 });
+			workspace = setReaderTabLinkSet(workspace, 'tile-2', 'tab-2', null);
+			workspace = setReaderTabReference(workspace, 'tile-1', 'tab-1', { book: 43, chapter: 1 });
+
+			const next = setReaderTabLinkSet(workspace, 'tile-1', 'tab-1', linkSet);
+
+			expect(next.tiles[0]!.tabs[0]).toMatchObject({
+				linkSet,
+				reference: { book: 43, chapter: 1 }
+			});
+			expect(next.tiles[1]).toEqual(workspace.tiles[1]);
+		}
+	);
+
 	it('stores a lexicon lookup on exactly one tab', () => {
 		let workspace = workspaceFromColumns(['bible', 'lexicon']);
 		workspace = setReaderTabLookup(workspace, 'tile-2', 'tab-2', '  G25  ');
