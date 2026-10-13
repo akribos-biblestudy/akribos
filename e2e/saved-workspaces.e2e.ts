@@ -107,9 +107,14 @@ for (const entry of ['login', 'password reset'] as const) {
 				await page.getByLabel('Passwort wiederholen', { exact: true }).fill(account.password);
 				await page.getByRole('button', { name: 'Speichern', exact: true }).click();
 				await expect(page).toHaveURL(/\/account$/);
-			} else await loginExistingReader(page, account.email, account.password);
+			} else {
+				// Other suites temporarily publish Bible fixtures. Use a fixed guest selection so
+				// login adoption does not depend on the public resource count of a parallel test.
+				await context.addCookies([{ name: 'columns', value: 'SEEDDE,SEEDPLAIN', url: baseURL! }]);
+				await loginExistingReader(page, account.email, account.password);
+			}
 			await page.goto('/Joh3,16');
-			// Login adopts default columns; password reset preserves the untouched provisional view.
+			// Login adopts guest columns; password reset preserves the untouched provisional view.
 			await expect(page.locator('.reader-tile')).toHaveCount(entry === 'login' ? 2 : 1);
 			const field = page.getByRole('searchbox').first();
 			await field.fill('1Mo1,3');
