@@ -279,6 +279,13 @@ peer's live reference (including a position newer than the debounced URL state);
 reference can therefore never move the visible group. Without a visible peer, activation restores the
 tab's own reference.
 
+Changing a tab's group adopts the destination group's existing reference before changing membership,
+including when all existing members are inactive. The destination and the remaining source members
+keep their references. Only an empty destination group or `null` preserves the joining tab's own
+position. The mutation flushes pending scroll state first, so this also uses the live group position.
+Its action reads that snapshot without reapplying the potentially older captured form pathname to
+the focused group.
+
 The complete reconstructable state of one browser tab is represented by `src/lib/reader/url-state.ts`
 as readable, repeatable query parameters: `layout`, `tab`, `active`, `focus`, `lookup`, `source`,
 `sourceRef`, `word` and `search`. Tab coordinates use `tile.tab`, for example
