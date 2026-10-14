@@ -25,6 +25,7 @@
 			| 'underline'
 			| 'highlight'
 			| 'layout'
+			| 'library'
 			| 'link'
 			| 'lock'
 			| 'list'
@@ -97,6 +98,8 @@
 		<rect x="3" y="3.5" width="7" height="17" rx="1.5" />
 		<rect x="14" y="3.5" width="7" height="7" rx="1.5" />
 		<rect x="14" y="13.5" width="7" height="7" rx="1.5" />
+	{:else if name === 'library'}
+		<path d="M3 4h4v16H3ZM10 4h4v16h-4ZM16 5l4-1 3 15-4 1ZM3 8h4M10 8h4" />
 	{:else if name === 'sun'}
 		<circle cx="12" cy="12" r="3.5" />
 		<path

@@ -23,7 +23,7 @@
 	import type { ReadableResource } from '$lib/server/repositories/resources';
 	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
-	import ResourceKindIcon from './ResourceKindIcon.svelte';
+	import ReaderBookPicker from './ReaderBookPicker.svelte';
 	import StudySourceBadge from './StudySourceBadge.svelte';
 
 	let {
@@ -183,7 +183,7 @@
 		data-tour-target={tileIndex === 0 ? 'resource-picker' : undefined}
 		onclick={(event) => onOpenResource(tileId, tab.id, event.currentTarget)}
 	>
-		<ResourceKindIcon kind={resource.kind} class="toolbar-resource-icon" />
+		<Icon name="library" class="size-4.5" />
 		<Icon name="chevron-down" class="size-2.5" />
 	</button>
 
@@ -216,6 +216,19 @@
 		/>
 		{#if resource.kind === 'lexicon' && studyResource}
 			<StudySourceBadge source={studyResource} />
+		{/if}
+		{#if resource.kind !== 'lexicon'}
+			<ReaderBookPicker
+				resourceId={resource.id}
+				resourceTitle={resource.tabTitle}
+				tabId={tab.id}
+				{reference}
+				disabled={historyBusy}
+				onSelect={(next) => {
+					focused = false;
+					onOpenReference(next);
+				}}
+			/>
 		{/if}
 	</form>
 
@@ -335,10 +348,6 @@
 	.info-button:hover {
 		background: var(--color-stone-100);
 		color: var(--color-stone-800);
-	}
-	.resource-button :global(.toolbar-resource-icon) {
-		width: 1.15rem;
-		height: 1.35rem;
 	}
 	.info-button {
 		border-left: 1px solid var(--line);

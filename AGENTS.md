@@ -412,6 +412,18 @@ Tabs derselben Kachel Vorrang, auch serverseitig vor einem veralteten `targetRef
 `sourceReference`: Nur letzterer wird zum Wortstudien-Kontext. Das Öffnen oder Wiederverwenden eines
 Lexikons darf die Leseposition der Quellkachel und ihrer Tabgruppe nicht auf den angeklickten Vers setzen.
 
+Die Buch-/Kapitelauswahl im Stellenfeld (`ReaderBookPicker.svelte`) verwendet sechs Spalten mit
+44-Pixel-Quadraten und AT/NT-Reitern. Erst der Kapitelklick ruft dieselbe tabbezogene Navigation wie
+das Stellenfeld auf; Bücher- und Reiterwechsel schreiben keinen Workspace. Lange Kapitelraster
+blättern in Gruppen von 42 vorhandenen Kapiteln. `GET /api/reader/resources/[resource]/navigation`
+liest reale Kapitel aus Versen, Kommentartexten beziehungsweise den Quellstellen von Parallelstellen,
+niemals eine lückenlose Folge aus `resource_books.chapter_count`. Der Endpunkt prüft den Reader-Zugriff
+frisch und antwortet `private, no-store`; API-Schlüssel erteilen hier keine privaten Freigaben.
+Lexika behalten ausschließlich ihre Wortsuche. Ein Tab-/Werkwechsel schließt die Auswahl und verwirft
+verspätete Antworten. Die Kategorien in `book-groups.ts` folgen der CSV-Vorlage aus Issue #323:
+Klagelieder gehört zur Poesie, Hebräer zu den allgemeinen Briefen, Offenbarung ist eine eigene Gruppe.
+Das Bibliothekssymbol öffnet die Werkauswahl; das offene Buch im Feld öffnet die Bibelbuchauswahl.
+
 Das kompakte Feld in `ReaderTabToolbar.svelte` ist Stellenwahl und ressourcenbezogene Suche zugleich:
 Eine Bibelstelle navigiert den Tab, Wörter und Strong-Nummern öffnen dagegen keine andere Route, sondern
 eine Ergebnisansicht innerhalb genau dieses Tabs. `tabSearches` in der Reader-Seite hält diesen
