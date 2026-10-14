@@ -1,0 +1,59 @@
+{
+  "issue": 323,
+  "variant": "D: compact square book and chapter grids",
+  "capturedAt": "2026-10-14",
+  "method": "Public Reader with local browser-only prototype; concept only, no application changes or deployment.",
+  "layouts": {
+    "D6": {
+      "columns": 6,
+      "oldTestamentRows": 7,
+      "tileSize": 44,
+      "bookPanel": [
+        306,
+        400
+      ]
+    },
+    "D5": {
+      "columns": 5,
+      "oldTestamentRows": 8,
+      "tileSize": 44,
+      "bookPanel": [
+        258,
+        448
+      ]
+    }
+  },
+  "viewports": [
+    [
+      1280,
+      760
+    ],
+    [
+      390,
+      844
+    ]
+  ],
+  "additionalLayoutChecks": [
+    [
+      320,
+      680
+    ],
+    [
+      390,
+      500
+    ]
+  ],
+  "chapters": "Same square grid; page after 42 (D6) or 40 (D5) chapters. Psalm 150 checked.",
+  "files": [
+    "d-5-at-desktop.png",
+    "d-5-at-mobile.png",
+    "d-5-joh-mobile.png",
+    "d-6-at-desktop.png",
+    "d-6-at-mobile.png",
+    "d-6-joh-desktop.png",
+    "d-6-joh-mobile.png",
+    "d-6-nt-mobile.png",
+    "d-6-ps-last-mobile.png",
+    "d-6-ps-mobile.png"
+  ]
+}
