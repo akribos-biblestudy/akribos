@@ -1,0 +1,48 @@
+{
+  "issue": 323,
+  "kind": "UI concepts for selection only",
+  "baseCommit": "7b1fada4e5fb85a6f8fd48ed0293e50e4d8f2487",
+  "capturedAt": "2026-10-14",
+  "source": "https://akribos.de",
+  "method": "Real Reader page with local browser-only prototype overlays; no application changes or deployment.",
+  "viewports": {
+    "desktop": [
+      1280,
+      760
+    ],
+    "mobile": [
+      390,
+      844
+    ]
+  },
+  "additionalLayoutChecks": [
+    [
+      320,
+      680
+    ],
+    [
+      390,
+      500
+    ]
+  ],
+  "variants": {
+    "a": "Automatic suggestions on focus",
+    "b": "Book button in search field",
+    "c": "Separate book and chapter controls in field"
+  },
+  "files": [
+    "a-desktop-books.png",
+    "a-desktop-chapters.png",
+    "a-mobile-books.png",
+    "a-mobile-chapters.png",
+    "b-desktop-books.png",
+    "b-desktop-chapters.png",
+    "b-mobile-books.png",
+    "b-mobile-chapters.png",
+    "b-mobile-psalms.png",
+    "c-desktop-books.png",
+    "c-desktop-chapters.png",
+    "c-mobile-books.png",
+    "c-mobile-chapters.png"
+  ]
+}
