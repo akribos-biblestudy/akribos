@@ -141,6 +141,7 @@ describe('app API request and role boundaries', () => {
 		expect(result.status).toBe(200);
 		expect(result.headers.get('cache-control')).toBe('private, no-store');
 		expect(result.headers.get('vary')).toBe('Cookie');
+		expect(result.headers.get('access-control-allow-origin')).toBeNull();
 	});
 	it('retains the real document page authentication guard', async () => {
 		const result = await appPage(event('/notes'), {

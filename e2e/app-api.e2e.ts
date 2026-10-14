@@ -23,7 +23,12 @@ test('native same-origin requests need no API key and cannot acquire private acc
 		type: 'success',
 		data: { protocolVersion: 1, user: null }
 	});
-	expect(bootstrap.headers()['access-control-allow-origin']).toBeUndefined();
+	// Vite preview adds its own CORS headers; the application still rejects every foreign Origin.
+	expect(
+		(
+			await request.get('/api/app/bootstrap', { headers: { origin: 'https://foreign.example' } })
+		).status()
+	).toBe(403);
 	const resources = await request.get('/api/reader/resources', { headers });
 	expect(resources.status()).toBe(200);
 	const chapter = await request.get('/api/reader/bibles/SEEDDE/43/3', { headers });
