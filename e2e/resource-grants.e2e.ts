@@ -147,6 +147,17 @@ test('private works require an individual grant throughout the reader and API, i
 			(await personalResponse.json()).resources.some((r: { id: string }) => r.id === ids[0])
 		).toBe(true);
 
+		const navigationPaths = ids.slice(0, 2).map((id) => `/api/reader/resources/${id}/navigation`);
+		for (const url of navigationPaths) {
+			const allowed = await viewer.request.get(url);
+			expect(allowed.status()).toBe(200);
+			expect(allowed.headers()['cache-control']).toBe('private, no-store');
+			expect(await allowed.json()).toEqual({ books: [{ book: 43, chapters: [3] }] });
+			for (const headers of [{}, { Authorization: `Bearer ${personalToken}` }]) {
+				expect((await request.get(url, { headers })).status()).toBe(404);
+			}
+		}
+
 		const path = `/Joh3,16?layout=single&tab=1.1:${ids[0]}:A:Joh3,16&active=1.1&focus=1.1`;
 		await viewer.goto(path);
 		await expect(viewer.locator(`.flow-column[data-resource-id="${ids[0]}"]`)).toContainText(
@@ -198,7 +209,7 @@ test('private works require an individual grant throughout the reader and API, i
 			await form.getByRole('button', { name: 'Private Freigaben speichern' }).click();
 			await expect(form.getByRole('status')).toHaveText('Private Freigaben gespeichert.');
 		}
-		for (const url of readPaths)
+		for (const url of [...readPaths, ...navigationPaths])
 			expect([400, 404], url).toContain(
 				(await viewer.request.get(url, { headers: { Origin: 'http://localhost:4173' } })).status()
 			);
