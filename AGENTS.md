@@ -22,11 +22,12 @@ ein `GET` wird von der Produktionsinstanz mit HTTP 405 abgewiesen.
 - `pnpm test:e2e`: eigene Testdatenbank vorbereiten, Produktions-Build starten, Playwright ausführen
 - Einen Reader-Test gezielt ausführen: `pnpm test:e2e:only e2e/reader.e2e.ts -g "Testname"`
 
-Vor dem Abschluss mindestens `pnpm check` und die für den Change relevanten Tests ausführen. Vor jedem
-Push beziehungsweise dem Erstellen oder Aktualisieren eines PR muss außerdem `pnpm test:e2e` vollständig
-lokal erfolgreich durchlaufen. Gezielte Aufrufe mit `pnpm test:e2e:only` helfen während der Entwicklung,
-ersetzen diesen vollständigen Lauf aber nicht. Keine Migration manuell erfinden, wenn eine Schemaänderung
-mit Drizzle generiert werden kann. Bestehende, fremde Änderungen im Worktree nicht überschreiben.
+Vor dem Abschluss `pnpm check` und gezielte, für den Change relevante Tests ausführen. Der Release-Ablauf
+vermeidet vollständige lokale Unit- und E2E-Testläufe; die umfassende Prüfung übernimmt die bestehende CI.
+Vor Push/PR die geänderten Dateien gezielt linten und relevante Regressionen prüfen. Erst nach grüner CI
+mergen und das anschließende Deployment mit Healthcheck sowie einer konkreten Live-Funktionsprüfung
+bestätigen. Keine Migration manuell erfinden, wenn eine Schemaänderung mit Drizzle generiert werden kann.
+Bestehende, fremde Änderungen im Worktree nicht überschreiben.
 
 ## Verzeichnis- und Schichtenmodell
 
@@ -184,6 +185,31 @@ minimalen Reader-Ressourcenlabels unter `/api/reader/resources`. Der gemeinsame 
 bekommt den Zugriffskanal explizit vom jeweiligen Endpunkt; interne Endpunkte übernehmen niemals
 private Grants eines API-Schlüssels. Die API-Einstellung ist keine Zusage gegen das Kopieren von
 rechtmäßig im Reader ausgelieferten Texten.
+
+## Native Akribos-App
+
+Das eigenständige Flutter-Repository liegt neben diesem Checkout unter `../akribos-app`.
+Die App richtet sich ausschließlich an normale Nutzer auf Android-/iOS-Smartphones und Tablets;
+Verwaltung, Ressourcenimporte und reine Adminaktionen sind nicht Teil des App-Protokolls.
+`/api/app/bootstrap`, `/api/app/page` und `/api/app/action` bilden das versionierte First-Party-
+Protokoll für native Geräte. `x-akribos-app: 1` kennzeichnet ausschließlich das Protokoll, niemals
+eine Berechtigung. Identität und private Freigaben stammen weiterhin aus der normalen Sitzung.
+Die öffentliche `/api/v1`-Lizenzgrenze bleibt unverändert; die App verwendet den Reader-Kanal.
+
+`src/lib/server/app/routes.ts` erlaubt Seiten und Aktionen ausdrücklich. Neue Web-Aktionen werden
+nicht automatisch freigegeben. Der Adapter ruft die bestehenden Load-/Action-Funktionen mit der
+ursprünglichen Route, URL und den Parametern auf, damit Besitz, Revisionen, Workspace-Versionen,
+Validierung und Ratelimits dieselben bleiben. Verwaltungsrouten und reine Adminaktionen bleiben
+auch für Administratoren im App-Protokoll gesperrt. Alle Antworten, einschließlich
+Fehlern und Redirect-Umschlägen, sind `private, no-store`. Fremde Origins und Cross-Site-Anfragen
+werden abgewiesen; es gibt keine allgemeine CORS-Freigabe oder beliebige Proxy-Zieladresse.
+
+Die native E-Mail-Anmeldung verwendet den getrennten HttpOnly-Cookie `app-email-login` mit Pfad
+`/api/app`; der Adapter übersetzt ausschließlich diesen Cookie für die bestehenden Anmeldefunktionen.
+Das Web-Challenge-Cookie unter `/login` und der normale Sessioncookie bleiben unverändert. Native
+Multipart-Anfragen senden den tatsächlichen Server-Origin und bleiben durch den vorhandenen
+CSRF-Schutz geprüft. Binäre Dokumentdownloads und Anlagen behalten ihre bestehenden Endpunkte.
+Protokoll und Prüfungen stehen in `docs/native-app-api.md`.
 
 ## Anmeldung und Registrierung
 
