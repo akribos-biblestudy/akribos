@@ -82,11 +82,24 @@ Verwaltung, Ressourcenimport und reine Adminaktionen sind ausgeschlossen, auch w
 angemeldete Konto Administrator ist. Die Hilfe verwendet die normale Nutzerzielgruppe. Bestehende
 Eigentums- und Mitgliedschaftsprüfungen gelten weiterhin, auch für Administratoren.
 
-Die App hält einen zufälligen `x-reader-browser-tab` pro laufender App-Instanz. Vor dem ersten
-Bootstrap setzt sie `reader-browser-enabled=1` und die passende Klasse `reader-initial-columns`.
-Workspace-Mutationen benötigen weiterhin Auswahl- und Inhaltsversionen; Dokumentänderungen die
-positive aktuelle `revision`. Der Client serialisiert Speichern, erhält Konfliktentwürfe und wartet
-vor Navigation auf ausstehende Änderungen. Ein GET konsumiert keinen Anmelde- oder Einladungstoken.
+Die aktuelle App sendet `x-akribos-reader-mode: local` zusätzlich zu `x-akribos-app: 1`.
+Der Adapter setzt dafür anfragebezogen `locals.localReader`; kein Header erteilt Leserechte.
+Bootstrap und Layout übernehmen weder Konto-, Session- noch Cookie-Arbeitsbereiche und liefern
+keine benannten Ansichten. Neue lokale Ansichten beginnen mit der ersten verfügbaren Bibel.
+Die App speichert ihre URL-Snapshots verschlüsselt pro Installation, Server und Konto. Gasttabs
+sind getrennt; ein anderes Gerät hat eine eigene Auswahl.
+
+Reader-GETs und Strukturaktionen bleiben im lokalen Modus unabhängig vom Snapshot und von
+mitgesendeten alten Versionsfeldern ohne Workspace-/Lesestellen-Cookie-Schreibzugriffe. Aktionen
+validieren weiterhin Ressourcen, Gruppen und Referenzen und liefern den neuen URL-Snapshot als
+`detached` zurück. Die App verwendet keine Named-Workspace-IDs oder -Versionen und ruft weder
+View noch Follow auf. Workspace-Seiten sind im App-Adapter mit 404, die entsprechenden REST-
+Endpunkte für angemeldete lokale Clients mit 403 gesperrt. Webclients und ältere Appclients ohne
+die explizite Headerkombination behalten den bisherigen versionierten Serververtrag.
+
+Dokumentänderungen verlangen weiterhin eine positive aktuelle `revision`. Der Client serialisiert
+Speichern, erhält Konfliktentwürfe und wartet vor Navigation auf ausstehende Änderungen.
+Ein GET konsumiert keinen Anmelde- oder Einladungstoken.
 
 Für die Code-Anmeldung wird nur der native Challenge-Cookie umbenannt: `app-email-login`, HttpOnly,
 Pfad `/api/app`. Die bestehende Anmeldelogik sieht ihn als `email-login`. Webanmeldung und native
@@ -97,7 +110,7 @@ offenes CORS, keinen frei wählbaren Upstream und keine Umgehung der öffentlich
 
 ## Bestehende JSON- und Binärschnittstellen
 
-Kapitel, Suche, Strong, Workspace-Verwaltung/-View/-Follow und Dokument-Autosave verwenden weiterhin
+Kapitel, Suche, Strong und Dokument-Autosave verwenden weiterhin
 `/api/reader/*`, `/api/strong/*` und `/api/documents/*`. Datei-Exporte und Anhänge behalten ihre
 bisherigen Adressen. Backupverwaltung und
 Ressourcenimport bleiben ausschließlich Funktionen der Webverwaltung.
@@ -107,6 +120,9 @@ Ressourcenimport bleiben ausschließlich Funktionen der Webverwaltung.
 `src/lib/server/app/adapter.spec.ts` prüft Allowlist, Origins, Adminschutz, Cookie-Übersetzung,
 Antworten und Formulargrenzen. `e2e/app-api.e2e.ts` prüft gegen eine eigene Datenbank echte
 Anmeldung, Rollen, private Dokumente, Erstellen, Speichern, Konflikte, Multipart und Abmeldung.
+`src/lib/server/app/local-reader.spec.ts` prüft die echte Adapter-/Reader-Kette einschließlich
+fehlender oder identischer Snapshots, Strukturaktionen, gefälschter Versionsfelder und
+verbotener Workspace-Endpunkte auf vollständig ausbleibende Workspace-Schreibzugriffe.
 Zusätzlich gelten die vorhandenen Authentifizierungs- und Ressourcenberechtigungstests.
 
 Die neuen Endpunkte müssen mit dem regulären Backend-Image bereitgestellt sein, bevor die App den
@@ -122,3 +138,51 @@ dass noch ein älterer Server ohne App-Routen antwortet. Die allgemeine Bereitsc
 `GET /healthz`; `/api/ready` ist kein Akribos-Endpunkt. Konto-/Schreibtests ergänzen diesen Gastzugriff.
 Gerätesignierung und verifizierte HTTPS-App-Links benötigen unabhängig vom Backend die tatsächlichen
 Android-/Apple-Signieridentitäten.
+
+## Betriebssystem-Links
+
+Die Android-App registriert `http://akribos.de` und `https://akribos.de` mit `autoVerify`.
+Eingehende HTTP-Adressen werden in der App auf denselben HTTPS-Origin normalisiert;
+API-Anfragen bleiben verschlüsselt. Die Domainbestätigung liegt versioniert unter
+`static/.well-known/assetlinks.json`. Sie enthält nur die öffentliche Zertifikatskennung
+der direkt ausgelieferten APK (`de.akribos.app`), keine Zugangsdaten und keinen privaten Schlüssel.
+Ihre Veröffentlichung setzt ein Backend-Deployment voraus. Android muss die Datei anschließend
+mit HTTP 200 und `Content-Type: application/json` ohne Redirect oder Anmeldung abrufen können.
+Eine passende Manifestregistrierung allein bestätigt noch nicht die Domain.
+
+Nach Installation kann die Verifizierung auf einem Android-Testgerät geprüft werden:
+
+```sh
+adb shell pm verify-app-links --re-verify de.akribos.app
+adb shell pm get-app-links de.akribos.app
+adb shell am start -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d 'https://akribos.de/Joh3,16'
+```
+
+Die letzte Prüfung muss ohne expliziten Paketnamen erfolgen: Ein erzwungener Start mit
+Paketnamen belegt nur den App-Eingang, nicht die Betriebssystem-Zuordnung. Die Verifizierung
+ist asynchron; benutzerspezifische Standard-App-Einstellungen können die Auswahl beeinflussen.
+Bei Play App Signing muss zusätzlich die Signatur der von Google Play ausgelieferten App
+in `assetlinks.json` stehen; ein Upload-Zertifikat reicht dafür nicht.
+
+Für iOS ist das Entitlement `applinks:akribos.de` vorbereitet. Derzeit fehlt im App-Projekt
+eine konfigurierte Apple-Entwicklerteam-ID. Vor einer iOS-Auslieferung sind die reale signierte
+Application-ID (`<Application Identifier Prefix>.de.akribos.app`), ein passendes Provisioning-Profil
+mit Associated Domains und eine redirectfrei ausgelieferte JSON-Datei
+`/.well-known/apple-app-site-association` erforderlich. Es wird kein Platzhalter veröffentlicht.
+
+Verträge: [Android-Domainzuordnung](https://developer.android.com/training/app-links/configure-assetlinks),
+[Android-Verifizierung](https://developer.android.com/training/app-links/verify-android-applinks),
+[Apple Associated Domains](https://developer.apple.com/documentation/xcode/supporting-associated-domains).
+
+## Suche im sichtbaren Werk
+
+Die App führt Text-, Strong-, Kommentar- und Parallelstellensuchen über
+`GET /api/reader/search?resource=<id>&q=<Begriff>` aus. `resource` bezeichnet genau das
+aktuell sichtbare Werk. Die allgemeine Web-Suchseite bleibt für die Webanwendung erhalten;
+ihre Auswahl mehrerer gespeicherter Bibelspalten ist nicht der Suchumfang der App.
+
+Lexika verwenden `GET /api/reader/lookup?resource=<lexiconId>&q=<Lemma|Umschrift|Strong>`.
+Dieser lesende Reader-Endpunkt prüft die aktuelle Ressourcenfreigabe, antwortet ausschließlich
+mit `{resourceId, query, entry}` (Eintrag oder `null`) und verwendet keinen Ersatztext.
+Antworten sind `private, no-store`. Die Kontositzung gilt für private Freigaben; ein API-Key
+ist weder nötig noch eine Ausnahme von der Rechteprüfung.

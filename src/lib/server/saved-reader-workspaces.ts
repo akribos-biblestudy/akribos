@@ -5,6 +5,7 @@ import { restoreSavedWorkspace } from '$lib/reader/saved-workspaces';
 import { getDb } from './db';
 import { listReaderResources } from './repositories/resources';
 import type { SavedWorkspaceMutationResult } from './repositories/saved-reader-workspaces';
+import { isLocalReaderRequest } from './app/reader-mode';
 
 export const savedWorkspaceInput = z.object({
 	name: z.string().max(320),
@@ -20,6 +21,8 @@ export const savedWorkspaceInput = z.object({
 export function requireWorkspaceUser({ locals, request, url, setHeaders }: RequestEvent): string {
 	setHeaders({ 'cache-control': 'private, no-store' });
 	if (!locals.user) error(401, 'Bitte melde dich an, um Arbeitsbereiche zu speichern.');
+	if (isLocalReaderRequest(request))
+		error(403, 'Arbeitsbereiche stehen im lokalen Reader-Modus nicht zur Verfügung.');
 	const origin = request.headers.get('origin');
 	if (request.method !== 'GET' && origin && origin !== url.origin)
 		error(403, 'Ungültiger Ursprung.');

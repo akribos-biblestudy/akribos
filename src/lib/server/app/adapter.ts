@@ -20,6 +20,7 @@ import {
 	RequestBodyTooLargeError
 } from '$lib/server/http/bounded-form-data';
 import { resolveAppRoute, type AppPageEvent, type ResolvedAppRoute } from './routes';
+import { isLocalReaderRequest } from './reader-mode';
 
 export const APP_PROTOCOL_VERSION = 1;
 export const APP_EMAIL_LOGIN_COOKIE = 'app-email-login';
@@ -123,6 +124,8 @@ async function run(event: RequestEvent, callback: () => Promise<Response>): Prom
 function resolve(event: RequestEvent, deps: Dependencies): ResolvedAppRoute {
 	const route = deps.resolveRoute(event.url.searchParams.get('path'), event.url.origin);
 	if (!route) error(404, 'Diese App-Seite existiert nicht.');
+	if (isLocalReaderRequest(event.request) && route.id.startsWith('/workspaces'))
+		error(404, 'Arbeitsbereiche stehen im lokalen Reader-Modus nicht zur Verfügung.');
 	return route;
 }
 
@@ -132,8 +135,12 @@ function pageEvent(
 	request: Request,
 	parent: AppPageEvent['parent']
 ): AppPageEvent {
+	const localReader = isLocalReaderRequest(event.request);
 	return {
 		...event,
+		locals: localReader
+			? { ...event.locals, localReader: true, readerWorkspaceContext: undefined }
+			: event.locals,
 		request,
 		url: route.url,
 		params: route.params,

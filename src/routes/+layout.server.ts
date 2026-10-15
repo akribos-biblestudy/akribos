@@ -30,15 +30,17 @@ export async function load({ cookies, locals }) {
 		awaitingInitialViewport: initializeReaderWorkspace
 	} = context;
 	const columns = workspaceColumns(workspace);
-	if (!initializeReaderWorkspace) writeWorkspaceCompatibilityCookies(cookies, workspace);
+	if (!locals.localReader && !initializeReaderWorkspace)
+		writeWorkspaceCompatibilityCookies(cookies, workspace);
 	const readerFontScale = readFontScale(cookies, locals.user?.readerFontScale);
 	writeFontScale(cookies, readerFontScale);
 	const theme = readTheme(cookies, locals.user?.theme);
 	if (theme) writeTheme(cookies, theme);
 
-	const savedWorkspaces = locals.user
-		? await listSavedReaderWorkspaces(db, locals.user.id, locals.sessionId!, context.selection)
-		: [];
+	const savedWorkspaces =
+		locals.user && !locals.localReader
+			? await listSavedReaderWorkspaces(db, locals.user.id, locals.sessionId!, context.selection)
+			: [];
 	return {
 		initializeReaderWorkspace,
 		analytics: await readAnalyticsSettings(db),
@@ -52,7 +54,10 @@ export async function load({ cookies, locals }) {
 		workspace,
 		readerFontScale,
 		theme,
-		user: locals.user,
+		user:
+			locals.localReader && locals.user
+				? { ...locals.user, readerWorkspace: null, readerColumns: [] }
+				: locals.user,
 		tourGuestDone: readTourGuestDone(cookies)
 	};
 }

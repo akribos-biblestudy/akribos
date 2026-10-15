@@ -107,7 +107,7 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 	if (cleaned !== raw) redirect(301, `/${cleaned}${url.search}`);
 
 	const input = cleaned.trim();
-	if (!input) redirect(307, defaultLocation(cookies));
+	if (!input) redirect(307, locals.localReader ? '/Joh1' : defaultLocation(cookies));
 
 	// Legacy paged search URLs: /Liebe/2/ meant page two of a search for "Liebe".
 	const paged = /^(.+)\/(\d{1,4})$/.exec(input);
@@ -197,11 +197,13 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 	const ownedReaderState =
 		context.snapshot?.readerState ??
 		encodeReaderUrlState(workspaceAtReference(persistedWorkspace, reference));
-	const readerWorkspaceDetached = !!decodedUrlState && readerState !== ownedReaderState;
+	const readerWorkspaceDetached =
+		!!locals.localReader || (!!decodedUrlState && readerState !== ownedReaderState);
 	if (
 		!awaitingInitialViewport &&
 		readerStateFromUrl(url) !== readerState &&
 		!(
+			!locals.localReader &&
 			!decodedUrlState &&
 			locals.user &&
 			!locals.readerBrowserTabId &&
@@ -211,6 +213,7 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 		// A plain passage URL starts a personal branch and may safely become the account/device default.
 		// A valid URL snapshot is never persisted by this GET: it may have come from somebody else.
 		if (
+			!locals.localReader &&
 			!decodedUrlState &&
 			(!locals.user || locals.readerBrowserTabId || cookies.get('reader-browser-enabled') !== '1')
 		) {
@@ -279,7 +282,7 @@ export async function load({ params, cookies, url, setHeaders, locals }) {
 				: 'public, max-age=0, s-maxage=3600'
 	});
 
-	rememberLocation(cookies, reference);
+	if (!locals.localReader) rememberLocation(cookies, reference);
 
 	return {
 		...context.selection,
@@ -764,7 +767,8 @@ export const actions = {
 			current.persist,
 			current.guard,
 			undefined,
-			current.detachedBranch
+			current.detachedBranch,
+			current.localReader
 		);
 		if (!persistence.saved && persistence.reason === 'conflict') return fail(409, persistence);
 		return {
@@ -1001,6 +1005,7 @@ type CurrentWorkspace = {
 	notesFilters: ReaderNotesFilters;
 	persist: boolean;
 	detachedBranch: boolean;
+	localReader: boolean;
 	selection: WorkspaceSelection;
 	guard?: WorkspaceWriteGuard;
 };
@@ -1038,7 +1043,7 @@ async function currentWorkspace(
 				readReaderNotesFilters(url.searchParams)
 			) === provisionalState);
 	const guard: WorkspaceWriteGuard | undefined =
-		locals.user && locals.sessionId
+		!locals.localReader && locals.user && locals.sessionId
 			? {
 					sessionId: locals.sessionId,
 					browserTabId: locals.readerBrowserTabId,
@@ -1049,13 +1054,15 @@ async function currentWorkspace(
 				}
 			: undefined;
 	const persist =
+		!locals.localReader &&
 		url.searchParams.get('workspaceDetached') !== 'true' &&
 		(bootstrap || !decoded || sameReaderUrlWorkspace(workspace, persistedWorkspace));
 	if (!reference) {
 		return {
 			guard,
 			selection: context.selection,
-			detachedBranch: url.searchParams.get('workspaceDetached') === 'true',
+			detachedBranch: !!locals.localReader || url.searchParams.get('workspaceDetached') === 'true',
+			localReader: !!locals.localReader,
 			workspace,
 			persistedWorkspace,
 			searchQueries: decoded?.searchQueries ?? {},
@@ -1077,7 +1084,8 @@ async function currentWorkspace(
 	return {
 		guard,
 		selection: context.selection,
-		detachedBranch: url.searchParams.get('workspaceDetached') === 'true',
+		detachedBranch: !!locals.localReader || url.searchParams.get('workspaceDetached') === 'true',
+		localReader: !!locals.localReader,
 		workspace,
 		persistedWorkspace,
 		searchQueries: decoded?.searchQueries ?? {},
@@ -1111,8 +1119,10 @@ async function commitWorkspace(
 	persist = true,
 	guard?: WorkspaceWriteGuard,
 	readerState?: string,
-	detachedBranch = false
+	detachedBranch = false,
+	localReader = false
 ): Promise<WorkspaceWriteResult> {
+	if (localReader) return { saved: false, reason: 'detached', ...workspaceSelection(null) };
 	if (user) {
 		if (!guard) return { saved: false, reason: 'conflict', ...workspaceSelection(null) };
 		const result = await updateReaderWorkspace(getDb(), user.id, workspace, {
@@ -1154,7 +1164,8 @@ async function finishWorkspaceMutation<T extends Record<string, unknown>>(
 		current.persist,
 		current.guard,
 		readerState,
-		current.detachedBranch
+		current.detachedBranch,
+		current.localReader
 	);
 	if (!persistence.saved && persistence.reason === 'conflict') return fail(409, persistence);
 	if (

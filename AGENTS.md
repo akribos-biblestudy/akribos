@@ -204,12 +204,32 @@ auch für Administratoren im App-Protokoll gesperrt. Alle Antworten, einschließ
 Fehlern und Redirect-Umschlägen, sind `private, no-store`. Fremde Origins und Cross-Site-Anfragen
 werden abgewiesen; es gibt keine allgemeine CORS-Freigabe oder beliebige Proxy-Zieladresse.
 
+Die aktuelle App sendet zusätzlich `x-akribos-reader-mode: local`. Nur zusammen mit
+`x-akribos-app: 1` aktiviert dies im Adapter den gerätelokalen Reader: Bootstrap und Layout
+übernehmen keine Konto-/Session-/Cookie-Arbeitsbereiche und liefern keine benannten Ansichten.
+Reader-GETs und Strukturaktionen schreiben weder Workspace noch Lesestellen-Cookies; Aktionen
+geben weiterhin validierte URL-Snapshots zurück, aber immer detached und ohne Schreibversionen.
+Auch mit mitgesendeten alten Versionsfeldern bleibt der Modus schreibfrei. Benannte Workspace-
+Seiten sowie deren REST-Verwaltung/View/Follow sind in diesem Modus gesperrt. Die App speichert
+Tabs, Gruppen und Stellen selbst pro Gerät, Server und Konto. Ohne die beiden Header bleibt
+bestehendes Web-/Altclientverhalten erhalten. Die Header erteilen keinerlei Ressourcenrechte;
+Kontositzung, aktuelle Grants und Dokumentrevisionen bleiben verpflichtend.
+
 Die native E-Mail-Anmeldung verwendet den getrennten HttpOnly-Cookie `app-email-login` mit Pfad
 `/api/app`; der Adapter übersetzt ausschließlich diesen Cookie für die bestehenden Anmeldefunktionen.
 Das Web-Challenge-Cookie unter `/login` und der normale Sessioncookie bleiben unverändert. Native
 Multipart-Anfragen senden den tatsächlichen Server-Origin und bleiben durch den vorhandenen
 CSRF-Schutz geprüft. Binäre Dokumentdownloads und Anlagen behalten ihre bestehenden Endpunkte.
 Protokoll und Prüfungen stehen in `docs/native-app-api.md`.
+
+Android-App-Links verwenden `static/.well-known/assetlinks.json`: ausschließlich die öffentliche
+SHA-256-Zertifikatskennung der tatsächlich ausgelieferten APK und deren Paket-ID, niemals den
+Signierschlüssel. Die Datei muss unter `https://akribos.de/.well-known/assetlinks.json` als JSON ohne
+Anmeldung und ohne Redirect verfügbar sein; der Reader-Catch-all darf sie nicht zur Suche umleiten.
+Bei zusätzlicher Store-Signatur die tatsächlich installierte Signatur ergänzen, bestehende gültige
+Zuordnungen nicht versehentlich entfernen. Die Zuordnung erteilt keinerlei Ressourcen-/Kontozugriff.
+iOS benötigt separat eine echte signierte Application-ID und `apple-app-site-association`; solange
+kein Apple-Team/App-ID-Präfix feststeht, keinen erfundenen AASA-Eintrag veröffentlichen.
 
 ## Anmeldung und Registrierung
 
@@ -1412,3 +1432,9 @@ dürfen diese Pakete nicht wieder in das anfänglich geladene Reader-JavaScript 
 Das Header-Logo verwendet PNG-Varianten mit 140/280/420 Pixeln Breite für einfache bis dreifache
 Pixeldichte, bei expliziten intrinsischen Maßen 140 × 40. `static/logo.png` bleibt die ursprüngliche
 Bildquelle; die Varianten werden daraus proportional verkleinert und behalten Transparenz und Farben.
+
+Die werkbezogene mobile Lexikonsuche verwendet `GET /api/reader/lookup?resource=<id>&q=<Begriff>`.
+Der lesende Reader-Kanal prüft verfügbare Lexika und aktuelle Kontofreigaben bei jeder Anfrage;
+Antworten sind `private, no-store` und enthalten nur `resourceId`, `query`, `entry` (oder `null`).
+Keine Ersatzbibel, kein Ersatzlexikon und keine Workspace-Schreiboperation. Strong-Nummer, Lemma
+und Umschrift verwenden dieselbe bestehende `findLexiconEntry`-Auflösung wie der Reader.

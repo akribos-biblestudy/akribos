@@ -32,7 +32,7 @@ export async function load({ cookies, locals, setHeaders }) {
 				);
 		}
 	}
-	const stored = locals.user ? cookies.get(LOCATION_COOKIE) : null;
+	const stored = locals.user && !locals.localReader ? cookies.get(LOCATION_COOKIE) : null;
 	const reference = stored ? parseReference(stored) : null;
 	redirect(307, referencePath(reference ?? { book: 43, chapter: 1 }));
 }

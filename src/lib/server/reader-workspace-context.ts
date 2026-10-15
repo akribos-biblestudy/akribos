@@ -1,6 +1,7 @@
 import type { Cookies, RequestEvent } from '@sveltejs/kit';
 import { parseReference } from '$lib/bible/reference';
 import { restoreSavedWorkspace } from '$lib/reader/saved-workspaces';
+import { workspaceFromColumns } from '$lib/reader/workspace';
 import { getDb } from './db';
 import { defaultColumns } from './columns';
 import { isUuid } from './documents/application';
@@ -53,6 +54,19 @@ export function resolveReaderWorkspaceContext(
 async function loadReaderWorkspaceContext({ cookies, locals }: ContextEvent, initialize: boolean) {
 	const db = getDb();
 	const resources = await listReaderResources(db, locals.user?.id);
+	if (locals.localReader) {
+		// The native device supplies its own URL snapshot. Never adopt account, session or cookie state.
+		const firstBible = resources.find((resource) => resource.kind === 'bible');
+		return {
+			resources,
+			workspace: workspaceFromColumns(firstBible ? [firstBible.id] : []),
+			activeSaved: null,
+			snapshot: null,
+			selection: workspaceSelection(null),
+			guard: undefined,
+			awaitingInitialViewport: false
+		};
+	}
 	const fallbackReference = parseReference(cookies.get('location') ?? '') ?? undefined;
 	const fallback = resolveReaderWorkspace(
 		cookies,

@@ -50,6 +50,8 @@ declare global {
 			sessionId: string | null;
 			readerBrowserTabId?: string;
 			readerBrowserSourceId?: string;
+			/** Native app owns its Reader state locally; never load or persist a named workspace. */
+			localReader?: boolean;
 			/** One shared promise for concurrent root/page reader loads in this request. */
 			readerWorkspaceContext?: Promise<
 				import('$lib/server/reader-workspace-context').ReaderWorkspaceContext
