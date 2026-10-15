@@ -1,5 +1,6 @@
 <script lang="ts">
 	import './layout.css';
+	import { isAppEditorPath } from '$lib/app/editor-route';
 	import {
 		browserReaderResume,
 		clearBrowserReaderResume,
@@ -31,11 +32,13 @@
 	let browserWorkspaceError = $state('');
 	let resumeOwner: string | null | undefined;
 	$effect(() => {
+		if (data.appEditor) return;
 		const owner = data.user?.id ?? null;
 		if (resumeOwner !== undefined && owner !== resumeOwner) clearBrowserReaderResume();
 		resumeOwner = owner;
 	});
 	onMount(() => {
+		if (data.appEditor) return;
 		const resume = browserReaderResume(data.user?.id ?? null);
 		if (!data.user) clearBrowserReaderResume();
 		const isReaderPage = page.route.id === '/[...reference]';
@@ -94,6 +97,7 @@
 	};
 	setContext(READER_WORKSPACE_CONTEXT, workspaceCapture);
 	beforeNavigate((navigation) => {
+		if (data.appEditor || isAppEditorPath(navigation.to?.url.pathname ?? '')) return;
 		if (navigation.to?.url.pathname !== '/' || navigation.willUnload) return;
 		const resume = browserReaderResume(data.user?.id ?? null);
 		if (!resume) return;
@@ -146,7 +150,7 @@
 	</main>
 {/if}
 
-{#if standalonePage}
+{#if data.appEditor || standalonePage}
 	{@render children()}
 {:else}
 	<div
@@ -171,13 +175,15 @@
 	</div>
 {/if}
 
-<ReferenceContextMenu
-	userId={data.user?.id ?? null}
-	bibleId={data.defaultBibleId ?? data.previewBibleId}
-	resources={data.readerResources}
-/>
+{#if !data.appEditor}
+	<ReferenceContextMenu
+		userId={data.user?.id ?? null}
+		bibleId={data.defaultBibleId ?? data.previewBibleId}
+		resources={data.readerResources}
+	/>
 
-<Analytics config={data.analytics} />
+	<Analytics config={data.analytics} />
+{/if}
 
 <style>
 	:global(html[data-reader-bootstrapping]) .reading-preferences[data-reader-authenticated] {

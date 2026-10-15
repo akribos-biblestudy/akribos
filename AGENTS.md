@@ -189,6 +189,20 @@ rechtmäßig im Reader ausgelieferten Texten.
 ## Native Akribos-App
 
 Das eigenständige Flutter-Repository liegt neben diesem Checkout unter `../akribos-app`.
+Der Notizeditor wird auf ausdrücklichen Nutzerwunsch unter `/app/editor/[id]` als
+isolierte HTTPS-Seite in einer System-WebView eingebettet. Er verwendet dieselbe
+`DocumentEditor.svelte`, Tiptap-Erweiterungen, Markdown-Konverter und revisionierte
+Speicherqueue wie der Browser. Diese Route ist keine Authentifizierungsausnahme:
+gültige Session und Dokumentbesitz bleiben erforderlich. Root-Layout, Client-Hook
+und Browser-Tab-Initialisierung dürfen hier keine Browser-Arbeitsbereiche auflösen,
+anlegen, wiederherstellen oder Reader-Cookies schreiben. Auch Datenabrufe der Route
+bleiben isoliert. Kein SiteHeader, Analytics oder globales Reader-Kontextmenü.
+Die Einbettung besitzt ein enges versioniertes Nachrichtenprotokoll für Speichern,
+Lesemodus, Entwurfssicherung und native Navigation. Ausstehende Saves müssen vor
+nativer Navigation bestätigt sein; Konflikte und Fehler verhindern das Verlassen.
+Die App überträgt die Session ausschließlich an den nativen Cookie-Store mit
+HttpOnly/Secure, niemals über URL oder JavaScript. Details stehen in
+`docs/native-app-api.md`; eine WebView schafft keine Offline-Verfügbarkeit der Seite.
 Die App richtet sich ausschließlich an normale Nutzer auf Android-/iOS-Smartphones und Tablets;
 Verwaltung, Ressourcenimporte und reine Adminaktionen sind nicht Teil des App-Protokolls.
 `/api/app/bootstrap`, `/api/app/page` und `/api/app/action` bilden das versionierte First-Party-

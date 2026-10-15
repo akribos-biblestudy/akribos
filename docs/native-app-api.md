@@ -186,3 +186,97 @@ Dieser lesende Reader-Endpunkt prüft die aktuelle Ressourcenfreigabe, antwortet
 mit `{resourceId, query, entry}` (Eintrag oder `null`) und verwendet keinen Ersatztext.
 Antworten sind `private, no-store`. Die Kontositzung gilt für private Freigaben; ein API-Key
 ist weder nötig noch eine Ausnahme von der Rechteprüfung.
+
+## Eingebetteter Originaleditor
+
+`GET /app/editor/<Dokument-UUID>?instanceId=<UUID>&theme=dark&fontScale=115&eInk=1`
+lädt dieselbe `DocumentEditor.svelte`-Komponente wie die Webanwendung, einschließlich ihrer
+Markdown-Konverter, Tiptap-Erweiterungen, Eingaberegeln und seriellen Speicherwarteschlange.
+Die normale HttpOnly-Kontositzung und die Eigentümerprüfung von `getDocument` gelten weiterhin;
+App-Header und `instanceId` sind keine Berechtigung. Fehlende Sitzung liefert 401, ein fremdes
+oder fehlendes Dokument 404 und eine fehlende/ungültige Instanz-UUID 400. Optionales `bible`
+wählt nur eine aktuell zugängliche Bibel für Zitate. Darstellung: `theme=light|dark`, `fontScale`
+70–200 in Fünferschritten, `eInk=1`; ungültige Werte erhalten sichere Standardwerte.
+
+Die Antwort ist `private, no-store` und `noindex, nofollow`. Ihre CSP erlaubt Ressourcen und
+Verbindungen nur vom eigenen Origin; externe Bilder, Frames und Objekte sind gesperrt. Die
+Embedroute überspringt an drei globalen Stellen sämtliche Reader-/Browserarbeitsbereiche:
+Server-Rootlayout, Client-Fetch-/Browser-Tab-Initialisierung und sichtbares Rootlayout. Auch
+Link-Preloading ist im Embed deaktiviert. Es entstehen weder Browser-Tab-Schlüssel noch
+Workspace-, Lesestellen- oder Darstellungs-Cookies durch den Editor. Normale Webrouten bleiben
+unverändert. Native Umgebung und serverseitige Rechteprüfung müssen unabhängig bestehen.
+
+Der native Host öffnet ausschließlich die exakte HTTPS-Embedadresse seines konfigurierten
+Origins und synchronisiert nur die passende Kontositzung. Jede WebView erhält eine neue
+zufällige `instanceId`; sie bleibt für diesen Ladeversuch unverändert. Der JavaScript-Kanal
+heißt `AkribosEditor`. Die Seite sendet JSON mit `postMessage`; Befehle gehen als Objekt an
+`window.akribosEditorBridge.receive(...)`. Es werden keine Skripte aus Nutzdaten ausgeführt.
+
+Alle Nachrichten enthalten `{protocol:1, documentId, userId, instanceId}`. Stimmen diese vier
+Werte nicht mit der geladenen Instanz überein, wird ein Befehl ohne Datenantwort verworfen.
+Ein Befehl trägt außerdem `id` (nichtleere, höchstens 100 Zeichen lange Korrelationskennung)
+und `method`. Antworten tragen `type:'response'`, dieselbe `id`/`method`, `ok` und bei Fehler
+`error`. Reguläre Antworten sowie `ready`, `state` und `navigate` enthalten:
+
+```json
+{
+	"snapshot": {
+		"title": "Titel",
+		"markdown": "Aktueller Text",
+		"revision": 7,
+		"status": "dirty",
+		"canUndo": true,
+		"canRedo": false
+	},
+	"savedSnapshot": { "title": "Titel", "markdown": "Bestätigter Text", "revision": 7 }
+}
+```
+
+`status` ist `saved`, `dirty`, `saving`, `error` oder `conflict`. `savedSnapshot` bezeichnet
+exakt den zuletzt bestätigten Speicherstand; während einer laufenden Anfrage kann `snapshot`
+bereits neuere Eingaben enthalten. Der Host darf einen verschlüsselten lokalen Entwurf erst
+entfernen, wenn sein aktueller Inhalt dem bestätigten Stand entspricht. Inhalte erscheinen
+nicht in URLs, Telemetrie oder Debuglogs. Die Bridge serialisiert Befehle und sendet
+Inhalts-/Speicheränderungen verzögert um etwa 200 ms, keine Cursorbewegungen. Ein expliziter
+Snapshot oder Flush serialisiert zuvor synchron auch die allerletzte visuelle Änderung.
+
+| Methode           | Parameter und Wirkung                                                                                                                                                                                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `snapshot`        | Liefert aktuellen und bestätigten Stand ohne Speichern.                                                                                                                                                                                                                     |
+| `restore`         | Nur vor `initialize`: `snapshot:{title,markdown,revision}` setzt einen lokalen Entwurf mit seiner ursprünglichen Revision. Kein Autosave, keine automatische Revisionserhöhung. Grenzen: 200 Titelzeichen, 1 MiB UTF-8-Markdown, positive sichere Ganzzahlrevision.         |
+| `initialize`      | Einmalig nach nativer Entwurfsentscheidung; `mode:'edit'                                                                                                                                                                                                                    | 'read'`(Standard`edit`). Erst jetzt wird Eingabe freigegeben.                                                     |
+| `setMode`         | `mode:'edit'                                                                                                                                                                                                                                                                | 'read'`; verändert weder Text noch Historie und speichert nicht. Eine bestehende Mutationssperre bleibt bestehen. |
+| `blur`            | Entfernt den Eingabefokus, ohne Modus oder Inhalt zu verändern.                                                                                                                                                                                                             |
+| `flush`           | Wartet die bestehende Speicherwarteschlange ab. Erfolg erst, wenn der aktuellste Text bestätigt ist.                                                                                                                                                                        |
+| `prepareMutation` | Sperrt Eingaben vor dem Flush. Erfolg reserviert die bestätigte Revision für eine anschließende native Metadaten-/Anlagenaktion; Fehler gibt diese Reservierung wieder frei.                                                                                                |
+| `finishMutation`  | Nur bei Reservierung: `document:{title,bodyMarkdown,revision}` oder `revision` bestätigt das Ergebnis der normalen nativen Metadatenaktion, optional `mode`. Revision darf nicht rückwärts gehen. Beendet die Reservierung; unveränderter Text behält Historie und Auswahl. |
+| `cancelMutation`  | Hebt eine bestehende Reservierung ohne Text-/Revisionsänderung auf. Nach `finishMutation` nicht erneut senden.                                                                                                                                                              |
+| `pause`           | Sperrt Eingaben, beendet eine etwaige Reservierung, entfernt Fokus und stoppt ausstehende Autosave-Timer; kein Save. Erhält den aktuellen Entwurf.                                                                                                                          |
+| `resume`          | Hebt die Pausensperre auf, ohne automatische Wiederholung eines fehlgeschlagenen Saves.                                                                                                                                                                                     |
+| `undo`, `redo`    | Nur im initialisierten, ungesperrten Bearbeitungsmodus. Verfügbarkeit steht im Snapshot.                                                                                                                                                                                    |
+| `insert`          | `kind`: `paragraph`, `heading-1`, `heading-2`, `heading-3`, `bullet-list`, `ordered-list`, `quote`, `code-block`, `divider`, `table`, `footnote`, `bible`. Verwendet vorhandene Webeditorbefehle an der Auswahl. `bible` öffnet die normale `/bibel `-Eingabe.              |
+
+Der Host verwendet diese vollständigen Abläufe:
+
+- Öffnen: `ready` abwarten → lokalen Entwurf prüfen → gegebenenfalls `restore` → `initialize`.
+- Bereich verlassen: `prepareMutation` → bestätigten Stand lokal sichern → `pause`; bei Rückkehr
+  `resume`. Nach einem Speicherfehler bleibt die Entscheidung beim Nutzer; „auf diesem Gerät
+  behalten“ verwendet `snapshot` → verschlüsselt sichern → `pause`, ohne automatische Wiederholung.
+- Lesen/Bearbeiten wechseln: `prepareMutation` → `setMode` → `cancelMutation`. Die Inhalts- und
+  Titelmutationen bleiben im Lesemodus gesperrt, die Tiptap-Instanz und Undo-Historie bestehen weiter.
+- Metadaten oder Anlagen ändern: `prepareMutation` → bestehende API-Aktion mit bestätigter Revision
+  → `finishMutation`; bei fehlgeschlagener API-Aktion `cancelMutation`.
+
+`navigate` enthält zusätzlich `path`. Dokument-/Bibel- und ausdrücklich geöffnete externe
+Links werden erst nach erfolgreichem Flush an die native Navigationsprüfung weitergereicht;
+kein normales Svelte-`goto` darf den eingebetteten Editor verlassen. Im Bearbeitungsmodus setzt
+ein Tippen auf einen Link im Text weiterhin den Cursor; das ausdrückliche Öffnen erfolgt über
+dessen Kontextmenü. Erlaubte Linktypen sind lokale Pfade sowie sichere HTTP(S)-/Mailadressen.
+
+Bekannte Fehlercodes sind `invalidMode`, `invalidRestore`, `alreadyInitialized`, `locked`,
+`saveFailed`, `notPrepared`, `invalidRevision`, `unknownMethod`, `unavailable`, `operationFailed`.
+Unerwartete Fehler enthalten keine internen Exceptiontexte; wenn die Serialisierung selbst
+fehlschlägt, kann die Fehlerantwort ohne Snapshot kommen. Nach Disposition der Instanz werden
+keine weiteren Nachrichten gesendet. Fremde oder verspätete Instanznachrichten muss auch der
+native Empfänger verwerfen. Die WebView-Lebensdauer, App-Hintergrundwechsel, verschlüsselte
+Entwürfe und deren explizite Wiederherstellung bleiben Aufgaben des nativen Hosts.

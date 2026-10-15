@@ -1,4 +1,5 @@
 import type { WorkspacePersistenceToken } from './persistence';
+import { isAppEditorPath } from '$lib/app/editor-route';
 
 const ID_KEY = 'akribos-reader-browser-tab';
 const RESUME_KEY = 'akribos-reader-browser-view';
@@ -15,6 +16,7 @@ let releaseIdentity: (() => void) | undefined;
 
 /** sessionStorage survives reloads; Web Locks separates cloned sessionStorage in duplicated tabs. */
 export async function initializeReaderBrowserTab(): Promise<void> {
+	if (isAppEditorPath(location.pathname)) return;
 	if (initialized) return;
 	initialized = true;
 	document.documentElement.dataset.readerBootstrapping = 'true';
@@ -67,7 +69,12 @@ export async function initializeReaderBrowserTab(): Promise<void> {
 	const original = window.fetch;
 	window.fetch = (input, init) => {
 		const url = new URL(input instanceof Request ? input.url : input.toString(), location.href);
-		if (url.origin !== location.origin) return original(input, init);
+		if (
+			url.origin !== location.origin ||
+			isAppEditorPath(location.pathname) ||
+			isAppEditorPath(url.pathname)
+		)
+			return original(input, init);
 		const headers = new Headers(input instanceof Request ? input.headers : undefined);
 		new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
 		headers.set('x-reader-browser-tab', browserTabId!);
@@ -75,6 +82,7 @@ export async function initializeReaderBrowserTab(): Promise<void> {
 		return original(input, { ...init, headers });
 	};
 	window.addEventListener('pageshow', (event) => {
+		if (isAppEditorPath(location.pathname)) return;
 		if (!event.persisted) return;
 		// A cached document keeps its own lock and fetch closure. A later document in the same browser
 		// tab may meanwhile have replaced sessionStorage, so restore only this document's bound view.
