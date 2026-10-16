@@ -65,6 +65,8 @@ describe('BibleReferenceProse', () => {
 		await expect.element(link).toHaveAttribute('data-reference', 'Mt3,12');
 		expect(screen.getByRole('link', { name: 'Joh 3,16' }).query()).toBeNull();
 
+		// Exercise Escape with the pointer already on the reference, as it can be in a reused page.
+		await link.hover();
 		linkElement.focus();
 		const tooltip = page.getByTestId('bible-reference-preview');
 		await expect.element(tooltip).toBeVisible();
@@ -79,6 +81,8 @@ describe('BibleReferenceProse', () => {
 		expect(document.activeElement).toBe(linkElement);
 
 		linkElement.blur();
+		// Re-enter the reference: moving to the same coordinates does not emit pointerover.
+		await link.unhover();
 		await link.hover();
 		await expect.element(tooltip).toBeVisible();
 		await link.unhover();
