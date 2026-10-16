@@ -120,6 +120,8 @@ Bibeltext 1,125 rem, Kommentar-/Lexikon-/Dokumenttext 1,0625 rem, Zeilenhöhe 1,
 werden an `.reading-preferences` mit dem Geräteskalierungswert erneut aufgelöst, damit vererbte
 CSS-Variablen die persönliche Vergrößerung nicht verlieren. Bedienelemente und Lexikonlabels bleiben
 in festen rem-Größen. Auch die Kontovorschau liest den gerätelokalen Schriftgrößenwert.
+Abschnittsüberschriften im Bibeltext verwenden das 1,2-Fache der aktuellen Leseschriftgröße,
+einschließlich persönlicher Skalierung; feste kleine UI-Schriftgrößen gehören hier nicht hin.
 Die persönliche Skalierung reicht von 70 bis 200 % in 5-%-Schritten; `src/lib/reader/font-scale.ts`
 ist die gemeinsame Quelle für Server, Bedienelemente und Hilfetext, der DB-Check in `users` muss
 übereinstimmen. Unterhalb von `sm` sind A−/A+ im Reader-Header ausgeblendet und stehen stattdessen als

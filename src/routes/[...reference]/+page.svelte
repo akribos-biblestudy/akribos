@@ -3624,11 +3624,15 @@
 	.flow-heading {
 		margin: 1.35rem 0 0.45rem;
 		font-family: var(--font-sans);
-		font-size: 0.75rem;
+		font-size: calc(var(--reader-text-size) * 1.2);
 		font-weight: 700;
-		letter-spacing: 0.045em;
-		text-transform: uppercase;
-		color: var(--color-stone-500);
+		line-height: 1.4;
+		overflow-wrap: anywhere;
+		color: var(--color-stone-700);
+	}
+
+	:global(.dark) .flow-heading {
+		color: var(--color-stone-200);
 	}
 
 	.flow-verse {
