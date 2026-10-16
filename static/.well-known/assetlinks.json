@@ -5,7 +5,8 @@
 			"namespace": "android_app",
 			"package_name": "de.akribos.app",
 			"sha256_cert_fingerprints": [
-				"80:A5:79:0A:B6:8D:73:8A:77:0F:B8:2A:7C:03:26:EF:AD:59:29:D4:D6:30:82:38:3C:06:DC:72:C2:14:5C:CB"
+				"80:A5:79:0A:B6:8D:73:8A:77:0F:B8:2A:7C:03:26:EF:AD:59:29:D4:D6:30:82:38:3C:06:DC:72:C2:14:5C:CB",
+				"6E:26:73:AB:76:E0:1F:36:C8:C0:EF:A2:2C:15:EC:18:95:13:2E:8E:F7:60:12:3F:86:91:40:CD:E1:DA:0C:09"
 			]
 		}
 	}

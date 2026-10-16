@@ -144,8 +144,9 @@ Android-/Apple-Signieridentitäten.
 Die Android-App registriert `http://akribos.de` und `https://akribos.de` mit `autoVerify`.
 Eingehende HTTP-Adressen werden in der App auf denselben HTTPS-Origin normalisiert;
 API-Anfragen bleiben verschlüsselt. Die Domainbestätigung liegt versioniert unter
-`static/.well-known/assetlinks.json`. Sie enthält nur die öffentliche Zertifikatskennung
-der direkt ausgelieferten APK (`de.akribos.app`), keine Zugangsdaten und keinen privaten Schlüssel.
+`static/.well-known/assetlinks.json`. Sie enthält die öffentlichen Zertifikatskennungen
+der direkt ausgelieferten und der von Google Play signierten APK (`de.akribos.app`),
+keine Zugangsdaten und keinen privaten Schlüssel.
 Ihre Veröffentlichung setzt ein Backend-Deployment voraus. Android muss die Datei anschließend
 mit HTTP 200 und `Content-Type: application/json` ohne Redirect oder Anmeldung abrufen können.
 Eine passende Manifestregistrierung allein bestätigt noch nicht die Domain.
@@ -161,8 +162,13 @@ adb shell am start -a android.intent.action.VIEW -c android.intent.category.BROW
 Die letzte Prüfung muss ohne expliziten Paketnamen erfolgen: Ein erzwungener Start mit
 Paketnamen belegt nur den App-Eingang, nicht die Betriebssystem-Zuordnung. Die Verifizierung
 ist asynchron; benutzerspezifische Standard-App-Einstellungen können die Auswahl beeinflussen.
-Bei Play App Signing muss zusätzlich die Signatur der von Google Play ausgelieferten App
-in `assetlinks.json` stehen; ein Upload-Zertifikat reicht dafür nicht.
+Der Play-Fingerprint
+`6E:26:73:AB:76:E0:1F:36:C8:C0:EF:A2:2C:15:EC:18:95:13:2E:8E:F7:60:12:3F:86:91:40:CD:E1:DA:0C:09`
+wurde am 16. Oktober 2026 aus dem Digital-Asset-Links-JSON der Play Console für
+`de.akribos.app` übernommen. Er bezeichnet das App-Signaturzertifikat von Google Play;
+das separate Upload-Zertifikat gehört nicht in die Domainzuordnung. Der bestehende
+Fingerprint der direkt ausgelieferten APK bleibt zusätzlich gültig. Ein Store-Upload
+allein belegt noch keine erfolgreiche Domainverifizierung auf einem installierten Gerät.
 
 Für iOS ist das Entitlement `applinks:akribos.de` vorbereitet. Derzeit fehlt im App-Projekt
 eine konfigurierte Apple-Entwicklerteam-ID. Vor einer iOS-Auslieferung sind die reale signierte
