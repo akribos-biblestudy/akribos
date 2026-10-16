@@ -2871,6 +2871,7 @@
 										{@const firstVerse = firstCellVerse(stream, column.bibleCellIndex)}
 										<section
 											class="flow-chapter"
+											class:scripture={column.resource.kind === 'bible'}
 											data-chapter-key={`${stream.reference.book}:${stream.reference.chapter}`}
 										>
 											{#if stream.reference.chapter === 1 && !stream.chapter.empty}
@@ -3571,8 +3572,11 @@
 
 	.flow-chapter {
 		padding: 1.05rem 1.2rem 1.65rem;
-		/* Natural spacing also works in narrow tiles and at large personal reading sizes. */
 		text-align: start;
+	}
+
+	.flow-chapter.scripture {
+		text-align: justify;
 	}
 
 	.flow-chapter + .flow-chapter {
@@ -3593,6 +3597,7 @@
 	}
 
 	.flow-book-title {
+		text-align: start;
 		margin: 0 0 1rem;
 		padding-block: 0.5rem;
 		font-family: var(--font-serif);
@@ -3622,6 +3627,7 @@
 	}
 
 	.flow-heading {
+		text-align: start;
 		margin: 1.35rem 0 0.45rem;
 		font-family: var(--font-sans);
 		font-size: calc(var(--reader-text-size) * 1.2);

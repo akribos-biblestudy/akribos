@@ -134,6 +134,9 @@ for (const [width, scale] of [
 			.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
 		const headingSize = await heading.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
 		expect(headingSize).toBeCloseTo(textSize * 1.2);
+		await expect(page.locator('.flow-verse').first()).toHaveCSS('text-align', 'justify');
+		await expect(heading).toHaveCSS('text-align', 'start');
+		await expect(page.locator('.flow-book-title').first()).toHaveCSS('text-align', 'start');
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
 			true
 		);

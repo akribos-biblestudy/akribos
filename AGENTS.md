@@ -122,6 +122,8 @@ CSS-Variablen die persönliche Vergrößerung nicht verlieren. Bedienelemente un
 in festen rem-Größen. Auch die Kontovorschau liest den gerätelokalen Schriftgrößenwert.
 Abschnittsüberschriften im Bibeltext verwenden das 1,2-Fache der aktuellen Leseschriftgröße,
 einschließlich persönlicher Skalierung; feste kleine UI-Schriftgrößen gehören hier nicht hin.
+Der fortlaufende Bibeltext im Web verwendet Blocksatz; Abschnitts- und Buchüberschriften
+bleiben am Zeilenanfang ausgerichtet. Die letzte Absatzzeile wird nicht gestreckt.
 Die persönliche Skalierung reicht von 70 bis 200 % in 5-%-Schritten; `src/lib/reader/font-scale.ts`
 ist die gemeinsame Quelle für Server, Bedienelemente und Hilfetext, der DB-Check in `users` muss
 übereinstimmen. Unterhalb von `sm` sind A−/A+ im Reader-Header ausgeblendet und stehen stattdessen als
