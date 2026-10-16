@@ -59,6 +59,12 @@ wirkt einmal auf diese Größen; Bedienelemente verwenden weiterhin die Sans-Sch
 Urtext und Bibelzitate folgen der Bibelgröße. Freigabeentscheidend bleibt die
 Anwendungsprüfung, nicht allein die isolierte Schriftprobe.
 
+Abschnittsüberschriften im Reader sind 1,2-mal so groß wie der Bibeltext und folgen
+der persönlichen Skalierung. Buchüberschriften verwenden weiterhin den Faktor 1,4.
+Dies gilt auf schmalen und breiten Bildschirmen gleichermaßen.
+Der Bibeltext wird im Blocksatz mit automatischer Silbentrennung dargestellt, die letzte
+Absatzzeile bleibt natürlich gesetzt. Überschriften bleiben am Zeilenanfang ausgerichtet.
+
 Für einen optionalen lokalen Liberation-Serif-Fallback wurden dessen installierte
 x-Höhe (940/2048 em) und die Akribos-Metriken gemessen: `size-adjust: 98.93617%`,
 `ascent-override: 95.74513%`, `descent-override: 27.14424%`, `line-gap-override: 0%`.

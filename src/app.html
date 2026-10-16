@@ -12,17 +12,24 @@
 			// that has never chosen one); a leftover localStorage value from before the cookie existed is
 			// migrated once so it is not silently forgotten.
 			try {
-				const match = document.cookie.match(/(?:^|; )theme=(light|dark)/);
-				let stored = match ? match[1] : null;
-				if (!stored) {
-					const legacy = localStorage.getItem('theme');
-					if (legacy === 'light' || legacy === 'dark') {
-						stored = legacy;
-						document.cookie = 'theme=' + legacy + '; path=/; max-age=31536000; samesite=lax';
+				// Embedded editor preferences belong to its native host. Never migrate
+				// browser storage or write reader/theme cookies from this isolated page.
+				if (/^\/app\/editor\/[^/]+\/?$/.test(location.pathname)) {
+					if (new URLSearchParams(location.search).get('theme') === 'dark')
+						document.documentElement.classList.add('dark');
+				} else {
+					const match = document.cookie.match(/(?:^|; )theme=(light|dark)/);
+					let stored = match ? match[1] : null;
+					if (!stored) {
+						const legacy = localStorage.getItem('theme');
+						if (legacy === 'light' || legacy === 'dark') {
+							stored = legacy;
+							document.cookie = 'theme=' + legacy + '; path=/; max-age=31536000; samesite=lax';
+						}
 					}
+					// Light is the default regardless of OS preference; only an explicit choice enables dark.
+					if (stored === 'dark') document.documentElement.classList.add('dark');
 				}
-				// Light is the default regardless of OS preference; only an explicit choice enables dark.
-				if (stored === 'dark') document.documentElement.classList.add('dark');
 			} catch {
 				// Cookies and localStorage can throw in private browsing modes; light remains the default.
 			}

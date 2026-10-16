@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { beforeNavigate, goto } from '$app/navigation';
+	import type { AppEditorSource, AppEditorState } from '$lib/app/editor-bridge';
 	import {
 		loadBibleQuotation,
 		verseHoverPopover,
@@ -59,7 +60,11 @@
 		onSaved,
 		onState,
 		onOpenDocument,
-		onOpenBibleReference
+		onOpenBibleReference,
+		appEmbedded = false,
+		readOnly = false,
+		onAppReady,
+		onAppSnapshot
 	}: {
 		document: Omit<EditableDocument, 'bodyHtml'>;
 		bibleId?: string | null;
@@ -70,6 +75,10 @@
 		/** Keeps document mentions inside the Reader sidecar when it supplies its owner-checked opener. */
 		onOpenDocument?: (documentId: string) => boolean | Promise<boolean>;
 		onOpenBibleReference?: (reference: VerseRef) => Promise<boolean>;
+		appEmbedded?: boolean;
+		readOnly?: boolean;
+		onAppReady?: () => void;
+		onAppSnapshot?: (state: AppEditorState) => void;
 	} = $props();
 
 	type Mode = 'visual' | 'markdown';
@@ -113,6 +122,13 @@
 	let destroyed = false;
 	let applyingContent = false;
 	let visualDirty = false;
+	let appSuspended = false;
+	let appSnapshotTimer: ReturnType<typeof setTimeout> | undefined;
+	let acknowledged: AppEditorSource = untrack(() => ({
+		title: document.title,
+		markdown: document.bodyMarkdown,
+		revision: document.revision
+	}));
 	let countTimer: ReturnType<typeof setTimeout> | undefined;
 	let resumingNavigation = false;
 	let pendingNavigation = false;
@@ -370,7 +386,7 @@
 	}
 
 	async function placeFloatingMenu(): Promise<void> {
-		if (!editor || mode !== 'visual') return;
+		if (readOnly || !editor || mode !== 'visual') return;
 		if (!linkEditorOpen) {
 			selectionMenuOpen =
 				!assistantMenu &&
@@ -502,7 +518,7 @@
 	}
 
 	function runSlashCommand(command: SlashCommand): void {
-		if (!editor || assistantMenu?.kind !== 'slash') return;
+		if (!editor || readOnly || assistantMenu?.kind !== 'slash') return;
 		const { from, to } = assistantMenu;
 		assistantMenu = null;
 		const chain = editor.chain().focus().deleteRange({ from, to });
@@ -543,7 +559,7 @@
 	}
 
 	function insertDocumentMention(target: MentionDocument): void {
-		if (!editor || assistantMenu?.kind !== 'mention') return;
+		if (!editor || readOnly || assistantMenu?.kind !== 'mention') return;
 		const { from, to } = assistantMenu;
 		assistantMenu = null;
 		editor
@@ -648,11 +664,15 @@
 	);
 
 	$effect(() => {
-		if (document.revision > revision) revision = document.revision;
+		// The native host restores the draft's original revision. Only an explicit metadata
+		// acknowledgement may advance it; rebasing here could overwrite a newer server document.
+		if (!appEmbedded && document.revision > revision) revision = document.revision;
 	});
 
 	$effect(() => {
-		onState?.({ status: saveState, revision });
+		const state = { status: saveState, revision };
+		onState?.(state);
+		untrack(emitAppSnapshot);
 	});
 
 	$effect(() => {
@@ -759,7 +779,115 @@
 		return `${nextTitle}\u0000${nextMarkdown}`;
 	}
 
+	/** Synchronous snapshot: never loses the last keystroke to the native event debounce. */
+	export function appSnapshot(): AppEditorState {
+		syncMarkdownFromVisual();
+		return {
+			snapshot: {
+				title,
+				markdown,
+				revision,
+				status: saveState,
+				canUndo: editor?.can().undo() ?? false,
+				canRedo: editor?.can().redo() ?? false
+			},
+			savedSnapshot: { ...acknowledged }
+		};
+	}
+
+	function emitAppSnapshot(): void {
+		if (!onAppSnapshot || destroyed) return;
+		if (appSnapshotTimer) clearTimeout(appSnapshotTimer);
+		appSnapshotTimer = setTimeout(() => {
+			appSnapshotTimer = undefined;
+			try {
+				onAppSnapshot?.(appSnapshot());
+			} catch {
+				saveState = 'error';
+				saveMessage = t('documents.editor.saveError');
+			}
+		}, 200);
+	}
+
+	export function appBlur(): void {
+		const active = window.document.activeElement;
+		if (active instanceof HTMLElement && editorRoot?.contains(active)) active.blur();
+		editor?.commands.blur();
+	}
+
+	export function appPause(paused: boolean): void {
+		appSuspended = paused;
+		if (paused && debounceTimer) clearTimeout(debounceTimer);
+		if (paused) debounceTimer = undefined;
+	}
+
+	export function appCommand(command: 'undo' | 'redo'): boolean {
+		if (readOnly || appSuspended || !editor) return false;
+		return command === 'undo' ? editor.commands.undo() : editor.commands.redo();
+	}
+
+	export function appInsert(kind: string): boolean {
+		if (readOnly || appSuspended || !editor) return false;
+		const command = slashCommands.find((candidate) => candidate.id === kind);
+		if (!command) return false;
+		const { from, to } = editor.state.selection;
+		assistantMenu = { kind: 'slash', from, to, query: '' };
+		runSlashCommand(command);
+		return true;
+	}
+
+	function applyAppSource(source: AppEditorSource): void {
+		if (debounceTimer) clearTimeout(debounceTimer);
+		debounceTimer = undefined;
+		applyingContent = true;
+		// Metadata acknowledgements must not replace the unchanged PM document/history.
+		if (markdown !== source.markdown || visualDirty) {
+			editor?.commands.setContent(documentMarkdownToHtml(source.markdown).html, {
+				emitUpdate: false
+			});
+		}
+		title = source.title;
+		markdown = source.markdown;
+		revision = source.revision;
+		visualDirty = false;
+		applyingContent = false;
+		countText = editor?.getText({ blockSeparator: ' ' }).replace(/\s+/gu, ' ').trim() ?? '';
+		saveMessage = '';
+	}
+
+	export function appRestore(source: AppEditorSource): void {
+		applyAppSource(source);
+		// Deliberately retain the original draft revision and do not schedule autosave.
+		saveState = signature(title, markdown) === lastSavedSignature ? 'saved' : 'dirty';
+		emitAppSnapshot();
+	}
+
+	export function appAcknowledge(source: AppEditorSource): void {
+		applyAppSource(source);
+		acknowledged = { ...source };
+		lastSavedSignature = signature(title, markdown);
+		saveState = 'saved';
+		emitAppSnapshot();
+	}
+
+	$effect(() => {
+		const instance = editor;
+		const locked = readOnly;
+		if (!instance) return;
+		untrack(() => {
+			instance.setEditable(!locked, false);
+			if (locked) {
+				selectionMenuOpen = false;
+				linkEditorOpen = false;
+				assistantMenu = null;
+				appBlur();
+			}
+		});
+	});
+
 	function markDirty(): void {
+		if (readOnly || applyingContent) return;
+		emitAppSnapshot();
 		if (!visualDirty && signature(title, markdown) === lastSavedSignature) {
 			saveState = 'saved';
 			return;
@@ -769,7 +897,7 @@
 	}
 
 	function scheduleSave(delay = 650): void {
-		if (saveState === 'conflict' || destroyed) return;
+		if (saveState === 'conflict' || destroyed || appSuspended) return;
 		if (debounceTimer) clearTimeout(debounceTimer);
 		debounceTimer = setTimeout(() => void save(), delay);
 	}
@@ -785,7 +913,7 @@
 	}
 
 	async function persistLatest(): Promise<void> {
-		while (!destroyed && saveState !== 'conflict') {
+		while (!destroyed && !appSuspended && saveState !== 'conflict') {
 			try {
 				syncMarkdownFromVisual();
 			} catch (error) {
@@ -842,6 +970,7 @@
 
 				revision = result.document.revision;
 				lastSavedSignature = signature(requestedTitle, requestedMarkdown);
+				acknowledged = { title: requestedTitle, markdown: requestedMarkdown, revision };
 				onSaved?.(result.document);
 				void loadRelations();
 				// If typing continued during the request, loop immediately with the new revision so flush()
@@ -891,7 +1020,7 @@
 	}
 
 	function updateFromVisual(): void {
-		if (!editor || applyingContent) return;
+		if (!editor || applyingContent || readOnly) return;
 		// Keep the editor document authoritative while typing; serialize only for save/mode switch.
 		visualDirty = true;
 		countText = editor.getText({ blockSeparator: ' ' }).replace(/\s+/gu, ' ').trim();
@@ -940,7 +1069,9 @@
 	}
 
 	function onWindowKeydown(event: KeyboardEvent): void {
+		if (readOnly) return;
 		if (
+			!appEmbedded &&
 			(event.ctrlKey || event.metaKey) &&
 			event.shiftKey &&
 			event.key.toLowerCase() === 'f' &&
@@ -963,7 +1094,7 @@
 			void save();
 		}
 
-		if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'm') {
+		if (!appEmbedded && (event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'm') {
 			const target = event.target as HTMLElement | null;
 			if (target?.closest('[data-document-editor]')) {
 				event.preventDefault();
@@ -979,6 +1110,10 @@
 	}
 
 	beforeNavigate(({ cancel, to }) => {
+		if (appEmbedded) {
+			if (to?.url) cancel();
+			return;
+		}
 		if (resumingNavigation) {
 			resumingNavigation = false;
 			return;
@@ -1002,7 +1137,7 @@
 	}
 
 	function insertBibleQuotation(quotation: BibleQuotation): void {
-		if (!editor) return;
+		if (!editor || readOnly) return;
 		const source = [quotation.reference, quotation.translation].filter(Boolean).join(' · ');
 		editor
 			.chain()
@@ -1062,7 +1197,7 @@
 		event.clipboardData.setData('text/html', html);
 		event.clipboardData.setData('text/plain', documentHtmlToMarkdown(html));
 		event.preventDefault();
-		if (cut) editor.chain().focus().deleteSelection().run();
+		if (cut && !readOnly) editor.chain().focus().deleteSelection().run();
 		return true;
 	}
 
@@ -1083,6 +1218,7 @@
 		if (!editorHost) return;
 		const instance = new Editor({
 			element: editorHost,
+			editable: !readOnly,
 			extensions: [
 				...DocumentFootnotes,
 				...DocumentTables,
@@ -1111,6 +1247,7 @@
 					...(compact ? { 'data-testid': 'reader-notes-sidecar-body' } : {})
 				},
 				handleKeyDown: (view, event) => {
+					if (readOnly) return false;
 					if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
 						event.preventDefault();
 						editLink();
@@ -1167,11 +1304,15 @@
 			}
 		});
 		editorState = { editor: instance };
+		void tick().then(() => {
+			if (!destroyed) onAppReady?.();
+		});
 		window.document.addEventListener('visibilitychange', onVisibilityChange);
 		window.document.addEventListener('scroll', queuePlacement, true);
 
 		return () => {
 			destroyed = true;
+			if (appSnapshotTimer) clearTimeout(appSnapshotTimer);
 			if (countTimer) clearTimeout(countTimer);
 			if (debounceTimer) clearTimeout(debounceTimer);
 			window.document.removeEventListener('visibilitychange', onVisibilityChange);
@@ -1196,6 +1337,8 @@
 <section
 	class="document-editor overflow-hidden rounded-2xl border border-stone-200/80 bg-[color:var(--surface)] shadow-[var(--shadow-soft)] dark:border-white/8"
 	class:compact
+	class:app-embedded={appEmbedded}
+	class:read-only={readOnly}
 	class:zen
 	bind:this={editorRoot}
 	data-document-editor
@@ -1203,83 +1346,91 @@
 	data-testid="document-editor"
 >
 	<header class="border-b border-stone-200/80 px-4 py-4 sm:px-7 sm:py-5 dark:border-white/8">
-		<label class="sr-only" for="document-title">{t('documents.editor.title')}</label>
-		<input
-			id="document-title"
-			data-testid={compact ? 'reader-notes-sidecar-title' : undefined}
-			bind:value={title}
-			oninput={markDirty}
-			maxlength="200"
-			placeholder={t('documents.editor.titlePlaceholder')}
-			class="w-full rounded-sm border-0 bg-transparent font-serif text-2xl leading-tight font-semibold tracking-tight placeholder:text-stone-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-500 sm:text-3xl dark:placeholder:text-stone-600"
-		/>
+		{#if readOnly}
+			<h1 class="font-serif text-2xl leading-tight font-semibold">{title}</h1>
+		{:else}
+			<label class="sr-only" for="document-title">{t('documents.editor.title')}</label>
+			<input
+				id="document-title"
+				data-testid={compact ? 'reader-notes-sidecar-title' : undefined}
+				bind:value={title}
+				readonly={readOnly}
+				tabindex={readOnly ? -1 : undefined}
+				oninput={markDirty}
+				maxlength="200"
+				placeholder={t('documents.editor.titlePlaceholder')}
+				class="w-full rounded-sm border-0 bg-transparent font-serif text-2xl leading-tight font-semibold tracking-tight placeholder:text-stone-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-500 sm:text-3xl dark:placeholder:text-stone-600"
+			/>
+		{/if}
 
-		<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-			<div
-				class="inline-flex rounded-lg bg-stone-100 p-1 dark:bg-white/6"
-				role="tablist"
-				aria-label={t('documents.editor.markdown')}
-			>
-				<button
-					id="document-visual-tab"
-					type="button"
-					role="tab"
-					aria-selected={mode === 'visual'}
-					aria-controls="document-visual-panel"
-					tabindex={mode === 'visual' ? 0 : -1}
-					class:active={mode === 'visual'}
-					class="mode-tab"
-					onclick={() => switchMode('visual')}
-					onkeydown={onModeTabKeydown}
+		{#if !appEmbedded && !readOnly}
+			<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+				<div
+					class="inline-flex rounded-lg bg-stone-100 p-1 dark:bg-white/6"
+					role="tablist"
+					aria-label={t('documents.editor.markdown')}
 				>
-					{t('documents.editor.visual')}
-				</button>
-				<button
-					id="document-markdown-tab"
-					type="button"
-					role="tab"
-					aria-selected={mode === 'markdown'}
-					aria-controls="document-markdown-panel"
-					tabindex={mode === 'markdown' ? 0 : -1}
-					class:active={mode === 'markdown'}
-					class="mode-tab"
-					onclick={() => switchMode('markdown')}
-					onkeydown={onModeTabKeydown}
-				>
-					{t('documents.editor.markdown')}
-				</button>
-			</div>
+					<button
+						id="document-visual-tab"
+						type="button"
+						role="tab"
+						aria-selected={mode === 'visual'}
+						aria-controls="document-visual-panel"
+						tabindex={mode === 'visual' ? 0 : -1}
+						class:active={mode === 'visual'}
+						class="mode-tab"
+						onclick={() => switchMode('visual')}
+						onkeydown={onModeTabKeydown}
+					>
+						{t('documents.editor.visual')}
+					</button>
+					<button
+						id="document-markdown-tab"
+						type="button"
+						role="tab"
+						aria-selected={mode === 'markdown'}
+						aria-controls="document-markdown-panel"
+						tabindex={mode === 'markdown' ? 0 : -1}
+						class:active={mode === 'markdown'}
+						class="mode-tab"
+						onclick={() => switchMode('markdown')}
+						onkeydown={onModeTabKeydown}
+					>
+						{t('documents.editor.markdown')}
+					</button>
+				</div>
 
-			<div class="editor-view-actions">
-				<button
-					type="button"
-					aria-label={t('documents.editor.sidebar')}
-					title={t('documents.editor.sidebar')}
-					aria-pressed={outlineOpen}
-					onclick={() => (outlineOpen = !outlineOpen)}><Icon name="list" class="size-4" /></button
+				<div class="editor-view-actions">
+					<button
+						type="button"
+						aria-label={t('documents.editor.sidebar')}
+						title={t('documents.editor.sidebar')}
+						aria-pressed={outlineOpen}
+						onclick={() => (outlineOpen = !outlineOpen)}><Icon name="list" class="size-4" /></button
+					>
+					<button
+						type="button"
+						aria-label={zen ? t('documents.editor.exitZen') : t('documents.editor.zen')}
+						title={`${t('documents.editor.zen')} · Strg/Cmd+Shift+F`}
+						aria-keyshortcuts="Control+Shift+F Meta+Shift+F"
+						aria-pressed={zen}
+						onclick={() => (zen = !zen)}
+						><Icon name={zen ? 'minimize' : 'maximize'} class="size-4" /></button
+					>
+				</div>
+				<p
+					class:error={saveState === 'error' || saveState === 'conflict'}
+					class="save-status"
+					role={saveState === 'error' || saveState === 'conflict' ? 'alert' : 'status'}
+					aria-live="polite"
+					title={saveMessage}
+					data-testid={compact ? 'reader-notes-sidecar-save-status' : undefined}
 				>
-				<button
-					type="button"
-					aria-label={zen ? t('documents.editor.exitZen') : t('documents.editor.zen')}
-					title={`${t('documents.editor.zen')} · Strg/Cmd+Shift+F`}
-					aria-keyshortcuts="Control+Shift+F Meta+Shift+F"
-					aria-pressed={zen}
-					onclick={() => (zen = !zen)}
-					><Icon name={zen ? 'minimize' : 'maximize'} class="size-4" /></button
-				>
+					{#if saveState === 'saved'}<Icon name="check" class="size-3.5" />{/if}
+					{statusText}
+				</p>
 			</div>
-			<p
-				class:error={saveState === 'error' || saveState === 'conflict'}
-				class="save-status"
-				role={saveState === 'error' || saveState === 'conflict' ? 'alert' : 'status'}
-				aria-live="polite"
-				title={saveMessage}
-				data-testid={compact ? 'reader-notes-sidecar-save-status' : undefined}
-			>
-				{#if saveState === 'saved'}<Icon name="check" class="size-3.5" />{/if}
-				{statusText}
-			</p>
-		</div>
+		{/if}
 	</header>
 
 	<div
@@ -1288,7 +1439,7 @@
 		aria-labelledby="document-visual-tab"
 		hidden={mode !== 'visual'}
 	>
-		{#if editor}
+		{#if editor && !readOnly && !appEmbedded}
 			<div class="editor-toolbar" role="toolbar" aria-label={t('documents.editor.formatting')}>
 				<button
 					type="button"
@@ -1433,7 +1584,7 @@
 			</div>
 		{/if}
 
-		{#if formatting.active.has('table') && editor}
+		{#if formatting.active.has('table') && editor && !readOnly}
 			<div class="table-actions" role="group" aria-label={t('documents.tables.edit')}>
 				<select
 					aria-label={t('documents.tables.rows')}
@@ -1487,7 +1638,7 @@
 			</div>
 		{/if}
 
-		{#if activeFootnote && editor}
+		{#if activeFootnote && editor && !readOnly}
 			<div
 				class="footnote-actions"
 				role="group"
@@ -1517,7 +1668,7 @@
 			</div>
 		{/if}
 
-		{#if (selectionMenuOpen || linkEditorOpen) && editor}
+		{#if (selectionMenuOpen || linkEditorOpen) && editor && !readOnly}
 			<div
 				class="floating-menu"
 				bind:this={floatingMenu}
@@ -1604,7 +1755,7 @@
 				{/if}
 			</div>
 		{/if}
-		{#if assistantMenu && editor}
+		{#if assistantMenu && editor && !readOnly}
 			<div
 				class="assistant-menu"
 				bind:this={assistantElement}
@@ -1677,7 +1828,7 @@
 				use:verseHoverPopover={{
 					bibleId,
 					tooltipId: bibleReferenceTooltipId,
-					onInsert: insertBibleQuotation,
+					onInsert: readOnly ? undefined : insertBibleQuotation,
 					onOpen: onOpenBibleReference
 						? async (reference) => (await flush()) && (await onOpenBibleReference!(reference))
 						: undefined,
@@ -1811,6 +1962,7 @@
 				id="document-markdown"
 				data-testid={compact ? 'reader-notes-sidecar-body-markdown' : undefined}
 				bind:value={markdown}
+				readonly={readOnly}
 				oninput={updateFromMarkdown}
 				spellcheck="true"
 				class="min-h-[32rem] w-full resize-y rounded-sm bg-transparent font-mono text-[0.9rem] leading-7 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-500"
@@ -1831,6 +1983,22 @@
 </section>
 
 <style>
+	.document-editor.app-embedded {
+		height: 100dvh;
+		max-height: 100dvh;
+		border: 0;
+		border-radius: 0;
+		box-shadow: none;
+	}
+	.app-embedded > header {
+		padding: 0.7rem 1rem;
+	}
+	.app-embedded .editor-footer {
+		padding: 0.3rem 1rem;
+	}
+	.read-only input[readonly] {
+		pointer-events: none;
+	}
 	.document-editor {
 		display: flex;
 		flex-direction: column;
@@ -2430,6 +2598,9 @@
 	}
 	:global(.dark) .save-status.error {
 		color: var(--color-red-300);
+	}
+	:global(.dark) .editor-host :global(.document-prose blockquote) {
+		color: var(--color-stone-300);
 	}
 	:global(.dark) .editor-host :global(.document-prose a),
 	:global(.dark) .editor-host :global(.document-prose .bible-reference) {

@@ -83,6 +83,7 @@ test.beforeAll(async () => {
 							bookId,
 							chapter,
 							verse: index + 1,
+							heading: index === 0 ? 'Ein neuer Abschnitt' : null,
 							text,
 							segments: [text]
 						};
@@ -109,6 +110,37 @@ test.afterAll(async () => {
 
 async function authenticate(context: BrowserContext, baseURL: string) {
 	await context.addCookies([{ name: 'session', value: token, url: baseURL, httpOnly: true }]);
+}
+
+for (const [width, scale] of [
+	[390, 100],
+	[390, 200],
+	[1280, 140]
+] as const) {
+	test(`section headings remain larger than scripture at ${width}px and ${scale}%`, async ({
+		page,
+		context,
+		baseURL
+	}) => {
+		await authenticate(context, baseURL!);
+		await context.addCookies([{ name: 'reader-font-scale', value: String(scale), url: baseURL! }]);
+		await page.setViewportSize({ width, height: 850 });
+		await page.goto(readerUrl('1Sam1'));
+		const heading = page.locator('.flow-heading').first();
+		await expect(heading).toHaveText('Ein neuer Abschnitt');
+		const textSize = await page
+			.locator('.flow-verse')
+			.first()
+			.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+		const headingSize = await heading.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+		expect(headingSize).toBeCloseTo(textSize * 1.2);
+		await expect(page.locator('.flow-verse').first()).toHaveCSS('text-align', 'justify');
+		await expect(heading).toHaveCSS('text-align', 'start');
+		await expect(page.locator('.flow-book-title').first()).toHaveCSS('text-align', 'start');
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+			true
+		);
+	});
 }
 
 function readerUrl(reference: string, resourceId = works[0]!.id) {

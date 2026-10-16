@@ -120,6 +120,10 @@ Bibeltext 1,125 rem, Kommentar-/Lexikon-/Dokumenttext 1,0625 rem, Zeilenhöhe 1,
 werden an `.reading-preferences` mit dem Geräteskalierungswert erneut aufgelöst, damit vererbte
 CSS-Variablen die persönliche Vergrößerung nicht verlieren. Bedienelemente und Lexikonlabels bleiben
 in festen rem-Größen. Auch die Kontovorschau liest den gerätelokalen Schriftgrößenwert.
+Abschnittsüberschriften im Bibeltext verwenden das 1,2-Fache der aktuellen Leseschriftgröße,
+einschließlich persönlicher Skalierung; feste kleine UI-Schriftgrößen gehören hier nicht hin.
+Der fortlaufende Bibeltext im Web verwendet Blocksatz; Abschnitts- und Buchüberschriften
+bleiben am Zeilenanfang ausgerichtet. Die letzte Absatzzeile wird nicht gestreckt.
 Die persönliche Skalierung reicht von 70 bis 200 % in 5-%-Schritten; `src/lib/reader/font-scale.ts`
 ist die gemeinsame Quelle für Server, Bedienelemente und Hilfetext, der DB-Check in `users` muss
 übereinstimmen. Unterhalb von `sm` sind A−/A+ im Reader-Header ausgeblendet und stehen stattdessen als
@@ -189,6 +193,20 @@ rechtmäßig im Reader ausgelieferten Texten.
 ## Native Akribos-App
 
 Das eigenständige Flutter-Repository liegt neben diesem Checkout unter `../akribos-app`.
+Der Notizeditor wird auf ausdrücklichen Nutzerwunsch unter `/app/editor/[id]` als
+isolierte HTTPS-Seite in einer System-WebView eingebettet. Er verwendet dieselbe
+`DocumentEditor.svelte`, Tiptap-Erweiterungen, Markdown-Konverter und revisionierte
+Speicherqueue wie der Browser. Diese Route ist keine Authentifizierungsausnahme:
+gültige Session und Dokumentbesitz bleiben erforderlich. Root-Layout, Client-Hook
+und Browser-Tab-Initialisierung dürfen hier keine Browser-Arbeitsbereiche auflösen,
+anlegen, wiederherstellen oder Reader-Cookies schreiben. Auch Datenabrufe der Route
+bleiben isoliert. Kein SiteHeader, Analytics oder globales Reader-Kontextmenü.
+Die Einbettung besitzt ein enges versioniertes Nachrichtenprotokoll für Speichern,
+Lesemodus, Entwurfssicherung und native Navigation. Ausstehende Saves müssen vor
+nativer Navigation bestätigt sein; Konflikte und Fehler verhindern das Verlassen.
+Die App überträgt die Session ausschließlich an den nativen Cookie-Store mit
+HttpOnly/Secure, niemals über URL oder JavaScript. Details stehen in
+`docs/native-app-api.md`; eine WebView schafft keine Offline-Verfügbarkeit der Seite.
 Die App richtet sich ausschließlich an normale Nutzer auf Android-/iOS-Smartphones und Tablets;
 Verwaltung, Ressourcenimporte und reine Adminaktionen sind nicht Teil des App-Protokolls.
 `/api/app/bootstrap`, `/api/app/page` und `/api/app/action` bilden das versionierte First-Party-
