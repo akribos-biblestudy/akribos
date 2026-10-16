@@ -25,22 +25,27 @@
 	<section class="mb-8">
 		<h2 class="mb-2 text-lg font-semibold">Server-Logfiles</h2>
 		<p class="text-stone-700 dark:text-stone-300">
-			Beim Aufruf dieser Website verarbeitet der Hosting-Anbieter automatisch technische
-			Zugriffsdaten (u. a. IP-Adresse, Datum und Uhrzeit des Zugriffs, aufgerufene Seite,
-			verwendeter Browser) in sogenannten Server-Logfiles. Diese Daten sind erforderlich, um die
-			Website technisch auszuliefern und stabil und sicher zu betreiben. Rechtsgrundlage ist Art. 6
-			Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem funktionsfähigen, sicheren Betrieb).
+			Akribos wird auf einem Hetzner-Cloud-Server betrieben. Beim Aufruf fallen technische
+			Zugriffsdaten an (u. a. IP-Adresse, Datum und Uhrzeit des Zugriffs, aufgerufene Seite,
+			verwendeter Browser). Die Protokolle des App-Servers werden abhängig von ihrer Größe rotiert:
+			Ältere Protokolldateien werden durch neuere ersetzt. Daraus ergibt sich keine feste
+			Speicherfrist in Tagen. Diese Daten sind erforderlich, um die Website technisch auszuliefern
+			und stabil und sicher zu betreiben. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO
+			(berechtigtes Interesse an einem funktionsfähigen, sicheren Betrieb).
 		</p>
 	</section>
 
 	<section class="mb-8">
 		<h2 class="mb-2 text-lg font-semibold">Konto und Registrierung</h2>
 		<p class="text-stone-700 dark:text-stone-300">
-			Wer sich registriert, hinterlegt eine E-Mail-Adresse und ein Passwort. Das Passwort wird
+			Für ein Akribos-Konto wird eine E-Mail-Adresse benötigt. Neue Konten entstehen erst nach
+			Bestätigung dieser Adresse. Bei Konten ohne eingerichtetes Passwort erfolgt die Anmeldung über
+			einen per E-Mail versandten Link oder Code. Ein Passwort kann optional im Konto eingerichtet
+			werden; bei Konten mit Passwort wird dieses für die Anmeldung abgefragt. Passwörter werden
 			ausschließlich als Hashwert gespeichert (Argon2), niemals im Klartext. Diese Daten dienen
-			dazu, das Konto und die davon abhängigen Funktionen (Stellensammlungen, Kommentare,
-			Leseeinstellungen) bereitzustellen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Erfüllung
-			des Nutzungsverhältnisses).
+			dazu, das Konto und die davon abhängigen Funktionen (Notizen, Markierungen, Stellensammlungen,
+			Kommentare und Leseeinstellungen) bereitzustellen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b
+			DSGVO (Erfüllung des Nutzungsverhältnisses).
 		</p>
 	</section>
 
@@ -101,12 +106,53 @@
 	</section>
 
 	<section class="mb-8">
+		<h2 class="mb-2 text-lg font-semibold">Native Akribos-App</h2>
+		<p class="text-stone-700 dark:text-stone-300">
+			Die Akribos-App verbindet sich über HTTPS mit akribos.de, um Bibeltexte, Nachschlagewerke und
+			persönliche Inhalte zu laden. Dabei übermittelt die App Anfragen zu gewählten Werken und
+			Lesestellen sowie eingegebene Suchbegriffe an den Server; außerdem fallen technische
+			Verbindungsdaten an. Öffentlich verfügbare Texte können ohne Anmeldung gelesen werden. Für
+			persönliche Funktionen verwendet die App die Anmeldung und die Kennung des Akribos-Kontos.
+		</p>
+		<p class="mt-3 text-stone-700 dark:text-stone-300">
+			Notizen, Ausarbeitungen, Markierungen, Sammlungen und Kommentare werden dem Konto zugeordnet
+			auf dem Server gespeichert. Dateianlagen werden nur nach ausdrücklicher Auswahl hochgeladen;
+			dabei werden auch Dateiname, Dateityp und Größe übertragen. Durch eine selbst veranlasste
+			Freigabe können Inhalte anderen Nutzern oder Empfängern eines Links zugänglich werden. Die
+			HTTPS-Verbindung schützt die Übertragung; serverseitig gespeicherte Inhalte sind nicht
+			Ende-zu-Ende-verschlüsselt.
+		</p>
+		<p class="mt-3 text-stone-700 dark:text-stone-300">
+			Die native App speichert ihre Anmeldesitzung, geöffneten Tabs und Lesestellen sowie lokale
+			Dokumententwürfe im verschlüsselten Plattform-Speicher des Geräts. Kontobezogene Tabs und
+			Entwürfe sind dabei nach Server und Konto getrennt. Anzeigeeinstellungen werden ebenfalls
+			lokal gespeichert.
+		</p>
+		<p class="mt-3 text-stone-700 dark:text-stone-300">
+			Zum Bearbeiten von Dokumenten öffnet die App eine eingebettete HTTPS-Seite von akribos.de, die
+			dieselbe Anmeldung verwendet. Der native Client und diese eingebettete Editorseite laden kein
+			Analyse- oder Werbeskript. Für Seiten, die du über einen Link im externen Browser öffnest,
+			gelten die dortigen Datenschutzhinweise und gegebenenfalls Einwilligungseinstellungen.
+		</p>
+		<p class="mt-3 text-stone-700 dark:text-stone-300">
+			Beim Teilen wählst du im Systemmenü die empfangende App oder den Empfänger aus. Die
+			ausgewählten Inhalte werden an diese übergeben. Für Exporte können Dateien im temporären
+			privaten App-Verzeichnis abgelegt werden. Das Abmelden oder Deinstallieren der App löscht
+			nicht das serverseitige Akribos-Konto und seine gespeicherten Inhalte. Den Weg für einen
+			Löschantrag findest du unter
+			<a class="text-accent-600 hover:underline dark:text-accent-400" href="#konto-loeschen"
+				>Akribos-Konto und Daten löschen</a
+			>.
+		</p>
+	</section>
+
+	<section class="mb-8">
 		<h2 class="mb-2 text-lg font-semibold">Versand von E-Mails</h2>
 		<p class="text-stone-700 dark:text-stone-300">
-			Für den Versand von Konto-E-Mails (z. B. zum Zurücksetzen eines Passworts) wird der
-			E-Mail-Dienstleister Brevo (Sendinblue SAS, Frankreich) eingesetzt, der die dafür nötigen
-			Daten (E-Mail-Adresse, Betreff und Inhalt der Nachricht) in unserem Auftrag verarbeitet.
-			Werbliche E-Mails werden nicht versendet.
+			Für den Versand von Konto-E-Mails (z. B. mit Anmeldelink oder Code sowie zum Zurücksetzen
+			eines Passworts) wird der E-Mail-Dienstleister Brevo (Sendinblue SAS, Frankreich) eingesetzt,
+			der die dafür nötigen Daten (E-Mail-Adresse, Betreff und Inhalt der Nachricht) in unserem
+			Auftrag verarbeitet. Werbliche E-Mails werden nicht versendet.
 		</p>
 	</section>
 
@@ -171,10 +217,41 @@
 		<h2 class="mb-2 text-lg font-semibold">Speicherdauer</h2>
 		<p class="text-stone-700 dark:text-stone-300">
 			Kontobezogene Daten werden gespeichert, solange das Konto besteht. Eine Löschung des Kontos
-			und der zugehörigen Daten kann jederzeit formlos per E-Mail an
-			<a class="text-accent-600 hover:underline dark:text-accent-400" href="mailto:info@akribos.de"
-				>info@akribos.de</a
+			und der zugehörigen Daten kann jederzeit über den unten beschriebenen
+			<a class="text-accent-600 hover:underline dark:text-accent-400" href="#konto-loeschen"
+				>Löschantrag</a
 			> verlangt werden.
+		</p>
+	</section>
+
+	<section id="konto-loeschen" class="mb-8 scroll-mt-24">
+		<h2 class="mb-2 text-lg font-semibold">Akribos-Konto und Daten löschen</h2>
+		<p class="text-stone-700 dark:text-stone-300">
+			Du kannst die Löschung deines Akribos-Kontos und der zugehörigen personenbezogenen Daten per
+			E-Mail an
+			<a
+				class="text-accent-600 hover:underline dark:text-accent-400"
+				href="mailto:info@akribos.de?subject=Akribos-Konto%20l%C3%B6schen">info@akribos.de</a
+			>
+			beantragen. Verwende den Betreff „Akribos-Konto löschen“ und sende die Nachricht möglichst von der
+			E-Mail-Adresse, die zu deinem Konto gehört.
+		</p>
+		<p class="mt-3 text-stone-700 dark:text-stone-300">
+			Der Antrag umfasst deine Kontodaten, Notizen und Ausarbeitungen, Dateianlagen, Markierungen,
+			Sammlungen und Kommentare.
+		</p>
+		<p class="mt-3 text-stone-700 dark:text-stone-300">
+			Wir bearbeiten Löschanträge innerhalb von sieben Tagen. Dabei prüfen wir die Zuordnung des
+			Antrags zu deinem Konto, bevor wir Kontodaten löschen. Sende uns dafür kein Passwort und
+			keinen Anmeldecode. Dieser Antrag betrifft dein serverseitiges Konto; das bloße Abmelden oder
+			Entfernen der App stellt keinen Löschantrag dar.
+		</p>
+		<p class="mt-3 text-stone-700 dark:text-stone-300">
+			Vorhandene Sicherungskopien können ältere Datenstände bis zu ihrer turnusmäßigen Ersetzung
+			enthalten. Zusätzliche Sicherungskopien, etwa vor einer Wiederherstellung, fallen nicht unter
+			diese reguläre Rotation und müssen bei der Bearbeitung des Löschantrags gesondert
+			berücksichtigt werden. Für die Entfernung aus sämtlichen Sicherungskopien ergibt sich daraus
+			keine feste Frist in Tagen; die sieben Tage beziehen sich auf die Bearbeitung deines Antrags.
 		</p>
 	</section>
 
