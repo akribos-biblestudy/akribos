@@ -55,6 +55,14 @@ Strong-Zuordnungen und Wortindizes werden dabei nicht verändert. Die Zuordnungs
 demselben Quellsignal im Alten und Neuen Testament; sie ist unabhängig von der Übersetzung eines
 Lexikonartikels. Ein fehlender Hinweis belegt keine abgeschlossene fachliche Prüfung.
 
+Vershinweise vor dem ersten Textwort erscheinen am Versende. `placeVerseNotes` bereitet ausschließlich
+die Anzeige vor und fasst sie mit vorhandenen Hinweisen am letzten Wort/Versende zu einem Marker und
+Popup zusammen; Quellmarker und sämtliche Inhalte bleiben erhalten. Wortgebundene Hinweise innerhalb
+des Verses und automatische Strong-Zuordnungswarnungen behalten ihre Position. Gespeicherte Segmente,
+Suchtext und Wortpositionen ändern sich nicht. Der Reader normalisiert den vollständigen Vers vor
+`splitVerseLead`; die beiden `VerseText`-Teilaufrufe setzen `completeVerse={false}`, damit ein Hinweis
+zum ersten Wort nicht irrtümlich als neuer Vershinweis ans Ende wandert.
+
 USX-/USFX-Importe übernehmen `x-akribos-status="unreviewed"` an Strong-Wörtern in
 dasselbe Notizsegment. Ein bereits unmittelbar wortgebundener Hinweis wird nicht doppelt erzeugt;
 Originalnotizen bleiben erhalten. `confirmed`, fehlende und unbekannte Statuswerte erzeugen keinen

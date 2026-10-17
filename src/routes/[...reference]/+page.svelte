@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { placeVerseNotes } from '$lib/bible/verse-notes';
 	import { rememberBrowserReaderView } from '$lib/reader/browser-tab';
 	import { deserialize, enhance } from '$app/forms';
 	import { beforeNavigate, onNavigate, goto, replaceState } from '$app/navigation';
@@ -2890,7 +2891,9 @@
 													<h3 class="flow-heading">{cell.heading}</h3>
 												{/if}
 												{#if column.resource.kind === 'bible' && cell}
-													{@const [leadSegments, remainingSegments] = splitVerseLead(cell.segments)}
+													{@const [leadSegments, remainingSegments] = splitVerseLead(
+														placeVerseNotes(cell.segments)
+													)}
 													{@const leadWordCount = countVerseWords(leadSegments)}
 													{@const mark = highlightByKey.get(
 														`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}`
@@ -3018,6 +3021,7 @@
 																dir={column.resource.direction}
 																><VerseText
 																	segments={leadSegments}
+																	completeVerse={false}
 																	onStrongClick={(strong, word, wordPosition) =>
 																		openStrong(
 																			strong,
@@ -3038,6 +3042,7 @@
 														>
 															<VerseText
 																segments={remainingSegments}
+																completeVerse={false}
 																onStrongClick={(strong, word, wordPosition) =>
 																	openStrong(
 																		strong,
