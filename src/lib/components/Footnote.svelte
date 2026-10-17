@@ -132,6 +132,7 @@
 		font-size: 0.78rem;
 		font-weight: 400;
 		line-height: 1.45;
+		white-space: pre-line;
 		color: var(--color-stone-700);
 	}
 

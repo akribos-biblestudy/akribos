@@ -8,6 +8,7 @@
 		type VerseSegment
 	} from '$lib/bible/segments';
 	import Footnote from './Footnote.svelte';
+	import { placeVerseNotes } from '$lib/bible/verse-notes';
 	import {
 		isStrongAssignmentNote,
 		strongAssignmentNotes,
@@ -29,7 +30,8 @@
 		showStrongAssignmentNotes = false,
 		highlights = [],
 		wordOffset = 0,
-		wordPositionOffset = 0
+		wordPositionOffset = 0,
+		completeVerse = true
 	}: {
 		segments: VerseSegment[];
 		/** Called when a tagged word is activated; the reader opens its linked lexicon tab. */
@@ -45,6 +47,8 @@
 		wordOffset?: number;
 		/** Tagged-word offset, distinct from visible-word highlighting; matches verse_words.position. */
 		wordPositionOffset?: number;
+		/** False for slices already normalized together before splitting the verse lead. */
+		completeVerse?: boolean;
 	} = $props();
 
 	function matchesStrong(segment: Extract<VerseSegment, { kind: 'w' }>, strong: string | null) {
@@ -91,7 +95,9 @@
 		return parts;
 	}
 
-	const renderParts = $derived(keepClosingPunctuation(segments));
+	const renderParts = $derived(
+		keepClosingPunctuation(completeVerse ? placeVerseNotes(segments) : segments)
+	);
 
 	/**
 	 * Per part: its own chunks, plus the (rare) glued-punctuation suffix's own chunks. Threaded
@@ -133,7 +139,7 @@
 	{:else if item.kind === 'note'}
 		{#if !isHiddenAssignmentNote(item.segment)}
 			{@const assignmentWord = assignmentWords.get(item.segment)}
-			<Footnote
+			&#8288;<Footnote
 				marker={item.segment.marker}
 				text={assignmentWord
 					? strongAssignmentMessage(assignmentWord, activeStrong)
