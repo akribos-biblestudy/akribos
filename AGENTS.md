@@ -124,7 +124,7 @@ Latein und polytonisches Griechisch verwenden diese Schrift; Hebräisch verwende
 Noto Sans Hebrew. Betriebssystemschriften sind nur Rückfall, kein externer Schriftdienst ist beteiligt.
 
 `src/lib/typography/fonts.css` definiert die Dateien; `layout.css` ist die gemeinsame Größenskala:
-Bibeltext 1,125 rem, Kommentar-/Lexikon-/Dokumenttext 1,0625 rem, Zeilenhöhe 1,7. Berechnete Größen
+Bibel-, Kommentar-, Lexikon- und Dokumenttext einheitlich 1,125 rem, Zeilenhöhe 1,7. Berechnete Größen
 werden an `.reading-preferences` mit dem Geräteskalierungswert erneut aufgelöst, damit vererbte
 CSS-Variablen die persönliche Vergrößerung nicht verlieren. Bedienelemente und Lexikonlabels bleiben
 in festen rem-Größen. Auch die Kontovorschau liest den gerätelokalen Schriftgrößenwert.
@@ -627,10 +627,18 @@ bleibt auf normalen Bildschirmen rahmenlos. Eine mittlere Viewport-Breite darf a
 E-Ink-Darstellung aktivieren; Rahmen und deckender Hintergrund sind ausschließlich für `(update: slow)`
 beziehungsweise `(monochrome)` gedacht.
 
-Lexikon-Fließtext verwendet dieselbe Grundgröße von `1.0625rem` wie Kommentartext und folgt der persönlichen
+Lexikon-Fließtext verwendet dieselbe Grundgröße von `1.125rem` wie Bibel-, Kommentar- und Dokumenttext und folgt der persönlichen
 Leseschrift-Skalierung. Bibelzitate im Lexikon behalten dieselbe `--reader-text-size` wie der Reader.
 Lexikon-Labels, Statistik und Bedienelemente verwenden dagegen feste `rem`-Größen wie die übrige
 Oberfläche; sie dürfen die Leseschrift-Skalierung nicht erben oder verschachtelt vervielfachen.
+
+Kommentar-Versüberschriften in alten, vollständig flach importierten Texten werden beim Rendern
+nur als eigenständige Referenzsätze innerhalb des kommentierten Versbereichs erkannt (z. B.
+„Phil 4:1. Zunächst …“). Inline-Zitate bleiben im Satz, vorhandene Absatzstrukturen haben Vorrang.
+`renderCommentaryHtml()` gilt für Reader und Suchtreffer; es schreibt keine Importdaten zurück.
+Neue Kommentarimporte übernehmen OSIS-Absatzmeilensteine (`div type="x-p"` mit `sID`/`eID`)
+und Zeilenumbrüche (`lb`) vor der HTML-Bereinigung als erlaubte `p`-/`br`-Elemente.
+Kommentarlinks verwenden die gemeinsamen hellen/dunklen Farben von `data-bible-reference-prose`.
 
 Kommentare, Parallelstellen-Fließtext und Lexikonfelder ergänzen Bibelstellenlinks erst beim Rendern
 mit `rewriteBibleReferenceLinks()` und `linkBibleReferences()`, ebenso Kommentar-Suchtreffer.

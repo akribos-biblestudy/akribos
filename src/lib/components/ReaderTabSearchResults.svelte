@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { readerContentLinks } from '$lib/actions/reader-content-links';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
-	import { linkBibleReferences, rewriteBibleReferenceLinks } from '$lib/bible/link-references';
+	import { renderCommentaryHtml } from '$lib/bible/commentary-html';
 	import { formatReference, type VerseRef } from '$lib/bible/reference';
 	import { formatNumber } from '$lib/i18n';
 	import type { ReaderTabSearchResponse } from '$lib/reader/tab-search';
@@ -218,11 +218,12 @@
 							<!-- Commentary HTML is sanitized by every importer before it reaches the database. -->
 							<div
 								class="commentary-body"
+								data-bible-reference-prose
 								use:verseHoverPopover={{ bibleId }}
 								use:readerContentLinks={{ onReference: onOpenReference, referenceHref }}
 							>
 								<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-								{@html linkBibleReferences(rewriteBibleReferenceLinks(hit.bodyHtml))}
+								{@html renderCommentaryHtml(hit.bodyHtml, hit)}
 							</div>
 						</div>
 					</li>

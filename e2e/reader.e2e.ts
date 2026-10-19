@@ -436,15 +436,13 @@ test('the full Strong occurrence page is usable on a phone', async ({ page }) =>
 	expect(viewportDoesNotOverflow).toBe(true);
 });
 
-test('commentary text shares the reading face with a slightly smaller prose size', async ({
-	page
-}) => {
+test('commentary text shares the reading face at the same size', async ({ page }) => {
 	await useCommentaryColumn(page);
 
 	await page.goto('/Joh3,16');
 	const flowCommentary = page.locator('.flow-reference .commentary-body').first();
 	await expect(flowCommentary).toContainText('bekannteste Vers');
-	await expect(page.locator('.flow-reference').first()).toHaveCSS('font-size', '17px');
+	await expect(page.locator('.flow-reference').first()).toHaveCSS('font-size', '18px');
 	await expect(page.locator('.flow-verse').first()).toHaveCSS('font-size', '18px');
 	expect(
 		await page
@@ -993,7 +991,7 @@ test('a Strong click opens and then reuses the lexicon tab in its link group', a
 	const definitionSize = await definition.evaluate((element) =>
 		parseFloat(getComputedStyle(element).fontSize)
 	);
-	expect(definitionSize).toBeLessThan(parseFloat(readerFontSize));
+	expect(definitionSize).toBe(parseFloat(readerFontSize));
 	const labelSize = await study
 		.locator('h3')
 		.first()

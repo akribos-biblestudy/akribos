@@ -38,7 +38,7 @@
 	import { spanRangeForVerse } from '$lib/bible/highlight-span';
 	import { readerLocation } from '$lib/reader-location.svelte';
 	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
-	import { linkBibleReferences, rewriteBibleReferenceLinks } from '$lib/bible/link-references';
+	import { renderCommentaryHtml } from '$lib/bible/commentary-html';
 	import { readerContentLinks } from '$lib/actions/reader-content-links';
 	import { strongHover } from '$lib/actions/strong-hover';
 	import { chapterWindow } from '$lib/reader/chapter-window';
@@ -3086,6 +3086,7 @@
 																<!-- Imported commentary is reduced to an allow-list by its parser. -->
 																<div
 																	class="commentary-body"
+																	data-bible-reference-prose
 																	use:verseHoverPopover={{ bibleId: primaryBibleId }}
 																	use:readerContentLinks={{
 																		onReference: (reference) =>
@@ -3095,9 +3096,12 @@
 																	}}
 																>
 																	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-																	{@html linkBibleReferences(
-																		rewriteBibleReferenceLinks(entry.bodyHtml)
-																	)}
+																	{@html renderCommentaryHtml(entry.bodyHtml, {
+																		book: stream.reference.book,
+																		chapter: stream.reference.chapter,
+																		verseStart: entry.verseStart,
+																		verseEnd: entry.verseEnd
+																	})}
 																</div>
 															{/each}
 														</article>
@@ -3717,7 +3721,7 @@
 	.commentary-title {
 		margin: 0 0 0.3rem;
 		font-family: var(--font-sans);
-		font-size: 0.8rem;
+		font-size: calc(var(--reader-text-size) * 1.2);
 		font-weight: 650;
 		color: var(--color-stone-700);
 	}

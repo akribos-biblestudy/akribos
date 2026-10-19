@@ -31,11 +31,13 @@ test('Akribos Text renders Latin and polytonic Greek with real styles and matchi
 	const commentary = page.locator('.commentary-body').first();
 	const lexicon = page.locator('.lexicon-body').first();
 	await expect(bible).toHaveCSS('font-size', '18px');
-	await expect(commentary).toHaveCSS('font-size', '17px');
-	await expect(lexicon).toHaveCSS('font-size', '17px');
+	await expect(commentary).toHaveCSS('font-size', '18px');
+	await expect(lexicon).toHaveCSS('font-size', '18px');
 	await expect(page.locator('.occurrence p').first()).toHaveCSS('font-size', '18px');
 	expect(await actualFonts(page, '.flow-verse .verse-text')).toContain('Akribos Text');
 	expect(await actualFonts(page, '.headword h2')).toContain('Akribos Text');
+	expect(await actualFonts(page, '.commentary-body')).toContain('Akribos Text');
+	expect(await actualFonts(page, '.lexicon-body')).toContain('Akribos Text');
 
 	// Loading every declared style verifies actual font decoding, not just a CSS family string.
 	const styles = await page.evaluate(async () => {
@@ -54,8 +56,8 @@ test('Akribos Text renders Latin and polytonic Greek with real styles and matchi
 	const labelSize = await label.evaluate((element) => getComputedStyle(element).fontSize);
 	await page.getByRole('button', { name: 'Bibeltext vergrößern' }).click();
 	await expect(bible).toHaveCSS('font-size', '18.9px');
-	await expect(commentary).toHaveCSS('font-size', '17.85px');
-	await expect(lexicon).toHaveCSS('font-size', '17.85px');
+	await expect(commentary).toHaveCSS('font-size', '18.9px');
+	await expect(lexicon).toHaveCSS('font-size', '18.9px');
 	await expect(label).toHaveCSS('font-size', labelSize);
 });
 
@@ -214,4 +216,66 @@ test('the desktop header keeps its own size controls and the menu omits the dupl
 			.getByRole('menu', { name: 'Konto-Menü' })
 			.getByRole('group', { name: 'Textgröße im Bibeltext' })
 	).toBeHidden();
+});
+
+for (const theme of ['light', 'dark']) {
+	test(`commentary verse labels start paragraphs while inline links stay in prose in ${theme}`, async ({
+		page,
+		context,
+		baseURL
+	}) => {
+		await context.addCookies([
+			{ name: 'columns', value: 'SEEDDE,SEEDCOMMENTARY', url: baseURL! },
+			{ name: 'theme', value: theme, url: baseURL! }
+		]);
+		await page.goto('/Joh3,16');
+		const body = page.locator('.commentary-body').first();
+		await expect(body.locator('br')).toHaveCount(2);
+		const label = body.locator('a[data-verse="16"]').first();
+		const inline = body.locator('a[data-verse="16"]').nth(1);
+		await expect(label).toHaveCSS('text-decoration-line', 'underline');
+		const expectedColor = await body.evaluate((element, dark) => {
+			const sample = document.createElement('span');
+			sample.style.color = `var(--color-accent-${dark ? '300' : '700'})`;
+			element.append(sample);
+			const color = getComputedStyle(sample).color;
+			sample.remove();
+			return color;
+		}, theme === 'dark');
+		await expect(label).toHaveCSS('color', expectedColor);
+		await expect(inline).toHaveCSS('color', expectedColor);
+		expect(await label.evaluate((element) => element.previousSibling?.nodeName)).toBe('BR');
+		expect(await inline.evaluate((element) => element.previousSibling?.nodeName)).toBe('#text');
+		await label.hover();
+		await expect(page.getByRole('tooltip').first()).toBeVisible();
+	});
+}
+
+test('notes use the same reading font and scale as scripture', async ({
+	page,
+	context,
+	baseURL
+}) => {
+	await registerWithPassword(
+		page,
+		`note-type-${crypto.randomUUID()}@example.com`,
+		'typography-test-password',
+		'Typography'
+	);
+	await context.addCookies([{ name: 'reader-font-scale', value: '140', url: baseURL! }]);
+	await page.goto('/notes');
+	await page.getByRole('button', { name: 'Neue Notiz', exact: true }).click();
+	const prose = page.locator('.document-prose');
+	await expect(prose).toBeVisible();
+	await prose.fill('Dieselbe Leseschrift für Bibeltext und Notizen.');
+	await expect(prose).toHaveCSS('font-size', '25.2px');
+	await page.evaluate(() => document.fonts.ready);
+	expect(await actualFonts(page, '.document-prose p')).toContain('Akribos Text');
+	const noteUrl = page.url();
+	await expect(page.locator('.save-status')).toHaveText('Gespeichert');
+	await page.goto('/Joh3,16');
+	await expect(page.locator('.flow-verse').first()).toHaveCSS('font-size', '25.2px');
+	await page.getByRole('button', { name: 'Bibeltext vergrößern' }).click();
+	await page.goto(noteUrl);
+	await expect(prose).toHaveCSS('font-size', '26.1px');
 });

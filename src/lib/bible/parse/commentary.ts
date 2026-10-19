@@ -372,7 +372,17 @@ const KEEP_TAGS = new Set(['p', 'br', 'em', 'i', 'strong', 'b', 'ul', 'ol', 'li'
  * can scan without risking any markup it does not already know how to leave alone.
  */
 export function sanitizeHtml(value: string): string {
-	const escaped = escapeHtml(stripTags(value));
+	// OSIS x-p milestones are paragraphs even though their start/end are self-closing divs.
+	// Preserve these boundaries before the allow-list discards source attributes.
+	const paragraphs = value
+		.replace(/<div\b[^>]*\/>/gi, (tag) => {
+			if (!/\btype\s*=\s*(["'])x-p\1/i.test(tag)) return tag;
+			if (/\beID\s*=/i.test(tag)) return '</p>';
+			if (/\bsID\s*=/i.test(tag)) return '<p>';
+			return tag;
+		})
+		.replace(/<lb\b[^>]*\/>/gi, '<br>');
+	const escaped = escapeHtml(stripTags(paragraphs));
 	const withTags = escaped.replace(
 		/&lt;(\/?)(p|br|em|i|strong|b|ul|ol|li|blockquote)\s*\/?&gt;/gi,
 		(_match, slash: string, tag: string) => `<${slash}${tag.toLowerCase()}>`
