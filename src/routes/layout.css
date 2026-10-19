@@ -45,7 +45,7 @@
 :root,
 .reading-preferences {
 	--reader-text-size: calc(1.125rem * var(--reader-font-scale, 1));
-	--reader-prose-size: calc(1.0625rem * var(--reader-font-scale, 1));
+	--reader-prose-size: var(--reader-text-size);
 	--reader-hebrew-size: calc(1.25rem * var(--reader-font-scale, 1));
 	--reader-line-height: 1.7;
 	--reader-font-family: var(--font-serif);

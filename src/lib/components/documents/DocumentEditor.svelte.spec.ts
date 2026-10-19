@@ -136,7 +136,7 @@ describe('DocumentEditor footnote navigation', () => {
 				}
 			)
 			.toMatchObject({ visible: true });
-		expect(getComputedStyle(dialog.querySelector('.document-prose')!).fontSize).toBe('23.8px');
+		expect(getComputedStyle(dialog.querySelector('.document-prose')!).fontSize).toBe('25.2px');
 		await page.getByRole('button', { name: 'Zur Textstelle', exact: true }).click();
 		await expect
 			.poll(() => fullyVisible(references[0]!, host), {

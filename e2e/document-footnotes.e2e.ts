@@ -102,7 +102,7 @@ test('mobile Zen scrolls to a distant footnote and returns to the chosen repeate
 	await page.getByRole('tab', { name: 'Visuell', exact: true }).click();
 	await page.getByRole('button', { name: 'Zen-Modus', exact: true }).click();
 	const zen = page.getByRole('dialog', { name: 'Zen-Modus', exact: true });
-	await expect(zen.locator('.document-prose')).toHaveCSS('font-size', '23.8px');
+	await expect(zen.locator('.document-prose')).toHaveCSS('font-size', '25.2px');
 	await expect(zen.locator('sup[data-footnote-ref]')).toHaveCount(3);
 	await expect(zen.locator('li[data-footnote-id]')).toHaveCount(2);
 	const sources = zen.locator('sup[data-footnote-ref="quelle"]');
@@ -175,16 +175,16 @@ test('a visual footnote is one undo step and survives rich editing, Markdown, sa
 	expect(saved.bodyHtml).not.toContain('id="footnote-');
 	expect(saved.bodyMarkdown).not.toContain('data-footnote');
 	await page.setViewportSize({ width: 390, height: 844 });
-	await expect(prose).toHaveCSS('font-size', '23.8px');
+	await expect(prose).toHaveCSS('font-size', '25.2px');
 	await page.getByRole('button', { name: 'Zen-Modus', exact: true }).click();
 	const zen = page.getByRole('dialog', { name: 'Zen-Modus', exact: true });
 	await expect(zen.locator('sup[data-footnote-ref]')).toHaveCount(1);
-	await expect(zen.locator('.document-prose')).toHaveCSS('font-size', '23.8px');
+	await expect(zen.locator('.document-prose')).toHaveCSS('font-size', '25.2px');
 	expect(
 		await zen
 			.locator('li[data-footnote-id]')
 			.evaluate((element) => parseFloat(getComputedStyle(element).fontSize))
-	).toBeCloseTo(22.61, 1);
+	).toBeCloseTo(23.94, 1);
 	await expect(zen.locator('li[data-footnote-id]')).toContainText('ausführliche Erklärung');
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 	await page.getByRole('button', { name: 'Zen-Modus beenden', exact: true }).click();

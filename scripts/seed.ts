@@ -137,7 +137,7 @@ const HEBREW_LEXICON = `<?xml version="1.0" encoding="utf-8"?>
 
 /** A commentary entry on the same verse as the fixture translations, so the reader has something to
  *  show alongside them. */
-const COMMENTARY = `Joh 3,16\tDer bekannteste Vers der Bibel. **Also** meint hier: auf diese Weise.`;
+const COMMENTARY = `Joh 3,16\tDer bekannteste Vers der Bibel. **Also** meint hier: auf diese Weise. Joh 3:16. Dieser Abschnitt erläutert Gottes Liebe (Joh 3:16). Dazu steht in Joh 3:17 ein weiterer Gedanke.`;
 
 type SeedAccount = {
 	email: string;

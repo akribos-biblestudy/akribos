@@ -53,8 +53,8 @@ Die Metadaten enthalten vollständige Lizenz- und Urheberangaben. Die tatsächli
 ausgelieferten Dateien werden über Vite importiert und erhalten gehashte URLs.
 
 Die x-Höhe beträgt 930/2048 em (45,41 %), die Grundkonturen wurden dafür nicht
-skaliert. Ausgangspunkt der Anwendung ist 18 px für Bibeltext und 17 px für Kommentar-
-und Lexikontext mit 1,7-facher Zeilenhöhe. Die persönliche Leseschrift-Skalierung
+skaliert. Ausgangspunkt der Anwendung ist einheitlich 18 px für Bibel-, Kommentar-,
+Lexikon- und Notiztext mit 1,7-facher Zeilenhöhe. Die persönliche Leseschrift-Skalierung
 wirkt einmal auf diese Größen; Bedienelemente verwenden weiterhin die Sans-Schrift.
 Urtext und Bibelzitate folgen der Bibelgröße. Freigabeentscheidend bleibt die
 Anwendungsprüfung, nicht allein die isolierte Schriftprobe.
