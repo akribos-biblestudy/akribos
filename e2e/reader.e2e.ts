@@ -991,7 +991,7 @@ test('a Strong click opens and then reuses the lexicon tab in its link group', a
 	const definitionSize = await definition.evaluate((element) =>
 		parseFloat(getComputedStyle(element).fontSize)
 	);
-	expect(definitionSize).toBeLessThan(parseFloat(readerFontSize));
+	expect(definitionSize).toBe(parseFloat(readerFontSize));
 	const labelSize = await study
 		.locator('h3')
 		.first()
