@@ -26,7 +26,7 @@ const image = {
 };
 
 async function login(page: Page, email: string, secret = password) {
-	await page.goto('/login');
+	await page.goto('/login?redirectTo=%2Faccount');
 	await page.getByLabel('E-Mail-Adresse').fill(email);
 	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort', { exact: true }).fill(secret);

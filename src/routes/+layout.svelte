@@ -43,49 +43,52 @@
 		if (!data.user) clearBrowserReaderResume();
 		const isReaderPage = page.route.id === '/[...reference]';
 		const isWorkspaceOpening = page.route.id === '/workspaces/[id]';
-		if (!data.user || isWorkspaceOpening) markReaderBrowserReady();
-		if (data.user && !isWorkspaceOpening) {
-			const rootArrival = isReaderPage && page.url.searchParams.get('readerResume') === '1';
-			void (async () => {
+
+		// Set the width before any bootstrap request so viewport and tab restoration use one load.
+		let initializeViewport = false;
+		const value = String(initialReaderColumns(window.innerWidth));
+		try {
+			document.cookie = `${INITIAL_READER_COLUMNS_COOKIE}=${value}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+			initializeViewport =
+				data.initializeReaderWorkspace &&
+				document.cookie.split('; ').includes(`${INITIAL_READER_COLUMNS_COOKIE}=${value}`);
+		} catch {
+			// Without cookies or JavaScript the first Bible remains usable in a single tile.
+		}
+
+		if (isWorkspaceOpening || (!data.user && !initializeViewport)) {
+			markReaderBrowserReady();
+			return;
+		}
+		const rootArrival = isReaderPage && page.url.searchParams.get('readerResume') === '1';
+		void (async () => {
+			if (data.user) {
 				const restored =
 					resume && rootArrival ? await restoreBrowserReaderResume(data.user?.id ?? null) : null;
 				if (resume && rootArrival && !restored) clearBrowserReaderResume();
 				if (rootArrival) {
 					await goto(restored ?? '/', { replaceState: true, invalidateAll: true, noScroll: true });
 				} else {
-					// Revalidate the tab context without performing another navigation: native POST responses
-					// carry success/error form data which goto() deliberately clears, while invalidation keeps it.
+					// Preserve native POST success/error data while resolving the browser-tab context.
 					await invalidateAll();
 				}
 				if (isReaderPage) await workspaceCapture.follow?.();
-				markReaderBrowserReady();
-				const current = workspaceCapture.capture?.();
-				if (isReaderPage && current && !page.data.readerWorkspaceDetached)
-					rememberBrowserReaderView(
-						data.user?.id ?? null,
-						`${window.location.pathname}?${current.readerState}`,
-						workspaceCapture.persistence.read()
-					);
-			})().catch(() => {
-				browserWorkspaceError =
-					'Die lokale Leseansicht konnte nicht geladen werden. Bitte versuche es erneut.';
-				delete document.documentElement.dataset.readerBootstrapping;
-			});
-		}
-
-		// Send only a coarse width hint. Saved layouts ignore it, including on another device.
-		const value = String(initialReaderColumns(window.innerWidth));
-		try {
-			document.cookie = `${INITIAL_READER_COLUMNS_COOKIE}=${value}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
-			if (
-				data.initializeReaderWorkspace &&
-				document.cookie.split('; ').includes(`${INITIAL_READER_COLUMNS_COOKIE}=${value}`)
-			) {
-				void goto(page.url, { replaceState: true, invalidateAll: true, noScroll: true });
+			} else {
+				await goto(page.url, { replaceState: true, invalidateAll: true, noScroll: true });
 			}
-		} catch {
-			// Without cookies or JavaScript the first Bible remains usable in a single tile.
-		}
+			markReaderBrowserReady();
+			const current = workspaceCapture.capture?.();
+			if (isReaderPage && current && !page.data.readerWorkspaceDetached)
+				rememberBrowserReaderView(
+					data.user?.id ?? null,
+					`${window.location.pathname}?${current.readerState}`,
+					workspaceCapture.persistence.read()
+				);
+		})().catch(() => {
+			browserWorkspaceError =
+				'Die lokale Leseansicht konnte nicht geladen werden. Bitte versuche es erneut.';
+			delete document.documentElement.dataset.readerBootstrapping;
+		});
 	});
 	const workspaceCapture: ReaderWorkspaceCapture = {
 		capture: null,
@@ -155,7 +158,7 @@
 {:else}
 	<div
 		class="reading-preferences flex min-h-full flex-col"
-		data-reader-authenticated={data.user ? '' : undefined}
+		data-reader-pending={data.user || data.initializeReaderWorkspace ? '' : undefined}
 		class:hidden={!!browserWorkspaceError}
 		style="--reader-font-scale: {data.readerFontScale / 100}; --header-height: {reader
 			? '3.25rem'
@@ -184,9 +187,3 @@
 
 	<Analytics config={data.analytics} />
 {/if}
-
-<style>
-	:global(html[data-reader-bootstrapping]) .reading-preferences[data-reader-authenticated] {
-		visibility: hidden;
-	}
-</style>

@@ -65,7 +65,7 @@ describe('email sign-in', () => {
 			'https://evil.example',
 			'/\n/evil.example'
 		])
-			expect(loginRedirect(unsafe)).toBe('/account');
+			expect(loginRedirect(unsafe)).toBe('/');
 		expect(loginRedirect('/notes?year=2026')).toBe('/notes?year=2026');
 	});
 

@@ -59,7 +59,7 @@ test('filters notes by creation year before pagination and preserves the year ac
 	} finally {
 		await client.end();
 	}
-	await page.goto('/login');
+	await page.goto('/login?redirectTo=%2Faccount');
 	await page.getByLabel('E-Mail-Adresse').fill(email);
 	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort', { exact: true }).fill(password);

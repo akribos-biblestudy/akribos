@@ -34,7 +34,7 @@ async function login(page: Page, readerFontScale = 100) {
 		.addCookies([
 			{ name: 'reader-font-scale', value: String(readerFontScale), url: 'http://localhost:4173' }
 		]);
-	await page.goto('/login');
+	await page.goto('/login?redirectTo=%2Faccount');
 	await page.getByLabel('E-Mail-Adresse').fill(email);
 	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort', { exact: true }).fill(password);

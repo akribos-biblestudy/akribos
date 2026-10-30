@@ -9,7 +9,7 @@ export async function load({ params, locals, setHeaders }) {
 		'x-robots-tag': 'noindex, nofollow',
 		'referrer-policy': 'same-origin'
 	});
-	if (locals.user) redirect(303, '/account');
+	if (locals.user) redirect(303, '/');
 	return { pending: await peekEmailLogin(getDb(), params.token) };
 }
 

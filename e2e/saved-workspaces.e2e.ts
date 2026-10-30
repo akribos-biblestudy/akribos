@@ -7,7 +7,7 @@ import { hashPassword } from '../src/lib/server/auth/password.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
 
 async function loginExistingReader(page: Page, email: string, password: string) {
-	await page.goto('/login');
+	await page.goto('/login?redirectTo=%2Faccount');
 	await page.getByLabel('E-Mail-Adresse').fill(email);
 	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort', { exact: true }).fill(password);

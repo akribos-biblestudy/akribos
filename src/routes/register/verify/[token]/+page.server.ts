@@ -11,7 +11,7 @@ import { listBibles } from '$lib/server/repositories/resources';
 import { readColumns } from '$lib/server/columns';
 
 export async function load({ params, locals }) {
-	if (locals.user) redirect(303, '/account');
+	if (locals.user) redirect(303, '/');
 
 	// Not consumed here: doing so would burn a single-use token, and mail clients and link scanners
 	// follow links on their own before a person ever clicks anything (see password-reset's `load` for
@@ -30,6 +30,6 @@ export const actions = {
 		await updateReaderColumns(db, result.userId, readColumns(cookies, await listBibles(db)));
 		await createSession(db, cookies, result.userId, request.headers.get('user-agent') ?? undefined);
 
-		redirect(303, '/account');
+		redirect(303, '/');
 	}
 };

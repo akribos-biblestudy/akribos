@@ -6,13 +6,13 @@ export function loginRedirect(value: unknown): string {
 		/[\\\s]/.test(value) ||
 		[...value].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
 	)
-		return '/account';
+		return '/';
 	try {
 		const url = new URL(value, 'https://akribos.invalid');
 		return url.origin === 'https://akribos.invalid'
 			? `${url.pathname}${url.search}${url.hash}`
-			: '/account';
+			: '/';
 	} catch {
-		return '/account';
+		return '/';
 	}
 }

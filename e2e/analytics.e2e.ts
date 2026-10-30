@@ -63,7 +63,7 @@ test('Umami settings, consent, private URL filtering and revocation work togethe
 				exact: false
 			})
 		).toBeVisible();
-		await admin.goto('/login');
+		await admin.goto('/login?redirectTo=%2Faccount');
 		await admin.getByLabel('E-Mail-Adresse').fill('admin@example.com');
 		await admin.getByRole('button', { name: 'Weiter', exact: true }).click();
 		await admin.getByLabel('Passwort').fill('seed-admin-password');
@@ -109,7 +109,7 @@ test('Umami settings, consent, private URL filtering and revocation work togethe
 			const loginContext = await browser.newContext({ baseURL: origin, javaScriptEnabled });
 			try {
 				const loginPage = await loginContext.newPage();
-				await loginPage.goto('/login');
+				await loginPage.goto('/login?redirectTo=%2Faccount');
 				await loginPage.getByLabel('E-Mail-Adresse').fill('admin@example.com');
 				await loginPage.getByRole('button', { name: 'Weiter', exact: true }).click();
 				await loginPage.getByLabel('Passwort').fill('seed-admin-password');

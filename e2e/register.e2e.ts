@@ -45,7 +45,8 @@ for (const javaScriptEnabled of [true, false]) {
 			expect(await lastMailLinkTo(email)).toBe(link);
 			await page.getByLabel('Anmeldecode').fill(`${code.slice(0, 3)} ${code.slice(3)}`);
 			await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
-			await expect(page).toHaveURL(/\/account$/);
+			await expect(page).toHaveURL((url) => url.pathname === '/Joh1');
+			await page.goto('/account');
 			await expect(
 				page.getByRole('heading', { name: 'Passwort festlegen', exact: true })
 			).toBeVisible();
@@ -65,7 +66,7 @@ for (const javaScriptEnabled of [true, false]) {
 			await expect(page.getByLabel('Anmeldecode')).toHaveCount(0);
 			await page.getByLabel('Passwort', { exact: true }).fill(PASSWORD);
 			await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
-			await expect(page).toHaveURL(/\/account$/);
+			await expect(page).toHaveURL((url) => url.pathname === '/Joh1');
 		} finally {
 			await context.close();
 		}
@@ -98,7 +99,7 @@ test('a link works in another browser, previews do not consume it, and a passwor
 		expect(await lastMailLinkTo(email)).not.toBe(link);
 		await page.getByLabel('Anmeldecode').fill(await lastMailCodeTo(email));
 		await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
-		await expect(page).toHaveURL(/\/account$/);
+		await expect(page).toHaveURL((url) => url.pathname === '/Joh1');
 	} finally {
 		await other.close();
 	}
@@ -121,7 +122,22 @@ test('resending replaces the old link and code; a wrong code can be corrected', 
 	await expect(page.getByRole('alert')).toBeVisible();
 	await page.getByLabel('Anmeldecode').fill(code);
 	await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
-	await expect(page).toHaveURL(/\/account$/);
+	await expect(page).toHaveURL((url) => url.pathname === '/Joh1');
+});
+
+test('an email link without an explicit destination opens the Bible', async ({ page }) => {
+	const email = uniqueEmail();
+	await start(page, email);
+	const link = await lastMailLinkTo(email);
+	await page.goto(link);
+	await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+	await expect(page).toHaveURL((url) => url.pathname === '/Joh1');
+	await expect(page.locator('.reader-tile').first()).toBeVisible();
+	// Revisiting the login page or the consumed mail link while signed in also returns home.
+	await page.goto('/login');
+	await expect(page).toHaveURL((url) => url.pathname === '/Joh1');
+	await page.goto(link);
+	await expect(page).toHaveURL((url) => url.pathname === '/Joh1');
 });
 
 test('a filled honeypot does not create an account or send a mail', async ({ page }) => {
@@ -164,5 +180,5 @@ test('legacy password accounts still require email activation and their existing
 	await expect(page.getByText('ist eine neue E-Mail unterwegs')).toBeVisible();
 	await page.goto(`/register/verify/${token}`);
 	await page.getByRole('button', { name: 'Konto aktivieren' }).click();
-	await expect(page).toHaveURL(/\/account$/);
+	await expect(page).toHaveURL((url) => url.pathname === '/Joh1');
 });
