@@ -279,7 +279,8 @@ Passwortsetzung verlangt nur bei vorhandenem Passwort dessen Bestätigung und pr
 gelesenen Hash erneut, damit parallele Formulare kein inzwischen gesetztes Passwort überschreiben.
 Ausstehende E-Mail-Anmeldungen werden dabei ungültig. Anmeldeseiten sind `private, no-store` und
 `noindex`; Anmeldelinks werden in langsamen Request-Logs geschwärzt. Weiterleitungsziele bleiben
-lokale Pfade. Die globale Referrer-Regel bleibt `same-origin`, damit native POSTs funktionieren.
+lokale Pfade; ohne explizites Ziel führt jede Anmeldung über `/` zur Bibelansicht.
+Die globale Referrer-Regel bleibt `same-origin`, damit native POSTs funktionieren.
 
 ## Reader-Architektur
 
@@ -316,7 +317,10 @@ es entstehen höchstens so viele Kacheln wie ausgewählte Werke. Die erste Resso
 Das Root-Layout meldet die grobe Breitenklasse im Cookie `reader-initial-columns`. Solange sie bei
 einem Erstbesuch fehlt, zeigen Server-Loads nur eine vorläufige Bibelkachel und speichern oder
 kanonisieren diese noch nicht. Nach der einmaligen Client-Navigation wird der passende Standard
-regulär gespeichert; die Tour wartet darauf. Ohne JavaScript bleibt die Bibelkachel bedienbar.
+regulär gespeichert; die Tour wartet darauf. `app.html` setzt vor dem ersten Paint die Bootstrap-
+Markierung und verbirgt nur vorläufige Ansichten (`data-reader-pending`). Das Layout schreibt den
+Breitenhinweis vor dem tab-lokalen Nachladen und zeigt die Ansicht erst nach dessen Abschluss.
+Ohne JavaScript bleibt die Bibelkachel sichtbar und bedienbar; der eingebettete App-Editor bleibt ausgenommen.
 Die vorläufige Reader-Antwort ist `private, no-store`. Gespeicherte Konto-/Cookie-Workspaces,
 alte `columns`-/`reader_columns`-Auswahlen und geteilte URL-Ansichten haben immer Vorrang;
 Fenstergrößenänderungen ordnen einen bestehenden Arbeitsbereich nie automatisch neu an.

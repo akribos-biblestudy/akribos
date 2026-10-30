@@ -57,7 +57,7 @@ test('an administrator can disable API text while the granted Reader and preview
 		expect((await request.get(`/api/reader/bibles/${resourceId}/43/3`, { headers })).status()).toBe(
 			404
 		);
-		await page.goto('/login');
+		await page.goto('/login?redirectTo=%2Faccount');
 		await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
 		await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 		await page.getByLabel('Passwort').fill('seed-admin-password');

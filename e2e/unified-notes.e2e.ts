@@ -509,7 +509,7 @@ async function loginNewReader(page: import('@playwright/test').Page): Promise<vo
 	} finally {
 		await client.end();
 	}
-	await page.goto('/login');
+	await page.goto('/login?redirectTo=%2Faccount');
 	await page.getByLabel('E-Mail-Adresse').fill(email);
 	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort', { exact: true }).fill(PASSWORD);
@@ -693,7 +693,7 @@ async function loginAs(
 	page: import('@playwright/test').Page,
 	account: { email: string; password: string }
 ): Promise<void> {
-	await page.goto('/login');
+	await page.goto('/login?redirectTo=%2Faccount');
 	await page.getByLabel('E-Mail-Adresse').fill(account.email);
 	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort').fill(account.password);

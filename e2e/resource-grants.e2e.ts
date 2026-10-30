@@ -14,7 +14,7 @@ import {
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
 
 async function login(page: Page, email: string) {
-	await page.goto('/login');
+	await page.goto('/login?redirectTo=%2Faccount');
 	await page.getByLabel('E-Mail-Adresse').fill(email);
 	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await page.getByLabel('Passwort').fill('seed-admin-password');

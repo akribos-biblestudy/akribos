@@ -33,7 +33,7 @@ test('resource metadata stays populated after unchanged and edited saves and res
 				licenseHtml: `<p>Rights ${index}</p>`
 			}))
 		);
-		await page.goto('/login');
+		await page.goto('/login?redirectTo=%2Faccount');
 		await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
 		await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 		await page.getByLabel('Passwort').fill('seed-admin-password');

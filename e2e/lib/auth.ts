@@ -8,7 +8,7 @@ export async function registerWithPassword(
 	password: string,
 	displayName: string
 ) {
-	await page.goto('/register');
+	await page.goto('/register?redirectTo=%2Faccount');
 	await page.getByLabel('E-Mail-Adresse').fill(email);
 	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 	await expect(page.getByLabel('Anmeldecode')).toBeVisible();

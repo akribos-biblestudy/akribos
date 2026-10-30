@@ -6,7 +6,16 @@
 		<meta name="text-scale" content="scale" />
 		<link rel="icon" href="%sveltekit.assets%/icon.png" />
 		<meta name="theme-color" content="#3f873f" />
+		<style>
+			html[data-reader-bootstrapping] [data-reader-pending] {
+				visibility: hidden;
+			}
+		</style>
 		<script>
+			// Hide only provisional views before first paint, including while client modules download.
+			// With JavaScript disabled the server-rendered Bible remains visible and usable.
+			if (!/^\/app\/editor\/[^/]+\/?$/.test(location.pathname))
+				document.documentElement.dataset.readerBootstrapping = 'true';
 			// Apply the stored colour scheme before first paint, to avoid a flash of the wrong theme.
 			// The cookie is this device's choice (set by the server, seeded from the account on a device
 			// that has never chosen one); a leftover localStorage value from before the cookie existed is
