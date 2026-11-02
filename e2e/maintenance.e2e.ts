@@ -100,6 +100,11 @@ test('wiederholt nach einer Formularübermittlung ausschließlich per GET', asyn
 	await page.goto('https://maintenance-test.invalid/form');
 	await page.getByRole('button', { name: 'Speichern' }).click();
 	await expect(page.getByRole('heading', { name: 'Wir sind gleich wieder da.' })).toBeVisible();
+	await expect(
+		page.getByText(
+			'Bitte prüfe anschließend, ob deine zuletzt gesendeten Änderungen gespeichert wurden.'
+		)
+	).toBeVisible();
 	await page.clock.runFor(5100);
 	await expect(page.getByRole('heading', { name: 'Wieder verfügbar' })).toBeVisible();
 	expect(methods).toEqual(['POST', 'GET']);
