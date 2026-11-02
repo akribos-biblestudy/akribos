@@ -53,3 +53,17 @@ test('bleibt ohne JavaScript und bei reduzierter Bewegung bedienbar', async ({ b
 	await expect(page.locator('.orbit')).toHaveCSS('animation-name', 'none');
 	await context.close();
 });
+
+test('kennzeichnet die direkte Asset-Vorschau und startet keine Prüfung', async ({ page }) => {
+	let probes = 0;
+	await page.route('https://maintenance-test.invalid/**', (route) => {
+		if (new URL(route.request().url()).pathname === '/healthz') probes++;
+		return route.fulfill({ status: 200, contentType: 'text/html', body: maintenance });
+	});
+	await page.clock.install();
+	await page.goto('https://maintenance-test.invalid/maintenance.html');
+	await expect(page.getByText('Vorschau der Wartungsseite')).toBeVisible();
+	await expect(page.locator('.status')).toBeHidden();
+	await page.clock.runFor(12000);
+	expect(probes).toBe(0);
+});

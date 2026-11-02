@@ -23,6 +23,7 @@
 			.manual { margin-top: 1.8rem; color: #647568; font-size: .88rem; line-height: 1.6; }
 			a { color: #396a43; text-underline-offset: .2em; }
 			a:focus-visible { outline: 3px solid #578a5e; outline-offset: 4px; }
+			.preview .status, .preview .automatic { display: none; }
 			@keyframes turn { to { transform: rotate(360deg); } }
 			@keyframes float { 50% { transform: translateY(-5px); } }
 			@keyframes breathe { 50% { opacity: .5; } }
@@ -42,12 +43,17 @@
 			<p class="intro">Akribos ist gerade kurz nicht erreichbar – möglicherweise spielen wir ein Update ein. Bitte hab einen kleinen Moment Geduld.</p>
 			<div class="status"><span class="dot" aria-hidden="true"></span><span>Verfügbarkeit wird automatisch geprüft</span></div>
 			<p class="manual"><span class="automatic">Diese Seite öffnet sich automatisch wieder, sobald Akribos erreichbar ist.<br /></span><a href="">Jetzt erneut versuchen</a></p>
+			<p class="manual" id="preview-message" hidden>Vorschau der Wartungsseite</p>
 			<noscript><style>.status, .automatic { display: none; }</style></noscript>
 		</main>
 		<script>
 			(() => {
 				// Directly opening the source asset is a preview, not a failed navigation.
-				if (location.pathname === '/maintenance.html') return;
+				if (location.pathname === '/maintenance.html') {
+					document.documentElement.classList.add('preview');
+					document.getElementById('preview-message').hidden = false;
+					return;
+				}
 				let checking = false;
 				async function check() {
 					if (checking || document.visibilityState === 'hidden') return;
