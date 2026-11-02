@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ParseStream } from '../../bible/parse/types.ts';
 import { getDb, closeDb } from '../db/index.ts';
 import {
 	apiKeys,
+	commentaryEntries,
+	crossReferences,
 	highlightStyles,
 	lexiconEntries,
 	resources,
@@ -30,6 +32,9 @@ import { GET as strong } from '../../../routes/api/v1/strong/[strong]/+server.ts
 import { GET as list } from '../../../routes/api/v1/lists/[id]/+server.ts';
 import { GET as highlights } from '../../../routes/api/v1/highlights/+server.ts';
 import { actions as adminActions } from '../../../routes/admin/resources/+page.server.ts';
+import { GET as offlineList } from '../../../routes/api/app/offline/resources/+server.ts';
+import { GET as offlinePackage } from '../../../routes/api/app/offline/resources/[resource]/+server.ts';
+import { GET as readerTabChapter } from '../../../routes/api/reader/[book]/[chapter]/+server.ts';
 
 const db = getDb();
 const prefix = `API-ACCESS-${randomUUID()}`.toUpperCase();
@@ -396,6 +401,154 @@ describe.sequential('independent resource permission for the public API', () => 
 			chapter: '3'
 		});
 		expect((await chapter(restored as never)).status).toBe(200);
+	});
+
+	it('requires both an explicit offline licence and current reader access', async () => {
+		const resourceId = id('OfflinePrivate');
+		resourceIds.push(resourceId);
+		await ingestBible(db, bibleSource(resourceId, 'Offline'), { sourceFormat: 'regression' });
+		await db.update(resources).set({ isPublic: false }).where(eq(resources.id, resourceId));
+		await db.insert(resourceUserGrants).values({ resourceId, userId });
+		const contains = async (viewer: string | null) =>
+			(await listResources(db, viewer, 'offline')).some((item) => item.id === resourceId);
+		expect(await contains(userId)).toBe(false);
+
+		const form = new FormData();
+		form.set('id', resourceId);
+		form.set('offlineAccessSettings', '1');
+		form.set('offlineEnabled', 'on');
+		await adminActions.save({
+			request: new Request(`${config().ORIGIN}/admin/resources`, { method: 'POST', body: form })
+		} as never);
+		expect(await contains(null)).toBe(false);
+		expect(await contains(userId)).toBe(true);
+		await ingestBible(db, bibleSource(resourceId, 'Reimported'), { sourceFormat: 'regression' });
+		expect(await contains(userId)).toBe(true);
+		await db.delete(resourceUserGrants).where(eq(resourceUserGrants.resourceId, resourceId));
+		expect(await contains(userId)).toBe(false);
+		await db.insert(resourceUserGrants).values({ resourceId, userId });
+		form.delete('offlineEnabled');
+		await adminActions.save({
+			request: new Request(`${config().ORIGIN}/admin/resources`, { method: 'POST', body: form })
+		} as never);
+		expect(await contains(userId)).toBe(false);
+	});
+
+	it('exports only authorized works and preserves Reader chapter display data', async () => {
+		const bibleId = id('OfflinePackageBible');
+		const commentId = id('OfflinePackageCommentary');
+		const clientAddress = randomUUID();
+		resourceIds.push(bibleId, commentId);
+		await ingestBible(db, bibleSource(bibleId, 'Offline'), { sourceFormat: 'regression' });
+		await db
+			.update(resources)
+			.set({ isPublic: false, offlineEnabled: true })
+			.where(eq(resources.id, bibleId));
+		await db.insert(resourceUserGrants).values({ resourceId: bibleId, userId });
+		await db.insert(resources).values({
+			id: commentId,
+			kind: 'commentary',
+			name: commentId,
+			abbrev: 'Comment',
+			language: 'de',
+			status: 'ready',
+			offlineEnabled: true,
+			isPublic: false
+		});
+		await db.insert(resourceUserGrants).values({ resourceId: commentId, userId });
+		await db.insert(commentaryEntries).values({
+			resourceId: commentId,
+			bookId: 43,
+			chapter: 3,
+			verseStart: 16,
+			title: 'Title',
+			bodyHtml: '<p>Example</p>'
+		});
+		await db.insert(crossReferences).values({
+			resourceId: commentId,
+			fromBook: 43,
+			fromChapter: 3,
+			fromVerse: 16,
+			toBook: 1,
+			toChapter: 1,
+			toVerse: 1,
+			toVerseEnd: 1
+		});
+		const event = (resource: string, viewer: string | null = userId) => {
+			const url = new URL(`/api/app/offline/resources/${resource}`, config().ORIGIN);
+			return {
+				url,
+				request: new Request(url, { headers: { 'x-akribos-app': '1' } }),
+				params: { resource },
+				getClientAddress: () => clientAddress,
+				locals: { user: viewer ? { id: viewer } : null },
+				setHeaders: (values: Record<string, string>) => {
+					void values;
+				}
+			};
+		};
+		const listed = await (await offlineList(event(bibleId) as never)).json();
+		expect(listed.owner).toBe(userId);
+		expect(listed.resources.map((item: { id: string }) => item.id)).toEqual(
+			expect.arrayContaining([bibleId, commentId])
+		);
+		for (const resourceId of [bibleId, commentId]) {
+			const response = await offlinePackage(event(resourceId) as never);
+			const data = await response.json();
+			expect(data.owner).toBe(userId);
+			expect(data.version).toBe(1);
+			const live = await readerTabChapter({
+				params: { book: '43', chapter: '3' },
+				url: new URL(`/api/reader/43/3?resource=${resourceId}`, config().ORIGIN),
+				locals: { user: { id: userId } },
+				setHeaders: () => {}
+			} as never);
+			const liveData = await live.json();
+			expect(data.chapters[0].chapter).toEqual(liveData.chapter);
+			expect(data.chapters[0].referenceResources).toEqual(liveData.referenceResources);
+			expect(data.chapters[0].highlights).toEqual([]);
+			expect(data.chapters[0].documentAnchors).toEqual([]);
+			await expect(offlinePackage(event(resourceId, null) as never)).rejects.toMatchObject({
+				status: 404
+			});
+		}
+		const missingHeader = event(bibleId);
+		missingHeader.request = new Request(missingHeader.url);
+		await expect(offlinePackage(missingHeader as never)).rejects.toMatchObject({ status: 400 });
+		const foreignOrigin = event(bibleId);
+		foreignOrigin.request = new Request(foreignOrigin.url, {
+			headers: { 'x-akribos-app': '1', origin: 'https://example.invalid' }
+		});
+		await expect(offlinePackage(foreignOrigin as never)).rejects.toMatchObject({ status: 403 });
+		await db.update(resources).set({ isPublic: true }).where(eq(resources.id, bibleId));
+		expect((await (await offlinePackage(event(bibleId, null) as never)).json()).owner).toBeNull();
+		await db.update(resources).set({ isPublic: false }).where(eq(resources.id, bibleId));
+		await db
+			.update(commentaryEntries)
+			.set({ bodyHtml: sql`repeat('x', ${32 * 1024 * 1024 + 1})` })
+			.where(eq(commentaryEntries.resourceId, commentId));
+		await expect(offlinePackage(event(commentId) as never)).rejects.toMatchObject({ status: 413 });
+		await db
+			.delete(resourceUserGrants)
+			.where(
+				and(eq(resourceUserGrants.resourceId, bibleId), eq(resourceUserGrants.userId, userId))
+			);
+		await expect(offlinePackage(event(bibleId) as never)).rejects.toMatchObject({ status: 404 });
+		await db.update(resources).set({ offlineEnabled: false }).where(eq(resources.id, commentId));
+		await expect(offlinePackage(event(commentId) as never)).rejects.toMatchObject({ status: 404 });
+		const limited = event(commentId);
+		const headers: Record<string, string> = {};
+		limited.setHeaders = (values: Record<string, string>) => Object.assign(headers, values);
+		let status = 0;
+		for (let i = 0; i < 31 && status !== 429; i++) {
+			try {
+				await offlinePackage(limited as never);
+			} catch (caught) {
+				status = (caught as { status: number }).status;
+			}
+		}
+		expect(status).toBe(429);
+		expect(headers['retry-after']).toBe('60');
 	});
 
 	it('honours a revoked private grant even when API access is enabled', async () => {

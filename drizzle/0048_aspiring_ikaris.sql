@@ -1,0 +1,1 @@
+ALTER TABLE "resources" ADD COLUMN "offline_enabled" boolean DEFAULT false NOT NULL;

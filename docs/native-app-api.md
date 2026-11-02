@@ -286,3 +286,35 @@ fehlschlägt, kann die Fehlerantwort ohne Snapshot kommen. Nach Disposition der 
 keine weiteren Nachrichten gesendet. Fremde oder verspätete Instanznachrichten muss auch der
 native Empfänger verwerfen. Die WebView-Lebensdauer, App-Hintergrundwechsel, verschlüsselte
 Entwürfe und deren explizite Wiederherstellung bleiben Aufgaben des nativen Hosts.
+
+## Offline-Pakete (Vorbereitung)
+
+Die Servervorbereitung stellt noch keinen Offline-Reader bereit. Die App muss
+vor einer Nutzung die lokale Speicherung, den Offline-Start und die Behandlung
+von Konto- und Berechtigungswechseln gesondert implementieren und testen.
+
+`GET /api/app/offline/resources` liefert `{version: 1, owner, resources}` mit den
+aktuell für den Reader und ausdrücklich offline freigegebenen Bibeln,
+Kommentaren und Parallelstellenwerken. `owner` ist die aktuelle Session-Konto-ID
+oder `null` für Gäste. Lexika sind im Paketprotokoll noch nicht verfügbar.
+`GET /api/app/offline/resources/{id}` liefert `{version: 1, owner, resource,
+chapters}`. Die Liste enthält Kapitel mit vorhandenen Werkinhalten, aufsteigend nach
+Buch und Kapitel; fehlende Kapitel enthalten keinen Text. Ein enthaltenes Kapitel
+hat dieselbe Struktur wie die lesende Reader-Kapitel-API; persönliche Markierungen,
+Sammlungen und Dokumentanker sind darin leer. Das Paket
+enthält eine konsistente Datenbankaufnahme der Metadaten und Inhalte; `updatedAt`
+ist ein Metadatum der Ressource, kein Lizenzablaufdatum. Pakete sind auf 32 MiB
+begrenzt und liefern bei Überschreitung 413. Fehlende Rechte liefern 404.
+Paketabrufe sind pro IP auf 30 pro Minute begrenzt; bei 429 enthält `Retry-After`
+die Wartezeit in Sekunden.
+
+Beide Endpunkte verlangen den App-Protokollheader, prüfen Session und aktuellen
+Reader-Grant sowie `offline_enabled` serverseitig und antworten `private, no-store`.
+Eine erfolgreiche Offline-Lizenz ersetzt keinen Reader-Grant. Die App muss Ursprung,
+Konto und Werk bei jedem lokalen Zugriff trennen; ein Antwort-`owner`, der nicht zum
+aktuellen Konto passt, darf nicht übernommen werden. Beim nächsten Kontakt muss sie
+entzogene oder geänderte Berechtigungen berücksichtigen. Ein auf einem getrennten
+Gerät bereits gespeichertes Paket kann der Server nicht sofort widerrufen: Der Entzug
+wird erst bei erneutem Kontakt erkennbar. Für Rechteinhaber, die etwas anderes
+verlangen, muss die Offline-Freigabe ausgeschaltet bleiben. Diese Schnittstelle
+legt keine allgemeine Lizenzdauer fest.

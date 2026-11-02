@@ -73,6 +73,9 @@ export const actions = {
 				selectionSubtitle: String(form.get('selectionSubtitle') ?? '').trim(),
 				isPublic: form.get('isPublic') === 'on',
 				...(form.has('apiAccessSettings') ? { apiEnabled: form.get('apiEnabled') === 'on' } : {}),
+				...(form.has('offlineAccessSettings')
+					? { offlineEnabled: form.get('offlineEnabled') === 'on' }
+					: {}),
 				licenseHtml: String(form.get('licenseHtml') ?? '').trim() || null,
 				updatedAt: new Date()
 			})

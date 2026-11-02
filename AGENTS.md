@@ -176,6 +176,13 @@ Scopes sind bei gesperrtem Konto ungültig; nach Entsperren gelten nicht widerru
 
 ## Ressourcenfreigabe für die öffentliche API
 
+Die vorbereitete Offline-Lizenz `resources.offline_enabled` ist standardmäßig ausgeschaltet und
+unabhängig von API-Freigabe und Reader-Zugriff. `readableResourceCondition(userId, 'offline')`
+verlangt zusätzlich einen fertigen und für das aktuelle Konto lesbaren Inhalt; nie einen alten
+Ressourcencache für die Prüfung verwenden. Die Paket-API und ihre Grenzen sind in
+`docs/native-app-api.md` dokumentiert; sie implementiert noch keinen Offline-Reader.
+Reimporte müssen die administrative Entscheidung erhalten.
+
 `resources.api_enabled` ist die vom Administrator gesetzte Lizenzfreigabe für `/api/v1`; neue und
 bestehende Ressourcen starten kompatibel mit `true`. Reimporte verändern diese Einstellung nicht.
 Das Ressourcenformular speichert sie unabhängig von `is_public` und den privaten Kontofreigaben.
