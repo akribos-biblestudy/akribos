@@ -391,7 +391,7 @@
 						</p>
 					</div>
 
-					{#if ['bible', 'commentary', 'xrefs'].includes(selectedResource.kind)}
+					{#if ['bible', 'commentary', 'xrefs', 'lexicon'].includes(selectedResource.kind)}
 						<div class="sm:col-span-2">
 							<input type="hidden" name="offlineAccessSettings" value="1" />
 							<label class="flex items-center gap-2 text-sm">
