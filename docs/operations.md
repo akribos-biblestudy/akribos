@@ -349,38 +349,46 @@ coordinated background jobs, compatible expand/contract migrations, startup read
 shutdown first. A Cloudflare 525 reports an origin TLS handshake failure and is not proof of a
 database migration; investigate proxy/TLS logs separately.
 
-### Edge-gespeicherte Wartungsseite
+### Wartungsseite am Coolify-Proxy
 
-`static/maintenance.html` ist ein eigenständiges, ressourcenfreies Fehlerseiten-Asset: Animationen
-respektieren reduzierte Bewegung; ohne JavaScript bleibt der manuelle Wiederholungslink nutzbar.
-Auf einer Fehlernavigation fragt die Seite alle fünf Sekunden `/healthz` ohne Cache und Cookies ab
-und lädt die ursprüngliche URL erst bei gültigem JSON mit `status: ok` und ohne `restore: running`
-neu. Während eines Datenbank-Restores meldet `/healthz` absichtlich HTTP 200, damit Coolify den
-Container nicht neu startet; HTTP 200 allein reicht daher nicht als Bereitschaftssignal. Der direkte
-Aufruf `/maintenance.html` ist eine Vorschau und löst keinen automatischen Reload aus.
+`static/maintenance.html` ist ein eigenständiges HTML-Dokument für die Wartungsanzeige. Animationen
+respektieren reduzierte Bewegung; ohne JavaScript bleibt der manuelle Wiederholungslink nutzbar. Auf
+einer Fehlernavigation fragt die Seite alle fünf Sekunden `/healthz` ohne Cache und Cookies ab und
+lädt die ursprüngliche URL erst bei gültigem JSON mit `status: ok` und ohne `restore: running` neu.
+Während eines Datenbank-Restores meldet `/healthz` absichtlich HTTP 200, damit Coolify den Container
+nicht neu startet; HTTP 200 allein reicht daher nicht als Bereitschaftssignal. Der direkte Aufruf
+`/maintenance.html` ist eine Vorschau und löst keinen automatischen Reload aus.
 
-**Der Import der Datei in die Anwendung aktiviert die Fehlerseite nicht.** Der Origin ist während
-der Umschaltung nicht verlässlich erreichbar. Cloudflare muss das Asset vorher abrufen und im Edge
-speichern; [Custom Errors](https://developers.cloudflare.com/rules/custom-errors/) sind nur in
-bezahlten Tarifen verfügbar. Die Cloudflare-Zone muss proxied sein. Einrichtung erst nach Prüfung des
-Tarifs und vorhandener Regeln; keine bestehenden Regeln durch ein vollständiges Ruleset-PUT ersetzen.
+**Die Datei im App-Image aktiviert noch keinen Wartungsmodus.** Beim Deploy kann die App nicht selbst
+die Anzeige ausliefern. Bevorzugt die HTML-Datei im Coolify-Proxy hinterlegen, sofern installierte
+Coolify-Version, Proxy und Ressourcenart diese Funktion unterstützen:
 
-1. Nach erfolgreichem Deploy `https://akribos.de/maintenance.html` aufrufen und das Asset in
-   Cloudflare Custom Errors aus dieser URL anlegen. Cloudflare speichert eine eigenständige Kopie.
-   Nach Änderungen an der Datei das Asset erneut von der URL abrufen lassen.
-2. Eine Custom Error Rule nur für Browser-GET-Navigationen konfigurieren, deren `Accept` HTML
-   enthält und deren Antwortstatus zu 502, 503, 504, 520, 521, 522, 523, 524 oder 525 gehört.
-   `/api/`, `/healthz` und `/maintenance.html` sowie POST und andere Methoden ausschließen.
-   Das Asset wählen und den Original-Fehlerstatus beibehalten; keine pauschale Error Page für alle
-   Anfragen verwenden, da diese auch JSON-Clients ein HTML-Dokument zurückgeben würde.
-3. Bei einem kontrollierten Test mit separater Testzone oder Test-Hostname einen fehlerhaften Origin
-   simulieren und sowohl HTML-GET als auch API, POST und `/healthz` prüfen. Prüfen, dass die
-   tatsächlichen Antwortheader Inline-CSS und -JavaScript nicht per CSP blockieren und dass der
-   Fehler nicht gecacht wird. Eine bestehende CSP nicht pauschal für die ganze Site aufweichen.
-   Danach den Origin wieder gesund machen und automatischen Reload samt ursprünglichem Pfad prüfen.
-4. Rollback: nur die neu hinzugefügte Regel deaktivieren; bereits bestehende Cloudflare-Regeln
-   unverändert lassen. Ohne erfolgreichen Edge-Test nicht behaupten, dass die Seite bei einem
-   Origin-Ausfall bereitsteht.
+1. Im Akribos-Resource unter **Domains → Maintenance mode** den Inhalt von `static/maintenance.html`
+   unter **Custom maintenance page (HTML)** speichern, ohne andere Anwendungen oder die globale
+   Proxy-Fehlerseite zu ändern. Die Datei enthält keine externen Abhängigkeiten. Siehe
+   [Coolify: Maintenance and error pages](https://coolify.io/docs/core/networking/proxy/maintenance-and-error-pages).
+2. Vor Wartungsarbeiten bestehende Imports und Backups beenden und Hintergrundjobs sowie laufende
+   Anfragen kontrolliert stilllegen. Coolify hält laufende Container und Jobs im Wartungsmodus weiter
+   am Leben; direkte Containerports und Datenbankverbindungen umgehen den Proxy. Der Modus ist keine
+   Datenbank-Schreibsperre und alleine keine sichere Freigabe paralleler Migrationen.
+3. Den Wartungsmodus der Ressource einschalten und HTTP 503 und den Inhalt an der Domain prüfen.
+   Auch `/healthz` und API-Anfragen sind dann vom Proxy betroffen; die automatische Prüfung der
+   Wartungsseite bleibt bei 503 stehen. API-Clients müssen den Wartungsfehler vertragen. Kein
+   Produktionsdeployment oder Migration starten, wenn Stilllegung und Verhalten nicht bestätigt sind.
+4. Deployment und Migration nach dem üblichen, geprüften Ablauf durchführen. Nach erfolgreichem
+   Abschluss den **neuen** Container intern samt `/healthz`-JSON prüfen, insbesondere dass kein
+   Restore läuft. Coolifys einfacher HTTP-Healthcheck alleine bestätigt nicht alle diese Bedingungen.
+   Erst dann Wartungsmodus ausschalten und extern `/healthz`, Reader und ursprüngliche URL prüfen.
+   Besucher werden daraufhin automatisch zurückgeführt. Bei Fehlern bleibt der Wartungsmodus an;
+   nach dem dokumentierten Rollback erst mit bestätigter Anwendung wieder freigeben.
+
+Bei einem Ausfall des Proxy/TLS selbst, insbesondere einem von Cloudflare erzeugten 525, kann der
+Coolify-Proxy keine Seite liefern. Eine zusätzliche unabhängige Edge-Fehlerseite ist nur nach Prüfung
+des Cloudflare-Tarifs und der existierenden Regeln eine Option. [Custom Error Rules](https://developers.cloudflare.com/rules/custom-errors/)
+sind kostenpflichtig; nur HTML-GET-Navigationen mit passenden Fehlercodes abfangen, APIs, POST und
+`/healthz` ausnehmen, Status erhalten und die Wirkung getrennt testen. Eine globale HTML-Fehlerseite
+würde sonst auch API-Clients beeinflussen. Eine funktionierende 525-Abdeckung nicht ohne echten
+Edge-Test behaupten.
 
 ### Container registry and automatic deployment
 

@@ -11,7 +11,7 @@ test('wartet auf gültige Bereitschaft und behält die ursprüngliche Adresse', 
 		if (url.pathname === '/healthz') {
 			probeCount++;
 			const responses = [
-				{ status: 503, body: '{"status":"error"}' },
+				{ status: 503, body: '<!doctype html><title>Wartung</title>' },
 				{ status: 200, body: '{"status":"ok","restore":"running"}' },
 				{ status: 200, body: 'kein JSON' },
 				{ status: 200, body: '{"status":"ok"}' }
