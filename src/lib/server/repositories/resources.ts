@@ -38,7 +38,7 @@ export type ReadableResource = Pick<
 	selectionSubtitle: string | null;
 };
 
-export type ResourceAccessChannel = 'reader' | 'api';
+export type ResourceAccessChannel = 'reader' | 'api' | 'offline';
 
 const CACHE_TTL_MS = 30_000;
 
@@ -56,6 +56,7 @@ export function readableResourceCondition(
 	return and(
 		eq(resources.status, 'ready'),
 		channel === 'api' ? eq(resources.apiEnabled, true) : undefined,
+		channel === 'offline' ? eq(resources.offlineEnabled, true) : undefined,
 		userId
 			? sql`(${resources.isPublic} = true or exists (
        select 1 from ${resourceUserGrants}

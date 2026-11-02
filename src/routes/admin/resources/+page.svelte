@@ -391,6 +391,27 @@
 						</p>
 					</div>
 
+					{#if ['bible', 'commentary', 'xrefs'].includes(selectedResource.kind)}
+						<div class="sm:col-span-2">
+							<input type="hidden" name="offlineAccessSettings" value="1" />
+							<label class="flex items-center gap-2 text-sm">
+								<input
+									type="checkbox"
+									name="offlineEnabled"
+									checked={selectedResource.offlineEnabled}
+									class="size-4"
+									aria-describedby="offline-access-description"
+								/>
+								Offline-Nutzung erlauben
+							</label>
+							<p id="offline-access-description" class="mt-1 text-xs text-stone-500">
+								Nur aktivieren, wenn die Rechte das Herunterladen und Speichern in der App erlauben.
+								Die Lesbarkeit und persönliche Ressourcenfreigaben gelten weiterhin separat. Die App
+								benötigt für die Offline-Nutzung zusätzlich eine passende Version.
+							</p>
+						</div>
+					{/if}
+
 					<div
 						class="flex flex-wrap items-center gap-3 border-t border-stone-200 pt-4 sm:col-span-2 dark:border-stone-800"
 					>

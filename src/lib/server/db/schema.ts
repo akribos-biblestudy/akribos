@@ -90,6 +90,8 @@ export const resources = pgTable(
 		isPublic: boolean('is_public').notNull().default(true),
 		/** Independent licence permission for the public /api/v1 interface; Reader access is separate. */
 		apiEnabled: boolean('api_enabled').notNull().default(true),
+		/** Explicit permission for offline distribution, independent of Reader access. */
+		offlineEnabled: boolean('offline_enabled').notNull().default(false),
 		hasStrongs: boolean('has_strongs').notNull().default(false),
 		hasMorphology: boolean('has_morphology').notNull().default(false),
 		/** Rendered under each column; holds the rights notice a licence requires. */
