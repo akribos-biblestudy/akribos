@@ -354,7 +354,9 @@ database migration; investigate proxy/TLS logs separately.
 `static/maintenance.html` ist ein eigenständiges HTML-Dokument für die Wartungsanzeige. Animationen
 respektieren reduzierte Bewegung; ohne JavaScript bleibt der manuelle Wiederholungslink nutzbar. Auf
 einer Fehlernavigation fragt die Seite alle fünf Sekunden `/healthz` ohne Cache und Cookies ab und
-lädt die ursprüngliche URL erst bei gültigem JSON mit `status: ok` und ohne `restore: running` neu.
+öffnet die ursprüngliche URL erst bei gültigem JSON mit `status: ok` und ohne `restore: running`
+erneut per GET. So wird auch nach einer Wartungsantwort auf eine Formularübermittlung kein POST
+automatisch wiederholt.
 Während eines Datenbank-Restores meldet `/healthz` absichtlich HTTP 200, damit Coolify den Container
 nicht neu startet; HTTP 200 allein reicht daher nicht als Bereitschaftssignal. Der direkte Aufruf
 `/maintenance.html` ist eine Vorschau und löst keinen automatischen Reload aus.

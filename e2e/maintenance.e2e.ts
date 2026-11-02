@@ -67,3 +67,40 @@ test('kennzeichnet die direkte Asset-Vorschau und startet keine Prüfung', async
 	await page.clock.runFor(12000);
 	expect(probes).toBe(0);
 });
+
+test('wiederholt nach einer Formularübermittlung ausschließlich per GET', async ({ page }) => {
+	const methods: string[] = [];
+	await page.route('https://maintenance-test.invalid/**', async (route) => {
+		const request = route.request();
+		const url = new URL(request.url());
+		if (url.pathname === '/healthz') {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: '{"status":"ok"}'
+			});
+			return;
+		}
+		if (url.pathname === '/form') {
+			await route.fulfill({
+				status: 200,
+				contentType: 'text/html',
+				body: '<form method="post" action="/saved"><button>Speichern</button></form>'
+			});
+			return;
+		}
+		methods.push(request.method());
+		await route.fulfill({
+			status: request.method() === 'POST' ? 503 : 200,
+			contentType: 'text/html; charset=utf-8',
+			body: request.method() === 'POST' ? maintenance : '<h1>Wieder verfügbar</h1>'
+		});
+	});
+	await page.clock.install();
+	await page.goto('https://maintenance-test.invalid/form');
+	await page.getByRole('button', { name: 'Speichern' }).click();
+	await expect(page.getByRole('heading', { name: 'Wir sind gleich wieder da.' })).toBeVisible();
+	await page.clock.runFor(5100);
+	await expect(page.getByRole('heading', { name: 'Wieder verfügbar' })).toBeVisible();
+	expect(methods).toEqual(['POST', 'GET']);
+});

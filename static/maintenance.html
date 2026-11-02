@@ -42,7 +42,7 @@
 			<h1>Wir sind gleich wieder da.</h1>
 			<p class="intro">Akribos ist gerade kurz nicht erreichbar – möglicherweise spielen wir ein Update ein. Bitte hab einen kleinen Moment Geduld.</p>
 			<div class="status"><span class="dot" aria-hidden="true"></span><span>Verfügbarkeit wird automatisch geprüft</span></div>
-			<p class="manual"><span class="automatic">Diese Seite öffnet sich automatisch wieder, sobald Akribos erreichbar ist.<br /></span><a href="">Jetzt erneut versuchen</a></p>
+			<p class="manual"><span class="automatic">Diese Seite öffnet sich automatisch wieder, sobald Akribos erreichbar ist.<br /></span><a href="" id="retry">Jetzt erneut versuchen</a></p>
 			<p class="manual" id="preview-message" hidden>Vorschau der Wartungsseite</p>
 			<noscript><style>.status, .automatic { display: none; }</style></noscript>
 		</main>
@@ -54,6 +54,17 @@
 					document.getElementById('preview-message').hidden = false;
 					return;
 				}
+				function retry() {
+					// A GET navigation never replays a form POST. Change the current history URL
+					// temporarily so a fragment-only URL still causes a real navigation.
+					const target = location.href;
+					const temporary = new URL(target);
+					const marker = '__akribos_retry';
+					temporary.searchParams.set(marker, (temporary.searchParams.get(marker) || '') + '1');
+					history.replaceState(history.state, '', temporary.href);
+					location.replace(target);
+				}
+				document.getElementById('retry').addEventListener('click', event => { event.preventDefault(); retry(); });
 				let checking = false;
 				async function check() {
 					if (checking || document.visibilityState === 'hidden') return;
@@ -64,7 +75,7 @@
 						const response = await fetch('/healthz', { cache: 'no-store', credentials: 'omit', signal: controller.signal });
 						if (!response.ok) return;
 						const health = await response.json();
-						if (health.status === 'ok' && health.restore !== 'running') location.reload();
+						if (health.status === 'ok' && health.restore !== 'running') retry();
 					} catch (_) {
 						// Temporary outages and malformed responses are expected while restarting.
 					} finally {
