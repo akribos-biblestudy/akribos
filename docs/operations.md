@@ -337,9 +337,50 @@ and compose location `/compose.yaml`, then assign a domain to the `app` service 
 | `MAIL_FROM`                 | must be a sender Brevo has verified                                     |
 | `BOOTSTRAP_ADMIN_EMAIL`     | the first account registered with this address becomes an admin         |
 
-Migrations run in the container's entrypoint before the server starts, so a deploy that changes the
-schema needs nothing extra. A failed migration stops the boot, and the healthcheck keeps the old
-container serving.
+Migrations run in the container's entrypoint before the server starts; a failed migration stops the
+new process. This Coolify resource uses Docker Compose and has one app container. Coolify does **not**
+provide rolling updates for Compose, so its healthcheck does not keep the old container serving: a
+deploy may briefly return 502/525 while the container or proxy restarts, whether or not a migration
+is pending. See [Coolify rolling updates](https://coolify.io/docs/applications/deployments/rolling-updates).
+
+Do not simply run two app versions at once: startup housekeeping, interrupted import/backup recovery,
+schedulers and migrations currently assume a single app process. A safe rolling deployment needs
+coordinated background jobs, compatible expand/contract migrations, startup readiness and graceful
+shutdown first. A Cloudflare 525 reports an origin TLS handshake failure and is not proof of a
+database migration; investigate proxy/TLS logs separately.
+
+### Edge-gespeicherte Wartungsseite
+
+`static/maintenance.html` ist ein eigenständiges, ressourcenfreies Fehlerseiten-Asset: Animationen
+respektieren reduzierte Bewegung; ohne JavaScript bleibt der manuelle Wiederholungslink nutzbar.
+Auf einer Fehlernavigation fragt die Seite alle fünf Sekunden `/healthz` ohne Cache und Cookies ab
+und lädt die ursprüngliche URL erst bei gültigem JSON mit `status: ok` und ohne `restore: running`
+neu. Während eines Datenbank-Restores meldet `/healthz` absichtlich HTTP 200, damit Coolify den
+Container nicht neu startet; HTTP 200 allein reicht daher nicht als Bereitschaftssignal. Der direkte
+Aufruf `/maintenance.html` ist eine Vorschau und löst keinen automatischen Reload aus.
+
+**Der Import der Datei in die Anwendung aktiviert die Fehlerseite nicht.** Der Origin ist während
+der Umschaltung nicht verlässlich erreichbar. Cloudflare muss das Asset vorher abrufen und im Edge
+speichern; [Custom Errors](https://developers.cloudflare.com/rules/custom-errors/) sind nur in
+bezahlten Tarifen verfügbar. Die Cloudflare-Zone muss proxied sein. Einrichtung erst nach Prüfung des
+Tarifs und vorhandener Regeln; keine bestehenden Regeln durch ein vollständiges Ruleset-PUT ersetzen.
+
+1. Nach erfolgreichem Deploy `https://akribos.de/maintenance.html` aufrufen und das Asset in
+   Cloudflare Custom Errors aus dieser URL anlegen. Cloudflare speichert eine eigenständige Kopie.
+   Nach Änderungen an der Datei das Asset erneut von der URL abrufen lassen.
+2. Eine Custom Error Rule nur für Browser-GET-Navigationen konfigurieren, deren `Accept` HTML
+   enthält und deren Antwortstatus zu 502, 503, 504, 520, 521, 522, 523, 524 oder 525 gehört.
+   `/api/`, `/healthz` und `/maintenance.html` sowie POST und andere Methoden ausschließen.
+   Das Asset wählen und den Original-Fehlerstatus beibehalten; keine pauschale Error Page für alle
+   Anfragen verwenden, da diese auch JSON-Clients ein HTML-Dokument zurückgeben würde.
+3. Bei einem kontrollierten Test mit separater Testzone oder Test-Hostname einen fehlerhaften Origin
+   simulieren und sowohl HTML-GET als auch API, POST und `/healthz` prüfen. Prüfen, dass die
+   tatsächlichen Antwortheader Inline-CSS und -JavaScript nicht per CSP blockieren und dass der
+   Fehler nicht gecacht wird. Eine bestehende CSP nicht pauschal für die ganze Site aufweichen.
+   Danach den Origin wieder gesund machen und automatischen Reload samt ursprünglichem Pfad prüfen.
+4. Rollback: nur die neu hinzugefügte Regel deaktivieren; bereits bestehende Cloudflare-Regeln
+   unverändert lassen. Ohne erfolgreichen Edge-Test nicht behaupten, dass die Seite bei einem
+   Origin-Ausfall bereitsteht.
 
 ### Container registry and automatic deployment
 
