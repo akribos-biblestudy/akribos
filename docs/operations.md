@@ -369,8 +369,10 @@ Coolify-Version, Proxy und Ressourcenart diese Funktion unterstützen:
    unter **Custom maintenance page (HTML)** speichern, ohne andere Anwendungen oder die globale
    Proxy-Fehlerseite zu ändern. Die Datei enthält keine externen Abhängigkeiten. Siehe
    [Coolify: Maintenance and error pages](https://coolify.io/docs/core/networking/proxy/maintenance-and-error-pages).
-2. Vor Wartungsarbeiten bestehende Imports und Backups beenden und Hintergrundjobs sowie laufende
-   Anfragen kontrolliert stilllegen. Coolify hält laufende Container und Jobs im Wartungsmodus weiter
+2. Vor Wartungsarbeiten bestehende Imports, Backups **und Restores** beenden und Hintergrundjobs
+   sowie laufende Anfragen kontrolliert stilllegen. Ein Restore führt selbst Migrationen aus; sein
+   Status ist pro Prozess, und ein globaler Migrationslock ist derzeit nicht implementiert. Daher
+   niemals Restore und Deployment-Migration oder zwei Migrationen gleichzeitig laufen lassen. Coolify hält laufende Container und Jobs im Wartungsmodus weiter
    am Leben; direkte Containerports und Datenbankverbindungen umgehen den Proxy. Der Modus ist keine
    Datenbank-Schreibsperre und alleine keine sichere Freigabe paralleler Migrationen.
 3. Den Wartungsmodus der Ressource einschalten und HTTP 503 und den Inhalt an der Domain prüfen.
