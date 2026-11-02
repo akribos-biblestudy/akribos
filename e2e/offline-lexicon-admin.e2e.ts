@@ -2,7 +2,12 @@ import { expect, test } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { createDb } from '../src/lib/server/db/client.ts';
-import { lexiconEntries, resources } from '../src/lib/server/db/schema.ts';
+import {
+	lexiconEntries,
+	resources,
+	resourceUserGrants,
+	users
+} from '../src/lib/server/db/schema.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
 
 test('an administrator can grant and revoke offline access to a lexicon', async ({
@@ -19,6 +24,7 @@ test('an administrator can grant and revoke offline access to a lexicon', async 
 	const path = `/api/app/offline/v2/lexicons/${resourceId}`;
 	const headers = { 'x-akribos-app': '1' };
 	try {
+		const [admin] = await db.select().from(users).where(eq(users.email, 'admin@example.com'));
 		await db.insert(resources).values({
 			id: resourceId,
 			kind: 'lexicon',
@@ -26,9 +32,11 @@ test('an administrator can grant and revoke offline access to a lexicon', async 
 			abbrev: 'Offline lexicon',
 			language: 'grc',
 			status: 'ready',
-			isPublic: true,
+			isPublic: false,
+			sortOrder: 99999,
 			offlineEnabled: false
 		});
+		await db.insert(resourceUserGrants).values({ resourceId, userId: admin!.id });
 		await db.insert(lexiconEntries).values({
 			resourceId,
 			strong: 'G26',
@@ -51,13 +59,14 @@ test('an administrator can grant and revoke offline access to a lexicon', async 
 		await expect(
 			page.getByRole('status').filter({ hasText: `${resourceId} wurde gespeichert.` })
 		).toBeVisible();
-		const packageResponse = await request.get(path, { headers });
+		const packageResponse = await page.request.get(path, { headers });
 		expect(packageResponse.status()).toBe(200);
 		expect(await packageResponse.json()).toMatchObject({
 			version: 2,
 			resource: { id: resourceId, kind: 'lexicon' },
 			entries: [{ strong: 'G26', lemma: 'ἀγάπη' }]
 		});
+		expect((await request.get(path, { headers })).status()).toBe(404);
 		await page.reload();
 		await expect(offline).toBeChecked();
 		await offline.uncheck();
@@ -65,7 +74,7 @@ test('an administrator can grant and revoke offline access to a lexicon', async 
 		await expect(
 			page.getByRole('status').filter({ hasText: `${resourceId} wurde gespeichert.` })
 		).toBeVisible();
-		expect((await request.get(path, { headers })).status()).toBe(404);
+		expect((await page.request.get(path, { headers })).status()).toBe(404);
 	} finally {
 		await db.delete(resources).where(eq(resources.id, resourceId));
 		await client.end();
