@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import postgres from 'postgres';
+import { randomUUID } from 'node:crypto';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
 
 test('each repeated word is highlighted by position and opens its lexicon beside the verse', async ({
@@ -22,18 +23,19 @@ test('each repeated word is highlighted by position and opens its lexicon beside
 		{ kind: 'w', text: 'Wort', strong: 'G25' },
 		{ kind: 'note', marker: '', text: 'Automatische Wortzuordnung; fachlich noch nicht bestätigt.' }
 	];
-	let insertedId: number | undefined;
+	const resourceId = `REVIEW-UI-${randomUUID()}`;
 	try {
-		const [inserted] = await sql`
+		await sql`insert into resources (id,kind,name,abbrev,language,status,is_public,has_strongs) values (${resourceId},'bible',${resourceId},'Review UI','de','ready',false,true)`;
+		await sql`insert into resource_user_grants (resource_id,user_id) select ${resourceId},id from users where email='admin@example.com'`;
+		await sql`
 			insert into verses (resource_id, book_id, chapter, verse, segments, text)
-			values ('SEEDDE', 43, 3, 18, ${sql.json(segments)}, 'Wort und Wort') returning id`;
-		insertedId = Number(inserted.id);
+			values (${resourceId}, 43, 3, 18, ${sql.json(segments)}, 'Wort und Wort')`;
 		await page.goto('/login?redirectTo=%2Fstrong-review');
 		await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
 		await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 		await page.getByLabel('Passwort').fill('seed-admin-password');
 		await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
-		await page.goto('/strong-review?resource=SEEDDE&book=43');
+		await page.goto(`/strong-review?resource=${resourceId}&book=43`);
 		const matches = page.locator('article').filter({ hasText: 'Joh 3,18' });
 		await expect(matches).toHaveCount(2);
 		for (const row of await matches.all()) {
@@ -56,7 +58,7 @@ test('each repeated word is highlighted by position and opens its lexicon beside
 		const lexiconBounds = await lexicon.boundingBox();
 		expect(lexiconBounds!.x).toBeGreaterThan(articleBounds!.x + articleBounds!.width);
 	} finally {
-		if (insertedId) await sql`delete from verses where id=${insertedId}`;
+		await sql`delete from resources where id=${resourceId}`;
 		await sql.end();
 	}
 });

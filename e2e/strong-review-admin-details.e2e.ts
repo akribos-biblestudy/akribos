@@ -10,10 +10,12 @@ const dbUrl =
 test('admin review shows the exact verse and lexicon only with reader access and rejects stale reviews', async ({
 	page
 }) => {
-	const sql = postgres(dbUrl);
+	test.setTimeout(120_000);
+	const sql = postgres(dbUrl, { max: 1 });
 	const resourceId = `PRIVATE-REVIEW-${randomUUID()}`;
 	const resourceName = `Privates Prüfwerk ${resourceId}`;
 	try {
+		await sql`select pg_advisory_lock(1959718812)`;
 		const [source] =
 			await sql`select segments, text from verses where resource_id='SEEDDE' and book_id=43 and chapter=3 and verse=16`;
 		const [admin] = await sql`select id from users where email='admin@example.com'`;
@@ -62,6 +64,7 @@ test('admin review shows the exact verse and lexicon only with reader access and
 		expect(stale.status()).toBe(409);
 	} finally {
 		await sql`delete from resources where id=${resourceId}`;
+		await sql`select pg_advisory_unlock(1959718812)`;
 		await sql.end();
 	}
 });
@@ -69,13 +72,16 @@ test('admin review shows the exact verse and lexicon only with reader access and
 test('admin review pages and filters large numbers of decisions on the server', async ({
 	page
 }) => {
-	const sql = postgres(dbUrl);
+	test.setTimeout(120_000);
+	const sql = postgres(dbUrl, { max: 1 });
 	const resourceId = `REVIEW-PAGES-${randomUUID()}`;
 	const resourceName = `Prüfseiten ${resourceId}`;
 	try {
+		await sql`select pg_advisory_lock(1959718812)`;
 		const [source] =
 			await sql`select segments, text from verses where resource_id='SEEDDE' and book_id=43 and chapter=3 and verse=16`;
-		await sql`insert into resources (id, kind, name, abbrev, language, status, is_public, has_strongs) values (${resourceId}, 'bible', ${resourceName}, 'Seitenprobe', 'de', 'ready', true, true)`;
+		await sql`insert into resources (id, kind, name, abbrev, language, status, is_public, has_strongs) values (${resourceId}, 'bible', ${resourceName}, 'Seitenprobe', 'de', 'ready', false, true)`;
+		await sql`insert into resource_user_grants (resource_id,user_id) select ${resourceId},id from users where email='admin@example.com'`;
 		await sql`insert into verses (resource_id, book_id, chapter, verse, segments, text) values (${resourceId},43,3,16,${sql.json(source.segments)},${source.text})`;
 		const hash = createHash('sha256').update(JSON.stringify(source.segments)).digest('hex');
 		await sql`insert into strong_assignment_reviews (resource_id,book_id,chapter,verse,word_position,strong,word,verse_fingerprint,decision)
@@ -95,6 +101,7 @@ test('admin review pages and filters large numbers of decisions on the server', 
 		await expect(page.getByRole('article').filter({ hasText: resourceName })).toHaveCount(0);
 	} finally {
 		await sql`delete from resources where id=${resourceId}`;
+		await sql`select pg_advisory_unlock(1959718812)`;
 		await sql.end();
 	}
 });
