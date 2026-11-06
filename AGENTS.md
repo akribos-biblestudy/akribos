@@ -76,6 +76,43 @@ Wörter darin bleiben Strong-Wörter mit unveränderten Positionen, Suchtext und
 setzt ihn in Kapitälchen („HERR“). Überschriften und Fußnoten bleiben reiner Text ohne Kapitälchen.
 Bestehende Importe erhalten die Kennzeichnung nur durch Reimport, nicht per Backfill.
 
+## Feedback, Strong-Prüfung und Bibelexport
+
+Feedback wird über `/feedback` nur von angemeldeten Konten angenommen. Werk und Stelle sind bei
+inhaltlichen Fehlern erforderlich; Meldungen und Anhänge sind nur für Administratoren zugänglich.
+Kontolöschung entfernt die Kontozuordnung, nicht die Meldung. Der Excel-Export enthält keine
+Kontofelder oder internen Notizen und schreibt Nutzereingaben als Text statt als Formeln.
+Beim Einstieg über „Feedback geben“ wird die vollständige aktuelle Seitenadresse einschließlich
+Query und Fragment tablokal an das Formular übergeben und nur in den Admin-Details angezeigt.
+Die sortierbaren Tabellenfilter gelten auch für den Excel-Export. Erkannte Bibelstellen und
+Strong-Nummern öffnen das zugehörige Werk über die regulären Reader-Zugriffsprüfungen.
+
+Die Strong-Prüfberechtigung ist eine zusätzliche Einzelberechtigung und gewährt weder Administration
+noch Zugang zu privaten Werken. Prüfungen gelten für ein konkretes Wortvorkommen und werden erst nach
+administrativer Freigabe sichtbar. Ein Fingerabdruck des Verses verhindert, dass Entscheidungen nach
+einem veränderten Reimport irrtümlich übernommen werden. Fehlende Warnungen sind keine Bestätigung.
+Die Prüfungs- und Freigabeansicht markieren das konkrete getaggte Wort im vollständigen Vers und
+laden ein lesbares Lexikon erst nach Auswahl. Die Prüfungsübersicht paginiert offene Wortzuordnungen
+nach Fingerprint-Abgleich, nicht Rohverse; ausstehende Entscheidungen anderer bleiben anonym. Auch
+Administratoren benötigen die Leserfreigabe, bevor private Bibeltexte angezeigt oder geprüft werden.
+
+Öffentliche Bibeldownloads benötigen eine ausdrückliche separate Freigabe für ein öffentliches,
+fertiges Werk. Beim erneuten Import oder beim Wechsel auf privat entfällt die Downloadfreigabe.
+Die Freigabe sperrt die Ressourcenzeile und prüft deren Formularversion, damit eine veraltete
+Bestätigung nicht nach einem Reimport oder einer Sichtbarkeitsänderung eine andere Ausgabe freigibt.
+Öffentliche Exporte begrenzen die Anzahl gleichzeitiger Downloads und die Abrufe pro IP.
+Die Akribos-Bibelsicherung enthält gespeicherte Inhalte und Prüfungen; beim ursprünglichen Import
+verworfene Quellbestandteile können aus ihr nicht rekonstruiert werden. Öffentliche Downloads dürfen
+keine personenbezogenen Prüfungsdaten oder unveröffentlichte Entscheidungen enthalten.
+Das versionierte Akribos-JSON ist das vollständige Wiederherstellungsformat; ein USX-3-ZIP dient
+dem Datenaustausch und kann bestimmte Akribos-Daten nicht vollständig abbilden. Die Wiederherstellung
+ersetzt den Bibelbestand atomar, setzt die Sichtbarkeit auf privat und hebt die Downloadfreigabe auf;
+ein zuvor archiviertes Quellformat bleibt als Datei bestehen, aber nicht als aktueller Import verknüpft.
+USX exportiert aktuelle freigegebene Strong-Entscheidungen als Fußnoten und in einem an die
+USX-Dateien gebundenen Manifest. Beim Import werden Zuordnungen an Wortposition und Strong-Nummer
+geprüft; bestehende aktuelle Entscheidungen bleiben erhalten und Konflikte werden gemeldet.
+Prüfsummen sichern die Übereinstimmung der Dateien, belegen aber nicht deren Herkunft.
+
 ## Nutzerhilfe, Administrationshilfe und Produktbilder
 
 `/help` bietet Themenübersicht und eine serverseitige GET-Suche über `q`. Der statische,

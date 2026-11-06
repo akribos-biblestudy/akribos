@@ -16,6 +16,12 @@ import {
 	loadStrongAssignmentStatus
 } from '$lib/server/repositories/strong';
 import { listReaderResources } from '$lib/server/repositories/resources';
+import {
+	canReview,
+	currentVerse,
+	readReview,
+	type ReviewLocation
+} from '$lib/server/strong-review/repository';
 
 /**
  * Study data embedded in a lexicon tab for a Strong's number.
@@ -102,8 +108,32 @@ export async function GET({ params, url, setHeaders, locals }) {
 				: Promise.resolve(null)
 		]);
 
-	// Dictionary content is immutable between imports, so it is worth caching.
-	setHeaders({ 'cache-control': 'public, max-age=60, s-maxage=3600' });
+	const reviewCapability = await canReview(db, locals.user);
+	let reviewState: { decision: 'confirmed' | 'incorrect'; approved: boolean } | null = null;
+	if (
+		requestedResource &&
+		reference?.verse !== undefined &&
+		sourceWord &&
+		wordPosition !== undefined &&
+		assignmentStatus === 'unconfirmed'
+	) {
+		const location: ReviewLocation = {
+			resourceId: requestedResource.id,
+			bookId: reference.book,
+			chapter: reference.chapter,
+			verse: reference.verse,
+			strong,
+			word: sourceWord,
+			wordPosition
+		};
+		const verse = await currentVerse(db, location);
+		const review = verse && (await readReview(db, location, verse.segments));
+		if (review && (review.approvedAt || review.authorId === locals.user?.id)) {
+			reviewState = { decision: review.decision, approved: !!review.approvedAt };
+		}
+	}
+	// Review state and private resource access are session-dependent.
+	setHeaders({ 'cache-control': 'private, no-store' });
 
 	return json({
 		strong,
@@ -117,6 +147,8 @@ export async function GET({ params, url, setHeaders, locals }) {
 		occurrences,
 		original: original ?? null,
 		assignmentStatus,
+		reviewCapability,
+		reviewState,
 		morphology: parseMorphology(original?.morph ?? ''),
 		statisticsResource: statisticsResource ?? null
 	});

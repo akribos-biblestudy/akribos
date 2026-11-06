@@ -13,6 +13,7 @@
 	import MorphologyList from './MorphologyList.svelte';
 	import VerseText from './VerseText.svelte';
 	import LexiconDefinition from './LexiconDefinition.svelte';
+	import StrongReviewButtons from './StrongReviewButtons.svelte';
 
 	type StudyPayload = {
 		strong: string;
@@ -43,6 +44,8 @@
 			resourceId: string;
 		} | null;
 		assignmentStatus?: 'unconfirmed' | 'ambiguous' | null;
+		reviewCapability?: boolean;
+		reviewState?: { decision: 'confirmed' | 'incorrect'; approved: boolean } | null;
 		morphology: {
 			code: string;
 			partOfSpeech: string;
@@ -85,6 +88,8 @@
 	let page = $state(1);
 	let activeBook = $state<number | null>(null);
 	let baseKey = $state('');
+	let reviewSaving = $state(false);
+	let reviewError = $state('');
 
 	$effect(() => {
 		const nextKey = `${entry?.strong ?? ''}:${lexiconId}:${sourceResource?.id ?? ''}:${studyReference?.book ?? ''}:${studyReference?.chapter ?? ''}:${studyReference?.verse ?? ''}:${studyWord ?? ''}:${studyWordPosition ?? ''}`;
@@ -136,6 +141,48 @@
 			});
 		return () => controller.abort();
 	});
+
+	async function submitReview(decision: 'confirmed' | 'incorrect' | 'withdraw') {
+		if (
+			!sourceResource ||
+			!studyReference ||
+			studyReference.verse === undefined ||
+			!studyWord ||
+			studyWordPosition === undefined ||
+			!entry ||
+			!study
+		)
+			return;
+		const requestedKey = baseKey;
+		reviewSaving = true;
+		reviewError = '';
+		try {
+			const response = await fetch('/api/strong-review', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					resourceId: sourceResource.id,
+					bookId: studyReference.book,
+					chapter: studyReference.chapter,
+					verse: studyReference.verse,
+					word: studyWord,
+					wordPosition: studyWordPosition,
+					strong: entry.strong,
+					decision
+				})
+			});
+			if (!response.ok)
+				throw new Error('Die Prüfung konnte nicht gespeichert werden. Bitte lade die Stelle neu.');
+			if (baseKey === requestedKey && study)
+				study.reviewState = decision === 'withdraw' ? null : { decision, approved: false };
+		} catch (error) {
+			if (baseKey === requestedKey)
+				reviewError =
+					error instanceof Error ? error.message : 'Die Prüfung konnte nicht gespeichert werden.';
+		} finally {
+			reviewSaving = false;
+		}
+	}
 
 	function filterBook(book: number): void {
 		activeBook = activeBook === book ? null : book;
@@ -196,8 +243,12 @@
 				{/if}
 			</header>
 			{#if study?.assignmentStatus && studyReference && studyWord}
-				<p class="assignment-note" role="note">
-					{#if study.assignmentStatus === 'unconfirmed'}
+				<div class="assignment-note" role="note">
+					{#if study.reviewState?.approved}
+						{#if study.reviewState.decision === 'confirmed'}Die Strong-Zuordnung von „{studyWord}“
+							zu {entry.strong} wurde fachlich bestätigt.
+						{:else}Die Strong-Zuordnung von „{studyWord}“ zu {entry.strong} wurde als fehlerhaft markiert.{/if}
+					{:else if study.assignmentStatus === 'unconfirmed'}
 						Die Strong-Zuordnung von „{studyWord}“ zu {entry.strong} in {formatReference(
 							studyReference
 						)} ist fachlich noch nicht bestätigt.
@@ -206,7 +257,17 @@
 						mindestens eine dieser Zuordnungen ist fachlich noch nicht bestätigt. Der gespeicherte Link
 						bezeichnet keine einzelne Wortposition.
 					{/if}
-				</p>
+					{#if study.reviewCapability && !study.reviewState?.approved && study.assignmentStatus === 'unconfirmed' && studyWordPosition !== undefined}
+						<div class="mt-2">
+							<StrongReviewButtons
+								pending={study.reviewState?.decision ?? null}
+								disabled={reviewSaving}
+								onDecision={submitReview}
+							/>
+						</div>
+					{/if}
+					{#if reviewError}<p role="alert">{reviewError}</p>{/if}
+				</div>
 			{/if}
 
 			{#if study?.original?.morph}

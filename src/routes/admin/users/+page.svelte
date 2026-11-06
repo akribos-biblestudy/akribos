@@ -28,6 +28,10 @@
 	</p>
 </header>
 
+{#if form?.error === 'invalid'}<p class="mb-4 text-sm text-red-700" role="alert">
+		Das Konto ist nicht verfügbar.
+	</p>{/if}
+
 {#if form?.error === 'self'}
 	<p class="mb-4 text-sm text-red-700 dark:text-red-300" role="alert">
 		Das eigene Konto kann nicht geändert werden.
@@ -99,6 +103,7 @@
 				<th class="px-3 py-2">E-Mail</th>
 				<th class="px-3 py-2">Name</th>
 				<th class="px-3 py-2">Rolle</th>
+				<th class="px-3 py-2">Strong prüfen</th>
 				<th class="px-3 py-2 text-right">Listen</th>
 				<th class="px-3 py-2">Registriert</th>
 				<th class="px-3 py-2">Zuletzt aktiv</th>
@@ -127,6 +132,19 @@
 								<option value="admin" selected={user.role === 'admin'}>Verwaltung</option>
 							</select>
 						</form>
+					</td>
+					<td class="px-3 py-2.5">
+						{#if user.role === 'admin'}<span class="text-xs">Als Admin</span>{:else}
+							<form method="POST" action="?/strongReview">
+								<input type="hidden" name="userId" value={user.id} />
+								<input type="hidden" name="enabled" value={user.strongReview ? 'false' : 'true'} />
+								<button
+									type="submit"
+									disabled={!!user.disabledAt}
+									class="text-xs text-accent-600 hover:underline"
+									>{user.strongReview ? 'Berechtigt · entziehen' : 'Berechtigen'}</button
+								>
+							</form>{/if}
 					</td>
 					<td class="px-3 py-2.5 text-right tabular-nums">{user.listCount}</td>
 					<td class="px-3 py-2.5 text-xs">{dateFormat.format(new Date(user.createdAt))}</td>
@@ -165,7 +183,7 @@
 			{/each}
 			{#if visibleUsers.length === 0}
 				<tr
-					><td colspan="7" class="px-3 py-8 text-center text-sm text-stone-500"
+					><td colspan="8" class="px-3 py-8 text-center text-sm text-stone-500"
 						>Keine passenden Konten.</td
 					></tr
 				>

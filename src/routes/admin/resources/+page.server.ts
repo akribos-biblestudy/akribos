@@ -3,7 +3,13 @@ import { replaceResourceUserGrants } from '$lib/server/repositories/resource-gra
 import { fail } from '@sveltejs/kit';
 import { asc, count, eq, sql, isNull } from 'drizzle-orm';
 import { getDb } from '$lib/server/db';
-import { resources, verseComments, resourceUserGrants, users } from '$lib/server/db/schema';
+import {
+	bibleDownloadGrants,
+	resources,
+	verseComments,
+	resourceUserGrants,
+	users
+} from '$lib/server/db/schema';
 import { invalidateResourceCache } from '$lib/server/repositories/resources';
 import { deleteResource } from '$lib/server/import';
 import { refreshStrongStatistics } from '$lib/server/db/statistics';
@@ -62,24 +68,28 @@ export const actions = {
 		const id = String(form.get('id') ?? '');
 		if (!id) return fail(400, { error: 'missing id' });
 
-		await getDb()
-			.update(resources)
-			.set({
-				coverTitle: String(form.get('coverTitle') ?? '').trim() || null,
-				tabTitle: String(form.get('tabTitle') ?? '').trim() || null,
-				selectionTitle: String(form.get('selectionTitle') ?? '').trim() || null,
-				// An empty subtitle is meaningful; null is reserved for imported legacy resources whose
-				// abbreviation is still used as the fallback.
-				selectionSubtitle: String(form.get('selectionSubtitle') ?? '').trim(),
-				isPublic: form.get('isPublic') === 'on',
-				...(form.has('apiAccessSettings') ? { apiEnabled: form.get('apiEnabled') === 'on' } : {}),
-				...(form.has('offlineAccessSettings')
-					? { offlineEnabled: form.get('offlineEnabled') === 'on' }
-					: {}),
-				licenseHtml: String(form.get('licenseHtml') ?? '').trim() || null,
-				updatedAt: new Date()
-			})
-			.where(eq(resources.id, id));
+		await getDb().transaction(async (tx) => {
+			await tx
+				.update(resources)
+				.set({
+					coverTitle: String(form.get('coverTitle') ?? '').trim() || null,
+					tabTitle: String(form.get('tabTitle') ?? '').trim() || null,
+					selectionTitle: String(form.get('selectionTitle') ?? '').trim() || null,
+					// An empty subtitle is meaningful; null is reserved for imported legacy resources whose
+					// abbreviation is still used as the fallback.
+					selectionSubtitle: String(form.get('selectionSubtitle') ?? '').trim(),
+					isPublic: form.get('isPublic') === 'on',
+					...(form.has('apiAccessSettings') ? { apiEnabled: form.get('apiEnabled') === 'on' } : {}),
+					...(form.has('offlineAccessSettings')
+						? { offlineEnabled: form.get('offlineEnabled') === 'on' }
+						: {}),
+					licenseHtml: String(form.get('licenseHtml') ?? '').trim() || null,
+					updatedAt: new Date()
+				})
+				.where(eq(resources.id, id));
+			if (form.get('isPublic') !== 'on')
+				await tx.delete(bibleDownloadGrants).where(eq(bibleDownloadGrants.resourceId, id));
+		});
 
 		invalidateResourceCache();
 		return { saved: id };

@@ -9,12 +9,37 @@ import {
 	setUserRole
 } from '$lib/server/repositories/users';
 import { config } from '$lib/server/config';
+import { eq } from 'drizzle-orm';
+import { users } from '$lib/server/db/schema';
+import { strongReviewGrants } from '$lib/server/db/strong-review-schema';
 
 export async function load() {
-	return { users: await listUsers(getDb()) };
+	const db = getDb();
+	const [accounts, grants] = await Promise.all([
+		listUsers(db),
+		db.select({ userId: strongReviewGrants.userId }).from(strongReviewGrants)
+	]);
+	const ids = new Set(grants.map((grant) => grant.userId));
+	return { users: accounts.map((user) => ({ ...user, strongReview: ids.has(user.id) })) };
 }
 
 export const actions = {
+	strongReview: async ({ request }) => {
+		const form = await request.formData();
+		const userId = String(form.get('userId') ?? '');
+		if (!/^[0-9a-f-]{36}$/i.test(userId)) return fail(400, { error: 'invalid' as const });
+		const db = getDb();
+		const [user] = await db
+			.select({ id: users.id, disabledAt: users.disabledAt })
+			.from(users)
+			.where(eq(users.id, userId))
+			.limit(1);
+		if (!user || user.disabledAt) return fail(400, { error: 'invalid' as const });
+		if (form.get('enabled') === 'true')
+			await db.insert(strongReviewGrants).values({ userId }).onConflictDoNothing();
+		else await db.delete(strongReviewGrants).where(eq(strongReviewGrants.userId, userId));
+		return { saved: true };
+	},
 	role: async ({ request, locals }) => {
 		const form = await request.formData();
 		const userId = String(form.get('userId') ?? '');

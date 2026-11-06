@@ -15,20 +15,27 @@
  * the complete, correctly numbered chapter.
  */
 
-import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { bookById } from '../../bible/books.ts';
 import { formatReference } from '../../bible/reference.ts';
 import { documentHtmlToMarkdown, documentMarkdownToHtml } from '../../notes/document-markdown.ts';
 import { sanitizeNoteHtml } from '../../notes/sanitize.ts';
 import { segmentsToText, wordsFromSegments } from '../../bible/segments.ts';
-import type { ParsedVerse, ParseStream, ResourceMetadata } from '../../bible/parse/types.ts';
+import type {
+	ParsedStrongReview,
+	ParsedVerse,
+	ParseStream,
+	ResourceMetadata
+} from '../../bible/parse/types.ts';
 import type { Database } from '../db/client.ts';
 import {
+	bibleDownloadGrants,
 	documentPassages,
 	documents,
 	resourceBooks,
 	resources,
+	strongAssignmentReviews,
 	verseComments,
 	verses,
 	verseWords,
@@ -36,6 +43,8 @@ import {
 } from '../db/schema.ts';
 import { createDocumentFromLegacyVerseComment } from '../repositories/documents.ts';
 import { resolveDuplicate } from './duplicates.ts';
+import { fingerprint, matchesCurrentVerse } from '../strong-review/repository.ts';
+import { canonicalVerseHash } from '../bible-export/usx-reviews.ts';
 
 export type IngestProgress = {
 	/** Verses written so far. */
@@ -93,6 +102,7 @@ async function ingestBibleTransaction(
 	let bufferBook: number | undefined;
 	const seen = new Set<string>();
 	let hasText = false;
+	const importedReviews: ParsedStrongReview[] = [];
 
 	const flush = async () => {
 		if (buffer.size === 0) return;
@@ -119,6 +129,8 @@ async function ingestBibleTransaction(
 				metadata = { ...event.metadata, ...options.overrides };
 				resourceId = metadata.id;
 				await upsertResource(db, metadata, options);
+				// A new source can have different rights even when the identifier stays the same.
+				await db.delete(bibleDownloadGrants).where(eq(bibleDownloadGrants.resourceId, resourceId));
 				// A re-import replaces the resource's content; cascades clear verse_words with it.
 				await db.delete(verses).where(eq(verses.resourceId, resourceId));
 				await db.delete(resourceBooks).where(eq(resourceBooks.resourceId, resourceId));
@@ -183,6 +195,12 @@ async function ingestBibleTransaction(
 				warnings.push(event.message);
 				break;
 
+			case 'strongReview':
+				if (options.sourceFormat !== 'usx-zip')
+					throw new Error('Prüfungsmanifest nur für USX-ZIP erlaubt.');
+				importedReviews.push(event.review);
+				break;
+
 			case 'progress':
 				break;
 
@@ -195,6 +213,82 @@ async function ingestBibleTransaction(
 
 	if (!resourceId) throw new Error('the source contained no resource metadata');
 	if (!hasText) throw new Error('the source contained no usable Bible text');
+	// Validate against the exact stored verse after duplicate resolution, then restore only the
+	// explicitly approved manifest decisions. Existing current reviews keep their attribution.
+	let retainedReviews = 0;
+	for (let offset = 0; offset < importedReviews.length; offset += 250) {
+		const batch = importedReviews.slice(offset, offset + 250);
+		const stored = await db
+			.select({
+				book: verses.bookId,
+				chapter: verses.chapter,
+				verse: verses.verse,
+				segments: verses.segments
+			})
+			.from(verses)
+			.where(
+				and(
+					eq(verses.resourceId, resourceId),
+					or(
+						...batch.map((review) =>
+							and(
+								eq(verses.bookId, review.book),
+								eq(verses.chapter, review.chapter),
+								eq(verses.verse, review.verse)
+							)
+						)
+					)
+				)
+			);
+		const indexed = new Map(
+			stored.map((verse) => [`${verse.book}:${verse.chapter}:${verse.verse}`, verse])
+		);
+		for (const review of batch) {
+			const verse = indexed.get(`${review.book}:${review.chapter}:${review.verse}`);
+			if (
+				!verse ||
+				canonicalVerseHash(verse.segments) !== review.verseFingerprint ||
+				!matchesCurrentVerse({ ...review, bookId: review.book, resourceId }, verse.segments)
+			)
+				throw new Error('Prüfungsmanifest stimmt nicht mit dem importierten Vers überein.');
+		}
+		const storedReviews = await db
+			.insert(strongAssignmentReviews)
+			.values(
+				batch.map((review) => ({
+					resourceId,
+					bookId: review.book,
+					chapter: review.chapter,
+					verse: review.verse,
+					wordPosition: review.wordPosition,
+					strong: review.strong,
+					word: review.word,
+					decision: review.decision,
+					verseFingerprint: fingerprint(
+						indexed.get(`${review.book}:${review.chapter}:${review.verse}`)!.segments
+					),
+					authorId: null,
+					approvedBy: null,
+					approvedAt: new Date(review.approvedAt)
+				}))
+			)
+			.onConflictDoNothing({
+				target: [
+					strongAssignmentReviews.resourceId,
+					strongAssignmentReviews.bookId,
+					strongAssignmentReviews.chapter,
+					strongAssignmentReviews.verse,
+					strongAssignmentReviews.wordPosition,
+					strongAssignmentReviews.strong
+				]
+			})
+			.returning({ id: strongAssignmentReviews.id });
+		retainedReviews += batch.length - storedReviews.length;
+	}
+	if (retainedReviews)
+		warnings.push(
+			`${retainedReviews} vorhandene Strong-Prüfungen bleiben unverändert; das Manifest überschreibt sie nicht. Bitte prüfen, ob sie nach dem Reimport noch aktuell sind.`
+		);
 	// Replacements of empty duplicates do not create another verse or retain old words.
 	const [verseTotal] = await db
 		.select({ total: count() })

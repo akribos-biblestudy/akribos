@@ -1,5 +1,6 @@
 import { readAnalyticsSettings } from '$lib/server/analytics/settings';
 import { getDb } from '$lib/server/db';
+import { canReview } from '$lib/server/strong-review/repository';
 import { listSavedReaderWorkspaces } from '$lib/server/repositories/saved-reader-workspaces';
 import { listBibles } from '$lib/server/repositories/resources';
 import { workspaceColumns, writeWorkspaceCompatibilityCookies } from '$lib/server/reader-workspace';
@@ -27,6 +28,7 @@ export async function load({ cookies, locals, url }) {
 	if (isAppEditorPath(url.pathname)) {
 		return {
 			appEditor: true,
+			canReviewStrong: false,
 			initializeReaderWorkspace: false,
 			analytics: {
 				enabled: false,
@@ -78,6 +80,7 @@ export async function load({ cookies, locals, url }) {
 			: [];
 	return {
 		appEditor: false,
+		canReviewStrong: !locals.localReader && (await canReview(db, locals.user)),
 		initializeReaderWorkspace,
 		analytics: await readAnalyticsSettings(db),
 		savedWorkspaces,

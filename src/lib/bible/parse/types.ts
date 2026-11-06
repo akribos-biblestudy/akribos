@@ -59,6 +59,19 @@ export type ParsedVerse = {
 	heading?: string;
 };
 
+/** Approved Strong review carried by an explicitly bound Akribos USX archive manifest. */
+export type ParsedStrongReview = {
+	book: number;
+	chapter: number;
+	verse: number;
+	wordPosition: number;
+	strong: string;
+	word: string;
+	decision: 'confirmed' | 'incorrect';
+	approvedAt: string;
+	verseFingerprint: string;
+};
+
 export type ParsedLexiconEntry = {
 	/** Canonical Strong's id, `G26` or `H430`. */
 	strong: string;
@@ -117,6 +130,7 @@ export type ParsedCommentaryEntry = {
 export type ParseEvent =
 	| { type: 'metadata'; metadata: ResourceMetadata }
 	| { type: 'verse'; verse: ParsedVerse }
+	| { type: 'strongReview'; review: ParsedStrongReview }
 	| { type: 'lexiconEntry'; entry: ParsedLexiconEntry }
 	| { type: 'wordAnnotation'; annotation: ParsedWordAnnotation }
 	| { type: 'crossReference'; crossReference: ParsedCrossReference }

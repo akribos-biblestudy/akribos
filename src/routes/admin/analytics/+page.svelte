@@ -9,8 +9,8 @@
 	Konfiguriere eine vorhandene Umami-Instanz (Version 2.18 oder neuer). Besucher entscheiden vor dem
 	Laden, ob sie die freiwillige Nutzungsanalyse erlauben.
 </p>
-<form method="POST" use:enhance class="mt-6 grid max-w-2xl gap-4">
-	<label class="flex items-center gap-2"
+<form method="POST" use:enhance class="mt-6 grid gap-4 lg:grid-cols-2">
+	<label class="flex items-center gap-2 lg:col-span-2"
 		><input type="checkbox" name="enabled" checked={settings.enabled} /> Umami aktivieren</label
 	>
 	<label class="grid gap-1 text-sm"
@@ -45,7 +45,7 @@
 			class="rounded-lg border border-stone-300 px-3 py-2 dark:border-stone-700 dark:bg-stone-950"
 		/></label
 	>
-	<label class="grid gap-1 text-sm"
+	<label class="grid gap-1 text-sm lg:col-span-2"
 		>Verarbeitung und Speicherfristen beim Betreiber<textarea
 			name="privacyDetails"
 			rows="5"
@@ -54,19 +54,19 @@
 			>{settings.privacyDetails}</textarea
 		></label
 	>
-	<p class="text-xs text-stone-500">
+	<p class="max-w-3xl text-xs text-stone-500 lg:col-span-2">
 		Diese Angaben erscheinen in der Datenschutzerklärung. Beschreibe Hosting-Ort, Speicherfristen
 		und gegebenenfalls Übermittlungen außerhalb der EU/des EWR. Die tatsächlichen Löschfristen
 		werden beim Betreiber eingerichtet.
 	</p>
-	<p class="text-sm text-stone-600 dark:text-stone-400">
+	<p class="max-w-3xl text-sm text-stone-600 lg:col-span-2 dark:text-stone-400">
 		Gezählt werden nur allgemeine Seitenbereiche wie Reader, Wortstudie und Hilfe. Suchbegriffe,
 		Lesestellen, Ressourcen, Notizen, Konto- und Verwaltungsseiten werden nicht übertragen.
 		Änderungen an dieser Konfiguration erfordern eine neue Entscheidung der Besucher.
 	</p>
 	<button
 		type="submit"
-		class="justify-self-start rounded-lg bg-accent-600 px-4 py-2 font-semibold text-white hover:bg-accent-700"
+		class="justify-self-start rounded-lg bg-accent-600 px-4 py-2 font-semibold text-white hover:bg-accent-700 lg:col-span-2"
 		>Analyse-Einstellungen speichern</button
 	>
 	{#if form?.saved}<p role="status">Analyse-Einstellungen gespeichert.</p>{/if}

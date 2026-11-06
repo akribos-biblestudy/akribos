@@ -1,5 +1,11 @@
 import { registerWithPassword } from './lib/auth.ts';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test as base, type Page } from '@playwright/test';
+import type { Cookies } from '@sveltejs/kit';
+import { eq } from 'drizzle-orm';
+import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
+import { createSession, SESSION_COOKIE } from '../src/lib/server/auth/session.ts';
+import { createDb } from '../src/lib/server/db/client.ts';
+import { users } from '../src/lib/server/db/schema.ts';
 import { lastMailLinkTo } from './lib/mail-outbox.ts';
 
 /**
@@ -11,6 +17,45 @@ import { lastMailLinkTo } from './lib/mail-outbox.ts';
  */
 
 const PASSWORD = 'ein-sicheres-passwort';
+
+// These comment/list regression tests need an isolated reader, not the registration flow.
+const test = base.extend<{ auditPage: Page }>({
+	auditPage: async ({ page, context }, use) => {
+		const { db, client } = createDb(
+			process.env.E2E_DATABASE_URL ??
+				testDatabaseUrl(
+					process.env.DATABASE_URL ?? 'postgres://strongs:strongs@localhost:5432/strongs'
+				)
+		);
+		let userId: string | undefined;
+		try {
+			const [user] = await db
+				.insert(users)
+				.values({
+					email: uniqueEmail('list-regression'),
+					displayName: 'Regression',
+					emailVerifiedAt: new Date()
+				})
+				.returning({ id: users.id });
+			userId = user.id;
+			const cookies = { set: () => {} } as unknown as Cookies;
+			const token = await createSession(db, cookies, user.id);
+			await context.addCookies([
+				{
+					name: SESSION_COOKIE,
+					value: token,
+					url: 'http://localhost:4173',
+					httpOnly: true,
+					sameSite: 'Lax'
+				}
+			]);
+			await use(page);
+		} finally {
+			if (userId) await db.delete(users).where(eq(users.id, userId));
+			await client.end();
+		}
+	}
+});
 
 function uniqueEmail(name: string): string {
 	return `e2e-${name}-${Math.random().toString(36).slice(2, 10)}@example.com`;
@@ -225,7 +270,6 @@ test('a member can leave a shared list, landing back on their own lists tab', as
 });
 
 async function createAuditList(page: Page): Promise<void> {
-	await register(page, uniqueEmail('list-regression'), 'Regression');
 	await page.goto('/lists');
 	await page.getByPlaceholder('Neue Stellensammlung').fill('Regressionen');
 	await page.getByRole('button', { name: 'Neue Stellensammlung' }).click();
@@ -233,7 +277,7 @@ async function createAuditList(page: Page): Promise<void> {
 }
 
 test('a collection rejects noncanonical chapters and retains every verse of an entered range', async ({
-	page
+	auditPage: page
 }) => {
 	await createAuditList(page);
 	await page.getByPlaceholder('Joh 3,16').fill('Joh999,1');
@@ -254,7 +298,7 @@ test('a collection rejects noncanonical chapters and retains every verse of an e
 });
 
 test('a slow comment response prevents duplicate submissions and preserves a continued draft', async ({
-	page
+	auditPage: page
 }) => {
 	await createAuditList(page);
 	await page.getByPlaceholder('Joh 3,16').fill('Joh3,16');
@@ -308,7 +352,9 @@ test('a slow comment response prevents duplicate submissions and preserves a con
 	expect(posts).toBe(2);
 });
 
-test('a failed comment request keeps the draft and permits saving it again', async ({ page }) => {
+test('a failed comment request keeps the draft and permits saving it again', async ({
+	auditPage: page
+}) => {
 	await createAuditList(page);
 	await page.getByPlaceholder('Joh 3,16').fill('Joh3,16');
 	await page.getByRole('button', { name: 'Zur Stellensammlung hinzufügen' }).click();

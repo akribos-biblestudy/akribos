@@ -14,11 +14,13 @@
 	import type { ReaderLayout } from '$lib/reader/workspace';
 	import { startTour } from '$lib/tour/tour-state.svelte';
 	import { tourStepsForRoute, GUEST_TOUR_STEPS, MEMBER_TOUR_STEPS } from '$lib/tour/steps';
+	import { FEEDBACK_PAGE_KEY } from '$lib/feedback/page-context';
 
 	let {
 		user = null,
 		savedWorkspaces = [],
 		readerPreferences = null,
+		canReviewStrong = false,
 		initializingWorkspace = false,
 		guestTourDone = false
 	}: {
@@ -30,6 +32,7 @@
 			tourCompletedAt: Date | string | null;
 		} | null;
 		readerPreferences?: { fontScale: number; layout: ReaderLayout } | null;
+		canReviewStrong?: boolean;
 		initializingWorkspace?: boolean;
 		/** Whether this device already finished (or dismissed) the tour while signed out. */
 		guestTourDone?: boolean;
@@ -56,6 +59,16 @@
 	function restartTour(): void {
 		userMenu?.close();
 		startTour(tourStepsForRoute(page.url.pathname, !!user, !!readerPreferences), !!user);
+	}
+
+	function rememberFeedbackPage(): void {
+		try {
+			// Avoid sending the previous URL in the feedback link or browser history.
+			if (window.location.pathname === '/feedback') sessionStorage.removeItem(FEEDBACK_PAGE_KEY);
+			else sessionStorage.setItem(FEEDBACK_PAGE_KEY, window.location.href);
+		} catch {
+			// A disabled session store still permits navigation and the server's referrer fallback.
+		}
 	}
 
 	let userMenu: Menu | undefined = $state();
@@ -181,6 +194,8 @@
 					<a href="/account" role="menuitem" data-sveltekit-preload-data="hover"
 						>{t('nav.account')}</a
 					>
+					<a href="/feedback" role="menuitem" onclick={rememberFeedbackPage}>Feedback geben</a>
+					{#if canReviewStrong}<a href="/strong-review" role="menuitem">Strong prüfen</a>{/if}
 					{#if user.role === 'admin'}
 						<a href="/admin" role="menuitem" data-sveltekit-preload-data="hover">{t('nav.admin')}</a
 						>
@@ -192,6 +207,7 @@
 				{/if}
 				<a href="/help" role="menuitem">{t('nav.help')}</a>
 				<a href="/about" role="menuitem">{t('nav.about')}</a>
+				<a href="/downloads" role="menuitem">Bibel-Downloads</a>
 				{#if !user}
 					<hr />
 					<a href="/login" role="menuitem">{t('nav.login')}</a>

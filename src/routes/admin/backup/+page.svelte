@@ -159,7 +159,7 @@
 <details
 	id="restore-confirm"
 	open={form?.restoreError === 'confirm'}
-	class="group mb-5 max-w-2xl scroll-mt-24 rounded-xl border border-red-300 dark:border-red-900"
+	class="group mb-5 scroll-mt-24 rounded-xl border border-red-300 dark:border-red-900"
 >
 	<summary
 		class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-red-700 dark:text-red-300 [&::-webkit-details-marker]:hidden"
@@ -170,7 +170,7 @@
 		/>
 	</summary>
 	<div class="border-t border-red-200 p-4 dark:border-red-900">
-		<p class="mb-3 text-sm text-stone-600 dark:text-stone-300">
+		<p class="mb-3 max-w-3xl text-sm text-stone-600 dark:text-stone-300">
 			Gilt für jede Wiederherstellung auf dieser Seite. Eine Wiederherstellung ersetzt den gesamten
 			Inhalt der Datenbank durch den Inhalt der gewählten Backup-Datei; vorher wird automatisch eine
 			Sicherung des aktuellen Zustands erstellt.
@@ -195,10 +195,10 @@
 <!-- Sofort-Backup -->
 <section
 	id="manual-backup"
-	class="mb-8 max-w-2xl scroll-mt-24 rounded-xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900"
+	class="mb-8 scroll-mt-24 rounded-xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900"
 >
 	<h2 class="mb-2 text-sm font-semibold tracking-wide text-stone-500 uppercase">Sofort-Backup</h2>
-	<p class="mb-3 text-sm text-stone-600 dark:text-stone-300">
+	<p class="mb-3 max-w-3xl text-sm text-stone-600 dark:text-stone-300">
 		Erstellt einen vollständigen Dump der Datenbank (pg_dump, Custom-Format) und lädt ihn direkt
 		herunter. Bei einer großen Datenbank kann das eine Weile dauern.
 	</p>
@@ -217,7 +217,7 @@
 <!-- Automatisches Backup nach S3 -->
 <section
 	id="automatic-backup"
-	class="mb-8 max-w-4xl scroll-mt-24 rounded-xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900"
+	class="mb-8 scroll-mt-24 rounded-xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900"
 >
 	<h2 class="mb-2 text-sm font-semibold tracking-wide text-stone-500 uppercase">
 		Automatisches Backup nach S3
@@ -282,7 +282,7 @@
 			Automatische Backups aktiviert
 		</label>
 
-		<div class="grid gap-3 sm:grid-cols-2">
+		<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 			<div>
 				<label class="mb-1 block text-xs font-medium" for="endpoint">Endpoint (URL)</label>
 				<input
@@ -597,20 +597,17 @@
 </section>
 
 <!-- Verlauf -->
-<section id="backup-history" class="mb-8 max-w-4xl scroll-mt-24">
+<section id="backup-history" class="mb-8 scroll-mt-24">
 	<h2 class="mb-2 text-sm font-semibold tracking-wide text-stone-500 uppercase">Verlauf</h2>
 	<BackupJobList jobs={data.jobs} />
 </section>
 
 <!-- Wiederherstellen -->
-<section
-	id="restore"
-	class="max-w-2xl scroll-mt-24 rounded-xl border border-red-300 p-4 dark:border-red-900"
->
+<section id="restore" class="scroll-mt-24 rounded-xl border border-red-300 p-4 dark:border-red-900">
 	<h2 class="mb-2 text-sm font-semibold tracking-wide text-red-700 uppercase dark:text-red-300">
 		Wiederherstellen
 	</h2>
-	<p class="mb-3 text-sm text-stone-600 dark:text-stone-300">
+	<p class="mb-3 max-w-3xl text-sm text-stone-600 dark:text-stone-300">
 		Ersetzt den gesamten Inhalt der Datenbank durch den Inhalt der Backup-Datei. Vorher wird
 		automatisch eine Sicherung des aktuellen Zustands erstellt; ohne diese Sicherung wird die
 		Wiederherstellung nicht ausgeführt. Alle Nutzerdaten, Listen und Notizen entsprechen danach dem
@@ -639,7 +636,7 @@
 				type="file"
 				accept=".dump"
 				onchange={uploadRestoreFile}
-				class="w-full rounded-md border border-stone-300 px-3 py-2 text-sm file:mr-3 file:rounded
+				class="w-full max-w-2xl rounded-md border border-stone-300 px-3 py-2 text-sm file:mr-3 file:rounded
 				       file:border-0 file:bg-stone-100 file:px-2 file:py-1 file:text-xs
 				       dark:border-stone-700 dark:file:bg-stone-800"
 			/>
