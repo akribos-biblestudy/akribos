@@ -10,7 +10,7 @@ import { readableResourceCondition, type ResourceAccessChannel } from './resourc
 
 import type { LexiconTranslation } from '../../bible/lexicon.ts';
 
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { bookIdsForTestament } from '../../bible/books.ts';
 import { normalizeStrongId, strongLanguage, type StrongId } from '../../bible/strong.ts';
 import type { VerseSegment } from '../../bible/segments.ts';
@@ -20,6 +20,8 @@ import { strongAssignmentStatus } from '../../bible/strong-assignment.ts';
 import type { VerseRef } from '../../bible/reference.ts';
 import type { Database } from '../db/client.ts';
 import { lexiconEntries, resources, verses, verseWords } from '../db/schema.ts';
+import { strongAssignmentReviews } from '../db/strong-review-schema.ts';
+import { overlayApprovedReviews } from '../strong-review/repository.ts';
 
 export type StrongEntry = {
 	strong: StrongId;
@@ -350,12 +352,42 @@ export async function loadStrongOccurrences(
 		limit ${pageSize} offset ${offset}
 	`);
 
+	const approved = rows.length
+		? await db
+				.select()
+				.from(strongAssignmentReviews)
+				.where(
+					and(
+						eq(strongAssignmentReviews.resourceId, resourceId),
+						eq(strongAssignmentReviews.strong, strong),
+						isNotNull(strongAssignmentReviews.approvedAt),
+						or(
+							...rows.map((row) =>
+								and(
+									eq(strongAssignmentReviews.bookId, row.book_id),
+									eq(strongAssignmentReviews.chapter, row.chapter),
+									eq(strongAssignmentReviews.verse, row.verse)
+								)
+							)
+						)
+					)
+				)
+		: [];
 	return {
 		occurrences: rows.map((row) => ({
 			book: row.book_id,
 			chapter: row.chapter,
 			verse: row.verse,
-			segments: row.segments,
+			segments: overlayApprovedReviews(
+				row.segments,
+				strong,
+				approved.filter(
+					(review) =>
+						review.bookId === row.book_id &&
+						review.chapter === row.chapter &&
+						review.verse === row.verse
+				)
+			),
 			morph: row.morph,
 			lemma: row.lemma
 		})),

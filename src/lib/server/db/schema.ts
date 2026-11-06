@@ -51,6 +51,9 @@ import type { ReaderWorkspace } from '../../reader/workspace.ts';
 import { DEFAULT_SERMON_COLUMNS, type SermonColumn } from '../../notes/sermon-board.ts';
 import { bytea, tsvector } from './types.ts';
 
+export { feedbackReports } from './feedback-schema.ts';
+export { strongReviewGrants, strongAssignmentReviews } from './strong-review-schema.ts';
+
 const timestamps = {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
@@ -1391,6 +1394,14 @@ export const backupJobs = pgTable(
 		index('backup_jobs_type_idx').on(table.type, table.createdAt)
 	]
 );
+
+/** Explicit public-domain download permission, independent of reader and API access. */
+export const bibleDownloadGrants = pgTable('bible_download_grants', {
+	resourceId: text('resource_id')
+		.primaryKey()
+		.references(() => resources.id, { onDelete: 'cascade' }),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+});
 
 export type Resource = typeof resources.$inferSelect;
 export type NewResource = typeof resources.$inferInsert;

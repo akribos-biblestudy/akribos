@@ -7,10 +7,19 @@ import { segmentsToText } from '../../bible/segments.ts';
 import { readXml } from '../../bible/parse/xml.ts';
 import { normalizeSourceRevision } from '../../bible/parse/source-revision.ts';
 import type { ParseStream, ResourceMetadata } from '../../bible/parse/types.ts';
+import {
+	restoreReviewMarkers,
+	canonicalVerseHash,
+	USX_REVIEW_MANIFEST_MAX_BYTES,
+	USX_BOOK_MAX_BYTES,
+	USX_TOTAL_MAX_BYTES,
+	USX_ARCHIVE_MAX_BYTES,
+	usxHash,
+	usxReviewManifestSchema,
+	type UsxDecision
+} from '../bible-export/usx-reviews.ts';
 
-export const MAX_USX_ARCHIVE_BYTES = 64 * 1024 * 1024;
-const MAX_ENTRY_BYTES = 32 * 1024 * 1024;
-const MAX_TOTAL_BYTES = 256 * 1024 * 1024;
+export const MAX_USX_ARCHIVE_BYTES = USX_ARCHIVE_MAX_BYTES;
 const MAX_ENTRIES = 500;
 const decoder = new TextDecoder('utf-8', { fatal: true });
 type Entry = {
@@ -81,8 +90,12 @@ function entries(bytes: Uint8Array): Entry[] {
 		if (flags & 0x41 || ![0, 8].includes(method) || (mode & 0xf000) === 0xa000 || u16(cursor + 34))
 			throw invalid(`Nicht unterstützter ZIP-Eintrag: ${name}`);
 		total += uncompressed;
-		if (uncompressed > MAX_ENTRY_BYTES || total > MAX_TOTAL_BYTES)
-			throw invalid('Entpackte Daten überschreiten 32 MiB je Datei oder 256 MiB insgesamt.');
+		const entryLimit =
+			name === 'strong-pruefungen.json' ? USX_REVIEW_MANIFEST_MAX_BYTES : USX_BOOK_MAX_BYTES;
+		if (uncompressed > entryLimit || total > USX_TOTAL_MAX_BYTES)
+			throw invalid(
+				'Entpackte Daten überschreiten die zulässige Dateigröße oder 256 MiB insgesamt.'
+			);
 		const offset = u32(cursor + 42);
 		if (offset + 30 > start || u32(offset) !== 0x04034b50)
 			throw invalid(`Dateikopf fehlt: ${name}`);
@@ -192,6 +205,45 @@ export async function* parseUsxArchive(bytes: Uint8Array, fileName = 'USX.zip'):
 	const files = entries(bytes);
 	const books = files.filter(isUsx).sort((a, b) => a.name.localeCompare(b.name, 'en'));
 	if (!books.length) throw invalid('Keine USX-Buchdateien gefunden.');
+	const manifestFiles = files.filter((entry) => entry.name === 'strong-pruefungen.json');
+	let reviewManifest: ReturnType<typeof usxReviewManifestSchema.parse> | null = null;
+	let legacyManifest = false;
+	if (manifestFiles[0]) {
+		let raw: unknown;
+		try {
+			raw = JSON.parse(extract(bytes, manifestFiles[0]));
+		} catch {
+			throw invalid('strong-pruefungen.json ist keine gültige JSON-Datei.');
+		}
+		if (raw && typeof raw === 'object' && 'format' in raw && raw.format === 'akribos-usx-reviews') {
+			const parsed = usxReviewManifestSchema.safeParse(raw);
+			if (!parsed.success) throw invalid('Ungültiges Prüfungsmanifest.');
+			reviewManifest = parsed.data;
+			const names = new Set(reviewManifest.books.map((book) => book.name));
+			if (
+				names.size !== books.length ||
+				reviewManifest.books.length !== books.length ||
+				books.some((book) => !names.has(book.name))
+			)
+				throw invalid('Die USX-Bücher stimmen nicht mit dem Prüfungsmanifest überein.');
+			for (const book of books) {
+				const expected = reviewManifest.books.find((item) => item.name === book.name);
+				if (!expected || usxHash(extract(bytes, book)) !== expected.sha256)
+					throw invalid(`${book.name}: Die Prüfsumme des Prüfungsmanifests stimmt nicht.`);
+			}
+		} else legacyManifest = true;
+	}
+	const reviewByVerse = new Map<string, UsxDecision[]>();
+	const reviewKeys = new Set<string>();
+	for (const review of reviewManifest?.reviews ?? []) {
+		const ref = `${review.bookId}:${review.chapter}:${review.verse}`;
+		const key = `${ref}:${review.wordPosition}:${review.strong}`;
+		if (reviewKeys.has(key)) throw invalid('Das Prüfungsmanifest enthält doppelte Zuordnungen.');
+		reviewKeys.add(key);
+		const list = reviewByVerse.get(ref) ?? [];
+		list.push(review);
+		reviewByVerse.set(ref, list);
+	}
 	const metadataFiles = files.filter(
 		(entry) => /(^|\/)metadata\.xml$/i.test(entry.name) && !entry.name.startsWith('__MACOSX/')
 	);
@@ -206,6 +258,11 @@ export async function* parseUsxArchive(bytes: Uint8Array, fileName = 'USX.zip'):
 		...(metadataFiles[0] ? await readMetadata(extract(bytes, metadataFiles[0])) : {})
 	};
 	yield { type: 'metadata', metadata };
+	if (legacyManifest)
+		yield {
+			type: 'warning',
+			message: 'Nicht versioniertes Prüfungsmanifest wurde nicht übernommen.'
+		};
 	let total = 0;
 	for (const entry of books) {
 		let count = 0;
@@ -214,6 +271,33 @@ export async function* parseUsxArchive(bytes: Uint8Array, fileName = 'USX.zip'):
 			for await (const event of parseUsx(extract(bytes, entry))) {
 				if (event.type === 'metadata' || event.type === 'progress') continue;
 				if (event.type === 'verse') {
+					const ref = `${event.verse.book}:${event.verse.chapter}:${event.verse.verse}`;
+					const decisions = reviewByVerse.get(ref);
+					if (decisions) {
+						const segments = restoreReviewMarkers(event.verse.segments, decisions);
+						const verseFingerprint = canonicalVerseHash(segments);
+						yield { ...event, verse: { ...event.verse, segments } };
+						for (const decision of decisions)
+							yield {
+								type: 'strongReview',
+								review: {
+									book: decision.bookId,
+									chapter: decision.chapter,
+									verse: decision.verse,
+									wordPosition: decision.wordPosition,
+									strong: decision.strong,
+									word: decision.word,
+									decision: decision.decision,
+									approvedAt: decision.approvedAt,
+									verseFingerprint
+								}
+							};
+						reviewByVerse.delete(ref);
+						count++;
+						hasText ||= segmentsToText(segments).length > 0;
+						total++;
+						continue;
+					}
 					count++;
 					hasText ||= segmentsToText(event.verse.segments).length > 0;
 					total++;
@@ -228,6 +312,7 @@ export async function* parseUsxArchive(bytes: Uint8Array, fileName = 'USX.zip'):
 		if (!count || !hasText) throw invalid(`${entry.name}: kein verwertbarer Bibeltext.`);
 		yield { type: 'progress', done: total, message: entry.name };
 	}
+	if (reviewByVerse.size) throw invalid('Das Prüfungsmanifest verweist auf fehlende Bibelstellen.');
 	yield { type: 'progress', done: total, total };
 }
 

@@ -242,3 +242,68 @@ it('shows occurrence notes only for the studied Strong and explains the affected
 	await screen.getByRole('button', { name: 'Hinweis a öffnen', exact: true }).click();
 	await expect.element(screen.getByRole('note')).toHaveTextContent('Normale Anmerkung.');
 });
+
+it('allows an authorized reviewer to change or withdraw a pending assessment', async () => {
+	const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+		if (init?.method === 'POST') return Response.json({ saved: true });
+		const payload = await response('unconfirmed').json();
+		return Response.json({ ...payload, reviewCapability: true, reviewState: null });
+	});
+	vi.stubGlobal('fetch', fetchMock);
+	const screen = await render(ReaderLexiconTab, props);
+	const confirm = screen.getByRole('button', { name: 'Zuordnung bestätigen' });
+	await expect.element(confirm).toHaveAttribute('aria-pressed', 'false');
+	confirm.element().focus();
+	await expect.element(screen.getByRole('tooltip', { name: 'Zuordnung bestätigen' })).toBeVisible();
+	await confirm.click();
+	expect(screen.container.textContent).not.toContain('Deine Einschätzung:');
+	const confirmed = screen.getByRole('button', { name: 'Bestätigung zurückziehen' });
+	await expect.element(confirmed).toHaveAttribute('aria-pressed', 'true');
+	expect(confirmed.element().querySelector('svg')?.getAttribute('fill')).toBe('currentColor');
+	await confirmed.click();
+	await expect
+		.element(screen.getByRole('button', { name: 'Zuordnung bestätigen' }))
+		.toHaveAttribute('aria-pressed', 'false');
+	await screen.getByRole('button', { name: 'Zuordnung bestätigen' }).click();
+	await screen.getByRole('button', { name: 'Als fehlerhaft markieren' }).click();
+	expect(screen.container.textContent).not.toContain('Deine Einschätzung:');
+	const incorrect = screen.getByRole('button', { name: 'Markierung als fehlerhaft zurückziehen' });
+	await expect.element(incorrect).toHaveAttribute('aria-pressed', 'true');
+	expect(incorrect.element().querySelector('svg')?.getAttribute('fill')).toBe('currentColor');
+	await incorrect.click();
+	expect(screen.container.textContent).not.toContain('Deine Einschätzung:');
+	await expect
+		.element(screen.getByRole('button', { name: 'Als fehlerhaft markieren' }))
+		.toHaveAttribute('aria-pressed', 'false');
+	const posts = fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
+	expect(posts.map(([, init]) => JSON.parse(String(init?.body)).decision)).toEqual([
+		'confirmed',
+		'withdraw',
+		'confirmed',
+		'incorrect',
+		'withdraw'
+	]);
+});
+
+it('keeps the selected assessment when withdrawal is rejected', async () => {
+	vi.stubGlobal(
+		'fetch',
+		vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+			if (init?.method === 'POST') return new Response(null, { status: 409 });
+			const payload = await response('unconfirmed').json();
+			return Response.json({
+				...payload,
+				reviewCapability: true,
+				reviewState: { decision: 'confirmed', approved: false }
+			});
+		})
+	);
+	const screen = await render(ReaderLexiconTab, props);
+	const selected = screen.getByRole('button', { name: 'Bestätigung zurückziehen' });
+	await selected.click();
+	await expect
+		.element(screen.getByRole('alert'))
+		.toHaveTextContent('Die Prüfung konnte nicht gespeichert werden. Bitte lade die Stelle neu.');
+	await expect.element(selected).toHaveAttribute('aria-pressed', 'true');
+	expect(selected.element().querySelector('svg')?.getAttribute('fill')).toBe('currentColor');
+});

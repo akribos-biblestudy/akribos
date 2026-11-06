@@ -61,7 +61,7 @@ export async function load({ params, setHeaders, url, locals }) {
 
 	if (page > occurrences.pageCount) redirect(302, `/${strong}${url.search}`);
 
-	setHeaders({ 'cache-control': 'public, max-age=0, s-maxage=3600' });
+	setHeaders({ 'cache-control': 'private, no-store' });
 
 	const resource = bibles.find((bible) => bible.id === statisticsResource);
 

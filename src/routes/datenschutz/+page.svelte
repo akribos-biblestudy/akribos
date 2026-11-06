@@ -50,6 +50,20 @@
 	</section>
 
 	<section class="mb-8">
+		<h2 class="mb-2 text-lg font-semibold">Feedback und fachliche Prüfung</h2>
+		<p class="text-stone-700 dark:text-stone-300">
+			Wenn du Feedback sendest, speichern wir deine Angaben, das zugehörige Konto, gegebenenfalls
+			einen Anhang sowie die im Formular genannten technischen Angaben. Dazu gehört die vollständige
+			Adresse der Seite, auf der du „Feedback geben“ gewählt hast, einschließlich möglicherweise
+			persönlicher Suchparameter und Anker. Nur die Verwaltung kann die Meldungen einsehen und
+			bearbeiten. Bei einer Kontolöschung bleibt die Meldung ohne Kontozuordnung erhalten. Die
+			Verwaltung kann Meldungen manuell löschen. Für fachliche Strong-Prüfungen speichern wir die
+			Entscheidung, das prüfende Konto und den Zeitpunkt; bei Kontolöschung entfällt die
+			Kontozuordnung.
+		</p>
+	</section>
+
+	<section class="mb-8">
 		<h2 class="mb-2 text-lg font-semibold">Sitzungs-Cookie</h2>
 		<p class="text-stone-700 dark:text-stone-300">
 			Nach der Anmeldung setzt Akribos ein Cookie, das ausschließlich ein zufälliges Sitzungs-Token
