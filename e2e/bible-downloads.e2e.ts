@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { registerWithPassword } from './lib/auth.ts';
 import { createDb } from '../src/lib/server/db/client.ts';
 import {
 	bibleDownloadGrants,
@@ -11,7 +10,7 @@ import {
 	verses
 } from '../src/lib/server/db/schema.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
-import { seedAdminSession } from './lib/admin-session.ts';
+import { seedAdminSession, testUserSession } from './lib/admin-session.ts';
 
 test('public Bible downloads require a grant and admin routes remain private', async ({
 	page,
@@ -50,7 +49,13 @@ test('public Bible downloads require a grant and admin routes remain private', a
 		});
 		expect((await page.request.get(`/downloads/${id}`)).status()).toBe(404);
 		expect((await page.request.get(`/downloads/${id}?format=usx`)).status()).toBe(404);
-		await registerWithPassword(page, email, 'ein-sicheres-passwort', 'Testperson');
+		await db.insert(users).values({
+			email,
+			displayName: 'Testperson',
+			emailVerifiedAt: new Date(),
+			tourCompletedAt: new Date()
+		});
+		await testUserSession(page.context(), email);
 		expect((await page.request.get(`/admin/bible-downloads/${id}`)).status()).toBe(404);
 		expect(
 			(

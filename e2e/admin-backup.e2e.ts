@@ -125,8 +125,9 @@ test('a manual backup can be downloaded and appears in the history', async ({ pa
 	expect(head.toString('ascii')).toBe('PGDMP');
 
 	await page.reload();
-	await expect(page.getByText('Download').first()).toBeVisible();
-	await expect(page.getByText('fertig').first()).toBeVisible();
+	const downloadJob = page.locator('#backup-history li').filter({ hasText: 'Download' }).first();
+	await expect(downloadJob.getByText('Download', { exact: true })).toBeVisible();
+	await expect(downloadJob.getByText('fertig', { exact: true })).toBeVisible();
 });
 
 test('S3 settings persist without exposing the secret', async ({ page }) => {

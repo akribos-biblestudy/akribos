@@ -2,12 +2,11 @@ import { expect, test } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { unzipSync, strFromU8 } from 'fflate';
-import { registerWithPassword } from './lib/auth.ts';
 import { createDb } from '../src/lib/server/db/client.ts';
 import { feedbackReports } from '../src/lib/server/db/feedback-schema.ts';
 import { users } from '../src/lib/server/db/schema.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
-import { seedAdminSession } from './lib/admin-session.ts';
+import { seedAdminSession, testUserSession } from './lib/admin-session.ts';
 
 test('feedback stays private, survives account deletion and exports only content without account data', async ({
 	page,
@@ -26,7 +25,13 @@ test('feedback stays private, survives account deletion and exports only content
 	try {
 		await page.goto('/feedback');
 		await expect(page).toHaveURL(/\/login/);
-		await registerWithPassword(page, email, 'ein-sicheres-passwort', 'Testperson');
+		await db.insert(users).values({
+			email,
+			displayName: 'Testperson',
+			emailVerifiedAt: new Date(),
+			tourCompletedAt: new Date()
+		});
+		await testUserSession(page.context(), email);
 		expect((await page.request.get('/admin/feedback')).status()).toBe(404);
 		await page.goto('/feedback');
 		await page.getByLabel('Werk (erforderlich)').selectOption('SEEDDE');
