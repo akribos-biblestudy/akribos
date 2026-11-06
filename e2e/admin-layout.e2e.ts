@@ -1,13 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { seedAdminSession } from './lib/admin-session.ts';
 
 test('administration uses the available width and offers accessible navigation on mobile', async ({
 	page
 }) => {
-	await page.goto('/login?redirectTo=%2Fadmin%2Fimport');
-	await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
-	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
-	await page.getByLabel('Passwort').fill('seed-admin-password');
-	await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+	await seedAdminSession(page.context());
+	await page.goto('/admin/import');
 	await expect(page).toHaveURL(/\/admin\/import/);
 
 	for (const width of [1440, 1920]) {

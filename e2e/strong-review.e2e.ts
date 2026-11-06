@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import postgres from 'postgres';
 import { randomUUID } from 'node:crypto';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
+import { seedAdminSession } from './lib/admin-session.ts';
 
 const dbUrl =
 	process.env.E2E_DATABASE_URL ??
@@ -47,7 +48,7 @@ test('rights, pending review, approval and changed source remain isolated', asyn
 		await sql`insert into users (email,password_hash,display_name,email_verified_at,tour_completed_at) select ${readerEmail},password_hash,'Review-Prüfer',now(),now() from users where email='reader@example.com'`;
 		await sql`insert into users (email,password_hash,display_name,email_verified_at,tour_completed_at) select ${viewerEmail},password_hash,'Review-Leser',now(),now() from users where email='reader@example.com'`;
 		await sql`insert into resource_user_grants (resource_id,user_id) select ${resourceId},id from users where email in ('admin@example.com',${readerEmail},${viewerEmail})`;
-		await login(adminPage, 'admin@example.com', 'seed-admin-password');
+		await seedAdminSession(admin);
 		await login(readerPage, readerEmail, 'seed-reader-password');
 		await login(guestPage, viewerEmail, 'seed-reader-password');
 		await readerPage.getByRole('button', { name: 'Konto-Menü' }).click();

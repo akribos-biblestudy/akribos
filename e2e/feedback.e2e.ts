@@ -7,6 +7,7 @@ import { createDb } from '../src/lib/server/db/client.ts';
 import { feedbackReports } from '../src/lib/server/db/feedback-schema.ts';
 import { users } from '../src/lib/server/db/schema.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
+import { seedAdminSession } from './lib/admin-session.ts';
 
 test('feedback stays private, survives account deletion and exports only content without account data', async ({
 	page,
@@ -47,13 +48,8 @@ test('feedback stays private, survives account deletion and exports only content
 		reportId = report!.id;
 		expect((await page.request.get(`/admin/feedback/${reportId}/attachment`)).status()).toBe(404);
 		const admin = await adminContext.newPage();
-		await admin.goto('/login?redirectTo=%2Faccount');
-		await admin.getByLabel('E-Mail-Adresse').fill('admin@example.com');
-		await admin.getByRole('button', { name: 'Weiter', exact: true }).click();
-		await admin.getByLabel('Passwort').fill('seed-admin-password');
-		await admin.getByRole('button', { name: 'Anmelden', exact: true }).click();
-		await expect(admin).toHaveURL(/\/account$/);
-		await admin.goto('/admin/feedback');
+		await seedAdminSession(adminContext);
+		await admin.goto(`/admin/feedback?description=${encodeURIComponent(description)}`);
 		const row = admin.getByRole('row').filter({ hasText: description });
 		await expect(row).toContainText('Joh 3,16, Wort 2');
 		await expect(row.getByRole('link', { name: 'Joh 3,16' })).toHaveAttribute(
@@ -67,7 +63,9 @@ test('feedback stays private, survives account deletion and exports only content
 		expect(attachment.status()).toBe(200);
 		expect(await attachment.text()).toBe('Anhang');
 		expect(attachment.headers()['content-disposition']).toContain('attachment');
-		const excel = await admin.request.get('/admin/feedback/export?resource=SEEDDE');
+		const excel = await admin.request.get(
+			`/admin/feedback/export?resource=SEEDDE&description=${encodeURIComponent(description)}`
+		);
 		expect(excel.status()).toBe(200);
 		const files = unzipSync(await excel.body());
 		const sheet = strFromU8(files['xl/worksheets/sheet1.xml']!);

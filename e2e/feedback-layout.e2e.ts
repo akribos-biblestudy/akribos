@@ -1,11 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { seedAdminSession } from './lib/admin-session.ts';
 
 test('feedback table uses wide screens and scrolls locally on small screens', async ({ page }) => {
-	await page.goto('/login?redirectTo=%2Fadmin%2Ffeedback');
-	await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
-	await page.getByRole('button', { name: 'Weiter', exact: true }).click();
-	await page.getByLabel('Passwort').fill('seed-admin-password');
-	await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+	await seedAdminSession(page.context());
+	await page.goto('/admin/feedback');
 	await expect(page).toHaveURL(/\/admin\/feedback/);
 
 	const table = page.getByRole('table', { name: 'Feedbackmeldungen' });

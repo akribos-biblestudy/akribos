@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { seedAdminSession } from './lib/admin-session.ts';
 import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
@@ -16,11 +17,8 @@ test('a stale publication approval cannot survive a concurrent source change or 
 	const id = `DOWNLOAD-RACE-${randomUUID()}`;
 	try {
 		await monitor`insert into resources (id, kind, name, abbrev, language, is_public, status) values (${id}, 'bible', ${id}, 'TEST', 'de', true, 'ready')`;
-		await page.goto('/login?redirectTo=%2Fadmin%2Fbible-downloads');
-		await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
-		await page.getByRole('button', { name: 'Weiter', exact: true }).click();
-		await page.getByLabel('Passwort').fill('seed-admin-password');
-		await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+		await seedAdminSession(page.context());
+		await page.goto('/admin/bible-downloads');
 		for (const scenario of ['source', 'private'] as const) {
 			await page.goto('/admin/bible-downloads');
 			const entry = page.locator('li').filter({ hasText: id });

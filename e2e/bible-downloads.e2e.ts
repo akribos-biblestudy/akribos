@@ -11,6 +11,7 @@ import {
 	verses
 } from '../src/lib/server/db/schema.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
+import { seedAdminSession } from './lib/admin-session.ts';
 
 test('public Bible downloads require a grant and admin routes remain private', async ({
 	page,
@@ -60,12 +61,7 @@ test('public Bible downloads require a grant and admin routes remain private', a
 			).status()
 		).toBe(404);
 		const admin = await adminContext.newPage();
-		await admin.goto('/login?redirectTo=%2Faccount');
-		await admin.getByLabel('E-Mail-Adresse').fill('admin@example.com');
-		await admin.getByRole('button', { name: 'Weiter', exact: true }).click();
-		await admin.getByLabel('Passwort').fill('seed-admin-password');
-		await admin.getByRole('button', { name: 'Anmelden', exact: true }).click();
-		await expect(admin).toHaveURL(/\/account$/);
+		await seedAdminSession(adminContext);
 		expect((await admin.request.get(`/admin/bible-downloads/${id}`)).status()).toBe(200);
 		await admin.goto('/admin/bible-downloads');
 		const entry = admin.locator('li').filter({ hasText: id });

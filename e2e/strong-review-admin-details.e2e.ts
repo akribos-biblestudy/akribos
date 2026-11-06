@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import postgres from 'postgres';
 import { createHash, randomUUID } from 'node:crypto';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
+import { seedAdminSession } from './lib/admin-session.ts';
 
 const dbUrl =
 	process.env.E2E_DATABASE_URL ??
@@ -26,11 +27,8 @@ test('admin review shows the exact verse and lexicon only with reader access and
 		const [review] =
 			await sql`insert into strong_assignment_reviews (resource_id,book_id,chapter,verse,word_position,strong,word,verse_fingerprint,decision,author_id) values (${resourceId},43,3,16,2,'G25','geliebt',${hash},'confirmed',${author.id}) returning id`;
 		const reviewId: string = review.id;
-		await page.goto('/login?redirectTo=%2Fadmin%2Fstrong-reviews');
-		await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
-		await page.getByRole('button', { name: 'Weiter', exact: true }).click();
-		await page.getByLabel('Passwort').fill('seed-admin-password');
-		await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+		await seedAdminSession(page.context());
+		await page.goto('/admin/strong-reviews');
 		await expect(page).toHaveURL(/\/admin\/strong-reviews/);
 		let card = page.getByRole('article').filter({ hasText: resourceName });
 		await expect(card).toContainText('Lesefreigabe erforderlich');
@@ -86,11 +84,8 @@ test('admin review pages and filters large numbers of decisions on the server', 
 		const hash = createHash('sha256').update(JSON.stringify(source.segments)).digest('hex');
 		await sql`insert into strong_assignment_reviews (resource_id,book_id,chapter,verse,word_position,strong,word,verse_fingerprint,decision)
 			select ${resourceId},43,3,16,i,'G25','geliebt',${hash},'confirmed' from generate_series(0,25) as i`;
-		await page.goto('/login?redirectTo=%2Fadmin%2Fstrong-reviews');
-		await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
-		await page.getByRole('button', { name: 'Weiter', exact: true }).click();
-		await page.getByLabel('Passwort').fill('seed-admin-password');
-		await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+		await seedAdminSession(page.context());
+		await page.goto('/admin/strong-reviews');
 		await expect(page.getByRole('article').filter({ hasText: resourceName })).toHaveCount(25);
 		await page
 			.getByRole('navigation', { name: 'Seiten der Strong-Prüfungen' })

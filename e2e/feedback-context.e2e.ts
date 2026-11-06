@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { createDb } from '../src/lib/server/db/client.ts';
 import { feedbackReports } from '../src/lib/server/db/feedback-schema.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
+import { seedAdminSession } from './lib/admin-session.ts';
 
 test('captures the complete page URL at the feedback click without an editable page field', async ({
 	page
@@ -16,11 +17,8 @@ test('captures the complete page URL at the feedback click without an editable p
 	);
 	const description = `URL-Kontext ${randomUUID()}`;
 	try {
-		await page.goto('/login?redirectTo=%2Faccount');
-		await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
-		await page.getByRole('button', { name: 'Weiter', exact: true }).click();
-		await page.getByLabel('Passwort').fill('seed-admin-password');
-		await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+		await seedAdminSession(page.context());
+		await page.goto('/account');
 		await expect(page).toHaveURL(/\/account$/);
 		await page.goto(`/help?probe=vollstaendig&other=${'x'.repeat(900)}#lesezeichen`);
 		const source = page.url();

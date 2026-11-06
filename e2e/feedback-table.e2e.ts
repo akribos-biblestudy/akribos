@@ -6,6 +6,7 @@ import { createDb } from '../src/lib/server/db/client.ts';
 import { feedbackReports } from '../src/lib/server/db/feedback-schema.ts';
 import { users } from '../src/lib/server/db/schema.ts';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
+import { seedAdminSession } from './lib/admin-session.ts';
 
 test('feedback table sorts, filters, previews and links locations; export uses the same filters', async ({
 	page
@@ -47,11 +48,8 @@ test('feedback table sorts, filters, previews and links locations; export uses t
 			])
 			.returning({ id: feedbackReports.id });
 		ids = inserted.map((row) => row.id);
-		await page.goto('/login?redirectTo=%2Fadmin%2Ffeedback');
-		await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
-		await page.getByRole('button', { name: 'Weiter', exact: true }).click();
-		await page.getByLabel('Passwort').fill('seed-admin-password');
-		await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+		await seedAdminSession(page.context());
+		await page.goto('/admin/feedback');
 		await expect(page).toHaveURL(/\/admin\/feedback/);
 		await page.getByLabel('Feedback filtern').fill(prefix);
 		await page.getByLabel('Kategorie filtern').selectOption('content');
@@ -125,11 +123,8 @@ test('pagination preserves filters and the export includes every matching report
 		ids = (
 			await db.insert(feedbackReports).values(reports).returning({ id: feedbackReports.id })
 		).map((row) => row.id);
-		await page.goto('/login?redirectTo=%2Fadmin%2Ffeedback');
-		await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
-		await page.getByRole('button', { name: 'Weiter', exact: true }).click();
-		await page.getByLabel('Passwort').fill('seed-admin-password');
-		await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+		await seedAdminSession(page.context());
+		await page.goto('/admin/feedback');
 		await page.getByLabel('Feedback filtern').fill(token);
 		await page.getByRole('button', { name: 'Filter anwenden' }).click();
 		await page.getByRole('link', { name: 'Feedback sortieren' }).click();

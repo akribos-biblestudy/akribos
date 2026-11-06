@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import postgres from 'postgres';
 import { randomUUID } from 'node:crypto';
 import { testDatabaseUrl } from '../scripts/lib/test-database.ts';
+import { seedAdminSession } from './lib/admin-session.ts';
 
 test('each repeated word is highlighted by position and opens its lexicon beside the verse', async ({
 	page
@@ -30,11 +31,7 @@ test('each repeated word is highlighted by position and opens its lexicon beside
 		await sql`
 			insert into verses (resource_id, book_id, chapter, verse, segments, text)
 			values (${resourceId}, 43, 3, 18, ${sql.json(segments)}, 'Wort und Wort')`;
-		await page.goto('/login?redirectTo=%2Fstrong-review');
-		await page.getByLabel('E-Mail-Adresse').fill('admin@example.com');
-		await page.getByRole('button', { name: 'Weiter', exact: true }).click();
-		await page.getByLabel('Passwort').fill('seed-admin-password');
-		await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+		await seedAdminSession(page.context());
 		await page.goto(`/strong-review?resource=${resourceId}&book=43`);
 		const matches = page.locator('article').filter({ hasText: 'Joh 3,18' });
 		await expect(matches).toHaveCount(2);
