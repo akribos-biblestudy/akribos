@@ -387,3 +387,20 @@ export async function updateDefaultBible(
 		.returning({ id: users.id });
 	return Boolean(updated);
 }
+
+/** Saves the account's preferred Bible quotation format. */
+export async function updateCopyPreferences(
+	db: Database,
+	userId: string,
+	position: 'before' | 'after',
+	includeSource: boolean
+): Promise<void> {
+	await db
+		.update(users)
+		.set({
+			copyReferencePosition: position,
+			copyIncludeSource: includeSource,
+			updatedAt: new Date()
+		})
+		.where(eq(users.id, userId));
+}

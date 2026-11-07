@@ -176,7 +176,7 @@ export const existingArticles: HelpArticle[] = [
 			{
 				id: 'schnellstart',
 				title: 'Das Versmenü öffnen',
-				html: '<ol><li>Klicke oder tippe auf eine Versnummer. Für Vers 1 wählst du die große Kapitelzahl.</li><li>Kopiere den Vers oder seinen Link.</li><li>Angemeldet kannst du außerdem eine Markierungsfarbe wählen, eine Notiz zur Stelle öffnen oder den Vers in eine Stellensammlung aufnehmen.</li></ol><p>Ein Klick auf ein Strong-Wort öffnet dagegen die Wortstudie. Für Aktionen am ganzen Vers verwendest du seine Nummer.</p>'
+				html: '<ol><li>Klicke oder tippe auf eine Versnummer. Für Vers 1 wählst du die große Kapitelzahl.</li><li>Kopiere den Vers oder seinen Link.</li><li>Angemeldet kannst du außerdem eine Markierungsfarbe wählen, eine Notiz zur Stelle öffnen oder den Vers in eine Stellensammlung aufnehmen.</li></ol><p>Du kannst auch Text in einer Bibel auswählen und kopieren: Die betroffenen Verse werden vollständig mit Stellenangabe übernommen. Unter <strong>Mein Konto → Darstellung</strong> legst du das Format und die optionale Übersetzungsangabe fest.</p><p>Ein Klick auf ein Strong-Wort öffnet dagegen die Wortstudie. Für die weiteren Versaktionen verwendest du seine Nummer.</p>'
 			},
 			{
 				id: 'eigene-markierungsfarben-verwalten',

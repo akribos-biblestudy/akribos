@@ -14,6 +14,7 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { formatCopiedVerses } from '$lib/bible/copy-verse';
 	import { t } from '$lib/i18n';
 	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
@@ -42,6 +43,7 @@
 
 	let menu: Menu | undefined = $state();
 	let context = $state<VerseContext | null>(null);
+	let source = $state('');
 	let copied = $state<'text' | 'link' | null>(null);
 	let activeStyleId = $state<string | null>(null);
 	let onHighlightChange: ((styleId: string | null) => void) | undefined;
@@ -64,6 +66,9 @@
 		focusMenu = true
 	): void {
 		context = next;
+		source =
+			page.data.readerResources.find((item: { id: string }) => item.id === resource?.id)?.abbrev ??
+			'';
 		copied = null;
 		activeStyleId = highlight;
 		onHighlightChange = onChange;
@@ -124,7 +129,14 @@
 		<button
 			type="button"
 			role="menuitem"
-			onclick={() => copy('text', `${context!.label}\n${context!.text}`)}
+			onclick={() =>
+				copy(
+					'text',
+					formatCopiedVerses([{ reference: context!.label, text: context!.text, source }], {
+						copyReferencePosition: page.data.copyReferencePosition,
+						copyIncludeSource: page.data.copyIncludeSource
+					})
+				)}
 		>
 			{copied === 'text' ? t('action.copied') : t('verse.copyText')}
 		</button>

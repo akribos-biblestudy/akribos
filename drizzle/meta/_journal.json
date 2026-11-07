@@ -351,6 +351,13 @@
       "when": 1793964800180,
       "tag": "0049_amusing_riptide",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794080584440,
+      "tag": "0050_funny_riptide",
+      "breakpoints": true
     }
   ]
 }

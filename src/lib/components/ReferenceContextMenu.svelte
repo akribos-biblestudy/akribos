@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { goto, beforeNavigate } from '$app/navigation';
+	import { page } from '$app/state';
 	import { getContext, onMount, tick } from 'svelte';
 	import { loadBibleQuotation, type BibleQuotation } from '$lib/actions/verse-hover-popover';
+	import { formatCopiedVerses } from '$lib/bible/copy-verse';
 	import { findReferenceContext } from '$lib/reader/reference-context';
 	import { READER_LINK_SETS } from '$lib/reader/workspace';
 	import {
@@ -25,6 +27,7 @@
 	let menu = $state<Menu>();
 	let context = $state<NonNullable<ReturnType<typeof findReferenceContext>> | null>(null);
 	let quotation = $state<BibleQuotation | null>(null);
+	let quotationSource = $state('');
 	let loading = $state(false);
 	let busy = $state(false);
 	let copied = $state(false);
@@ -49,6 +52,9 @@
 			)
 				? next.resourceId
 				: bibleId;
+			quotationSource =
+				page.data.readerResources.find((item: { id: string }) => item.id === sourceId)?.abbrev ??
+				'';
 			loading = Boolean(sourceId);
 			await tick();
 			menu?.openAt(next.anchor, {
@@ -78,7 +84,15 @@
 	async function copyVerse(): Promise<void> {
 		if (!quotation) return;
 		try {
-			await navigator.clipboard.writeText(`${quotation.reference}\n${quotation.text}`);
+			await navigator.clipboard.writeText(
+				formatCopiedVerses(
+					[{ reference: quotation.reference, text: quotation.text, source: quotationSource }],
+					{
+						copyReferencePosition: page.data.copyReferencePosition,
+						copyIncludeSource: page.data.copyIncludeSource
+					}
+				)
+			);
 			copied = true;
 		} catch {
 			message = 'Der Bibeltext konnte nicht kopiert werden.';
