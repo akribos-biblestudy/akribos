@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { placeVerseNotes } from '$lib/bible/verse-notes';
+	import { formatCopiedVerses } from '$lib/bible/copy-verse';
+	import { selectedBibleVerses } from '$lib/reader/copy-selection';
 	import { rememberBrowserReaderView } from '$lib/reader/browser-tab';
 	import { deserialize, enhance } from '$app/forms';
 	import { beforeNavigate, onNavigate, goto, replaceState } from '$app/navigation';
@@ -114,6 +116,27 @@
 	} from '$lib/reader/notes-sidecar';
 
 	let { data } = $props();
+
+	function onReaderCopy(event: ClipboardEvent): void {
+		if (event.defaultPrevented || !event.clipboardData) return;
+		const active = document.activeElement;
+		if (
+			active instanceof HTMLInputElement ||
+			active instanceof HTMLTextAreaElement ||
+			(active instanceof HTMLElement && active.isContentEditable)
+		)
+			return;
+		const verses = selectedBibleVerses(window.getSelection());
+		if (!verses) return;
+		event.clipboardData.setData(
+			'text/plain',
+			formatCopiedVerses(verses, {
+				copyReferencePosition: data.copyReferencePosition,
+				copyIncludeSource: data.copyIncludeSource
+			})
+		);
+		event.preventDefault();
+	}
 	const workspaceCapture = getContext<ReaderWorkspaceCapture>(READER_WORKSPACE_CONTEXT);
 	const documentNavigation = getContext<DocumentReaderNavigation>(DOCUMENT_READER_NAVIGATION);
 	const referenceNavigation = getContext<ReferenceNavigation>(REFERENCE_NAVIGATION);
@@ -2546,6 +2569,7 @@
 </script>
 
 <svelte:window
+	oncopy={onReaderCopy}
 	onpointermove={onReaderPointerMove}
 	onpointerup={onReaderPointerEnd}
 	onpointercancel={onReaderPointerEnd}
@@ -2851,6 +2875,7 @@
 									bind:this={flowColumns[columnIndex]}
 									data-flow-column-index={columnIndex}
 									data-resource-id={column.resource.id}
+									data-copy-source={column.resource.abbrev}
 									class="flow-column"
 									class:search-hidden={tabSearch !== null || column.resource.kind === 'lexicon'}
 									role="region"
@@ -2912,6 +2937,18 @@
 														class="flow-verse"
 														data-verse-key={`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}`}
 														data-verse-end={cell.verseEnd ?? cell.verse}
+														data-copy-reference={formatReference(
+															{
+																book: stream.reference.book,
+																chapter: stream.reference.chapter,
+																verse: cell.verse,
+																...(cell.verseEnd && cell.verseEnd > cell.verse
+																	? { verseEnd: cell.verseEnd }
+																	: {})
+															},
+															{ style: 'full' }
+														)}
+														data-copy-text={segmentsToText(cell.segments)}
 														id={columnIndex === 0
 															? `${stream.shortBookName}${stream.reference.chapter}_${cell.verse}`
 															: undefined}

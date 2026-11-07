@@ -11,7 +11,8 @@ import {
 	updatePassword,
 	updateProfile,
 	updateReaderFontScale,
-	updateDefaultBible
+	updateDefaultBible,
+	updateCopyPreferences
 } from '$lib/server/repositories/users';
 import {
 	countApiKeys,
@@ -55,6 +56,18 @@ export async function load({ locals, url, cookies }) {
 }
 
 export const actions = {
+	copyPreferences: async ({ request, locals }) => {
+		if (!locals.user) redirect(303, '/login');
+		const form = await request.formData();
+		const position = form.get('copyReferencePosition');
+		if (position !== 'before' && position !== 'after')
+			return fail(400, { copyPreferencesError: true });
+		const includeSource = form.get('copyIncludeSource') === 'on';
+		await updateCopyPreferences(getDb(), locals.user.id, position, includeSource);
+		locals.user.copyReferencePosition = position;
+		locals.user.copyIncludeSource = includeSource;
+		return { copyPreferencesSaved: true };
+	},
 	defaultBible: async ({ request, locals }) => {
 		if (!locals.user) redirect(303, '/login');
 		const form = await request.formData();

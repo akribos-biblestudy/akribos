@@ -323,6 +323,41 @@
 								>{/if}
 						</div>
 					</form>
+					<form
+						class="mt-5 space-y-3 border-t border-stone-200 pt-5 dark:border-stone-800"
+						method="POST"
+						action="?/copyPreferences"
+						use:enhance
+					>
+						<label for="copy-reference-position" class="block text-sm font-medium"
+							>Bibelverse kopieren</label
+						>
+						<p class="text-xs text-stone-500 dark:text-stone-400">
+							Lege fest, wie die Stellenangabe beim Kopieren angezeigt wird.
+						</p>
+						<select
+							id="copy-reference-position"
+							name="copyReferencePosition"
+							value={data.copyReferencePosition}
+							class="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+						>
+							<option value="before">Stellenangabe vor dem Bibeltext</option>
+							<option value="after">Stellenangabe nach dem Bibeltext</option>
+						</select>
+						<label class="flex items-center gap-2 text-sm">
+							<input type="checkbox" name="copyIncludeSource" checked={data.copyIncludeSource} />
+							Übersetzung in der Stellenangabe ergänzen
+						</label>
+						<div class="flex items-center gap-3">
+							<Button type="submit">Kopiereinstellungen speichern</Button>
+							{#if form?.copyPreferencesSaved}<span role="status" class="text-sm text-stone-500"
+									>{t('account.saved')}</span
+								>{/if}
+							{#if form?.copyPreferencesError}<span role="alert" class="text-sm text-red-700"
+									>Bitte eine gültige Einstellung wählen.</span
+								>{/if}
+						</div>
+					</form>
 					<div class="mt-5 border-t border-stone-200 pt-5 dark:border-stone-800">
 						<div class="flex items-baseline justify-between gap-3">
 							<p class="text-sm font-medium">{t('account.readerFontSize')}</p>

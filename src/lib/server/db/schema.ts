@@ -311,6 +311,7 @@ export const commentaryEntries = pgTable(
 
 export const USER_ROLES = ['user', 'admin'] as const;
 export const THEMES = ['light', 'dark'] as const;
+export const COPY_REFERENCE_POSITIONS = ['before', 'after'] as const;
 
 export const users = pgTable(
 	'users',
@@ -343,6 +344,11 @@ export const users = pgTable(
 		defaultBibleId: text('default_bible_id').references(() => resources.id, {
 			onDelete: 'set null'
 		}),
+		/** Account-wide format for copying Bible quotations. */
+		copyReferencePosition: text('copy_reference_position', { enum: COPY_REFERENCE_POSITIONS })
+			.notNull()
+			.default('before'),
+		copyIncludeSource: boolean('copy_include_source').notNull().default(false),
 		/**
 		 * Account-level fallback for colour scheme, used only to seed a device that has not set its own
 		 * cookie yet — a device's own choice always wins afterwards. Null means "this account has never

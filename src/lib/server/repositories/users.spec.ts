@@ -9,7 +9,8 @@ import {
 	createUser,
 	markEmailVerified,
 	peekEmailVerification,
-	updateDefaultBible
+	updateDefaultBible,
+	updateCopyPreferences
 } from './users.ts';
 
 /**
@@ -37,6 +38,21 @@ describe('email verification tokens', () => {
 			await db.delete(users).where(eq(users.id, id));
 		}
 		await closeDb();
+	});
+
+	it('stores quotation preferences separately for each account', async () => {
+		const userId = await makeUser();
+		const otherId = await makeUser();
+		const read = async (id: string) => {
+			const [user] = await db.select().from(users).where(eq(users.id, id));
+			return [user!.copyReferencePosition, user!.copyIncludeSource];
+		};
+		expect(await read(userId)).toEqual(['before', false]);
+		await updateCopyPreferences(db, userId, 'after', true);
+		expect(await read(userId)).toEqual(['after', true]);
+		expect(await read(otherId)).toEqual(['before', false]);
+		await updateCopyPreferences(db, userId, 'before', false);
+		expect(await read(userId)).toEqual(['before', false]);
 	});
 
 	it('restricts the default translation to public ready Bibles and clears deleted choices', async () => {

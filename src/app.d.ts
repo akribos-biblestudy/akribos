@@ -43,6 +43,8 @@ declare global {
 				| 'readerWorkspace'
 				| 'readerFontScale'
 				| 'defaultBibleId'
+				| 'copyReferencePosition'
+				| 'copyIncludeSource'
 				| 'theme'
 				| 'tourCompletedAt'
 			> | null;

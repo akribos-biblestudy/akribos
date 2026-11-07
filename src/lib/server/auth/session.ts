@@ -29,6 +29,8 @@ export type SessionUser = Pick<
 	| 'readerWorkspace'
 	| 'readerFontScale'
 	| 'defaultBibleId'
+	| 'copyReferencePosition'
+	| 'copyIncludeSource'
 	| 'theme'
 	| 'tourCompletedAt'
 >;
@@ -96,6 +98,8 @@ export async function resolveSession(
 			readerWorkspace: users.readerWorkspace,
 			readerFontScale: users.readerFontScale,
 			defaultBibleId: users.defaultBibleId,
+			copyReferencePosition: users.copyReferencePosition,
+			copyIncludeSource: users.copyIncludeSource,
 			theme: users.theme,
 			tourCompletedAt: users.tourCompletedAt,
 			disabledAt: users.disabledAt
@@ -130,6 +134,8 @@ export async function resolveSession(
 			readerWorkspace: row.readerWorkspace,
 			readerFontScale: row.readerFontScale,
 			defaultBibleId: row.defaultBibleId,
+			copyReferencePosition: row.copyReferencePosition,
+			copyIncludeSource: row.copyIncludeSource,
 			theme: row.theme,
 			tourCompletedAt: row.tourCompletedAt
 		}
