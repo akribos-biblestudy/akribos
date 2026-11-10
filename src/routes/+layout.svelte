@@ -9,7 +9,6 @@
 		rememberBrowserReaderView
 	} from '$lib/reader/browser-tab';
 	import readingFont from '$lib/assets/fonts/akribos-text-regular.woff2?url';
-	import Analytics from '$lib/components/Analytics.svelte';
 	import { page } from '$app/state';
 	import { onMount, setContext } from 'svelte';
 	import { goto, replaceState, beforeNavigate, invalidateAll } from '$app/navigation';
@@ -139,9 +138,6 @@
 	<title>Akribos - Die Bibel präzise studieren</title>
 	<link rel="icon" href="/icon.png" />
 	<link rel="preload" href={readingFont} as="font" type="font/woff2" crossorigin="anonymous" />
-	<!-- Keep native same-origin form POSTs compatible with CSRF protection while withholding
-		 referrers from external analytics requests. no-referrer also suppresses the form's Origin. -->
-	{#if data.analytics.enabled}<meta name="referrer" content="same-origin" />{/if}
 </svelte:head>
 
 {#if browserWorkspaceError}
@@ -185,6 +181,4 @@
 		bibleId={data.defaultBibleId ?? data.previewBibleId}
 		resources={data.readerResources}
 	/>
-
-	<Analytics config={data.analytics} />
 {/if}

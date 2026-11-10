@@ -245,7 +245,7 @@ export const specialistGuides: HelpArticle[] = [
 			{
 				id: 'rolle',
 				title: '2. Die Rolle ändern',
-				html: `<ol><li>Öffne in der betreffenden Zeile die Auswahl unter <strong>Rolle</strong>.</li><li>Wähle <strong>Nutzer</strong> für den normalen Zugang oder <strong>Verwaltung</strong> für den Administrationsbereich.</li><li>Die Auswahl wird unmittelbar gespeichert; es gibt keine zusätzliche Speichern-Schaltfläche.</li></ol><p>Verwaltungsrechte ermöglichen Änderungen an Ressourcen, Konten, Analyse und Backups. Sie erteilen jedoch keine pauschale Lesefreigabe für private Werke oder fremde private Notizen. Die eigene Rolle lässt sich auf dieser Seite nicht ändern; der Versuch meldet „Das eigene Konto kann nicht geändert werden“.</p>`
+				html: `<ol><li>Öffne in der betreffenden Zeile die Auswahl unter <strong>Rolle</strong>.</li><li>Wähle <strong>Nutzer</strong> für den normalen Zugang oder <strong>Verwaltung</strong> für den Administrationsbereich.</li><li>Die Auswahl wird unmittelbar gespeichert; es gibt keine zusätzliche Speichern-Schaltfläche.</li></ol><p>Verwaltungsrechte ermöglichen Änderungen an Ressourcen, Konten und Backups. Sie erteilen jedoch keine pauschale Lesefreigabe für private Werke oder fremde private Notizen. Die eigene Rolle lässt sich auf dieser Seite nicht ändern; der Versuch meldet „Das eigene Konto kann nicht geändert werden“.</p>`
 			},
 			{
 				id: 'links',
@@ -256,58 +256,6 @@ export const specialistGuides: HelpArticle[] = [
 				id: 'sperren',
 				title: 'Einen Zugang sperren und wieder freigeben',
 				html: `<ol><li>Prüfe die gewünschte Nutzerzeile.</li><li>Klicke auf <strong>sperren</strong>. Die Aktion wirkt unmittelbar und beendet bestehende Sitzungen dieses Kontos.</li><li>Um die Sperre später aufzuheben, suche das Konto mit dem Filter <strong>Gesperrt</strong> und klicke auf <strong>aktivieren</strong>.</li></ol><p>Während der Sperre sind auch persönliche und öffentliche API-Schlüssel dieses Kontos ungültig. Nach dem Entsperren funktionieren Schlüssel wieder, sofern sie nicht widerrufen wurden. Eine neue Anmeldung kann erforderlich sein.</p><p>Die eigene Kontosperre ist in dieser Verwaltung ausgeschlossen. Sperren löscht das Konto und seine Inhalte nicht. Eine Funktion zum Löschen von Konten wird in dieser Oberfläche nicht angeboten.</p>`
-			}
-		]
-	},
-	{
-		id: 'umami-einrichten',
-		topic: 'administration',
-		path: '/help/administration/umami-einrichten',
-		title: 'Die freiwillige Umami-Analyse einrichten',
-		description:
-			'Verbinde eine vorhandene Umami-Instanz und erkläre den Besuchern, wer die zugelassenen Nutzungsdaten verarbeitet.',
-		icon: 'info',
-		audience: 'admin',
-		level: 'guide',
-		keywords: [
-			'Umami',
-			'Analyse',
-			'Statistik',
-			'Einwilligung',
-			'Datenschutz',
-			'Website-ID',
-			'Tracking'
-		],
-		prerequisite:
-			'Administratorrolle sowie eine vorhandene Umami-Instanz ab Version 2.18 mit eingerichteter Website.',
-		sections: [
-			{
-				id: 'einrichten',
-				title: '1. Die Verbindung und Betreiberangaben eintragen',
-				html: `<ol><li>Öffne <a href="/admin/analytics">Administration → Umami</a>.</li><li>Übernimm <strong>Skript-Adresse (HTTPS)</strong> und <strong>Website-ID</strong> aus der vorgesehenen Umami-Konfiguration.</li><li>Trage den <strong>Betreiber der Umami-Instanz</strong> und seine <strong>Datenschutzhinweise (HTTPS)</strong> ein.</li><li>Beschreibe unter <strong>Verarbeitung und Speicherfristen beim Betreiber</strong> den tatsächlichen Hosting-Ort, die Aufbewahrung und gegebenenfalls Übermittlungen außerhalb der EU beziehungsweise des EWR.</li><li>Aktiviere <strong>Umami aktivieren</strong> und klicke auf <strong>Analyse-Einstellungen speichern</strong>.</li></ol><p>Bei aktivierter Analyse sind alle Angaben erforderlich. Die Website-ID muss eine gültige UUID sein. HTTPS-Adressen dürfen keine eingebetteten Zugangsdaten und kein Fragment hinter einem Rautenzeichen enthalten.</p>`,
-				screenshot: {
-					src: '/help/media/admin-analytics.webp',
-					width: 672,
-					height: 674,
-					alt: 'Umami-Einstellungen mit fiktiven HTTPS-Adressen, Website-ID und Angaben zur Verarbeitung.',
-					caption:
-						'Beispielwerte im echten Formular vor dem Speichern. Für die Einrichtung ersetzt du sie durch die Angaben deiner Umami-Instanz.'
-				}
-			},
-			{
-				id: 'einwilligung',
-				title: '2. Die Besucherentscheidung überprüfen',
-				html: `<ol><li>Öffne Akribos in einem separaten Browserprofil ohne vorhandene Analyseentscheidung.</li><li>Prüfe, dass die freiwillige Analyse erst nach einer Zustimmung geladen wird.</li><li>Prüfe die Betreiberangaben in der <a href="/datenschutz">Datenschutzerklärung</a>.</li><li>Öffne <strong>Freiwillige Nutzungsanalyse</strong> am unteren Seitenrand, um die eigene Analyseentscheidung zu ändern.</li></ol><p>Änderungen an der Konfiguration verlangen eine neue Entscheidung der Besucher. Eine frühere Zustimmung gilt damit nicht automatisch für einen anderen Empfänger oder geänderte Angaben.</p>`
-			},
-			{
-				id: 'umfang',
-				title: 'Welche Informationen gezählt werden',
-				html: `<p>Akribos übermittelt nur freigegebene allgemeine Seitenbereiche, etwa Reader, Wortstudie oder Hilfe. Konkrete Suchbegriffe, Lesestellen, ausgewählte Ressourcen, Notizinhalte und Dokumentkennungen werden nicht als besuchte Adresse übertragen. Konto- und Verwaltungsseiten werden nicht gezählt.</p><p>Die Texte zu Verarbeitung und Speicherfristen informieren die Besucher. Sie richten keine Löschfristen in Umami ein. Die tatsächliche Aufbewahrung muss beim Betreiber der Umami-Instanz entsprechend konfiguriert sein.</p>`
-			},
-			{
-				id: 'aendern',
-				title: 'Analyse ändern, deaktivieren und Fehler prüfen',
-				html: `<p>Zum Abschalten entfernst du den Haken bei <strong>Umami aktivieren</strong> und speicherst erneut. Zum Ändern von Skript, Website oder Betreiberangaben bearbeitest du die jeweiligen Felder und wartest auf „Analyse-Einstellungen gespeichert“.</p><p>Bei einer Fehlermeldung prüfe fehlende Pflichtfelder, HTTPS-Adressen und das UUID-Format der Website-ID. Die Einstellungsseite erstellt keine Umami-Instanz und zeigt keine Auswertungen an; Statistiken betrachtest du in der verbundenen Umami-Anwendung.</p>`
 			}
 		]
 	},

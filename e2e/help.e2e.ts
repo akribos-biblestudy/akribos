@@ -177,7 +177,7 @@ test('administration help and images are restricted to administrators throughout
 		article.sections.flatMap(({ screenshot }) => (screenshot ? [screenshot] : []))
 	);
 	const assertRestricted = async () => {
-		for (const path of ['/help', '/help?q=Umami', '/help/api']) {
+		for (const path of ['/help', '/help?q=Backup', '/help/api']) {
 			const response = await page.request.get(path);
 			expect(response.status()).toBe(200);
 			expect(response.headers()['cache-control']).toContain('private, no-store');
@@ -226,7 +226,7 @@ test('administration help and images are restricted to administrators throughout
 			expect(response.headers()['content-type']).toContain('image/webp');
 			expect(response.headers()['cache-control']).toContain('private, no-store');
 		}
-		await admin.goto('http://localhost:4173/help?q=Umami');
+		await admin.goto('http://localhost:4173/help?q=Backup');
 		await expect(admin.locator('.search-result[href^="/help/administration"]')).not.toHaveCount(0);
 		await admin.locator('.search-result[href^="/help/administration"]').first().click();
 		await expect(admin.locator('.article-content img').first()).toBeVisible();

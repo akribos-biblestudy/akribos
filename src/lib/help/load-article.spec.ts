@@ -45,7 +45,7 @@ describe('help catalog access', () => {
 	});
 
 	it.each(readerRoles)('does not return restricted search results for a $label', ({ user }) => {
-		for (const query of ['Administration', 'Backup', 'Umami', 'Nutzer verwalten']) {
+		for (const query of ['Administration', 'Backup', 'Nutzer verwalten']) {
 			expect(searchHelp(query).every(({ article }) => article.audience !== 'admin')).toBe(true);
 			expect(
 				searchHelp(query, getHelpArticles(user)).every(
@@ -88,7 +88,7 @@ describe('help server loads', () => {
 	it.each(readerRoles)(
 		'filters the actual overview/search load and prevents shared caching for a $label',
 		async ({ user }) => {
-			for (const query of ['', 'Backup', 'Umami', 'Bibel']) {
+			for (const query of ['', 'Backup', 'Nutzer verwalten', 'Bibel']) {
 				const request = event(`/help?q=${query}`, user);
 				const data = await loadOverview(request as never);
 				expect(data).toBeDefined();
