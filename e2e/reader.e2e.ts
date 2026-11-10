@@ -683,6 +683,20 @@ test('different link letters keep visible tabs independently scrollable', async 
 	expect(Math.abs(secondAfter - secondBefore)).toBeLessThan(2);
 });
 
+test('verses with source line breaks start on their own lines', async ({ page }) => {
+	await page.goto('/Ps1');
+	const column = page.locator('.flow-column[data-resource-id="SEEDDE"]');
+	const first = column.locator('[data-verse-key="19:1:1"]');
+	const second = column.locator('[data-verse-key="19:1:2"]');
+	const prose = column.locator('[data-verse-key="19:1:3"]');
+	await expect(first.locator('br')).toHaveCount(1);
+	await expect(second.locator('br')).toHaveCount(1);
+	await expect(first).toHaveCSS('display', 'block');
+	await expect(second).toHaveCSS('display', 'block');
+	await expect(first).toHaveCSS('text-align', 'start');
+	await expect(prose).toHaveCSS('display', 'inline');
+});
+
 test('flowing text keeps columns scroll-synchronized', async ({ page }) => {
 	await page.route('**/api/reader/**', (route) => route.abort());
 	await page.setViewportSize({ width: 900, height: 300 });
