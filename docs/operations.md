@@ -337,9 +337,62 @@ and compose location `/compose.yaml`, then assign a domain to the `app` service 
 | `MAIL_FROM`                 | must be a sender Brevo has verified                                     |
 | `BOOTSTRAP_ADMIN_EMAIL`     | the first account registered with this address becomes an admin         |
 
-Migrations run in the container's entrypoint before the server starts, so a deploy that changes the
-schema needs nothing extra. A failed migration stops the boot, and the healthcheck keeps the old
-container serving.
+Migrations run in the container's entrypoint before the server starts; a failed migration stops the
+new process. This Coolify resource uses Docker Compose and has one app container. Coolify does **not**
+provide rolling updates for Compose, so its healthcheck does not keep the old container serving: a
+deploy may briefly return 502/525 while the container or proxy restarts, whether or not a migration
+is pending. See [Coolify rolling updates](https://coolify.io/docs/applications/deployments/rolling-updates).
+
+Do not simply run two app versions at once: startup housekeeping, interrupted import/backup recovery,
+schedulers and migrations currently assume a single app process. A safe rolling deployment needs
+coordinated background jobs, compatible expand/contract migrations, startup readiness and graceful
+shutdown first. A Cloudflare 525 reports an origin TLS handshake failure and is not proof of a
+database migration; investigate proxy/TLS logs separately.
+
+### Wartungsseite am Coolify-Proxy
+
+`static/maintenance.html` ist ein eigenständiges HTML-Dokument für die Wartungsanzeige. Animationen
+respektieren reduzierte Bewegung; ohne JavaScript bleibt der manuelle Wiederholungslink nutzbar. Auf
+einer Fehlernavigation fragt die Seite alle fünf Sekunden `/healthz` ohne Cache und Cookies ab und
+öffnet die ursprüngliche URL erst bei gültigem JSON mit `status: ok` und ohne `restore: running`
+erneut per GET. So wird auch nach einer Wartungsantwort auf eine Formularübermittlung kein POST
+automatisch wiederholt.
+Während eines Datenbank-Restores meldet `/healthz` absichtlich HTTP 200, damit Coolify den Container
+nicht neu startet; HTTP 200 allein reicht daher nicht als Bereitschaftssignal. Der direkte Aufruf
+`/maintenance.html` ist eine Vorschau und löst keinen automatischen Reload aus.
+
+**Die Datei im App-Image aktiviert noch keinen Wartungsmodus.** Beim Deploy kann die App nicht selbst
+die Anzeige ausliefern. Bevorzugt die HTML-Datei im Coolify-Proxy hinterlegen, sofern installierte
+Coolify-Version, Proxy und Ressourcenart diese Funktion unterstützen:
+
+1. Im Akribos-Resource unter **Domains → Maintenance mode** den Inhalt von `static/maintenance.html`
+   unter **Custom maintenance page (HTML)** speichern, ohne andere Anwendungen oder die globale
+   Proxy-Fehlerseite zu ändern. Die Datei enthält keine externen Abhängigkeiten. Siehe
+   [Coolify: Maintenance and error pages](https://coolify.io/docs/core/networking/proxy/maintenance-and-error-pages).
+2. Vor Wartungsarbeiten bestehende Imports, Backups **und Restores** beenden und Hintergrundjobs
+   sowie laufende Anfragen kontrolliert stilllegen. Ein Restore führt selbst Migrationen aus; sein
+   Status ist pro Prozess, und ein globaler Migrationslock ist derzeit nicht implementiert. Daher
+   niemals Restore und Deployment-Migration oder zwei Migrationen gleichzeitig laufen lassen. Coolify hält laufende Container und Jobs im Wartungsmodus weiter
+   am Leben; direkte Containerports und Datenbankverbindungen umgehen den Proxy. Der Modus ist keine
+   Datenbank-Schreibsperre und alleine keine sichere Freigabe paralleler Migrationen.
+3. Den Wartungsmodus der Ressource einschalten und HTTP 503 und den Inhalt an der Domain prüfen.
+   Auch `/healthz` und API-Anfragen sind dann vom Proxy betroffen; die automatische Prüfung der
+   Wartungsseite bleibt bei 503 stehen. API-Clients müssen den Wartungsfehler vertragen. Kein
+   Produktionsdeployment oder Migration starten, wenn Stilllegung und Verhalten nicht bestätigt sind.
+4. Deployment und Migration nach dem üblichen, geprüften Ablauf durchführen. Nach erfolgreichem
+   Abschluss den **neuen** Container intern samt `/healthz`-JSON prüfen, insbesondere dass kein
+   Restore läuft. Coolifys einfacher HTTP-Healthcheck alleine bestätigt nicht alle diese Bedingungen.
+   Erst dann Wartungsmodus ausschalten und extern `/healthz`, Reader und ursprüngliche URL prüfen.
+   Besucher werden daraufhin automatisch zurückgeführt. Bei Fehlern bleibt der Wartungsmodus an;
+   nach dem dokumentierten Rollback erst mit bestätigter Anwendung wieder freigeben.
+
+Bei einem Ausfall des Proxy/TLS selbst, insbesondere einem von Cloudflare erzeugten 525, kann der
+Coolify-Proxy keine Seite liefern. Eine zusätzliche unabhängige Edge-Fehlerseite ist nur nach Prüfung
+des Cloudflare-Tarifs und der existierenden Regeln eine Option. [Custom Error Rules](https://developers.cloudflare.com/rules/custom-errors/)
+sind kostenpflichtig; nur HTML-GET-Navigationen mit passenden Fehlercodes abfangen, APIs, POST und
+`/healthz` ausnehmen, Status erhalten und die Wirkung getrennt testen. Eine globale HTML-Fehlerseite
+würde sonst auch API-Clients beeinflussen. Eine funktionierende 525-Abdeckung nicht ohne echten
+Edge-Test behaupten.
 
 ### Container registry and automatic deployment
 

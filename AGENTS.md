@@ -5,6 +5,11 @@ Architekturänderung und bei neuen, nicht offensichtlichen Invarianten im selben
 werden. Ausführlichere Hintergrundtexte liegen in `docs/architecture.md`, `docs/importing.md`,
 `docs/operations.md` und `docs/unified-notes.md`.
 
+## Deployments und Wartungsseite
+
+Coolify Compose bietet keine Rolling Updates; die Einzelheiten zu Migrations-/Mehrprozessrisiken,
+Edge-Asset, Health-Probe und Rollback stehen in `docs/operations.md` unter Deploying.
+
 ## Projekt und Befehle
 
 Akribos ist eine SvelteKit-5-Anwendung (Runes) mit TypeScript, PostgreSQL/Drizzle und einem Node-Adapter.
