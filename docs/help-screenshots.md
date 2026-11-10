@@ -75,7 +75,7 @@ Ablage: `static/help/live/`. Bild-URL: `/help/live/<Dateiname>`.
 | `workspace-menu.webp`         | 304 × 156   | Detail: „Johannes studieren“ und „Standard“ mit Bearbeitung und Neuanlage.                                                          |
 | `workspace-overview.webp`     | 1440 × 1000 | Johannes 1 in drei Kacheln: Bibel, Kommentar und griechisches Lexikon G3056 zu „Wort“; Gruppe A.                                    |
 
-### Geschützte Administrationsaufnahmen (7)
+### Geschützte Administrationsaufnahmen (6)
 
 Ablage: `src/lib/server/help/images/`. Bild-URL: `/help/media/<Dateiname>`.
 
@@ -86,7 +86,6 @@ eingebunden und besitzen keine öffentliche Assetkopie. Das API-Schlüsselformul
 
 | Datei                     | Maße      | Tatsächlich gezeigter Zustand                                                                                            |
 | ------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `admin-analytics.webp`    | 672 × 674 | Detail: Umami-Formular mit fiktiven Adressen und Angaben vor dem Speichern; keine Aktivierung.                           |
 | `admin-backup.webp`       | 862 × 489 | Detail: S3-Formular mit fiktiven Angaben, Zeitplan und Aufbewahrung; kein Secret eingegeben, nichts gespeichert.         |
 | `admin-import.webp`       | 645 × 267 | Detail: Ressourcenimport mit Dateiauswahl und Formaterkennung; kein Ressourcenimport ausgeführt.                         |
 | `admin-resource.webp`     | 618 × 401 | Detail: Ressourcen-Metadaten mit Beschriftungen, Rechtehinweis und Sichtbarkeit; keine Änderung gespeichert.             |

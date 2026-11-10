@@ -6,8 +6,7 @@ const calls = vi.hoisted(() => ({
 	db: vi.fn(),
 	resources: vi.fn(),
 	workspaces: vi.fn(),
-	context: vi.fn(),
-	analytics: vi.fn()
+	context: vi.fn()
 }));
 vi.mock('$lib/server/db', () => ({ getDb: calls.db }));
 vi.mock('$lib/server/repositories/resources', () => ({ listBibles: calls.resources }));
@@ -17,10 +16,24 @@ vi.mock('$lib/server/repositories/saved-reader-workspaces', () => ({
 vi.mock('$lib/server/reader-workspace-context', () => ({
 	resolveReaderWorkspaceContext: calls.context
 }));
-vi.mock('$lib/server/analytics/settings', () => ({ readAnalyticsSettings: calls.analytics }));
 
 describe('embedded editor root layout isolation', () => {
 	beforeEach(() => vi.clearAllMocks());
+	it('removes only the retired analytics cookie when present', async () => {
+		const deleteCookie = vi.fn();
+		const setCookie = vi.fn();
+		await load({
+			cookies: {
+				get: (name: string) => (name === 'analytics-consent' ? 'old-consent' : undefined),
+				set: setCookie,
+				delete: deleteCookie
+			} as unknown as Cookies,
+			locals: { user: null },
+			url: new URL('https://akribos.test/app/editor/document')
+		} as Parameters<typeof load>[0]);
+		expect(deleteCookie).toHaveBeenCalledExactlyOnceWith('analytics-consent', { path: '/' });
+		expect(setCookie).not.toHaveBeenCalled();
+	});
 	it.each(['', '/__data.json'])('does not read or mutate browser workspaces%s', async (suffix) => {
 		const cookieWrite = vi.fn();
 		const user = {
@@ -45,7 +58,6 @@ describe('embedded editor root layout isolation', () => {
 		expect(user?.readerColumns).toEqual(['BROWSER_ONLY']);
 		expect(result.savedWorkspaces).toEqual([]);
 		expect(result.activeSavedWorkspaceId).toBeNull();
-		expect(result.analytics.enabled).toBe(false);
 		expect(result.readerFontScale).toBe(125);
 		expect(cookieWrite).not.toHaveBeenCalled();
 		for (const call of Object.values(calls)) expect(call).not.toHaveBeenCalled();

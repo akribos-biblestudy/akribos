@@ -1,4 +1,3 @@
-import { readAnalyticsSettings } from '$lib/server/analytics/settings';
 import { getDb } from '$lib/server/db';
 import { canReview } from '$lib/server/strong-review/repository';
 import { listSavedReaderWorkspaces } from '$lib/server/repositories/saved-reader-workspaces';
@@ -23,6 +22,9 @@ import type { ReadableResource } from '$lib/server/repositories/resources';
  * Resources are cached in the process, so this costs no query on most requests.
  */
 export async function load({ cookies, locals, url }) {
+	// Remove the obsolete consent cookie once for visitors of older versions.
+	if (cookies.get('analytics-consent') !== undefined)
+		cookies.delete('analytics-consent', { path: '/' });
 	// The embedded editor has no Reader. In particular, do not resolve a saved
 	// workspace here: even a GET could otherwise initialize the browser layout.
 	if (isAppEditorPath(url.pathname)) {
@@ -30,15 +32,6 @@ export async function load({ cookies, locals, url }) {
 			appEditor: true,
 			canReviewStrong: false,
 			initializeReaderWorkspace: false,
-			analytics: {
-				enabled: false,
-				scriptUrl: '',
-				websiteId: '',
-				provider: '',
-				privacyUrl: '',
-				privacyDetails: '',
-				revision: ''
-			},
 			savedWorkspaces: [] as SavedWorkspaceSummary[],
 			activeSavedWorkspaceId: null,
 			activeSavedWorkspaceVersion: null,
@@ -84,7 +77,6 @@ export async function load({ cookies, locals, url }) {
 		appEditor: false,
 		canReviewStrong: !locals.localReader && (await canReview(db, locals.user)),
 		initializeReaderWorkspace,
-		analytics: await readAnalyticsSettings(db),
 		savedWorkspaces,
 		...context.selection,
 		bibles,
