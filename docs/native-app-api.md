@@ -303,8 +303,10 @@ Buch und Kapitel; fehlende Kapitel enthalten keinen Text. Ein enthaltenes Kapite
 hat dieselbe Struktur wie die lesende Reader-Kapitel-API; persönliche Markierungen,
 Sammlungen und Dokumentanker sind darin leer. Das Paket
 enthält eine konsistente Datenbankaufnahme der Metadaten und Inhalte; `updatedAt`
-ist ein Metadatum der Ressource, kein Lizenzablaufdatum. Pakete sind auf 32 MiB
-begrenzt und liefern bei Überschreitung 413. Fehlende Rechte liefern 404.
+ist ein Metadatum der Ressource, kein Lizenzablaufdatum. Pakete sind auf 128 MiB
+unverschlüsseltes UTF-8-JSON begrenzt und liefern bei Überschreitung 413. Vor dem
+Laden schützt zusätzlich eine konservative Größenschätzung; sie kann Pakete nahe
+der Grenze ebenfalls ablehnen. Fehlende Rechte liefern 404.
 Paketabrufe sind pro IP auf 30 pro Minute begrenzt; bei 429 enthält `Retry-After`
 die Wartezeit in Sekunden.
 

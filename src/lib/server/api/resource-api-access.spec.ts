@@ -12,6 +12,7 @@ import {
 	resources,
 	resourceUserGrants,
 	users,
+	verses,
 	verseHighlights,
 	verseListItems,
 	verseListMembers,
@@ -524,8 +525,17 @@ describe.sequential('independent resource permission for the public API', () => 
 		expect((await (await offlinePackage(event(bibleId, null) as never)).json()).owner).toBeNull();
 		await db.update(resources).set({ isPublic: false }).where(eq(resources.id, bibleId));
 		await db
+			.update(verses)
+			.set({ segments: sql`jsonb_build_array(repeat('x', ${33 * 1024 * 1024}))` })
+			.where(eq(verses.resourceId, bibleId));
+		const largePackage = await offlinePackage(event(bibleId) as never);
+		expect(largePackage.status).toBe(200);
+		expect(
+			Number(largePackage.headers.get('content-length')) || (await largePackage.text()).length
+		).toBeGreaterThan(32 * 1024 * 1024);
+		await db
 			.update(commentaryEntries)
-			.set({ bodyHtml: sql`repeat('x', ${32 * 1024 * 1024 + 1})` })
+			.set({ bodyHtml: sql`repeat('x', ${128 * 1024 * 1024 + 1})` })
 			.where(eq(commentaryEntries.resourceId, commentId));
 		await expect(offlinePackage(event(commentId) as never)).rejects.toMatchObject({ status: 413 });
 		await db
@@ -549,7 +559,7 @@ describe.sequential('independent resource permission for the public API', () => 
 		}
 		expect(status).toBe(429);
 		expect(headers['retry-after']).toBe('60');
-	});
+	}, 60_000);
 
 	it('honours a revoked private grant even when API access is enabled', async () => {
 		await db
