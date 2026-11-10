@@ -12,7 +12,7 @@ import { readableResourceCondition } from '$lib/server/repositories/resources';
 import type { RequestHandler } from './$types';
 
 // Transport bound, not a licence duration or a promise about device storage.
-const MAX_PACKAGE_BYTES = 32 * 1024 * 1024;
+const MAX_PACKAGE_BYTES = 128 * 1024 * 1024;
 
 function groupByChapter<T extends { book: number; chapter: number }>(rows: T[]): Map<string, T[]> {
 	const groups = new Map<string, T[]>();

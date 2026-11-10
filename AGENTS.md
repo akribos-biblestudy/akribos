@@ -227,6 +227,10 @@ unabhängig von API-Freigabe und Reader-Zugriff. `readableResourceCondition(user
 verlangt zusätzlich einen fertigen und für das aktuelle Konto lesbaren Inhalt; nie einen alten
 Ressourcencache für die Prüfung verwenden. Die Paket-API und ihre Grenzen sind in
 `docs/native-app-api.md` dokumentiert; sie implementiert noch keinen Offline-Reader.
+Offline-Pakete der Version 1 für Bibeln, Kommentare und Parallelstellen sind auf 128 MiB
+UTF-8-JSON begrenzt; eine konservative Datenbankschätzung kann bereits vorher ablehnen.
+Das separate Lexikonpaket der Version 2 bleibt auf 32 MiB begrenzt. Die App muss die
+Version-1-Grenze ebenfalls unterstützen.
 Reimporte müssen die administrative Entscheidung erhalten.
 
 `resources.api_enabled` ist die vom Administrator gesetzte Lizenzfreigabe für `/api/v1`; neue und
