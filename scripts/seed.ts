@@ -72,8 +72,8 @@ const GERMAN = `<?xml version="1.0" encoding="utf-8"?>
 			<VERS vnumber="2">Und <gr str="430">Gott </gr> ruhte am siebten Tag.</VERS>
 		</CHAPTER>
 	</BIBLEBOOK>
-	<BIBLEBOOK bnumber="19">
-		<CHAPTER cnumber="1">
+	<BIBLEBOOK bnumber="13">
+		<CHAPTER cnumber="16">
 			<VERS vnumber="1">Erste Gedichtzeile.<BR/>Zweite Gedichtzeile.</VERS>
 			<VERS vnumber="2">Dritte Gedichtzeile.<BR/>Vierte Gedichtzeile.</VERS>
 			<VERS vnumber="3">Ein Vers ohne Zeilenumbruch.</VERS>

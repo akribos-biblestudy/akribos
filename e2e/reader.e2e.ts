@@ -684,11 +684,11 @@ test('different link letters keep visible tabs independently scrollable', async 
 });
 
 test('verses with source line breaks start on their own lines', async ({ page }) => {
-	await page.goto('/Ps1');
+	await page.goto('/1Chr16');
 	const column = page.locator('.flow-column[data-resource-id="SEEDDE"]');
-	const first = column.locator('[data-verse-key="19:1:1"]');
-	const second = column.locator('[data-verse-key="19:1:2"]');
-	const prose = column.locator('[data-verse-key="19:1:3"]');
+	const first = column.locator('[data-verse-key="13:16:1"]');
+	const second = column.locator('[data-verse-key="13:16:2"]');
+	const prose = column.locator('[data-verse-key="13:16:3"]');
 	await expect(first.locator('br')).toHaveCount(1);
 	await expect(second.locator('br')).toHaveCount(1);
 	await expect(first).toHaveCSS('display', 'block');
