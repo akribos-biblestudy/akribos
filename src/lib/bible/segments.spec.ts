@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	countVerseWords,
 	finalizeSegments,
+	hasVerseLineBreak,
 	highlightSegments,
 	initHighlightCursor,
 	splitVerseLead,
@@ -11,6 +12,14 @@ import {
 	type HighlightRange,
 	type VerseSegment
 } from './segments.ts';
+
+describe('hasVerseLineBreak', () => {
+	it('recognizes source line breaks, including within styled containers', () => {
+		expect(hasVerseLineBreak(['Text', { kind: 'br' }, 'mehr'])).toBe(true);
+		expect(hasVerseLineBreak([{ kind: 'wj', children: ['Text', { kind: 'br' }] }])).toBe(true);
+		expect(hasVerseLineBreak([{ kind: 'nd', children: ['Herr'] }, ' Text'])).toBe(false);
+	});
+});
 
 describe('segmentsToText', () => {
 	it('flattens words and plain runs', () => {

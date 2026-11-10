@@ -33,6 +33,7 @@
 	} from '$lib/bible/passage';
 	import {
 		countVerseWords,
+		hasVerseLineBreak,
 		segmentsToText,
 		splitVerseLead,
 		taggedWordSegments
@@ -2935,6 +2936,7 @@
 													})}
 													<p
 														class="flow-verse"
+														class:has-line-break={hasVerseLineBreak(cell.segments)}
 														data-verse-key={`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}`}
 														data-verse-end={cell.verseEnd ?? cell.verse}
 														data-copy-reference={formatReference(
@@ -3694,6 +3696,11 @@
 		font-size: var(--reader-text-size);
 		line-height: var(--reader-line-height);
 		hyphens: auto;
+	}
+
+	.flow-verse.has-line-break {
+		display: block;
+		text-align: start;
 	}
 
 	.verse-lead {

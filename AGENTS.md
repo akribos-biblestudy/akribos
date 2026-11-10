@@ -178,6 +178,9 @@ Abschnittsüberschriften im Bibeltext verwenden das 1,2-Fache der aktuellen Lese
 einschließlich persönlicher Skalierung; feste kleine UI-Schriftgrößen gehören hier nicht hin.
 Der fortlaufende Bibeltext im Web verwendet Blocksatz; Abschnitts- und Buchüberschriften
 bleiben am Zeilenanfang ausgerichtet. Die letzte Absatzzeile wird nicht gestreckt.
+Verse mit expliziten Zeilenumbrüchen aus der Quelle stehen im Reader jeweils in einem eigenen,
+linksbündigen Block; Verse ohne solche Umbrüche bleiben im fortlaufenden Text. Das gilt unabhängig
+von Buch und Übersetzung und verändert weder gespeicherte Segmente noch Kopiertext oder Wortindizes.
 Die persönliche Skalierung reicht von 70 bis 200 % in 5-%-Schritten; `src/lib/reader/font-scale.ts`
 ist die gemeinsame Quelle für Server, Bedienelemente und Hilfetext, der DB-Check in `users` muss
 übereinstimmen. Unterhalb von `sm` sind A−/A+ im Reader-Header ausgeblendet und stehen stattdessen als

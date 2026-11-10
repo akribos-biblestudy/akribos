@@ -84,6 +84,16 @@ export function isTextSegment(segment: VerseSegment): segment is TextSegment {
 	return typeof segment === 'string';
 }
 
+/** Whether a verse explicitly contains a source line break, including inside styled spans. */
+export function hasVerseLineBreak(segments: readonly VerseSegment[]): boolean {
+	return segments.some(
+		(segment) =>
+			typeof segment !== 'string' &&
+			(segment.kind === 'br' ||
+				(isContainerSegment(segment) && hasVerseLineBreak(segment.children)))
+	);
+}
+
 /**
  * Splits off the first visible word so a reader can keep a verse/chapter number attached to it.
  *
