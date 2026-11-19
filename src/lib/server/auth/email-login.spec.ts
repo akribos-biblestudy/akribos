@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { RequestEvent } from '@sveltejs/kit';
 import { eq, inArray, like } from 'drizzle-orm';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+import { ACCOUNT_DELETION_PATH } from '../../auth/account-deletion.ts';
 import { closeDb, getDb } from '../db/index.ts';
 import { emailLogins, loginAttempts, users } from '../db/schema.ts';
 import {
@@ -13,6 +14,7 @@ import {
 import {
 	beginEmailLogin,
 	consumeEmailLogin,
+	pendingEmailLogin,
 	peekEmailLogin,
 	validLoginEmail
 } from './email-login.ts';
@@ -119,6 +121,64 @@ describe('email sign-in', () => {
 		const user = (await consumeEmailLogin(db, { token: first.token }))!.user;
 		const second = await issue(first.email);
 		expect((await consumeEmailLogin(db, { token: second.token }))?.user.id).toBe(user.id);
+	});
+
+	it('returns an existing passwordless account to the deletion form after verification', async () => {
+		const first = await issue();
+		const user = (await consumeEmailLogin(db, { token: first.token }))!.user;
+		const attempt = await beginEmailLogin(
+			db,
+			user.email,
+			`${prefix}-deletion`,
+			ACCOUNT_DELETION_PATH
+		);
+		if (attempt.kind !== 'email') throw new Error(`Unexpected sign-in step: ${attempt.kind}`);
+		expect(await consumeEmailLogin(db, { id: attempt.id, code: attempt.code })).toMatchObject({
+			user: { id: user.id, passwordHash: null },
+			redirectTo: ACCOUNT_DELETION_PATH
+		});
+	});
+
+	it('shows the same code flow without sending mail to an unknown deletion sign-in address', async () => {
+		const address = email();
+		const registration = await issue(address);
+		const send = vi.fn(async () => {});
+		const setCookie = vi.fn();
+		setMailer({ send });
+		try {
+			await expect(
+				actions.start({
+					request: new Request('http://localhost/login?/start', {
+						method: 'POST',
+						body: new URLSearchParams({ email: address, redirectTo: ACCOUNT_DELETION_PATH })
+					}),
+					getClientAddress: () => `${prefix}-unknown-deletion`,
+					cookies: { set: setCookie }
+				} as unknown as RequestEvent)
+			).rejects.toMatchObject({
+				status: 303,
+				location: `/login?redirectTo=${encodeURIComponent(ACCOUNT_DELETION_PATH)}`
+			});
+			expect(send).not.toHaveBeenCalled();
+			expect(await pendingEmailLogin(db, setCookie.mock.calls[0]?.[1])).toEqual({
+				email: address,
+				redirectTo: ACCOUNT_DELETION_PATH
+			});
+			expect(await findUserByEmail(db, address)).toBeUndefined();
+			expect(await pendingEmailLogin(db, registration.id)).toMatchObject({ email: address });
+		} finally {
+			setMailer(undefined);
+		}
+	});
+
+	it('never creates a new account even with a valid unbound code for the deletion route', async () => {
+		const attempt = await issue();
+		await db
+			.update(emailLogins)
+			.set({ redirectTo: ACCOUNT_DELETION_PATH })
+			.where(eq(emailLogins.id, attempt.id));
+		expect(await consumeEmailLogin(db, { id: attempt.id, code: attempt.code })).toBeNull();
+		expect(await findUserByEmail(db, attempt.email)).toBeUndefined();
 	});
 
 	it('allows exactly one winner when link and code are submitted concurrently', async () => {

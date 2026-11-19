@@ -53,6 +53,7 @@ async function start({ request, cookies, getClientAddress }: RequestEvent) {
 		return fail(400, {
 			step: 'email' as const,
 			email: String(form.get('email') ?? '').slice(0, 254),
+			redirectTo,
 			error: 'email' as const
 		});
 	if (String(form.get('company') ?? '').trim()) {
@@ -72,22 +73,24 @@ async function start({ request, cookies, getClientAddress }: RequestEvent) {
 		return { step: 'password' as const, email, redirectTo };
 	}
 	if (result.kind === 'throttled')
-		return fail(429, { step: 'email' as const, email, error: 'throttled' as const });
-	if (result.kind !== 'email')
-		return fail(400, { step: 'email' as const, email, error: 'unavailable' as const });
-	const link = new URL(`/login/verify/${result.token}`, config().ORIGIN).toString();
-	try {
-		if (
-			process.env.NODE_ENV === 'production' &&
-			!config().BREVO_API_KEY &&
-			!config().MAIL_TEST_OUTBOX
-		)
-			throw new Error('Transactional delivery is not configured');
-		await mailer().send({ to: email, ...emailLoginMail(link, result.code) });
-	} catch {
-		logger.error('sending the email sign-in message failed');
-		await db.update(emailLogins).set({ usedAt: new Date() }).where(eq(emailLogins.id, result.id));
-		return fail(503, { step: 'email' as const, email, error: 'mail' as const });
+		return fail(429, { step: 'email' as const, email, redirectTo, error: 'throttled' as const });
+	if (result.kind !== 'email' && result.kind !== 'withoutMail')
+		return fail(400, { step: 'email' as const, email, redirectTo, error: 'unavailable' as const });
+	if (result.kind === 'email') {
+		const link = new URL(`/login/verify/${result.token}`, config().ORIGIN).toString();
+		try {
+			if (
+				process.env.NODE_ENV === 'production' &&
+				!config().BREVO_API_KEY &&
+				!config().MAIL_TEST_OUTBOX
+			)
+				throw new Error('Transactional delivery is not configured');
+			await mailer().send({ to: email, ...emailLoginMail(link, result.code) });
+		} catch {
+			logger.error('sending the email sign-in message failed');
+			await db.update(emailLogins).set({ usedAt: new Date() }).where(eq(emailLogins.id, result.id));
+			return fail(503, { step: 'email' as const, email, redirectTo, error: 'mail' as const });
+		}
 	}
 	cookies.set(EMAIL_LOGIN_COOKIE, result.id, {
 		path: '/login',
@@ -102,17 +105,23 @@ async function start({ request, cookies, getClientAddress }: RequestEvent) {
 export const actions = {
 	start,
 	code: async ({ request, cookies, getClientAddress }) => {
+		const form = await request.formData();
 		const db = getDb();
 		const id = cookies.get(EMAIL_LOGIN_COOKIE) ?? '';
 		const pending = await pendingEmailLogin(db, id);
-		if (!pending) return fail(400, { step: 'email' as const, error: 'code' as const });
+		if (!pending)
+			return fail(400, {
+				step: 'email' as const,
+				redirectTo: loginRedirect(form.get('redirectTo')),
+				error: 'code' as const
+			});
 		if (!(await allowEmailLoginVerification(db, getClientAddress())))
 			return fail(429, {
 				step: 'code' as const,
 				email: pending.email,
+				redirectTo: pending.redirectTo,
 				error: 'throttled' as const
 			});
-		const form = await request.formData();
 		const result = await completeEmailLogin(
 			db,
 			{ id, code: String(form.get('code') ?? '').slice(0, 100) },
@@ -120,7 +129,12 @@ export const actions = {
 			request
 		);
 		if (!result)
-			return fail(400, { step: 'code' as const, email: pending.email, error: 'code' as const });
+			return fail(400, {
+				step: 'code' as const,
+				email: pending.email,
+				redirectTo: pending.redirectTo,
+				error: 'code' as const
+			});
 		redirect(303, result.redirectTo);
 	},
 	// Named rather than default: SvelteKit forbids mixing a default action with named ones in the
@@ -133,14 +147,19 @@ export const actions = {
 		const redirectTo = loginRedirect(form.get('redirectTo'));
 
 		if (!email || !password) {
-			return fail(400, { step: 'password' as const, email, error: 'missing' as const });
+			return fail(400, { step: 'password' as const, email, redirectTo, error: 'missing' as const });
 		}
 
 		const db = getDb();
 		const address = getClientAddress();
 
 		if (await isLoginThrottled(db, email, address)) {
-			return fail(429, { step: 'password' as const, email, error: 'throttled' as const });
+			return fail(429, {
+				step: 'password' as const,
+				email,
+				redirectTo,
+				error: 'throttled' as const
+			});
 		}
 
 		const user = await findUserByEmail(db, email);
@@ -151,14 +170,19 @@ export const actions = {
 
 		if (!user || !valid || user.disabledAt) {
 			await recordFailedLogin(db, email, address);
-			return fail(400, { step: 'password' as const, email, error: 'invalid' as const });
+			return fail(400, { step: 'password' as const, email, redirectTo, error: 'invalid' as const });
 		}
 
 		if (!user.emailVerifiedAt) {
 			// The password was correct, so this can say exactly what is wrong without helping anyone
 			// probe for which addresses are registered — that question is already answered by getting
 			// this far instead of "invalid".
-			return fail(400, { step: 'password' as const, email, error: 'unverified' as const });
+			return fail(400, {
+				step: 'password' as const,
+				email,
+				redirectTo,
+				error: 'unverified' as const
+			});
 		}
 
 		await clearFailedLogins(db, email, address);
@@ -184,13 +208,14 @@ export const actions = {
 	resend: async ({ request, getClientAddress }) => {
 		const form = await request.formData();
 		const email = String(form.get('email') ?? '').trim();
-		if (!email.includes('@')) return fail(400, { error: 'email' as const });
+		const redirectTo = loginRedirect(form.get('redirectTo'));
+		if (!email.includes('@')) return fail(400, { redirectTo, error: 'email' as const });
 
 		const db = getDb();
 		const address = getClientAddress();
 
 		if ((await countRecent(db, `ip:${address}`)) >= 10) {
-			return fail(429, { error: 'throttled' as const });
+			return fail(429, { redirectTo, error: 'throttled' as const });
 		}
 		await recordFailedLogin(db, email, address);
 
@@ -210,6 +235,6 @@ export const actions = {
 			}
 		}
 
-		return { step: 'password' as const, email, resent: true };
+		return { step: 'password' as const, email, redirectTo, resent: true };
 	}
 };

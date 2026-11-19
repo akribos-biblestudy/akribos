@@ -1,5 +1,17 @@
 <script lang="ts">
-	let { data } = $props();
+	import { ACCOUNT_DELETION_LOGIN_URL } from '$lib/auth/account-deletion';
+	import Button from '$lib/components/Button.svelte';
+
+	let { data, form } = $props();
+
+	const deletionErrors = {
+		signIn: 'Melde dich an, um dein Konto zu löschen.',
+		wrongAccount: 'Das angemeldete Konto hat sich geändert. Prüfe die angezeigte E-Mail-Adresse.',
+		confirmation: 'Bestätige, dass du das Konto dauerhaft löschen möchtest.',
+		lastAdmin: 'Ernenne zuerst ein weiteres aktives Administratorkonto.',
+		unavailable: 'Dieses Konto kann mit der aktuellen Anmeldung nicht gelöscht werden.',
+		failed: 'Die Löschung konnte nicht abgeschlossen werden. Bitte versuche es erneut.'
+	};
 </script>
 
 <svelte:head>
@@ -152,8 +164,8 @@
 			Beim Teilen wählst du im Systemmenü die empfangende App oder den Empfänger aus. Die
 			ausgewählten Inhalte werden an diese übergeben. Für Exporte können Dateien im temporären
 			privaten App-Verzeichnis abgelegt werden. Das Abmelden oder Deinstallieren der App löscht
-			nicht das serverseitige Akribos-Konto und seine gespeicherten Inhalte. Den Weg für einen
-			Löschantrag findest du unter
+			nicht das serverseitige Akribos-Konto und seine gespeicherten Inhalte. Das Formular findest du
+			unter
 			<a class="text-accent-600 hover:underline dark:text-accent-400" href="#konto-loeschen"
 				>Akribos-Konto und Daten löschen</a
 			>.
@@ -231,41 +243,61 @@
 		<h2 class="mb-2 text-lg font-semibold">Speicherdauer</h2>
 		<p class="text-stone-700 dark:text-stone-300">
 			Kontobezogene Daten werden gespeichert, solange das Konto besteht. Eine Löschung des Kontos
-			und der zugehörigen Daten kann jederzeit über den unten beschriebenen
+			und der zugehörigen Daten ist über das
 			<a class="text-accent-600 hover:underline dark:text-accent-400" href="#konto-loeschen"
-				>Löschantrag</a
-			> verlangt werden.
+				>Löschformular</a
+			> möglich.
 		</p>
 	</section>
 
 	<section id="konto-loeschen" class="mb-8 scroll-mt-24">
 		<h2 class="mb-2 text-lg font-semibold">Akribos-Konto und Daten löschen</h2>
-		<p class="text-stone-700 dark:text-stone-300">
-			Du kannst die Löschung deines Akribos-Kontos und der zugehörigen personenbezogenen Daten per
-			E-Mail an
-			<a
-				class="text-accent-600 hover:underline dark:text-accent-400"
-				href="mailto:info@akribos.de?subject=Akribos-Konto%20l%C3%B6schen">info@akribos.de</a
+		{#if form?.deleted}
+			<p
+				role="status"
+				class="rounded-lg bg-green-50 p-4 text-green-900 dark:bg-green-950 dark:text-green-100"
 			>
-			beantragen. Verwende den Betreff „Akribos-Konto löschen“ und sende die Nachricht möglichst von der
-			E-Mail-Adresse, die zu deinem Konto gehört.
-		</p>
-		<p class="mt-3 text-stone-700 dark:text-stone-300">
-			Der Antrag umfasst deine Kontodaten, Notizen und Ausarbeitungen, Dateianlagen, Markierungen,
-			Sammlungen und Kommentare.
-		</p>
-		<p class="mt-3 text-stone-700 dark:text-stone-300">
-			Wir bearbeiten Löschanträge innerhalb von sieben Tagen. Dabei prüfen wir die Zuordnung des
-			Antrags zu deinem Konto, bevor wir Kontodaten löschen. Sende uns dafür kein Passwort und
-			keinen Anmeldecode. Dieser Antrag betrifft dein serverseitiges Konto; das bloße Abmelden oder
-			Entfernen der App stellt keinen Löschantrag dar.
-		</p>
+				Dein Akribos-Konto wurde dauerhaft gelöscht.
+			</p>
+		{:else}
+			<p class="text-stone-700 dark:text-stone-300">
+				Durch die Löschung verlierst du dein Konto, deine serverseitigen Notizen und Ausarbeitungen,
+				Dateianlagen, Markierungen, Sammlungen und Kommentare. Du wirst auf allen Geräten
+				abgemeldet.
+			</p>
+			{#if form?.error}
+				<p role="alert" class="mt-3 text-red-700 dark:text-red-300">{deletionErrors[form.error]}</p>
+			{/if}
+			{#if data.user}
+				<form
+					method="POST"
+					action="?/deleteAccount#konto-loeschen"
+					class="mt-4 rounded-lg border border-stone-300 p-4 dark:border-stone-700"
+				>
+					<input type="hidden" name="userId" value={data.user.id} />
+					<p class="break-words">Angemeldet als <strong>{data.user.email}</strong></p>
+					<label class="mt-3 flex items-start gap-2">
+						<input class="mt-1 shrink-0" type="checkbox" name="confirm" value="yes" required />
+						Ich möchte dieses Konto und die zugehörigen Daten dauerhaft löschen.
+					</label>
+					<Button variant="danger" class="mt-3 border border-current"
+						>Konto dauerhaft löschen</Button
+					>
+				</form>
+			{:else}
+				<p class="mt-3 text-stone-700 dark:text-stone-300">
+					Melde dich mit deinem bestehenden Akribos-Konto an. Du kehrst danach zu diesem Formular
+					zurück.
+				</p>
+				<Button href={ACCOUNT_DELETION_LOGIN_URL} variant="primary" class="mt-3">
+					Zur Anmeldung
+				</Button>
+			{/if}
+		{/if}
 		<p class="mt-3 text-stone-700 dark:text-stone-300">
 			Vorhandene Sicherungskopien können ältere Datenstände bis zu ihrer turnusmäßigen Ersetzung
 			enthalten. Zusätzliche Sicherungskopien, etwa vor einer Wiederherstellung, fallen nicht unter
-			diese reguläre Rotation und müssen bei der Bearbeitung des Löschantrags gesondert
-			berücksichtigt werden. Für die Entfernung aus sämtlichen Sicherungskopien ergibt sich daraus
-			keine feste Frist in Tagen; die sieben Tage beziehen sich auf die Bearbeitung deines Antrags.
+			diese reguläre Rotation und werden gesondert berücksichtigt.
 		</p>
 	</section>
 

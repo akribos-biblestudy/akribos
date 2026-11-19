@@ -494,8 +494,8 @@ export const readerGuides: HelpArticle[] = [
 			},
 			{
 				id: 'abmelden-und-loeschen',
-				title: 'Abmelden und eine Kontolöschung anfragen',
-				html: `<p>Über <strong>Abmelden</strong> im Konto-Menü oder am Ende der Einstellungen beendest du die Anmeldung auf diesem Gerät. Deine gespeicherten Notizen, Markierungen, Sammlungen und Arbeitsbereiche werden dadurch nicht gelöscht. Beim erneuten Anmelden mit derselben Adresse greifst du wieder auf dein Konto zu.</p><p>Die Einstellungen enthalten derzeit keine Schaltfläche zur selbstständigen Kontolöschung. Wenn du dein Konto löschen lassen oder deine Anmeldeadresse klären möchtest, nutze den <a href="/impressum">Kontakt im Impressum</a>. Sichere benötigte eigene Texte zuvor über <a href="/help/import-export">den Dokumentexport</a>.</p><p>API-Schlüssel werden ebenfalls unter „Profil &amp; Sicherheit“ verwaltet. Für normales Bibelstudium brauchst du keinen Schlüssel. Die technische Nutzung ist getrennt unter <a href="/help/api">API &amp; Integrationen</a> beschrieben.</p>`
+				title: 'Abmelden und das Konto löschen',
+				html: `<p>Über <strong>Abmelden</strong> im Konto-Menü oder am Ende der Einstellungen beendest du die Anmeldung auf diesem Gerät. Beim erneuten Anmelden mit derselben Adresse greifst du wieder auf deine gespeicherten Inhalte zu.</p><p>Über <strong>Konto löschen</strong> in den Einstellungen oder <strong>Löschung anfordern</strong> in der App gelangst du zum <a href="/datenschutz#konto-loeschen">Löschformular</a>. Melde dich dort bei Bedarf mit dem bestehenden Konto an, prüfe die angezeigte E-Mail-Adresse und bestätige die Löschung. Sichere benötigte eigene Texte zuvor über <a href="/help/import-export">den Dokumentexport</a>.</p><p>API-Schlüssel werden ebenfalls unter „Profil &amp; Sicherheit“ verwaltet. Für normales Bibelstudium brauchst du keinen Schlüssel. Die technische Nutzung ist unter <a href="/help/api">API &amp; Integrationen</a> beschrieben.</p>`
 			},
 			{
 				id: 'fragen',
