@@ -2,6 +2,7 @@
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount, untrack } from 'svelte';
+	import { ACCOUNT_DELETION_PATH } from '$lib/auth/account-deletion';
 	import {
 		ANALYTICS_CONSENT_COOKIE,
 		analyticsChoice,
@@ -27,7 +28,14 @@
 	let lastVisit = '';
 	let visit = 0;
 	const privacyPage = $derived(page.route.id === '/datenschutz');
-	const eligiblePage = $derived(analyticsPage(page.route.id));
+	const deletionFlow = $derived(
+		privacyPage &&
+			(`${page.url.pathname}${page.url.hash}` === ACCOUNT_DELETION_PATH ||
+				page.url.searchParams.has('/deleteAccount'))
+	);
+	const eligiblePage = $derived(
+		deletionFlow || (privacyPage && page.data.user) ? null : analyticsPage(page.route.id)
+	);
 
 	function readChoice() {
 		const value = document.cookie
@@ -40,8 +48,9 @@
 		return config.enabled && choice === 'yes' && !blocked;
 	}
 	function payload(): Payload | null {
-		const path = analyticsPage(page.route.id);
-		return permitted() && path ? { website: config.websiteId, url: path, title: 'Akribos' } : null;
+		return permitted() && eligiblePage
+			? { website: config.websiteId, url: eligiblePage, title: 'Akribos' }
+			: null;
 	}
 	function sendVisit() {
 		const data = payload();
@@ -65,7 +74,7 @@
 		delete target.umami;
 	}
 	function updateTracker() {
-		if (!permitted() || !analyticsPage(page.route.id)) {
+		if (!permitted() || !eligiblePage) {
 			stop();
 			return;
 		}
@@ -138,7 +147,7 @@
 	});
 </script>
 
-{#if mounted && config.enabled && (privacyPage || (eligiblePage && choice === null && !blocked))}
+{#if mounted && config.enabled && !deletionFlow && (privacyPage || (eligiblePage && choice === null && !blocked))}
 	<aside
 		id="analyse-einstellung"
 		aria-label="Freiwillige Nutzungsanalyse"

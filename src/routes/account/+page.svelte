@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { ACCOUNT_DELETION_PATH } from '$lib/auth/account-deletion';
 	import { t } from '$lib/i18n';
 	import { FONT_SCALE_STEP, MAX_FONT_SCALE, MIN_FONT_SCALE } from '$lib/reader/font-scale';
 	import Button from '$lib/components/Button.svelte';
@@ -486,9 +487,12 @@
 		</div>
 	</div>
 
-	<form method="POST" action="/logout" class="flex justify-end">
-		<Button variant="secondary">{t('auth.logout.submit')}</Button>
-	</form>
+	<div class="flex flex-wrap justify-end gap-2">
+		<Button href={ACCOUNT_DELETION_PATH} variant="danger">Konto löschen</Button>
+		<form method="POST" action="/logout">
+			<Button variant="secondary">{t('auth.logout.submit')}</Button>
+		</form>
+	</div>
 </main>
 
 <style>

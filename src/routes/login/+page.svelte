@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { ACCOUNT_DELETION_PATH } from '$lib/auth/account-deletion';
 	import { t } from '$lib/i18n';
 	import AuthForm from '$lib/components/AuthForm.svelte';
 	import TextField from '$lib/components/TextField.svelte';
@@ -7,6 +8,7 @@
 	const step = $derived(form?.step ?? (data.pending ? 'code' : 'email'));
 	const email = $derived(form?.email ?? data.pending?.email ?? '');
 	const redirectTo = $derived(form?.redirectTo ?? data.redirectTo);
+	const accountDeletion = $derived(redirectTo === ACCOUNT_DELETION_PATH);
 	const errorMessage = $derived(
 		form?.error === 'throttled'
 			? t('auth.login.throttled')
@@ -35,7 +37,9 @@
 >
 	<input type="hidden" name="redirectTo" value={redirectTo} />
 	{#if step === 'email'}
-		<p class="text-sm text-stone-600 dark:text-stone-300">{t('auth.login.emailIntro')}</p>
+		<p class="text-sm text-stone-600 dark:text-stone-300">
+			{t(accountDeletion ? 'auth.login.deletionIntro' : 'auth.login.emailIntro')}
+		</p>
 		<TextField
 			name="email"
 			type="email"
@@ -83,7 +87,9 @@
 				>
 			{/if}
 		{:else}
-			<p class="text-sm text-stone-600 dark:text-stone-300">{t('auth.login.codeSent')}</p>
+			<p class="text-sm text-stone-600 dark:text-stone-300">
+				{t(accountDeletion ? 'auth.login.deletionCodeSent' : 'auth.login.codeSent')}
+			</p>
 			<TextField
 				name="code"
 				label={t('auth.login.codeLabel')}

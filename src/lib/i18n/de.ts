@@ -618,11 +618,15 @@ export const de = {
 	'auth.login.continue': 'Weiter',
 	'auth.login.emailIntro':
 		'Gib deine E-Mail-Adresse ein. Du kannst dich damit anmelden oder ein neues Konto erstellen.',
+	'auth.login.deletionIntro':
+		'Melde dich mit der E-Mail-Adresse deines Akribos-Kontos an. Danach gelangst du zurück zum Löschformular.',
 	'auth.login.emailInvalid': 'Bitte gib eine gültige E-Mail-Adresse ein.',
 	'auth.login.codeTitle': 'E-Mail prüfen',
 	'auth.login.codeLabel': 'Anmeldecode',
 	'auth.login.codeSent':
 		'Wir haben dir einen Anmeldelink und einen sechsstelligen Code gesendet. Öffne den Link oder gib den Code hier ein. Prüfe gegebenenfalls auch deinen Spam-Ordner.',
+	'auth.login.deletionCodeSent':
+		'Wenn zu dieser Adresse ein Konto mit E-Mail-Anmeldung gehört, erhältst du einen Anmeldelink und einen sechsstelligen Code. Öffne den Link oder gib den Code hier ein.',
 	'auth.login.codeHint': 'Link und Code sind 15 Minuten gültig und nur einmal verwendbar.',
 	'auth.login.codeInvalid':
 		'Der Anmeldelink oder Code ist ungültig, abgelaufen oder bereits verwendet. Bitte versuche es erneut oder fordere eine neue E-Mail an.',

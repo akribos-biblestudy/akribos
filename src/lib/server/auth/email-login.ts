@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { and, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { ACCOUNT_DELETION_PATH } from '../../auth/account-deletion.ts';
 import type { Database } from '../db/client.ts';
 import { emailLogins, loginAttempts, users, type User } from '../db/schema.ts';
 import { config } from '../config.ts';
@@ -64,7 +65,8 @@ export async function allowEmailLoginVerification(db: Database, address: string)
 
 type BeginResult =
 	| { kind: 'password' | 'throttled' | 'unavailable' }
-	| { kind: 'email'; id: string; token: string; code: string; expiresAt: Date };
+	| { kind: 'email'; id: string; token: string; code: string; expiresAt: Date }
+	| { kind: 'withoutMail'; id: string; expiresAt: Date };
 
 /** No account is created until the recipient proves ownership of the address. */
 export async function beginEmailLogin(
@@ -74,6 +76,7 @@ export async function beginEmailLogin(
 	redirectTo: string
 ): Promise<BeginResult> {
 	email = normalizeEmail(email);
+	const destination = loginRedirect(redirectTo);
 	return db.transaction(async (tx) => {
 		await tx
 			.delete(loginAttempts)
@@ -89,6 +92,7 @@ export async function beginEmailLogin(
 		const [user] = await tx.select().from(users).where(eq(users.email, email));
 		if (user?.passwordHash) return { kind: 'password' };
 		if (user?.disabledAt) return { kind: 'unavailable' };
+		const withoutMail = destination === ACCOUNT_DELETION_PATH && !user;
 		if (
 			!(await allowAttempts(tx, [
 				{ key: `email-login-send:ip:${address}`, limit: 50 },
@@ -104,7 +108,13 @@ export async function beginEmailLogin(
 		await tx
 			.update(emailLogins)
 			.set({ usedAt: new Date() })
-			.where(and(eq(emailLogins.email, email), isNull(emailLogins.usedAt)));
+			.where(
+				and(
+					eq(emailLogins.email, email),
+					isNull(emailLogins.usedAt),
+					withoutMail ? eq(emailLogins.redirectTo, destination) : undefined
+				)
+			);
 		await tx.delete(emailLogins).where(lt(emailLogins.expiresAt, new Date()));
 		await tx.insert(emailLogins).values({
 			id,
@@ -113,8 +123,10 @@ export async function beginEmailLogin(
 			tokenHash: tokenHash(token),
 			codeHash: codeHash(id, code),
 			expiresAt,
-			redirectTo: loginRedirect(redirectTo)
+			redirectTo: destination
 		});
+		// An unknown address gets the same code screen without a registration email.
+		if (withoutMail) return { kind: 'withoutMail', id, expiresAt };
 		return { kind: 'email', id, token, code, expiresAt };
 	});
 }
@@ -196,6 +208,7 @@ export async function consumeEmailLogin(
 		let [user] = await tx.select().from(users).where(eq(users.email, row.email)).for('update');
 		if (user?.disabledAt || user?.passwordHash || (row.userId && user?.id !== row.userId))
 			return null;
+		if (row.redirectTo === ACCOUNT_DELETION_PATH && !row.userId) return null;
 		if (!user) {
 			[user] = await tx
 				.insert(users)

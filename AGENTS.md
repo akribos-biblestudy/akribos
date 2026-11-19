@@ -347,6 +347,13 @@ Ausstehende E-Mail-Anmeldungen werden dabei ungültig. Anmeldeseiten sind `priva
 lokale Pfade; ohne explizites Ziel führt jede Anmeldung über `/` zur Bibelansicht.
 Die globale Referrer-Regel bleibt `same-origin`, damit native POSTs funktionieren.
 
+Die native App verlinkt fest auf `/datenschutz#konto-loeschen`. Erhalte diesen Anker als Einstieg
+zum Löschformular. Die Browser-Anmeldung für dieses Ziel akzeptiert bestehende Konten und kehrt
+zum Anker zurück. Die Löschaktion erfordert die gültige Browsersitzung und die Bestätigung für das
+angezeigte Konto. Lösche Konto, Sitzungen und zugehörige Daten transaktional unter derselben
+E-Mail-Sperre wie beim Anmelden. Für die Selbstlöschung eines Administrators muss ein weiteres
+aktives Administratorkonto vorhanden sein.
+
 ## Reader-Architektur
 
 Der zentrale Reader ist `src/routes/[...reference]/+page.svelte`; sein Server-Load und seine Form Actions
