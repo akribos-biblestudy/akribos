@@ -6,7 +6,6 @@ import {
 	getHelpTopics,
 	helpArticles
 } from './catalog';
-import { loadHelpArticle } from './load-article';
 import { searchHelp } from './search';
 import type { HelpViewer } from '$lib/server/help/access';
 import { load as loadOverview } from '../../routes/help/+page.server';
@@ -16,6 +15,7 @@ import { load as loadGuide } from '../../routes/help/[topic]/[article]/+page.ser
 const administrator = { role: 'admin' as const };
 const restrictedArticles = helpArticles.filter(({ audience }) => audience === 'admin');
 const publicArticles = helpArticles.filter(({ audience }) => audience !== 'admin');
+const publicTopics = publicArticles.filter(({ level }) => level === 'overview');
 const readerRoles = [
 	{ label: 'guest', user: null },
 	{ label: 'standard account', user: { role: 'user' as const } }
@@ -59,27 +59,19 @@ describe('help catalog access', () => {
 			)
 		).toBe(true);
 	});
-
-	it.each(readerRoles)('rejects every restricted article for a $label', ({ user }) => {
-		for (const article of restrictedArticles) {
-			expect(() => loadHelpArticle(article.path, user)).toThrow(
-				expect.objectContaining({ status: 404 })
-			);
-		}
-	});
 });
 
 describe('help server loads', () => {
 	it.each(readerRoles)(
-		'excludes restricted metadata and content from every public article response for a $label',
-		({ user }) => {
-			for (const article of publicArticles) {
-				const data = loadHelpArticle(article.path, user);
-				expect(data.article).toBe(article);
+		'excludes restricted metadata and content from every public topic response for a $label',
+		async ({ user }) => {
+			for (const topic of publicTopics) {
+				const data = await loadTopic(event(topic.path, user) as never);
+				expect(data.topic).toBe(topic);
 				expect(data.topics.every(({ audience }) => audience !== 'admin')).toBe(true);
 				const serialized = JSON.stringify(data);
 				for (const restricted of restrictedArticles) {
-					expect(serialized, article.path).not.toContain(restricted.path);
+					expect(serialized, topic.path).not.toContain(restricted.path);
 				}
 			}
 		}
@@ -121,12 +113,21 @@ describe('help server loads', () => {
 		}
 	);
 
-	it('serves every restricted page to administrators without allowing caches or indexing', async () => {
+	it('serves the restricted topic and redirects its guides for administrators', async () => {
 		for (const article of restrictedArticles) {
 			const request = event(article.path, administrator);
-			const load = article.level === 'overview' ? loadTopic : loadGuide;
-			const data = await load(request as never);
-			expect(data).toMatchObject({ article });
+			if (article.level === 'overview') {
+				const data = await loadTopic(request as never);
+				expect(data.topic).toBe(article);
+				expect(data.guides).toEqual(restrictedArticles.filter(({ level }) => level === 'guide'));
+			} else {
+				await expect(
+					Promise.resolve().then(() => loadGuide(request as never))
+				).rejects.toMatchObject({
+					status: 308,
+					location: `/help/administration?anleitung=${article.id}`
+				});
+			}
 			expect(request.setHeaders).toHaveBeenCalledWith({
 				'cache-control': 'private, no-store',
 				vary: 'Cookie'

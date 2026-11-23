@@ -28,7 +28,7 @@ for (const [width, height, columns] of [
 		page
 	}) => {
 		await page.setViewportSize({ width, height });
-		await page.goto('/');
+		await page.goto('/Joh1');
 		const layout = columns === 1 ? 'single' : `columns-${columns}`;
 		await expect(page).toHaveURL((url) => url.searchParams.get('layout') === layout);
 		await expect(page.locator('.reader-tile')).toHaveCount(columns);

@@ -87,9 +87,11 @@ describe('unlisted note sharing', () => {
 			bookId === 43 ? 1 : 0
 		);
 		const xml = await (await getSitemap({ setHeaders: vi.fn() } as never)).text();
-		expect(xml).toContain('<loc>https://example.test/about</loc>');
+		expect(xml).toContain('<loc>https://example.test/</loc>');
+		expect(xml).not.toContain('<loc>https://example.test/about</loc>');
 		expect(xml).toContain('<loc>https://example.test/help</loc>');
-		expect(xml).toContain('<loc>https://example.test/help/reader/arbeitsbereich-einrichten</loc>');
+		expect(xml).toContain('<loc>https://example.test/help/reader</loc>');
+		expect(xml).not.toContain('/help/reader/arbeitsbereich-einrichten');
 		expect(xml).toContain('<loc>https://example.test/help/api</loc>');
 		expect(xml).not.toContain('/help/administration');
 		expect(xml).toContain('<loc>https://example.test/Joh1</loc>');

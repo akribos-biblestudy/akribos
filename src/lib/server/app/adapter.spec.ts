@@ -194,6 +194,46 @@ describe('app API request and role boundaries', () => {
 });
 
 describe('app page and action protocol', () => {
+	const realRoutes = { resolveRoute: resolveAppRoute, loadLayout: async () => ({}) };
+
+	it.each(['', 'local'])('starts the guest reader at the root in reader mode %j', async (mode) => {
+		const result = await appPage(
+			event('/', { headers: { 'x-akribos-reader-mode': mode } }),
+			realRoutes
+		);
+		expect(await result.json()).toEqual({ type: 'redirect', status: 307, location: '/Joh1' });
+	});
+
+	it('keeps native help links and article payloads usable with v1 clients', async () => {
+		const guidePath = '/help/reader/arbeitsbereich-einrichten';
+		const index = await (await appPage(event('/help?q=Arbeitsbereich'), realRoutes)).json();
+		expect(index).toMatchObject({
+			type: 'success',
+			data: {
+				topics: expect.arrayContaining([expect.objectContaining({ id: 'reader', guideCount: 3 })]),
+				results: expect.arrayContaining([
+					expect.objectContaining({ article: expect.objectContaining({ path: guidePath }) })
+				])
+			}
+		});
+		const topic = await (await appPage(event('/help/reader'), realRoutes)).json();
+		expect(topic).toMatchObject({
+			type: 'success',
+			data: {
+				article: { path: '/help/reader', level: 'overview' },
+				headings: expect.arrayContaining([expect.objectContaining({ id: 'anleitungen' })]),
+				guides: expect.arrayContaining([expect.objectContaining({ path: guidePath })])
+			}
+		});
+		const guide = await (await appPage(event(guidePath), realRoutes)).json();
+		expect(guide).toMatchObject({
+			type: 'success',
+			data: { article: { path: guidePath, level: 'guide' }, _path: guidePath }
+		});
+		expect(guide.data.article.sections.length).toBeGreaterThan(0);
+		expect(guide.data.headings).toHaveLength(guide.data.article.sections.length);
+	});
+
 	it('preserves source URL, route, params, inherited layout and browser-tab context', async () => {
 		const result = await appPage(
 			event(`/notes/${id}?returnTo=%2Fnotes`),

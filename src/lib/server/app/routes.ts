@@ -187,18 +187,18 @@ const routes: Route[] = [
 		pattern: /^\/search$/,
 		module: () => import('../../../routes/search/+page.server')
 	},
-	{ id: '/help', pattern: /^\/help$/, module: () => import('../../../routes/help/+page.server') },
+	{ id: '/help', pattern: /^\/help$/, module: () => import('./help') },
 	{
 		id: '/help/[topic]',
 		pattern: /^\/help\/([a-z0-9-]+)$/,
 		names: ['topic'],
-		module: () => import('../../../routes/help/[topic]/+page.server')
+		module: () => import('./help')
 	},
 	{
 		id: '/help/[topic]/[article]',
 		pattern: /^\/help\/([a-z0-9-]+)\/([a-z0-9-]+)$/,
 		names: ['topic', 'article'],
-		module: () => import('../../../routes/help/[topic]/[article]/+page.server')
+		module: () => import('./help')
 	},
 	{
 		id: '/[strong=strong]/[[page]]',

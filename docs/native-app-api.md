@@ -82,6 +82,10 @@ Verwaltung, Ressourcenimport und reine Adminaktionen sind ausgeschlossen, auch w
 angemeldete Konto Administrator ist. Die Hilfe verwendet die normale Nutzerzielgruppe. Bestehende
 Eigentums- und Mitgliedschaftsprüfungen gelten weiterhin, auch für Administratoren.
 
+Für Gäste liefert `/api/app/page?path=/` weiterhin einen Reader-Redirect zu `/Joh1`. Das App-Protokoll
+v1 liefert Themen mit Anleitungsanzahl sowie Artikeldaten mit `article`, `headings`, `guides` und
+`topics`. Im Browser stehen die ausführlichen Anleitungen gesammelt auf der jeweiligen Themenseite.
+
 Die aktuelle App sendet `x-akribos-reader-mode: local` zusätzlich zu `x-akribos-app: 1`.
 Der Adapter setzt dafür anfragebezogen `locals.localReader`; kein Header erteilt Leserechte.
 Bootstrap und Layout übernehmen weder Konto-, Session- noch Cookie-Arbeitsbereiche und liefern

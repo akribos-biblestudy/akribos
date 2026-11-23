@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test';
 import { helpArticles } from '../src/lib/help/catalog';
 import { registerWithPassword } from './lib/auth';
 
-const guidePath = '/help/reader/arbeitsbereich-einrichten';
+const guidePath = '/help/reader#arbeitsbereich-einrichten';
+const stepPath = `${guidePath}--wechseln`;
 
 test('help search stays readable in the sidebar and at mobile and zoom widths', async ({
 	page
@@ -58,14 +59,12 @@ test('help search links directly to the matching step and survives reload', asyn
 	const result = page
 		.locator('.search-result')
 		.filter({ hasText: 'Einen Arbeitsbereich für dein Bibelstudium einrichten' });
-	await expect(result).toHaveAttribute('href', `${guidePath}#wechseln`);
+	await expect(result).toHaveAttribute('href', stepPath);
 	await result.click();
-	await expect(page).toHaveURL(`${guidePath}#wechseln`);
+	await expect(page).toHaveURL(stepPath);
 	await page.reload();
-	await expect(page).toHaveURL(new RegExp(`${guidePath}#wechseln$`));
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-		'Einen Arbeitsbereich für dein Bibelstudium einrichten'
-	);
+	await expect(page).toHaveURL(stepPath);
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Lesen & vergleichen');
 	await expect(
 		page.getByRole('heading', { name: 'Arbeitsbereiche wechseln und verwalten', exact: true })
 	).toBeVisible();
@@ -79,40 +78,49 @@ test('all former help fragments lead to readable topic pages', async ({ page }) 
 	await topic.click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Lesen & vergleichen');
 	await expect(
-		page
-			.getByRole('navigation', { name: 'Anleitungen zu diesem Thema', exact: true })
-			.getByRole('link', { name: 'Einen Arbeitsbereich für dein Bibelstudium einrichten' })
+		page.getByRole('heading', { name: 'Einen Arbeitsbereich für dein Bibelstudium einrichten' })
+	).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'Was automatisch gespeichert wird' })
 	).toBeVisible();
 });
 
-test('help topic guides are discoverable on mobile and show their own breadcrumb and navigation', async ({
+test('each topic shows the full guides and their videos without a second page', async ({
 	page
 }) => {
 	await page.goto('/help/suchen');
-	const guides = page.getByRole('navigation', { name: 'Anleitungen zu diesem Thema', exact: true });
-	await guides.getByRole('link', { name: 'Wörter, Wortfolgen und Strong-Nummern suchen' }).click();
-	const title = 'Wörter, Wortfolgen und Strong-Nummern suchen';
+	const title = 'Im Bibeltext suchen';
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText(title);
 	await expect(
 		page.getByRole('navigation', { name: 'Brotkrumennavigation' }).locator('[aria-current="page"]')
 	).toHaveText(title);
 	await expect(
-		page
-			.getByRole('navigation', { name: 'Hilfethemen', exact: true })
-			.locator('[aria-current="page"]')
-	).toHaveText(title);
+		page.getByRole('heading', { level: 2, name: 'Wörter, Wortfolgen und Strong-Nummern suchen' })
+	).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Video abspielen: Wörter und Formulierungen suchen' })
+	).toBeVisible();
+	await expect(
+		page.locator('#woerter-und-strong-finden--suchausdruecke .article-prose')
+	).toBeVisible();
+
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto('/help/reader');
 	await expect(page.getByRole('searchbox', { name: 'Hilfe durchsuchen' })).toBeVisible();
 	await expect(
-		page
-			.getByRole('navigation', { name: 'Anleitungen zu diesem Thema', exact: true })
-			.getByRole('link', { name: 'Werke, Tabs und Kacheln passend anordnen' })
+		page.getByRole('heading', { name: 'Werke, Tabs und Kacheln passend anordnen' })
 	).toBeVisible();
+	await page.getByText('Auf dieser Seite', { exact: true }).filter({ visible: true }).click();
+	await page
+		.getByRole('navigation', { name: 'Auf dieser Seite', exact: true })
+		.getByRole('link', { name: 'Werke, Tabs und Kacheln passend anordnen' })
+		.click();
+	await expect(page).toHaveURL('/help/reader#werke-tabs-und-layouts');
+
 	await expect
 		.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
 		.toBe(true);
-	for (const path of ['/help/reader/werke-tabs-und-layouts', '/help/konto/leseansicht-anpassen']) {
+	for (const path of ['/help/reader#werke-tabs-und-layouts', '/help/konto#leseansicht-anpassen']) {
 		await page.goto(path);
 		for (const width of [390, 320]) {
 			await page.setViewportSize({ width, height: 844 });
@@ -120,6 +128,18 @@ test('help topic guides are discoverable on mobile and show their own breadcrumb
 				.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
 				.toBe(true);
 		}
+	}
+});
+
+test('old guide bookmarks resolve to the right step even if multiple guides shared its old ID', async ({
+	page
+}) => {
+	await page.goto('/help/reader/arbeitsbereich-einrichten');
+	await expect(page).toHaveURL(guidePath);
+	for (const guide of ['notizen-organisieren', 'editor-bedienen']) {
+		await page.goto(`/help/dokumente/${guide}#schritte`);
+		await expect(page).toHaveURL(`/help/dokumente#${guide}--schritte`);
+		await expect(page.locator(`#${guide}--schritte`)).toBeInViewport();
 	}
 });
 
@@ -229,9 +249,9 @@ test('administration help and images are restricted to administrators throughout
 		await admin.goto('http://localhost:4173/help?q=Umami');
 		await expect(admin.locator('.search-result[href^="/help/administration"]')).not.toHaveCount(0);
 		await admin.locator('.search-result[href^="/help/administration"]').first().click();
-		await expect(admin.locator('.article-content img').first()).toBeVisible();
+		await expect(admin.locator('#umami-einrichten img').first()).toBeVisible();
 		const loaded = await admin
-			.locator('.article-content img')
+			.locator('#umami-einrichten img')
 			.first()
 			.evaluate(
 				(image) =>
@@ -245,7 +265,7 @@ test('administration help and images are restricted to administrators throughout
 	expect(await sitemap.text()).not.toContain('/help/administration');
 	await page.goto('/help/api');
 	await expect(
-		page.getByRole('link', { name: 'technischen API-Referenz', exact: true })
+		page.getByRole('link', { name: 'interaktive API-Referenz', exact: true })
 	).toHaveAttribute('href', '/api/docs');
 });
 
@@ -307,16 +327,19 @@ test('help search and screenshot originals are available without JavaScript', as
 		expect(image.status()).toBe(200);
 		expect(image.headers()['content-type']).toContain('image/webp');
 		await page.goto('/help/konto');
-		const topicGuides = page.getByRole('navigation', {
-			name: 'Anleitungen zu diesem Thema',
-			exact: true
-		});
-		await topicGuides
-			.getByRole('link', { name: 'Anmelden, das Profil pflegen und den Zugang verwalten' })
-			.click();
-		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-			'Anmelden, das Profil pflegen und den Zugang verwalten'
-		);
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText('Konto & Einstellungen');
+		const signInGuide = page.locator('#anmelden-und-profil-verwalten');
+		await expect(signInGuide.getByText('Anmeldecode', { exact: true }).first()).toBeVisible();
+		await expect(signInGuide.locator('.prerequisite')).toHaveCount(0);
+		await expect(
+			page.getByRole('heading', {
+				level: 2,
+				name: 'Anmelden, das Profil pflegen und den Zugang verwalten'
+			})
+		).toBeVisible();
+		await page.goto('/help/dokumente/editor-bedienen#schritte');
+		await expect(page.locator('#editor-bedienen--schritte #schritte')).toHaveCount(1);
+		await expect(page.locator('#schritte')).toHaveCount(1);
 	} finally {
 		await context.close();
 	}

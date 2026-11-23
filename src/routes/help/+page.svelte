@@ -8,9 +8,10 @@
 </script>
 
 <svelte:head>
+	<title>Hilfe | Akribos</title>
 	<meta
 		name="description"
-		content="Akribos verstehen: Anleitungen zum Bibellesen, zu Arbeitsbereichen, Wortstudien, Notizen und Ausarbeitungen. Mit durchsuchbarer Hilfe und echten Produktansichten."
+		content="Schritt-für-Schritt-Hilfe mit Erklärvideos zum Bibellesen, zu Arbeitsbereichen, Wortstudien, Notizen und Ausarbeitungen."
 	/>
 	{#if data.query}<meta name="robots" content="noindex, follow" />{/if}
 </svelte:head>
@@ -18,15 +19,13 @@
 <main class="help-home">
 	<header class="help-intro">
 		<div class="intro-inner">
-			<p class="eyebrow">Akribos Handbuch</p>
-			<h1>Raum für deine Fragen.<br />Klarheit für dein Studium.</h1>
+			<h1>Hilfe</h1>
 			<p class="intro-copy">
-				Vom ersten Bibelvers bis zur eigenen Ausarbeitung: Finde die passende Anleitung und arbeite
-				in deinem Tempo weiter.
+				Schritt für Schritt durch Akribos. Wähle ein Thema oder suche nach einem Begriff.
 			</p>
 			<HelpSearch value={data.query} />
 			<p class="search-hint">
-				Du suchst einen Bibelvers? Öffne die <a href="/Joh1">Bibel im Reader</a>.
+				<a href="/Joh1">Direkt Bibel lesen</a>
 			</p>
 		</div>
 	</header>
@@ -35,10 +34,9 @@
 			<section class="search-results" aria-labelledby="results-title">
 				<div class="section-top">
 					<div>
-						<p class="eyebrow">Suchergebnisse</p>
 						<h2 id="results-title">
 							{data.results.length}
-							{data.results.length === 1 ? 'Anleitung' : 'Anleitungen'} zu „{data.query}“
+							Treffer zu „{data.query}“
 						</h2>
 					</div>
 					<a class="text-link" href="/help">Suche zurücksetzen</a>
@@ -75,56 +73,16 @@
 					</div>
 				{/if}
 			</section>
-		{:else}
-			<section class="featured-guide" aria-labelledby="featured-title">
-				<div class="featured-copy">
-					<p class="eyebrow">Schritt für Schritt</p>
-					<h2 id="featured-title">Dein Arbeitsplatz für das Bibelstudium.</h2>
-					<p>
-						Stelle Bibel, Kommentar und Lexikon zusammen. Verbinde die Lesestellen und speichere die
-						Ansicht als eigenen Arbeitsbereich.
-					</p>
-					<a class="primary-link" href="/help/reader/arbeitsbereich-einrichten"
-						>Arbeitsbereich einrichten <Icon name="arrow-right" class="size-4" /></a
-					><span class="guide-note">Mit echten Ansichten aus Akribos · auch für unterwegs</span>
-				</div>
-				<a
-					class="featured-image"
-					href="/help/reader/arbeitsbereich-einrichten"
-					aria-label="Anleitung: Einen Arbeitsbereich einrichten"
-					><img
-						src="/help/live/workspace-overview.webp"
-						alt="Eine Studienansicht mit Bibel und Begleitwerken bei Johannes 1."
-						width="1440"
-						height="1000"
-						loading="lazy"
-					/></a
-				>
-			</section>
 		{/if}
 
 		<section id="themen" class="topic-section" aria-labelledby="topics-title">
-			<div class="section-top">
-				<div>
-					<p class="eyebrow">Nutzerhilfe</p>
-					<h2 id="topics-title">Was möchtest du tun?</h2>
-				</div>
-				<a class="text-link" href="/help/erste-schritte"
-					>Mit dem Schnellstart beginnen <Icon name="arrow-right" class="size-4" /></a
-				>
-			</div>
+			<h2 id="topics-title">Hilfethemen</h2>
 			<div class="topic-grid">
 				{#each data.topics.filter((topic) => topic.audience === 'user') as topic (topic.id)}
 					<a id={topic.id} class="topic-card" href={topic.path}
 						><span class="topic-icon"><Icon name={topic.icon} class="size-5" /></span>
 						<h3>{topic.title}</h3>
-						<p>{topic.description}</p>
-						<span class="topic-go"
-							>{topic.guideCount > 0
-								? `${topic.guideCount} ${topic.guideCount === 1 ? 'Anleitung' : 'Anleitungen'}`
-								: 'Thema öffnen'}
-							<Icon name="arrow-right" class="size-4" /></span
-						></a
+						<p>{topic.description}</p></a
 					>
 				{/each}
 			</div>
@@ -211,59 +169,11 @@
 		line-height: 1.25;
 		letter-spacing: -0.035em;
 	}
-	.featured-guide {
-		display: grid;
-		grid-template-columns: 1fr 1.1fr;
-		overflow: hidden;
-		border: 1px solid var(--line);
-		border-radius: 1rem;
-		background: var(--surface-raised);
+	.search-results + .topic-section {
+		margin-top: 3rem;
 	}
-	.featured-copy {
-		padding: 2.5rem;
-		align-self: center;
-	}
-	.featured-copy p:not(.eyebrow) {
-		margin: 1rem 0 1.5rem;
-		color: var(--color-stone-600);
-		font-size: 0.92rem;
-		line-height: 1.7;
-	}
-	.primary-link {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.6rem;
-		padding: 0.8rem 1rem;
-		border-radius: 0.45rem;
-		background: var(--color-accent-700);
-		color: white;
-		font-size: 0.82rem;
-		font-weight: 650;
-	}
-	.primary-link:hover {
-		background: var(--color-accent-800);
-	}
-	.guide-note {
-		display: block;
-		margin-top: 0.8rem;
-		color: var(--color-stone-500);
-		font-size: 0.7rem;
-	}
-	.featured-image {
-		align-self: center;
-		margin: 1.5rem 1.5rem 1.5rem 0;
-		overflow: hidden;
-		border: 1px solid var(--line);
-		border-radius: 0.5rem;
-		box-shadow: 0 10px 30px rgb(0 0 0 / 0.06);
-	}
-	.featured-image img {
-		display: block;
-		width: 100%;
-		height: auto;
-	}
-	.topic-section {
-		margin-top: 4rem;
+	.topic-section h2 {
+		margin-bottom: 1.25rem;
 	}
 	.section-top {
 		display: flex;
@@ -319,19 +229,10 @@
 		font-weight: 650;
 	}
 	.topic-card p {
-		margin: 0.5rem 0 1.4rem;
+		margin: 0.5rem 0 0;
 		color: var(--color-stone-600);
 		font-size: 0.83rem;
 		line-height: 1.6;
-	}
-	.topic-go {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		margin-top: auto;
-		color: var(--color-accent-700);
-		font-size: 0.75rem;
-		font-weight: 600;
 	}
 	.specialist-section {
 		display: grid;
@@ -432,7 +333,6 @@
 		color: var(--color-stone-100);
 	}
 	:global(.dark) .intro-copy,
-	:global(.dark) .featured-copy p:not(.eyebrow),
 	:global(.dark) .topic-card p,
 	:global(.dark) .specialist-section p:not(.eyebrow),
 	:global(.dark) .search-result p,
@@ -441,16 +341,12 @@
 	}
 	:global(.dark) .eyebrow,
 	:global(.dark) .text-link,
-	:global(.dark) .topic-icon,
-	:global(.dark) .topic-go {
+	:global(.dark) .topic-icon {
 		color: var(--color-accent-300);
 	}
 	@media (max-width: 900px) {
 		.topic-grid {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-		.featured-copy {
-			padding: 1.75rem;
 		}
 	}
 	@media (max-width: 640px) {
@@ -460,18 +356,8 @@
 		.help-content {
 			padding: 1.5rem 1rem 3rem;
 		}
-		.featured-guide,
 		.specialist-section {
 			grid-template-columns: 1fr;
-		}
-		.featured-image {
-			margin: 0 1.25rem 1.25rem;
-		}
-		.featured-copy {
-			padding: 1.5rem;
-		}
-		.topic-section {
-			margin-top: 2.75rem;
 		}
 		.topic-grid {
 			grid-template-columns: 1fr;

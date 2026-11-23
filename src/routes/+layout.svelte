@@ -171,7 +171,6 @@
 				? { fontScale: data.readerFontScale, layout: readerWorkspace.layout }
 				: null}
 			guestTourDone={data.tourGuestDone}
-			canReviewStrong={data.canReviewStrong}
 			initializingWorkspace={data.initializeReaderWorkspace}
 		/>
 

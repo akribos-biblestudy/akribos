@@ -429,6 +429,13 @@ Alternatively, after the first successful publish, change the `akribos` package 
 **Public** on GitHub; public GHCR images can be pulled anonymously. If the first automatic deployment
 ran before registry access was configured, use Coolify's **Redeploy** button once afterward.
 
+The Docker build and end-to-end job install the same pinned tutorial media archive from the public
+`akribos-videos` repository. `scripts/install-tutorial-videos.sh` checks SHA256 before extraction.
+The resulting MP4s, WebP posters and German WebVTT tracks are bundled in the container and served
+by Akribos under `/videos/`. To update them, prepare a new archive with the 45 web files at its root,
+publish it as `akribos-tutorial-videos.tar` under a new release tag, then update the pinned tag and
+checksum together in the installer. Existing releases stay available for rebuilding older app versions.
+
 ### First deployment
 
 1. Deploy. The site comes up with no translations and says so.

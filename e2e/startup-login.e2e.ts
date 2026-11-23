@@ -33,7 +33,7 @@ for (const signedIn of [false, true]) {
 			await route.continue();
 		});
 		try {
-			await page.goto('/', { waitUntil: 'commit' });
+			await page.goto(signedIn ? '/' : '/Joh1', { waitUntil: 'commit' });
 			const logo = page.getByRole('img', { name: 'Akribos', exact: true, includeHidden: true });
 			await logo.waitFor({ state: 'attached' });
 			// A slow module download must never expose the provisional server view before hiding it.
@@ -53,9 +53,7 @@ for (const signedIn of [false, true]) {
 	});
 }
 
-test('a first visit without JavaScript keeps the server-rendered Bible usable', async ({
-	browser
-}) => {
+test('the landing page opens the server-rendered Bible without JavaScript', async ({ browser }) => {
 	const context = await browser.newContext({
 		javaScriptEnabled: false,
 		storageState: { cookies: [], origins: [] }
@@ -63,6 +61,11 @@ test('a first visit without JavaScript keeps the server-rendered Bible usable', 
 	try {
 		const page = await context.newPage();
 		await page.goto('/');
+		await page
+			.locator('.hero')
+			.getByRole('link', { name: 'Jetzt Bibel lesen', exact: true })
+			.click();
+		await expect(page).toHaveURL('/Joh1');
 		await expect(page.locator('.reader-tile')).toHaveCount(1);
 		await expect(page.locator('.reader-tile')).toBeVisible();
 		await expect(page.getByRole('img', { name: 'Akribos', exact: true })).toBeVisible();

@@ -1,6 +1,6 @@
 import { BOOKS } from '$lib/bible/books';
 import { bookShortName } from '$lib/bible/book-names';
-import { helpArticles } from '$lib/help/catalog';
+import { getHelpTopics } from '$lib/help/catalog';
 import { config } from '$lib/server/config';
 import { getDb } from '$lib/server/db';
 import { chapterCount } from '$lib/server/repositories/resources';
@@ -13,14 +13,11 @@ export async function GET({ setHeaders }) {
 	const resourceIds = bibles.map((bible) => bible.id);
 	const origin = config().ORIGIN.replace(/\/$/, '');
 
-	// "/" is now always a personalized, private redirect (never public content), so it must not be
-	// advertised as an indexable URL; "/about" carries the marketing landing page instead.
+	// Guests see the canonical landing page at "/".
 	const urls: string[] = [
-		`${origin}/about`,
+		`${origin}/`,
 		`${origin}/help`,
-		...helpArticles
-			.filter((article) => article.audience !== 'admin')
-			.map((article) => `${origin}${article.path}`)
+		...getHelpTopics().map((topic) => `${origin}${topic.path}`)
 	];
 
 	for (const book of BOOKS) {

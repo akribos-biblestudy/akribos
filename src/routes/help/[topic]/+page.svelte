@@ -1,7 +1,9 @@
 <script lang="ts">
-	import HelpArticle from '$lib/components/help/HelpArticle.svelte';
+	import HelpTopic from '$lib/components/help/HelpTopic.svelte';
 	import type { PageData } from './$types';
 	let { data }: { data: PageData } = $props();
 </script>
 
-<HelpArticle {...data} />
+{#key data.topic.id}
+	<HelpTopic {...data} />
+{/key}

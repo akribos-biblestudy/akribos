@@ -12,6 +12,7 @@ export interface HelpScreenshot {
 export interface HelpSection {
 	id: string;
 	title?: string;
+	episode?: number;
 	/** Trusted, repository-authored HTML only. Never interpolate requests or imported content. */
 	html: string;
 	screenshot?: HelpScreenshot;
@@ -43,6 +44,8 @@ export interface HelpArticle {
 	keywords: string[];
 	level: 'guide' | 'overview';
 	prerequisite?: string;
-	headings?: { id: string; title: string }[];
+	episode?: number;
+	/** Earlier topic fragments that now point to a step in the combined guide. */
+	anchors?: Record<string, string>;
 	sections: HelpSection[];
 }

@@ -25,7 +25,7 @@
 
 <main class="mx-auto w-full max-w-4xl px-4 py-7 sm:px-6 sm:py-12" data-testid="published-note">
 	<a
-		href="/"
+		href={data.user ? '/' : '/Joh1'}
 		class="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-500 hover:text-accent-700 dark:text-stone-400 dark:hover:text-accent-300"
 	>
 		<Icon name="chevron-left" class="size-4" />

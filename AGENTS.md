@@ -93,9 +93,10 @@ Die sortierbaren Tabellenfilter gelten auch für den Excel-Export. Erkannte Bibe
 Strong-Nummern öffnen das zugehörige Werk über die regulären Reader-Zugriffsprüfungen.
 
 Die Strong-Prüfberechtigung ist eine zusätzliche Einzelberechtigung und gewährt weder Administration
-noch Zugang zu privaten Werken. Prüfungen gelten für ein konkretes Wortvorkommen und werden erst nach
-administrativer Freigabe sichtbar. Ein Fingerabdruck des Verses verhindert, dass Entscheidungen nach
-einem veränderten Reimport irrtümlich übernommen werden. Fehlende Warnungen sind keine Bestätigung.
+noch Zugang zu privaten Werken. Prüfungen gelten für ein konkretes Wortvorkommen. Im Lexikon-Tab
+verschwindet die Warnung bei einer freigegebenen Bestätigung. Freigegebene Fehler bleiben als
+Warnung sichtbar. Ein Fingerabdruck des Verses bindet Entscheidungen an die geprüfte Versfassung.
+Fehlende Warnungen sind keine Bestätigung.
 Die Prüfungs- und Freigabeansicht markieren das konkrete getaggte Wort im vollständigen Vers und
 laden ein lesbares Lexikon erst nach Auswahl. Die Prüfungsübersicht paginiert offene Wortzuordnungen
 nach Fingerprint-Abgleich, nicht Rohverse; ausstehende Entscheidungen anderer bleiben anonym. Auch
@@ -129,12 +130,18 @@ ergänzt wird. Gäste verwenden Stellenangabe vor dem Text ohne Kürzel.
 
 ## Nutzerhilfe, Administrationshilfe und Produktbilder
 
-`/help` bietet Themenübersicht und eine serverseitige GET-Suche über `q`. Der statische,
-typisierte Katalog unter `src/lib/help/` ist die gemeinsame Quelle für Themen, Artikel,
-Suchtext und Sitemap. Themen liegen unter `/help/[topic]`, einzelne Aufgaben zusätzlich unter
-`/help/[topic]/[article]`; unbekannte Artikel liefern 404. Die bisherigen 13 `/help#…`-Anker
-bleiben auf den verlinkten Themenkarten erhalten. Fragmente erreichen den Server nicht und
-dürfen deshalb nicht ausschließlich über Serverredirects migriert werden.
+`/help` bietet Themenübersicht und eine serverseitige GET-Suche über `q`. Der typisierte Katalog
+unter `src/lib/help/` liefert Themen, vollständige Anleitungen und die Ziele für Suche und
+Sitemap. Themen rendern ihre Schritte direkt unter `/help/[topic]`. Anker verlinken auf Aufgaben
+und Abschnitte derselben Seite. Die bisherigen 13 `/help#…`-Anker bleiben auf den Themenkarten
+erhalten. Bekannte alte Artikelpfade leiten auf die Themenseite weiter. Dabei erhält der Browser
+das ursprüngliche Fragment, während der Übergangsparameter den alten Artikel identifiziert.
+Unbekannte oder nicht lesbare Artikel liefern 404.
+
+`TutorialVideo.svelte` lädt die MP4-Datei erst bei Benutzung und bietet deutsche Untertitel an.
+Docker und die Browser-Tests installieren dieselben Webdateien aus einem versionierten,
+prüfsummengeprüften Archiv. Für [Videoaufbereitung und Medienaktualisierungen](docs/operations.md#container-registry-and-automatic-deployment)
+gilt der dort dokumentierte Ablauf.
 
 Administrationshilfe (`audience: admin`, `/help/administration` einschließlich aller Unterseiten)
 ist ausschließlich für angemeldete Administratoren zugänglich. Direkte Aufrufe müssen die Rolle
@@ -360,9 +367,11 @@ Der zentrale Reader ist `src/routes/[...reference]/+page.svelte`; sein Server-Lo
 liegen in der gleichnamigen `+page.server.ts`. Die REST-Nachladung für Endless Scrolling erfolgt über
 `src/routes/api/reader/[book]/[chapter]/+server.ts`.
 
-Die Root-Route `/` leitet jeden Besucher unmittelbar zum Bibeltext weiter. Angemeldete Leser
-öffnen den auf diesem Gerät ausgewählten Snapshot mit dessen fokussierter Lesestelle, alle anderen
-starten bei Johannes 1. Das Akribos-Logo verlinkt auf `/`. Ein altes, ungebundenes `location`-Cookie
+Die Root-Route `/` zeigt Gästen die Landingpage mit Intro und einem direkten Link nach `/Joh1`.
+Bei einer direkten Navigation über diesen Link überspringen Gäste den automatischen Tourstart
+auf diesem Gerät. Die Tour bleibt im Reader-Menü verfügbar. Angemeldete Leser öffnen den auf
+diesem Gerät ausgewählten Snapshot mit dessen fokussierter Lesestelle oder beginnen bei
+Johannes 1. Das Akribos-Logo verlinkt auf `/`. Ein altes, ungebundenes `location`-Cookie
 darf keine inzwischen anders gewählte oder auf einem anderen Gerät geänderte Ansicht überschreiben.
 Echte Nutzerscrolls speichern die Lesestelle automatisch und halten zusätzlich vor dem URL-Debounce
 einen kontogebundenen Resume-Hinweis in `sessionStorage`. Dieser enthält die tab-lokalen Auswahl- und
@@ -370,8 +379,8 @@ Inhaltsversionen. Nach vollständiger Navigation darf nur eine passende lokale A
 über die versionierte View-API wiederherstellen; fremde/detached URLs schreiben keinen Resume-Hinweis.
 Ein Browser-weites `reader-resume`-Cookie wird nicht mehr verwendet. Der Header-Logo-Link und ein
 vollständiger Root-Aufruf führen damit zur Ansicht dieses Browser-Tabs zurück.
-Die Marketing-Landingpage bleibt unter `/about` erreichbar. Sessionabhängige Root-Antworten sind
-`private, no-store`.
+Die Landingpage ist auch über `/about` erreichbar und verweist für Suchmaschinen auf `/`.
+Sessionabhängige Root-Antworten sind `private, no-store`.
 
 Der Logos-artige Arbeitsbereich wird als `ReaderWorkspace` in `src/lib/reader/workspace.ts` modelliert:
 Eine von acht festen Anordnungen enthält höchstens vier sichtbare Kacheln, jede Kachel beliebig viele
