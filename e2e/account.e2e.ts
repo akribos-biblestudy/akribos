@@ -50,15 +50,10 @@ test('registration, sign out and sign in again', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'Einstellungen' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Abmelden' }).click();
-	await expect(page).toHaveURL(
-		(url) => url.pathname === '/Joh1' && Boolean(url.searchParams.get('layout'))
-	);
-	await expect(
-		page.getByRole('searchbox', { name: /Bibelstelle oder Suche in/ }).first()
-	).toHaveValue('Joh 1');
+	await expect(page).toHaveURL('/');
+	await expect(page.getByRole('link', { name: 'Anmelden', exact: true })).toBeVisible();
 
-	// Landing back at the reader's John 1 fallback proves the session is gone; protected pages must
-	// still redirect.
+	// Protected pages still redirect after signing out.
 	await page.goto('/account');
 	await expect(page).toHaveURL(/\/login/);
 

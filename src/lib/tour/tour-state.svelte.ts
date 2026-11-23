@@ -30,3 +30,11 @@ export function startTour(steps: TourStep[], signedIn: boolean): void {
 export function abandonTour(): void {
 	tourState.open = false;
 }
+
+export function skipGuestTourOnDevice(): void {
+	try {
+		document.cookie = 'tour-guest-done=1; path=/; max-age=31536000; samesite=lax';
+	} catch {
+		// Browser preferences may prevent saving the choice.
+	}
+}

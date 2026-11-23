@@ -120,12 +120,26 @@ async function registerReader(page: Page): Promise<void> {
 	await page.evaluate(() => fetch('/api/tour', { method: 'POST' }));
 }
 
-test('the root shows the reader to signed-out visitors', async ({ page }) => {
+test('the root lets signed-out visitors open the Bible directly from the landing page', async ({
+	page
+}) => {
+	await page.context().clearCookies({ name: 'tour-guest-done' });
 	const response = await page.goto('/');
 
 	expect(response?.status()).toBe(200);
+	expect(response?.headers()['cache-control']).toBe('private, no-store');
+	await expect(page).toHaveURL('/');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+		/Die Bibel lesen\.\s*Tiefe entdecken\./
+	);
+	await page.locator('.hero').getByRole('link', { name: 'Jetzt Bibel lesen', exact: true }).click();
 	await expectReaderPath(page, '/Joh1');
+	await expect(page.locator('.reader-tile').first()).toBeVisible();
 	await expect(tabReference(page)).toHaveValue('Joh 1');
+	await expect(page.getByRole('dialog', { name: 'Reader-Layout und Notizspalte' })).toHaveCount(0);
+	expect(await page.context().cookies()).toEqual(
+		expect.arrayContaining([expect.objectContaining({ name: 'tour-guest-done', value: '1' })])
+	);
 });
 
 test('a first visit starts with Bible, commentary and lexicon in three linked columns', async ({
@@ -185,12 +199,7 @@ test('the help page is reachable from the site header', async ({ page }) => {
 	await page.getByRole('menuitem', { name: 'Hilfe' }).click();
 
 	await expect(page).toHaveURL(/\/help$/);
-	await expect(
-		page.getByRole('heading', {
-			level: 1,
-			name: /Raum für deine Fragen.*Klarheit für dein Studium/
-		})
-	).toBeVisible();
+	await expect(page.getByRole('heading', { level: 1, name: 'Hilfe' })).toBeVisible();
 });
 
 test('global chapter navigation is absent and reader controls stay borderless', async ({
@@ -222,7 +231,7 @@ test('the about page loads with a visible heading', async ({ page }) => {
 
 	await expect(page).toHaveURL(/\/about$/);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-		'Die Bibel lesen. Zusammenhänge verstehen.'
+		/Die Bibel lesen\.\s*Tiefe entdecken\./
 	);
 
 	await loginAsAdmin(page);
@@ -235,24 +244,30 @@ test('the about page loads with a visible heading', async ({ page }) => {
 	await expect(page).toHaveURL(/\/about$/);
 	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-		'Die Bibel lesen. Zusammenhänge verstehen.'
+		/Die Bibel lesen\.\s*Tiefe entdecken\./
 	);
 });
 
-test('the landing page shows a prominent reader link and real product screenshots', async ({
+test('the landing page shows the introduction, a prominent reader link and product screenshots', async ({
 	page
 }) => {
 	await page.goto('/about');
 
-	const readerLink = page.locator('.hero').getByRole('link', { name: 'Bibel öffnen', exact: true });
+	const readerLink = page
+		.locator('.hero')
+		.getByRole('link', { name: 'Jetzt Bibel lesen', exact: true });
 	await expect(readerLink).toBeVisible();
 	await expect(readerLink).toHaveAttribute('href', '/Joh1');
 	await expect
 		.poll(async () => (await readerLink.boundingBox())?.height ?? 0)
 		.toBeGreaterThanOrEqual(48);
-	await expect(
-		page.locator('.hero').getByRole('link', { name: 'Akribos kennenlernen' })
-	).toHaveAttribute('href', '#lesen');
+	const playIntro = page.getByRole('button', { name: 'Video abspielen: Akribos kennenlernen' });
+	await expect(playIntro).toBeVisible();
+	await playIntro.click();
+	const intro = page.locator('video[aria-label="Akribos kennenlernen"]');
+	await expect(intro).toBeVisible();
+	await expect(intro).toHaveAttribute('src', '/videos/folge-01.mp4');
+	await expect(intro.locator('track[srclang="de"]')).toHaveAttribute('src', '/videos/folge-01.vtt');
 
 	await expect(
 		page.getByRole('img', {
@@ -286,11 +301,6 @@ test('the landing page shows a prominent reader link and real product screenshot
 			.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
 			.toBe(true);
 	}
-
-	await expect(page.locator('.hero').getByRole('img')).toHaveAttribute(
-		'src',
-		'/help/live/reader-mobile.webp'
-	);
 });
 
 test('the obsolete book and chapter chooser is absent from every tab', async ({ page }) => {

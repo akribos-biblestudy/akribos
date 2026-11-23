@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { t } from '$lib/i18n';
-	import { tourState } from '$lib/tour/tour-state.svelte';
+	import { skipGuestTourOnDevice, tourState } from '$lib/tour/tour-state.svelte';
 	import type { TourStep } from '$lib/tour/steps';
 
 	/**
@@ -156,11 +156,7 @@
 		tourState.open = false;
 		visible = false;
 
-		try {
-			document.cookie = 'tour-guest-done=1; path=/; max-age=31536000; samesite=lax';
-		} catch {
-			// Private browsing can refuse storage; the tour still ran for this visit.
-		}
+		skipGuestTourOnDevice();
 		try {
 			// `keepalive` lets this request finish even if the page unloads right after — closing the
 			// tour is very often immediately followed by a navigation (this very function just blurred
