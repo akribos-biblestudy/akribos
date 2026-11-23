@@ -357,6 +357,8 @@ export const users = pgTable(
 		theme: text('theme', { enum: THEMES }),
 		emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
 		lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+		/** Latest observed authenticated website visit. Native requests do not update this. */
+		lastWebVisitAt: timestamp('last_web_visit_at', { withTimezone: true }),
 		/**
 		 * Set once the product tour has been finished or actively closed while signed in, so it never
 		 * shows again on any device. Null means "not yet" — either never seen, or only seen (and possibly
