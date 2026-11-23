@@ -20,7 +20,6 @@
 		user = null,
 		savedWorkspaces = [],
 		readerPreferences = null,
-		canReviewStrong = false,
 		initializingWorkspace = false,
 		guestTourDone = false
 	}: {
@@ -32,7 +31,6 @@
 			tourCompletedAt: Date | string | null;
 		} | null;
 		readerPreferences?: { fontScale: number; layout: ReaderLayout } | null;
-		canReviewStrong?: boolean;
 		initializingWorkspace?: boolean;
 		/** Whether this device already finished (or dismissed) the tour while signed out. */
 		guestTourDone?: boolean;
@@ -195,7 +193,6 @@
 						>{t('nav.account')}</a
 					>
 					<a href="/feedback" role="menuitem" onclick={rememberFeedbackPage}>Feedback geben</a>
-					{#if canReviewStrong}<a href="/strong-review" role="menuitem">Strong prüfen</a>{/if}
 					{#if user.role === 'admin'}
 						<a href="/admin" role="menuitem" data-sveltekit-preload-data="hover">{t('nav.admin')}</a
 						>

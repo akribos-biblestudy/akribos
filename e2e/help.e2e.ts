@@ -328,6 +328,9 @@ test('help search and screenshot originals are available without JavaScript', as
 		expect(image.headers()['content-type']).toContain('image/webp');
 		await page.goto('/help/konto');
 		await expect(page.getByRole('heading', { level: 1 })).toHaveText('Konto & Einstellungen');
+		const signInGuide = page.locator('#anmelden-und-profil-verwalten');
+		await expect(signInGuide.getByText('Anmeldecode', { exact: true }).first()).toBeVisible();
+		await expect(signInGuide.locator('.prerequisite')).toHaveCount(0);
 		await expect(
 			page.getByRole('heading', {
 				level: 2,

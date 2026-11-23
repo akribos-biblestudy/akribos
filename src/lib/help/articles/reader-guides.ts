@@ -493,8 +493,6 @@ export const readerGuides: HelpArticle[] = [
 			'Abmelden',
 			'Konto löschen'
 		],
-		prerequisite:
-			'Zugriff auf das Postfach deiner E-Mail-Adresse. Zum bloßen Bibellesen benötigst du kein Konto.',
 		sections: [
 			{
 				id: 'schnellstart',

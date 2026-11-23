@@ -51,9 +51,7 @@ test('rights, pending review, approval and changed source remain isolated', asyn
 		await seedAdminSession(admin);
 		await login(readerPage, readerEmail, 'seed-reader-password');
 		await login(guestPage, viewerEmail, 'seed-reader-password');
-		await readerPage.getByRole('button', { name: 'Konto-Menü' }).click();
-		await expect(readerPage.getByRole('menuitem', { name: 'Strong prüfen' })).toHaveCount(0);
-		await readerPage.getByRole('button', { name: 'Konto-Menü' }).click();
+		expect((await reader.request.get('/strong-review')).status()).toBe(403);
 		const send = (decision: string) =>
 			reader.request.post('/api/strong-review', { data: { ...target, decision } });
 		expect((await send('confirmed')).status()).toBe(403);
@@ -63,7 +61,9 @@ test('rights, pending review, approval and changed source remain isolated', asyn
 		await expect(accountRow.getByRole('button', { name: /Berechtigt/ })).toBeVisible();
 		await readerPage.reload();
 		await readerPage.getByRole('button', { name: 'Konto-Menü' }).click();
-		await expect(readerPage.getByRole('menuitem', { name: 'Strong prüfen' })).toBeVisible();
+		const accountMenu = readerPage.getByRole('menu', { name: 'Konto-Menü' });
+		await expect(accountMenu).toBeVisible();
+		await expect(accountMenu.getByRole('menuitem', { name: 'Strong prüfen' })).toHaveCount(0);
 		const whitespaceVariant = original.map((segment: unknown) => {
 			if (
 				segment &&
@@ -155,9 +155,6 @@ test('rights, pending review, approval and changed source remain isolated', asyn
 			expect(after.decision).toBe('incorrect');
 		}
 		await sql`delete from strong_review_grants where user_id=(select id from users where email=${readerEmail})`;
-		await readerPage.goto('/account');
-		await readerPage.getByRole('button', { name: 'Konto-Menü' }).click();
-		await expect(readerPage.getByRole('menuitem', { name: 'Strong prüfen' })).toHaveCount(0);
 		expect((await reader.request.get('/strong-review')).status()).toBe(403);
 	} finally {
 		await sql`delete from resources where id=${resourceId}`;
