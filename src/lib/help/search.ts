@@ -1,6 +1,7 @@
-import { getHelpArticles } from './catalog';
+import { getHelpArticles, getHelpTopics } from './catalog';
 import { helpHref } from './links';
 import type { HelpArticle } from './types';
+import type { HelpViewer } from '$lib/server/help/access';
 
 export const MAX_HELP_QUERY_LENGTH = 160;
 
@@ -40,7 +41,11 @@ export interface HelpSearchResult {
 	sectionTitle: string | null;
 }
 
-export function searchHelp(query: string, articles = getHelpArticles()): HelpSearchResult[] {
+export function searchHelp(
+	query: string,
+	articles = getHelpArticles(),
+	hrefFor = helpHref
+): HelpSearchResult[] {
 	const terms = [
 		...new Set(
 			normalize(helpQuery(query))
@@ -81,13 +86,13 @@ export function searchHelp(query: string, articles = getHelpArticles()): HelpSea
 			const titleMatch = terms.every((term) => title.includes(term) || description.includes(term));
 			const text = titleMatch || !section ? article.description : section.text;
 			const { id, description: summary, title: articleTitle, audience, icon, level } = article;
-			const path = helpHref(article);
+			const path = hrefFor(article);
 			return {
 				order,
 				score,
 				result: {
 					article: { id, path, description: summary, title: articleTitle, audience, icon, level },
-					href: titleMatch ? path : helpHref(article, section?.id),
+					href: titleMatch ? path : hrefFor(article, section?.id),
 					excerpt: text.length > 240 ? `${text.slice(0, 237).trimEnd()}…` : text,
 					sectionTitle: !titleMatch ? (section?.title ?? null) : null
 				}
@@ -96,4 +101,20 @@ export function searchHelp(query: string, articles = getHelpArticles()): HelpSea
 		.filter((item) => item !== null)
 		.sort((a, b) => b.score - a.score || a.order - b.order)
 		.map((item) => item.result);
+}
+
+export function helpIndexData(rawQuery: string | null, user: HelpViewer, hrefFor = helpHref) {
+	const query = helpQuery(rawQuery);
+	return {
+		query,
+		results: query ? searchHelp(query, getHelpArticles(user), hrefFor) : [],
+		topics: getHelpTopics(user).map(({ id, path, title, description, icon, audience }) => ({
+			id,
+			path,
+			title,
+			description,
+			icon,
+			audience
+		}))
+	};
 }

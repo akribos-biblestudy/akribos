@@ -4,11 +4,14 @@ import {
 	isHttpError,
 	isRedirect,
 	json,
+	redirect,
 	type Cookies,
 	type RequestEvent
 } from '@sveltejs/kit';
 import { allBookNames } from '$lib/bible/book-names';
 import { bookById } from '$lib/bible/books';
+import { referencePath } from '$lib/bible/reference';
+import { DEFAULT_READER_REFERENCE } from '$lib/reader/workspace';
 import { requireDocumentUser } from '$lib/server/documents/application';
 import {
 	MAX_OBSIDIAN_ARCHIVE_BYTES,
@@ -244,6 +247,9 @@ export async function appPage(
 		let layout: Record<string, unknown> = {};
 		const source = pageEvent(event, route, request, async () => layout);
 		layout = await deps.loadLayout(source);
+		// The protocol's root is the reader entry point, including for signed-out clients.
+		if (route.id === '/' && !source.locals.user)
+			redirect(307, referencePath(DEFAULT_READER_REFERENCE));
 		// Native help exposes the ordinary-reader audience, even for an administrator's session.
 		if (route.url.pathname.startsWith('/help') && source.locals.user?.role === 'admin') {
 			source.locals = { ...source.locals, user: { ...source.locals.user, role: 'user' } };
