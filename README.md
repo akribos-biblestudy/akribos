@@ -45,6 +45,19 @@ notes and sermon workflows, or as `admin@example.com` / `seed-admin-password` fo
 Running the command again does not clear an existing developer database or duplicate fixture documents.
 It only restores the documented credentials and roles of these two reserved `example.com` accounts.
 
+To play the tutorial videos in the local preview, generate the web copies once using FFmpeg
+and a checkout of `akribos-videos` with hydrated Git LFS files:
+
+```sh
+bash scripts/prepare-tutorial-videos.sh ../akribos-videos
+```
+
+The generated MP4s, WebP posters and German WebVTT tracks are served from `static/videos/` and
+are ignored by Git. Prepare this directory before building a release that bundles its own media.
+To serve the files separately, pass a destination directory as the second argument and set
+`PUBLIC_TUTORIAL_VIDEO_BASE_URL` for the running app to the URL where that directory is served.
+If it is on a different origin, allow the app's origin via CORS for the video and caption files.
+
 Without `pnpm db:seed`, the site runs but has no scripture in it. Import the bundled sources — about
 two minutes in total for 109,428 verses and 750,000 tagged words:
 

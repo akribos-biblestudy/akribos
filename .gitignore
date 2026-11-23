@@ -27,6 +27,7 @@ test-results
 test-results
 playwright-report
 /var/
+/static/videos/
 
 # Third-party data pending licensing (not ours to redistribute)
 /data/private/
