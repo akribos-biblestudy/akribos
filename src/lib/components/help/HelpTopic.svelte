@@ -123,6 +123,9 @@
 			<header class="article-header">
 				<h1>{topic.title}</h1>
 				<p class="article-lead">{topic.description}</p>
+				{#if topic.audience === 'api'}
+					<a class="api-reference-link" href="/api/docs">API-Referenz öffnen</a>
+				{/if}
 				{#if topic.prerequisite}<p class="prerequisite">
 						<Icon name="info" class="size-5" /><span>{topic.prerequisite}</span>
 					</p>{/if}
@@ -279,6 +282,14 @@
 		font-size: 1.08rem;
 		line-height: 1.75;
 		color: var(--color-stone-600);
+	}
+	.api-reference-link {
+		display: inline-block;
+		margin-top: 1rem;
+		color: var(--color-accent-700);
+		font-weight: 650;
+		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
 	.prerequisite {
 		display: flex;
@@ -592,6 +603,7 @@
 		color: var(--color-stone-400);
 	}
 	:global(.dark) .help-breadcrumb a,
+	:global(.dark) .api-reference-link,
 	:global(.dark) .article-prose :global(a),
 	:global(.dark) .article-prose :global(li::marker),
 	:global(.dark) .article-footer a,

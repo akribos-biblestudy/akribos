@@ -38,7 +38,7 @@ for (const theme of ['light', 'dark']) {
 
 		// The second visit must recreate both the viewer and its styles from a cached route module.
 		for (let visit = 0; visit < 2; visit += 1) {
-			const reference = page.getByRole('link', { name: 'technischen API-Referenz' });
+			const reference = page.getByRole('link', { name: 'API-Referenz öffnen', exact: true });
 			await expect(reference).toHaveAttribute('href', '/api/docs');
 			await reference.click();
 			await expect(page).toHaveURL(/\/api\/docs(?:#.*)?$/);

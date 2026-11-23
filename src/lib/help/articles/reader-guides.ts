@@ -634,7 +634,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'schnellstart',
 				title: 'In der mobilen Ansicht beginnen',
-				html: `<ol><li>Öffne <a href="/">den Reader</a> im Browser deines Geräts.</li><li>Tippe in der Tab-Leiste auf die Bibel, die du lesen möchtest.</li><li>Gib im Stellenfeld zum Beispiel <code>Joh 1</code> ein und bestätige über deine Bildschirmtastatur.</li><li>Scrolle im Bibeltext. Für ein anderes Werk tippst du auf dessen Tabnamen.</li></ol>`,
+				html: `<ol><li>Öffne <a href="/Joh1">den Reader</a> im Browser deines Geräts.</li><li>Tippe in der Tab-Leiste auf die Bibel, die du lesen möchtest.</li><li>Gib im Stellenfeld zum Beispiel <code>Joh 1</code> ein und bestätige über deine Bildschirmtastatur.</li><li>Scrolle im Bibeltext. Für ein anderes Werk tippst du auf dessen Tabnamen.</li></ol>`,
 				screenshot: {
 					src: '/help/live/reader-mobile.webp',
 					width: 390,
