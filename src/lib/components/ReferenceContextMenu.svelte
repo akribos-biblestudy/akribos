@@ -4,8 +4,9 @@
 	import { getContext, onMount, tick } from 'svelte';
 	import { loadBibleQuotation, type BibleQuotation } from '$lib/actions/verse-hover-popover';
 	import { formatCopiedVerses } from '$lib/bible/copy-verse';
+	import { referencePath } from '$lib/bible/reference';
 	import { findReferenceContext } from '$lib/reader/reference-context';
-	import { READER_LINK_SETS } from '$lib/reader/workspace';
+	import { DEFAULT_READER_REFERENCE, READER_LINK_SETS } from '$lib/reader/workspace';
 	import {
 		REFERENCE_NAVIGATION,
 		type ReferenceNavigation,
@@ -109,7 +110,8 @@
 				if (!(await navigation.open(target.reference, linkSet))) throw new Error('open');
 			} else {
 				navigation.pending = { reference: target.reference, linkSet };
-				await goto(navigation.returnTo?.userId === userId ? navigation.returnTo.url : '/');
+				const fallback = userId ? '/' : referencePath(DEFAULT_READER_REFERENCE);
+				await goto(navigation.returnTo?.userId === userId ? navigation.returnTo.url : fallback);
 			}
 		} catch {
 			navigation.pending = null;
