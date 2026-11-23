@@ -1,4 +1,5 @@
 import { getHelpArticles } from './catalog';
+import { helpHref } from './links';
 import type { HelpArticle } from './types';
 
 export const MAX_HELP_QUERY_LENGTH = 160;
@@ -77,26 +78,18 @@ export function searchHelp(query: string, articles = getHelpArticles()): HelpSea
 					terms.filter((term) => b.normalized.includes(term)).length -
 					terms.filter((term) => a.normalized.includes(term)).length
 			)[0];
-			if (!section) return null;
 			const titleMatch = terms.every((term) => title.includes(term) || description.includes(term));
-			const text = titleMatch ? article.description : section.text;
-			const {
-				id,
-				path,
-				description: summary,
-				title: articleTitle,
-				audience,
-				icon,
-				level
-			} = article;
+			const text = titleMatch || !section ? article.description : section.text;
+			const { id, description: summary, title: articleTitle, audience, icon, level } = article;
+			const path = helpHref(article);
 			return {
 				order,
 				score,
 				result: {
 					article: { id, path, description: summary, title: articleTitle, audience, icon, level },
-					href: titleMatch ? path : `${path}#${section.id}`,
+					href: titleMatch ? path : helpHref(article, section?.id),
 					excerpt: text.length > 240 ? `${text.slice(0, 237).trimEnd()}…` : text,
-					sectionTitle: !titleMatch ? (section.title ?? null) : null
+					sectionTitle: !titleMatch ? (section?.title ?? null) : null
 				}
 			};
 		})

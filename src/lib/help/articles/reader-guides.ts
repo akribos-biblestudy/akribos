@@ -4,6 +4,7 @@ import type { HelpArticle } from '../types';
 export const readerGuides: HelpArticle[] = [
 	{
 		id: 'finden-und-weiterlesen',
+		episode: 2,
 		topic: 'bibelstellen',
 		path: '/help/bibelstellen/finden-und-weiterlesen',
 		title: 'Bibelstellen öffnen und im Text weitergehen',
@@ -29,7 +30,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'schnellstart',
 				title: 'In drei Schritten zur gesuchten Stelle',
-				html: `<ol><li>Öffne <a href="/Joh1">den Reader</a> und wähle den Tab deiner Bibel.</li><li>Ersetze den Inhalt des Stellen- und Suchfelds unter dem Tabnamen durch <code>Joh 3,16</code>.</li><li>Bestätige mit <kbd>Enter</kbd>. Du liest jetzt Johannes 3,16 in der gewählten Übersetzung.</li></ol><p>Das Feld gehört zu genau diesem Tab. Tabs derselben <a href="/help/reader/werke-tabs-und-layouts#gruppen">Tabgruppe</a> folgen seiner Lesestelle.</p>`,
+				html: `<ol><li>Öffne <a href="/Joh1">den Reader</a> und wähle den Tab deiner Bibel.</li><li>Ersetze den Inhalt des Stellen- und Suchfelds unter dem Tabnamen durch <code>Joh 3,16</code>.</li><li>Bestätige mit <kbd>Enter</kbd>. Du liest jetzt Johannes 3,16 in der gewählten Übersetzung.</li></ol><p>Das Feld gehört zu genau diesem Tab. Tabs derselben <a href="/help/reader#werke-tabs-und-layouts--gruppen">Tabgruppe</a> folgen seiner Lesestelle.</p>`,
 				screenshot: {
 					src: '/help/live/reader-toolbar.webp',
 					width: 457,
@@ -52,7 +53,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'weiterlesen',
 				title: 'Über Kapitelgrenzen hinweg lesen',
-				html: `<p>Scrolle in der Kachel, deren Text du lesen möchtest. Am oberen und unteren Rand lädt Akribos benachbarte Kapitel nach. Du musst keinen Kapitelwechsel auslösen. Die Stelle im Feld folgt deinem Lesefortschritt.</p><p>Für einen gezielten Sprung zum Kapitelanfang gibst du das Kapitel ohne Vers ein, etwa <code>Joh 4</code>. Für den Wechsel zu einem anderen Buch gibst du dessen Namen und Kapitel ein. Alternativ öffnest du über das Buchsymbol im Stellenfeld die Buch- und Kapitelauswahl.</p><p>Mit dem <strong>Akribos-Logo</strong> gelangst du von anderen Seiten zurück zum Reader. Bei angemeldeten Nutzern berücksichtigt der Einstieg die zuletzt gemerkte Lesestelle dieses Browsers. Ohne gemerkte Stelle beginnt der Reader bei Johannes 1. Für eine gezielt benannte Studienansicht verwendest du <a href="/help/reader/arbeitsbereich-einrichten">Arbeitsbereiche</a>.</p>`
+				html: `<p>Scrolle in der Kachel, deren Text du lesen möchtest. Am oberen und unteren Rand lädt Akribos benachbarte Kapitel nach. Du musst keinen Kapitelwechsel auslösen. Die Stelle im Feld folgt deinem Lesefortschritt.</p><p>Für einen gezielten Sprung zum Kapitelanfang gibst du das Kapitel ohne Vers ein, etwa <code>Joh 4</code>. Für den Wechsel zu einem anderen Buch gibst du dessen Namen und Kapitel ein. Alternativ öffnest du über das Buchsymbol im Stellenfeld die Buch- und Kapitelauswahl.</p><p>Mit <strong>Bibel lesen</strong> öffnest du den Reader bei Johannes 1. Wenn du angemeldet bist, bringt dich das Akribos-Logo zu deiner zuletzt gemerkten Lesestelle. Für eine gezielt benannte Studienansicht verwendest du <a href="/help/reader#arbeitsbereich-einrichten">Arbeitsbereiche</a>.</p>`
 			},
 			{
 				id: 'verlauf',
@@ -73,6 +74,7 @@ export const readerGuides: HelpArticle[] = [
 	},
 	{
 		id: 'werke-tabs-und-layouts',
+		episode: 3,
 		topic: 'reader',
 		path: '/help/reader/werke-tabs-und-layouts',
 		title: 'Werke, Tabs und Kacheln passend anordnen',
@@ -119,7 +121,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'auswahl',
 				title: 'Ein Werk hinzufügen oder ersetzen',
-				html: `<h3>Zusätzlichen Tab öffnen</h3><p>Das <strong>Pluszeichen</strong> in der Tab-Leiste öffnet die Werkauswahl. Die Auswahl ergänzt einen neuen Tab in dieser Kachel. Dein bisheriges Werk bleibt geöffnet.</p><h3>Das Werk eines Tabs wechseln</h3><p>Wähle unter der Tab-Leiste das Werksymbol mit dem kleinen Pfeil, dessen Hinweis <strong>Werk wechseln</strong> lautet. Die Auswahl ersetzt das Werk dieses Tabs. Nutze das Pluszeichen, wenn du beide behalten möchtest.</p><h3>Das gewünschte Werk finden</h3><p>Die Kategorien heißen <strong>Bibeln</strong>, <strong>Kommentare</strong>, <strong>Parallelstellen</strong> und <strong>Lexika</strong>, sofern Werke dieser Art vorhanden sind. Im Feld <strong>Werk suchen…</strong> suchst du nach Titel oder Kurzbezeichnung über die Kategorien hinweg. Ein Kategorienwechsel leert die Suche.</p><p>Die Auswahl enthält nur aktuell verfügbare Werke. Ein privates Werk erscheint nur mit entsprechender Freigabe für dein Konto. Ein geteilter Arbeitsbereich-Link gibt dir keine zusätzliche Leseberechtigung.</p>`,
+				html: `<h4>Zusätzlichen Tab öffnen</h4><p>Das <strong>Pluszeichen</strong> in der Tab-Leiste öffnet die Werkauswahl. Die Auswahl ergänzt einen neuen Tab in dieser Kachel. Dein bisheriges Werk bleibt geöffnet.</p><h4>Das Werk eines Tabs wechseln</h4><p>Wähle unter der Tab-Leiste das Werksymbol mit dem kleinen Pfeil, dessen Hinweis <strong>Werk wechseln</strong> lautet. Die Auswahl ersetzt das Werk dieses Tabs. Nutze das Pluszeichen, wenn du beide behalten möchtest.</p><h4>Das gewünschte Werk finden</h4><p>Die Kategorien heißen <strong>Bibeln</strong>, <strong>Kommentare</strong>, <strong>Parallelstellen</strong> und <strong>Lexika</strong>, sofern Werke dieser Art vorhanden sind. Im Feld <strong>Werk suchen…</strong> suchst du nach Titel oder Kurzbezeichnung über die Kategorien hinweg. Ein Kategorienwechsel leert die Suche.</p><p>Die Auswahl enthält nur aktuell verfügbare Werke. Ein privates Werk erscheint nur mit entsprechender Freigabe für dein Konto. Ein geteilter Arbeitsbereich-Link gibt dir keine zusätzliche Leseberechtigung.</p>`,
 				screenshot: {
 					src: '/help/live/resource-picker.webp',
 					width: 368,
@@ -145,7 +147,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'verschieben',
 				title: 'Tabs umordnen, verschieben und schließen',
-				html: `<h3>Innerhalb einer Kachel umordnen</h3><p>Ziehe den Tab am Computer an die gewünschte Position in der Tab-Leiste. Bei vielen Tabs lässt sich die Leiste seitlich scrollen.</p><h3>In eine andere Kachel verschieben</h3><ol><li>Aktiviere den gewünschten Tab.</li><li>Öffne die drei Punkte mit dem Hinweis <strong>Tab verschieben</strong>.</li><li>Wähle unter <strong>Verschieben nach</strong> den gewünschten <strong>Bereich</strong>.</li></ol><p>Du kannst einen Tab am Computer auch direkt in die Tab-Leiste einer anderen Kachel ziehen. Das Menü zum Verschieben erscheint, wenn mehr als eine Kachel vorhanden ist. Die Tabgruppe bleibt beim Verschieben erhalten.</p><h3>Einen Tab schließen</h3><p>Wähle das <strong>×</strong> neben seinem Namen. Dadurch entfernst du das Werk aus dieser Ansicht; du löschst weder das Werk noch persönliche Notizen. Über das Pluszeichen kannst du es später erneut öffnen. Sein bisheriger Tab-Verlauf wird dabei nicht wiederhergestellt.</p>`,
+				html: `<h4>Innerhalb einer Kachel umordnen</h4><p>Ziehe den Tab am Computer an die gewünschte Position in der Tab-Leiste. Bei vielen Tabs lässt sich die Leiste seitlich scrollen.</p><h4>In eine andere Kachel verschieben</h4><ol><li>Aktiviere den gewünschten Tab.</li><li>Öffne die drei Punkte mit dem Hinweis <strong>Tab verschieben</strong>.</li><li>Wähle unter <strong>Verschieben nach</strong> den gewünschten <strong>Bereich</strong>.</li></ol><p>Du kannst einen Tab am Computer auch direkt in die Tab-Leiste einer anderen Kachel ziehen. Das Menü zum Verschieben erscheint, wenn mehr als eine Kachel vorhanden ist. Die Tabgruppe bleibt beim Verschieben erhalten.</p><h4>Einen Tab schließen</h4><p>Wähle das <strong>×</strong> neben seinem Namen. Dadurch entfernst du das Werk aus dieser Ansicht; du löschst weder das Werk noch persönliche Notizen. Über das Pluszeichen kannst du es später erneut öffnen. Sein bisheriger Tab-Verlauf wird dabei nicht wiederhergestellt.</p>`,
 				screenshot: {
 					src: '/help/live/tab-move.webp',
 					width: 192,
@@ -169,7 +171,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'parallelstellen',
 				title: 'Mit Parallelstellen einen Textzusammenhang verfolgen',
-				html: `<ol><li>Wähle <strong>Zwei Spalten</strong> und öffne in der ersten Kachel deine Bibel.</li><li>Öffne über das Pluszeichen der zweiten Kachel <strong>Werk wählen</strong> und wähle aus <strong>Parallelstellen</strong> ein verfügbares Werk.</li><li>Setze beide Tabs auf dieselbe Tabgruppe, zum Beispiel <strong>A</strong>.</li><li>Gib in der Bibel die Ausgangsstelle ein, etwa <code>Joh 1,1</code>. Lies im Parallelstellen-Tab die Hinweise zur passenden Versnummer.</li><li>Klicke auf eine dort genannte Bibelstelle, um sie im Zusammenhang zu lesen. Die verbundenen Tabs folgen der neuen Stelle.</li><li>Mit <strong>Zurück</strong> in der Werkzeugleiste des Parallelstellen-Tabs kehrst du zu dessen vorheriger Stelle zurück.</li></ol><p>Ein Parallelstellenwerk kann eine Liste verknüpfter Stellen oder erläuternden Text zeigen. Es muss nicht zu jedem Vers einen Eintrag enthalten. Ein leerer Abschnitt bedeutet deshalb nicht automatisch einen Ladefehler. Kommentare verwendest du nach demselben Prinzip; ihre Einträge können einen Vers, mehrere Verse oder einen größeren Abschnitt erläutern.</p><h3>Die Ausgangsstelle beim Nachschlagen sichtbar lassen</h3><p>Wähle <strong>Drei Spalten</strong>, öffne eine zusätzliche Bibel und gib nur diesem Tab die Gruppe <strong>B</strong>. Öffne anschließend am Computer per Rechtsklick das Kontextmenü einer Parallelstelle und wähle <strong>In Tabgruppe B öffnen</strong>. Die erste Bibel und das Parallelstellenwerk in Gruppe A bleiben an ihrer Ausgangsstelle. So kannst du beide Zusammenhänge vergleichen.</p><p>Auf dem Smartphone wechselst du über die gemeinsame Tab-Leiste zwischen den Werken. Die eingestellten Gruppen bleiben wirksam. Weitere Wege zum Öffnen und Kopieren erklärt <a href="/help/bibelstellen/finden-und-weiterlesen#verweise">Bibelstellenverweise verwenden</a>.</p>`,
+				html: `<ol><li>Wähle <strong>Zwei Spalten</strong> und öffne in der ersten Kachel deine Bibel.</li><li>Öffne über das Pluszeichen der zweiten Kachel <strong>Werk wählen</strong> und wähle aus <strong>Parallelstellen</strong> ein verfügbares Werk.</li><li>Setze beide Tabs auf dieselbe Tabgruppe, zum Beispiel <strong>A</strong>.</li><li>Gib in der Bibel die Ausgangsstelle ein, etwa <code>Joh 1,1</code>. Lies im Parallelstellen-Tab die Hinweise zur passenden Versnummer.</li><li>Klicke auf eine dort genannte Bibelstelle, um sie im Zusammenhang zu lesen. Die verbundenen Tabs folgen der neuen Stelle.</li><li>Mit <strong>Zurück</strong> in der Werkzeugleiste des Parallelstellen-Tabs kehrst du zu dessen vorheriger Stelle zurück.</li></ol><p>Ein Parallelstellenwerk kann eine Liste verknüpfter Stellen oder erläuternden Text zeigen. Es muss nicht zu jedem Vers einen Eintrag enthalten. Ein leerer Abschnitt bedeutet deshalb nicht automatisch einen Ladefehler. Kommentare verwendest du nach demselben Prinzip; ihre Einträge können einen Vers, mehrere Verse oder einen größeren Abschnitt erläutern.</p><h4>Die Ausgangsstelle beim Nachschlagen sichtbar lassen</h4><p>Wähle <strong>Drei Spalten</strong>, öffne eine zusätzliche Bibel und gib nur diesem Tab die Gruppe <strong>B</strong>. Öffne anschließend am Computer per Rechtsklick das Kontextmenü einer Parallelstelle und wähle <strong>In Tabgruppe B öffnen</strong>. Die erste Bibel und das Parallelstellenwerk in Gruppe A bleiben an ihrer Ausgangsstelle. So kannst du beide Zusammenhänge vergleichen.</p><p>Auf dem Smartphone wechselst du über die gemeinsame Tab-Leiste zwischen den Werken. Die eingestellten Gruppen bleiben wirksam. Weitere Wege zum Öffnen und Kopieren erklärt <a href="/help/bibelstellen#finden-und-weiterlesen--verweise">Bibelstellenverweise verwenden</a>.</p>`,
 				screenshot: {
 					src: '/help/live/parallel-passages.webp',
 					width: 459,
@@ -187,12 +189,44 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'mobil-und-speichern',
 				title: 'Dieselbe Zusammenstellung mobil und später wiederverwenden',
-				html: `<p>Auf schmalen Bildschirmen erscheinen die Tabs aller Kacheln in einer gemeinsamen Leiste. Tippe direkt auf das gewünschte Werk; die zugehörige Kachel wird sichtbar. Deine Anordnung für den Computer bleibt erhalten. Das Verschieben zwischen Kacheln per Ziehen oder Drei-Punkte-Menü erfolgt in der breiten Ansicht.</p><p>Ohne Konto merkt sich dein Browser den Reader-Stand. Für mehrere benannte Ansichten und das Weiterarbeiten auf einem anderen Gerät verwendest du <a href="/help/reader/arbeitsbereich-einrichten">benannte Arbeitsbereiche</a>. Eine Kopie der Reader-Adresse hält die sichtbare Zusammenstellung als Link fest; persönliche Trennergrößen werden nicht über diesen Link geteilt.</p>`
+				html: `<p>Auf schmalen Bildschirmen erscheinen die Tabs aller Kacheln in einer gemeinsamen Leiste. Tippe direkt auf das gewünschte Werk; die zugehörige Kachel wird sichtbar. Deine Anordnung für den Computer bleibt erhalten. Das Verschieben zwischen Kacheln per Ziehen oder Drei-Punkte-Menü erfolgt in der breiten Ansicht.</p><p>Ohne Konto merkt sich dein Browser den Reader-Stand. Für mehrere benannte Ansichten und das Weiterarbeiten auf einem anderen Gerät verwendest du <a href="/help/reader#arbeitsbereich-einrichten">benannte Arbeitsbereiche</a>. Eine Kopie der Reader-Adresse hält die sichtbare Zusammenstellung als Link fest; persönliche Trennergrößen werden nicht über diesen Link geteilt.</p>`
+			}
+		]
+	},
+	{
+		id: 'bibelausgaben',
+		episode: 14,
+		topic: 'reader',
+		path: '/help/reader/bibelausgaben',
+		title: 'Bibelausgaben vergleichen',
+		description: 'Vier historische Übersetzungen und die Strong-Zuordnungen der Akribos-Ausgaben.',
+		icon: 'book',
+		audience: 'user',
+		keywords: [
+			'Übersetzungen',
+			'Elberfelder 1932',
+			'Luther 1912',
+			'Schlachter 1951',
+			'Menge 1939',
+			'Strong'
+		],
+		level: 'guide',
+		sections: [
+			{
+				id: 'historische-uebersetzungen',
+				title: 'Die historischen Übersetzungen im Reader',
+				html: `<dl class="definition-list"><div><dt>Elberfelder 1932</dt><dd>In der Akribos-Ausgabe sind einzelne Ausdrücke und Schreibweisen angepasst.</dd></div><div><dt>Luther 1912</dt><dd>Die historische Sprache bleibt erhalten. Akribos hat einzelne Schreibweisen modernisiert.</dd></div><div><dt>Schlachter 1951</dt><dd>Der historische Wortlaut bleibt erhalten. Akribos hat die Verknüpfungen zum Grundtext bearbeitet.</dd></div><div><dt>Menge 1939</dt><dd>Du findest die historische Ausgabe als „Menge-Bibel“ in der Werkauswahl.</dd></div></dl><p>Öffne die Werkauswahl über das Pluszeichen im Reader. Um mehrere Übersetzungen an derselben Stelle zu lesen, ordne ihre Tabs <a href="/help/reader#werke-tabs-und-layouts--gruppen">derselben Tabgruppe</a> zu.</p>`
+			},
+			{
+				id: 'strong-zuordnungen',
+				title: 'Strong-Zuordnungen richtig einordnen',
+				html: `<p>In den drei von Akribos bearbeiteten Übersetzungen verbinden Strong-Nummern Wörter der Übersetzung mit hebräischen oder griechischen Grundwörtern. Die <a href="/help/strong#wortstudie-durchfuehren">Wortstudie</a> hilft beim Nachschlagen und weist in den Fundstellen auf automatisch zugeordnete, fachlich noch nicht bestätigte Wörter hin.</p><p>Titel, Quellen und Nutzungshinweise der Ausgabe findest du über das Informationssymbol im Tab.</p>`
 			}
 		]
 	},
 	{
 		id: 'woerter-und-strong-finden',
+		episode: 4,
 		topic: 'suchen',
 		path: '/help/suchen/woerter-und-strong-finden',
 		title: 'Wörter, Wortfolgen und Strong-Nummern suchen',
@@ -237,7 +271,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'werkbezug',
 				title: 'Immer im richtigen Werk suchen',
-				html: `<p>Die Suche gehört zum aktiven Tab, nicht zum gesamten Arbeitsbereich. Im Bibel-Tab findest du Bibelverse; im Kommentar-Tab suchst du dessen Kommentartexte. Möchtest du Ergebnisse zweier Übersetzungen vergleichen, starte die gleiche Suche in ihren jeweiligen Tabs.</p><p>Lexika haben ein anderes Eingabefeld: Dort suchst du einen Eintrag über Strong-Nummer, Grundform oder Umschrift. Das erklärt die Anleitung zur <a href="/help/strong/wortstudie-durchfuehren">Wortstudie</a>. Ein Werk ohne durchsuchbaren Text zeigt einen entsprechenden Hinweis. Du kannst darin weiterhin direkt zu einer verfügbaren Bibelstelle navigieren.</p><p>Stelle und Suche teilen sich dasselbe Feld. <code>Joh 3,16</code> navigiert zur Stelle; <code>Judas</code> ohne Kapitelzahl bleibt eine Wortsuche. Setze eine Wortfolge in Anführungszeichen, wenn du ihren Text suchen möchtest.</p>`
+				html: `<p>Die Suche gehört zum aktiven Tab, nicht zum gesamten Arbeitsbereich. Im Bibel-Tab findest du Bibelverse; im Kommentar-Tab suchst du dessen Kommentartexte. Möchtest du Ergebnisse zweier Übersetzungen vergleichen, starte die gleiche Suche in ihren jeweiligen Tabs.</p><p>Lexika haben ein anderes Eingabefeld: Dort suchst du einen Eintrag über Strong-Nummer, Grundform oder Umschrift. Das erklärt die Anleitung zur <a href="/help/strong#wortstudie-durchfuehren">Wortstudie</a>. Ein Werk ohne durchsuchbaren Text zeigt einen entsprechenden Hinweis. Du kannst darin weiterhin direkt zu einer verfügbaren Bibelstelle navigieren.</p><p>Stelle und Suche teilen sich dasselbe Feld. <code>Joh 3,16</code> navigiert zur Stelle; <code>Judas</code> ohne Kapitelzahl bleibt eine Wortsuche. Setze eine Wortfolge in Anführungszeichen, wenn du ihren Text suchen möchtest.</p>`
 			},
 			{
 				id: 'buchfilter',
@@ -246,13 +280,14 @@ export const readerGuides: HelpArticle[] = [
 			},
 			{
 				id: 'strong-suche',
+				episode: 5,
 				title: 'Mit einer Strong-Nummer unabhängig vom deutschen Wort suchen',
-				html: `<p>Eine Strong-Nummer verbindet Übersetzungswörter mit einem Wörterbucheintrag des Ausgangstexts. <strong>G</strong> kennzeichnet griechische, <strong>H</strong> hebräische Einträge. Eine Suche nach <code>G25</code> kann deshalb Verse finden, in denen unterschiedliche deutsche Formen desselben zugeordneten Wortes stehen.</p><p>Die Suche zeigt neben Fundstellen auch die Zahl der Vorkommen, die Verteilung nach Büchern und – soweit vorhanden – <strong>Übersetzt als</strong>. Vorkommen und Verse sind verschiedene Zahlen: Ein zugeordnetes Wort kann mehrfach in demselben Vers stehen.</p><p>Alle diese Angaben beziehen sich auf die Bibel des durchsuchten Tabs. Andere Ausgaben können andere Zuordnungen besitzen. Für Bedeutung, Grammatik und den Zusammenhang eines bestimmten angeklickten Wortes öffnest du anschließend eine <a href="/help/strong/wortstudie-durchfuehren">Wortstudie im Lexikon-Tab</a>.</p>`
+				html: `<p>Eine Strong-Nummer verbindet Übersetzungswörter mit einem Wörterbucheintrag des Ausgangstexts. <strong>G</strong> kennzeichnet griechische, <strong>H</strong> hebräische Einträge. Eine Suche nach <code>G25</code> kann deshalb Verse finden, in denen unterschiedliche deutsche Formen desselben zugeordneten Wortes stehen.</p><p>Die Suche zeigt neben Fundstellen auch die Zahl der Vorkommen, die Verteilung nach Büchern und – soweit vorhanden – <strong>Übersetzt als</strong>. Vorkommen und Verse sind verschiedene Zahlen: Ein zugeordnetes Wort kann mehrfach in demselben Vers stehen.</p><p>Alle diese Angaben beziehen sich auf die Bibel des durchsuchten Tabs. Andere Ausgaben können andere Zuordnungen besitzen. Für Bedeutung, Grammatik und den Zusammenhang eines bestimmten angeklickten Wortes öffnest du anschließend eine <a href="/help/strong#wortstudie-durchfuehren">Wortstudie im Lexikon-Tab</a>.</p>`
 			},
 			{
 				id: 'rueckkehr',
 				title: 'Suche verlassen und später zurückkehren',
-				html: `<p>Das <strong>×</strong> mit dem Hinweis <strong>Suchergebnisse schließen</strong> bringt den bisherigen Lesetext dieses Tabs wieder zum Vorschein. Ein Klick auf einen Treffer kehrt ebenfalls zum Text zurück, diesmal an der gewählten Fundstelle.</p><p>Mit den Pfeilen <strong>Zurück</strong> und <strong>Vor</strong> kannst du während derselben Reader-Sitzung auch Suchbegriffe, Buchfilter und Ergebnisseiten wieder aufrufen. Eine weitere Suche kannst du in einem anderen Tab offenhalten. Beim Tabwechsel wird die Suche nicht automatisch gelöscht.</p><p>Offene Suchansichten gehören zur Reader-Adresse und können in <a href="/help/reader/arbeitsbereich-einrichten">benannten Arbeitsbereichen</a> wieder geöffnet werden. Der schrittweise Tab-Verlauf bleibt dagegen auf die aktuelle Sitzung beschränkt.</p>`
+				html: `<p>Das <strong>×</strong> mit dem Hinweis <strong>Suchergebnisse schließen</strong> bringt den bisherigen Lesetext dieses Tabs wieder zum Vorschein. Ein Klick auf einen Treffer kehrt ebenfalls zum Text zurück, diesmal an der gewählten Fundstelle.</p><p>Mit den Pfeilen <strong>Zurück</strong> und <strong>Vor</strong> kannst du während derselben Reader-Sitzung auch Suchbegriffe, Buchfilter und Ergebnisseiten wieder aufrufen. Eine weitere Suche kannst du in einem anderen Tab offenhalten. Beim Tabwechsel wird die Suche nicht automatisch gelöscht.</p><p>Offene Suchansichten gehören zur Reader-Adresse und können in <a href="/help/reader#arbeitsbereich-einrichten">benannten Arbeitsbereichen</a> wieder geöffnet werden. Der schrittweise Tab-Verlauf bleibt dagegen auf die aktuelle Sitzung beschränkt.</p>`
 			},
 			{
 				id: 'fragen',
@@ -263,6 +298,7 @@ export const readerGuides: HelpArticle[] = [
 	},
 	{
 		id: 'wortstudie-durchfuehren',
+		episode: 5,
 		topic: 'strong',
 		path: '/help/strong/wortstudie-durchfuehren',
 		title: 'Ein Wort im griechischen oder hebräischen Text untersuchen',
@@ -319,7 +355,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'lexikonwahl',
 				title: 'Bestimmen, in welchem Tab die Wortstudie erscheint',
-				html: `<p>Akribos verwendet nach Möglichkeit einen bereits geöffneten Lexikon-Tab derselben <a href="/help/reader/werke-tabs-und-layouts#gruppen">Tabgruppe</a>. Seine Sprache muss zur Strong-Nummer passen: Eine griechische Nummer öffnet keinen hebräischen Wörterbucheintrag.</p><p>Wenn noch kein passendes Lexikon in dieser Gruppe geöffnet ist, ergänzt Akribos eines. Ein Lexikon in einer anderen sichtbaren Kachel ermöglicht es, Bibeltext und Wortstudie gleichzeitig zu lesen. Du kannst das Lexikon auch selbst über die Werkauswahl öffnen und der passenden Gruppe zuweisen.</p><p>Für den Vergleich zweier Lexika öffnest du beide als eigene Tabs. Jeder Tab behält seinen eigenen Eintrag. Bei einem erneuten Wortklick wird der erste passende Lexikon-Tab der Gruppe verwendet; die einzelnen Lexika werden nicht zu einer gemeinsamen Definition zusammengefasst.</p>`
+				html: `<p>Akribos verwendet nach Möglichkeit einen bereits geöffneten Lexikon-Tab derselben <a href="/help/reader#werke-tabs-und-layouts--gruppen">Tabgruppe</a>. Seine Sprache muss zur Strong-Nummer passen: Eine griechische Nummer öffnet keinen hebräischen Wörterbucheintrag.</p><p>Wenn noch kein passendes Lexikon in dieser Gruppe geöffnet ist, ergänzt Akribos eines. Ein Lexikon in einer anderen sichtbaren Kachel ermöglicht es, Bibeltext und Wortstudie gleichzeitig zu lesen. Du kannst das Lexikon auch selbst über die Werkauswahl öffnen und der passenden Gruppe zuweisen.</p><p>Für den Vergleich zweier Lexika öffnest du beide als eigene Tabs. Jeder Tab behält seinen eigenen Eintrag. Bei einem erneuten Wortklick wird der erste passende Lexikon-Tab der Gruppe verwendet; die einzelnen Lexika werden nicht zu einer gemeinsamen Definition zusammengefasst.</p>`
 			},
 			{
 				id: 'vorkommen',
@@ -337,7 +373,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'fundstellen',
 				title: 'Fundstellen eingrenzen und im Zusammenhang öffnen',
-				html: `<ol><li>Wähle im Buchdiagramm das gewünschte Buch.</li><li>Lies die Einträge unter <strong>Vorkommen in …</strong>. Das untersuchte Strong-Wort ist im Vers hervorgehoben.</li><li>Öffne eine Fundstelle durch Klick auf den Versbereich. Du kannst sie auch mit der Tastatur fokussieren und mit <kbd>Enter</kbd> öffnen.</li><li>Verwende <strong>Alle Bücher</strong>, um den Buchfilter zu lösen.</li></ol><p>Unter einer längeren Fundstellenliste blätterst du mit den Pfeilen zwischen den Ergebnisseiten. Der Buchfilter hilft beim Lesen eines begrenzten Textzusammenhangs; die Gesamtstatistik dient weiterhin der Orientierung über das Werk.</p><p>Für eine reine Fundstellensuche ohne Lexikondefinition gibst du dieselbe Nummer im Bibel-Tab ein. Mehr dazu unter <a href="/help/suchen/woerter-und-strong-finden#strong-suche">Strong-Nummern suchen</a>.</p>`
+				html: `<ol><li>Wähle im Buchdiagramm das gewünschte Buch.</li><li>Lies die Einträge unter <strong>Vorkommen in …</strong>. Das untersuchte Strong-Wort ist im Vers hervorgehoben.</li><li>Öffne eine Fundstelle durch Klick auf den Versbereich. Du kannst sie auch mit der Tastatur fokussieren und mit <kbd>Enter</kbd> öffnen.</li><li>Verwende <strong>Alle Bücher</strong>, um den Buchfilter zu lösen.</li></ol><p>Unter einer längeren Fundstellenliste blätterst du mit den Pfeilen zwischen den Ergebnisseiten. Der Buchfilter hilft beim Lesen eines begrenzten Textzusammenhangs; die Gesamtstatistik dient weiterhin der Orientierung über das Werk.</p><p>Für eine reine Fundstellensuche ohne Lexikondefinition gibst du dieselbe Nummer im Bibel-Tab ein. Mehr dazu unter <a href="/help/suchen#woerter-und-strong-finden--strong-suche">Strong-Nummern suchen</a>.</p>`
 			},
 			{
 				id: 'eigene-strong-seite',
@@ -353,6 +389,7 @@ export const readerGuides: HelpArticle[] = [
 	},
 	{
 		id: 'kopieren-markieren-und-wiederfinden',
+		episode: 7,
 		topic: 'verse',
 		path: '/help/verse/kopieren-markieren-und-wiederfinden',
 		title: 'Verse kopieren, markieren und wiederfinden',
@@ -406,7 +443,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'farben',
 				title: 'Farben mit einer eigenen Bedeutung versehen',
-				html: `<ol><li>Öffne <a href="/account?tab=appearance">Einstellungen → Darstellung</a>.</li><li>Scrolle zu <strong>Versmarkierungen</strong>.</li><li>Trage neben einer Farbe einen Namen ein, zum Beispiel „Zusagen“, „Fragen“ oder „Weiter untersuchen“.</li><li>Wähle <strong>Speichern</strong> in derselben Zeile.</li></ol><p>Die Namen helfen dir beim späteren Auswählen der Farbe. Es gibt keine vorgegebene theologische Bedeutung der Farben; du legst deine Ordnung selbst fest.</p><h3>Eine zusätzliche Farbe anlegen</h3><ol><li>Wähle unten im Farbfeld einen neuen Farbton.</li><li>Vergib optional einen Namen.</li><li>Wähle <strong>Farbe hinzufügen</strong>.</li></ol><p>Dein Konto beginnt mit zehn Farben und kann bis zu 30 enthalten. Vorhandene Farben kannst du benennen; die Oberfläche bietet derzeit kein nachträgliches Ändern oder Löschen eines Farbtons an. Wähle daher gut unterscheidbare Farben und sprechende Namen.</p>`
+				html: `<ol><li>Öffne <a href="/account?tab=appearance">Einstellungen → Darstellung</a>.</li><li>Scrolle zu <strong>Versmarkierungen</strong>.</li><li>Trage neben einer Farbe einen Namen ein, zum Beispiel „Zusagen“, „Fragen“ oder „Weiter untersuchen“.</li><li>Wähle <strong>Speichern</strong> in derselben Zeile.</li></ol><p>Die Namen helfen dir beim späteren Auswählen der Farbe. Es gibt keine vorgegebene theologische Bedeutung der Farben; du legst deine Ordnung selbst fest.</p><h4>Eine zusätzliche Farbe anlegen</h4><ol><li>Wähle unten im Farbfeld einen neuen Farbton.</li><li>Vergib optional einen Namen.</li><li>Wähle <strong>Farbe hinzufügen</strong>.</li></ol><p>Dein Konto beginnt mit zehn Farben und kann bis zu 30 enthalten. Vorhandene Farben kannst du benennen; die Oberfläche bietet derzeit kein nachträgliches Ändern oder Löschen eines Farbtons an. Wähle daher gut unterscheidbare Farben und sprechende Namen.</p>`
 			},
 			{
 				id: 'wiederfinden',
@@ -475,12 +512,12 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'link-oder-code',
 				title: 'Anmeldecode und E-Mail-Link richtig verwenden',
-				html: `<h3>Mit dem Code im geöffneten Dialog</h3><p>Der Code gehört zu der Anmeldung, mit der du die E-Mail angefordert hast. Gib ihn in demselben Browser ein. Wenn du die E-Mail auf dem Smartphone liest und dich am Computer anmelden möchtest, übertrage den Code in den geöffneten Anmeldedialog am Computer.</p><h3>Mit dem Link aus der E-Mail</h3><ol><li>Öffne den Anmeldelink aus der E-Mail.</li><li>Prüfe die angezeigte E-Mail-Adresse.</li><li>Bestätige mit <strong>Anmelden</strong>.</li></ol><p>Damit meldest du dich in dem Browser an, in dem du den Link bestätigst. Das bloße Öffnen der Linkseite verbraucht die Anmeldung noch nicht.</p><p>Link und Code sind <strong>15 Minuten gültig</strong> und gehören zum selben einmaligen Zugang. Sobald einer erfolgreich verwendet wurde, kann der andere nicht noch einmal genutzt werden. Nach erneutem Versand gelten nur noch der neue Link und der neue Code. Nach fünf falschen Codeversuchen ist eine neue Anmelde-E-Mail nötig.</p><p>Mit <strong>Andere E-Mail-Adresse verwenden</strong> gehst du zur Adressauswahl zurück. Mit <strong>Anmelde-E-Mail erneut senden</strong> forderst du im Code-Dialog eine neue Nachricht an.</p>`
+				html: `<h4>Mit dem Code im geöffneten Dialog</h4><p>Der Code gehört zu der Anmeldung, mit der du die E-Mail angefordert hast. Gib ihn in demselben Browser ein. Wenn du die E-Mail auf dem Smartphone liest und dich am Computer anmelden möchtest, übertrage den Code in den geöffneten Anmeldedialog am Computer.</p><h4>Mit dem Link aus der E-Mail</h4><ol><li>Öffne den Anmeldelink aus der E-Mail.</li><li>Prüfe die angezeigte E-Mail-Adresse.</li><li>Bestätige mit <strong>Anmelden</strong>.</li></ol><p>Damit meldest du dich in dem Browser an, in dem du den Link bestätigst. Das bloße Öffnen der Linkseite verbraucht die Anmeldung noch nicht.</p><p>Link und Code sind <strong>15 Minuten gültig</strong> und gehören zum selben einmaligen Zugang. Sobald einer erfolgreich verwendet wurde, kann der andere nicht noch einmal genutzt werden. Nach erneutem Versand gelten nur noch der neue Link und der neue Code. Nach fünf falschen Codeversuchen ist eine neue Anmelde-E-Mail nötig.</p><p>Mit <strong>Andere E-Mail-Adresse verwenden</strong> gehst du zur Adressauswahl zurück. Mit <strong>Anmelde-E-Mail erneut senden</strong> forderst du im Code-Dialog eine neue Nachricht an.</p>`
 			},
 			{
 				id: 'bestehendes-passwort',
 				title: 'Mit einem vorhandenen Passwort anmelden',
-				html: `<ol><li>Gib unter <strong>Anmelden</strong> zuerst deine E-Mail-Adresse ein.</li><li>Wähle <strong>Weiter</strong>.</li><li>Trage dein Passwort im anschließend angezeigten Passwortfeld ein.</li><li>Wähle <strong>Anmelden</strong>.</li></ol><p>Wenn eine ältere Registrierung noch nicht bestätigt wurde, weist Akribos darauf hin. Über <strong>Aktivierungslink erneut senden</strong> kannst du die Bestätigung erneut anfordern.</p><h3>Passwort vergessen</h3><ol><li>Öffne den Link <strong>Passwort zurücksetzen</strong> unter dem Passwortformular.</li><li>Gib deine E-Mail-Adresse ein und wähle <strong>Link senden</strong>.</li><li>Öffne den Link aus der E-Mail.</li><li>Trage das neue Passwort zweimal ein und wähle <strong>Speichern</strong>.</li></ol><p>Wenn du dich normalerweise per Anmeldecode anmeldest, benötigst du zum nächsten Zugang keinen Passwort-Reset. Beginne wieder mit deiner E-Mail-Adresse.</p>`
+				html: `<ol><li>Gib unter <strong>Anmelden</strong> zuerst deine E-Mail-Adresse ein.</li><li>Wähle <strong>Weiter</strong>.</li><li>Trage dein Passwort im anschließend angezeigten Passwortfeld ein.</li><li>Wähle <strong>Anmelden</strong>.</li></ol><p>Wenn eine ältere Registrierung noch nicht bestätigt wurde, weist Akribos darauf hin. Über <strong>Aktivierungslink erneut senden</strong> kannst du die Bestätigung erneut anfordern.</p><h4>Passwort vergessen</h4><ol><li>Öffne den Link <strong>Passwort zurücksetzen</strong> unter dem Passwortformular.</li><li>Gib deine E-Mail-Adresse ein und wähle <strong>Link senden</strong>.</li><li>Öffne den Link aus der E-Mail.</li><li>Trage das neue Passwort zweimal ein und wähle <strong>Speichern</strong>.</li></ol><p>Wenn du dich normalerweise per Anmeldecode anmeldest, benötigst du zum nächsten Zugang keinen Passwort-Reset. Beginne wieder mit deiner E-Mail-Adresse.</p>`
 			},
 			{
 				id: 'profil',
@@ -490,7 +527,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'passwort-festlegen',
 				title: 'Ein Passwort festlegen oder ändern',
-				html: `<h3>Von der E-Mail-Anmeldung zu einem Passwort wechseln</h3><ol><li>Öffne <strong>Profil &amp; Sicherheit</strong>.</li><li>Trage unter <strong>Passwort festlegen</strong> ein neues Passwort in beide Felder ein.</li><li>Verwende mindestens zehn Zeichen.</li><li>Bestätige mit <strong>Speichern</strong>.</li></ol><p>Danach führt deine E-Mail-Adresse bei der Anmeldung zum Passwortformular. Andere angemeldete Geräte werden beim Speichern abgemeldet; auf diesem Gerät bleibst du angemeldet. Bereits angeforderte Anmeldelinks und Codes werden ungültig.</p><h3>Ein vorhandenes Passwort ändern</h3><p>Unter <strong>Passwort ändern</strong> gibst du zusätzlich zuerst dein <strong>Aktuelles Passwort</strong> an. Trage das neue Passwort zweimal ein und speichere. Stimmen die Wiederholung oder das aktuelle Passwort nicht, zeigt das Formular den entsprechenden Hinweis.</p><p>Die aktuelle Oberfläche bietet keine Schaltfläche, um ein gesetztes Passwort wieder zu entfernen und zur reinen E-Mail-Anmeldung zurückzuwechseln.</p>`
+				html: `<h4>Von der E-Mail-Anmeldung zu einem Passwort wechseln</h4><ol><li>Öffne <strong>Profil &amp; Sicherheit</strong>.</li><li>Trage unter <strong>Passwort festlegen</strong> ein neues Passwort in beide Felder ein.</li><li>Verwende mindestens zehn Zeichen.</li><li>Bestätige mit <strong>Speichern</strong>.</li></ol><p>Danach führt deine E-Mail-Adresse bei der Anmeldung zum Passwortformular. Andere angemeldete Geräte werden beim Speichern abgemeldet; auf diesem Gerät bleibst du angemeldet. Bereits angeforderte Anmeldelinks und Codes werden ungültig.</p><h4>Ein vorhandenes Passwort ändern</h4><p>Unter <strong>Passwort ändern</strong> gibst du zusätzlich zuerst dein <strong>Aktuelles Passwort</strong> an. Trage das neue Passwort zweimal ein und speichere. Stimmen die Wiederholung oder das aktuelle Passwort nicht, zeigt das Formular den entsprechenden Hinweis.</p><p>Die aktuelle Oberfläche bietet keine Schaltfläche, um ein gesetztes Passwort wieder zu entfernen und zur reinen E-Mail-Anmeldung zurückzuwechseln.</p>`
 			},
 			{
 				id: 'abmelden-und-loeschen',
@@ -562,7 +599,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'was-wo',
 				title: 'Welche Einstellung findest du wo?',
-				html: `<table><thead><tr><th>Aufgabe</th><th>Ort</th></tr></thead><tbody><tr><td>Hell oder dunkel</td><td>Sonnen-/Mondsymbol im Kopfbereich oder unter Darstellung</td></tr><tr><td>Lesetext größer oder kleiner</td><td>A−/A+ im Reader oder unter Darstellung</td></tr><tr><td>Bibel für Vorschauen und Zitate</td><td>Darstellung → Standardübersetzung</td></tr><tr><td>Markierungsfarben benennen und Verse finden</td><td>Darstellung → Versmarkierungen</td></tr><tr><td>Bibel oder Kommentar im Reader öffnen</td><td>Pluszeichen oder Werk wechseln im jeweiligen Tab</td></tr><tr><td>Spalten, Zeilen und große Kacheln wählen</td><td>Kachelanordnung oben im Reader</td></tr><tr><td>Eine Studienansicht wiederverwenden</td><td>Arbeitsbereiche</td></tr></tbody></table><p>Weitere Schritte findest du unter <a href="/help/verse/kopieren-markieren-und-wiederfinden#farben">Markierungsfarben verwalten</a> und <a href="/help/reader/werke-tabs-und-layouts">Werke und Kacheln anordnen</a>.</p>`
+				html: `<table><thead><tr><th>Aufgabe</th><th>Ort</th></tr></thead><tbody><tr><td>Hell oder dunkel</td><td>Sonnen-/Mondsymbol im Kopfbereich oder unter Darstellung</td></tr><tr><td>Lesetext größer oder kleiner</td><td>A−/A+ im Reader oder unter Darstellung</td></tr><tr><td>Bibel für Vorschauen und Zitate</td><td>Darstellung → Standardübersetzung</td></tr><tr><td>Markierungsfarben benennen und Verse finden</td><td>Darstellung → Versmarkierungen</td></tr><tr><td>Bibel oder Kommentar im Reader öffnen</td><td>Pluszeichen oder Werk wechseln im jeweiligen Tab</td></tr><tr><td>Spalten, Zeilen und große Kacheln wählen</td><td>Kachelanordnung oben im Reader</td></tr><tr><td>Eine Studienansicht wiederverwenden</td><td>Arbeitsbereiche</td></tr></tbody></table><p>Weitere Schritte findest du unter <a href="/help/verse#kopieren-markieren-und-wiederfinden--farben">Markierungsfarben verwalten</a> und <a href="/help/reader#werke-tabs-und-layouts">Werke und Kacheln anordnen</a>.</p>`
 			},
 			{
 				id: 'fragen',

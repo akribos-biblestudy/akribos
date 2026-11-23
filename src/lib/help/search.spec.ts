@@ -1,15 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import {
-	getHelpArticle,
-	getHelpGuides,
-	getHelpHeadings,
-	helpArticles,
-	helpTopics
-} from './catalog';
+import { getHelpArticle, helpArticles, helpTopics } from './catalog';
 import { helpPlainText, helpQuery, searchHelp } from './search';
-import { loadHelpArticle } from './load-article';
+import { loadHelpTopic, redirectHelpGuide } from './load-topic';
+import { helpAnchor } from './links';
 
 describe('help search', () => {
 	it('finds German words with umlauts or keyboard transliterations', () => {
@@ -25,7 +20,7 @@ describe('help search', () => {
 		const result = searchHelp('Stiftsymbol').find(
 			({ article }) => article.id === 'arbeitsbereich-einrichten'
 		);
-		expect(result?.href).toBe('/help/reader/arbeitsbereich-einrichten#wechseln');
+		expect(result?.href).toBe('/help/reader#arbeitsbereich-einrichten--wechseln');
 		expect(result?.sectionTitle).toBe('Arbeitsbereiche wechseln und verwalten');
 	});
 
@@ -85,31 +80,47 @@ describe('help catalog and routes', () => {
 		for (const id of legacy) {
 			expect(helpTopics.find((topic) => topic.id === id)?.path).toBe(`/help/${id}`);
 			expect(
-				getHelpArticle(`/help/${id}`)?.sections.some(({ html }) => helpPlainText(html).length > 100)
+				helpArticles
+					.filter(({ topic }) => topic === id)
+					.some(({ sections }) => sections.some(({ html }) => helpPlainText(html).length > 100))
 			).toBe(true);
 		}
 	});
 
-	it('has unique routes, valid section links, and no unresolved template markup', () => {
+	it('provides unique anchors on each topic and resolves the earlier topic fragments', () => {
 		expect(new Set(helpArticles.map(({ path }) => path)).size).toBe(helpArticles.length);
-		for (const article of helpArticles) {
-			const headings = getHelpHeadings(article);
-			expect(new Set(headings.map(({ id }) => id)).size).toBe(headings.length);
-			for (const heading of headings) {
-				expect(
-					article.sections.some(
-						(section) => section.id === heading.id || section.html.includes(`id="${heading.id}"`)
-					)
-				).toBe(true);
+		for (const topic of helpTopics) {
+			const articles = helpArticles.filter((article) => article.topic === topic.id);
+			const anchors = articles.flatMap((article) => [
+				...(article.level === 'guide' ? [helpAnchor(article)] : []),
+				...article.sections.map(({ id }) => helpAnchor(article, id))
+			]);
+			const aliases = Object.entries(topic.anchors ?? {});
+			const all = [...anchors, ...aliases.map(([from]) => from)];
+			expect(new Set(all).size, topic.path).toBe(all.length);
+			for (const [, target] of aliases) expect(anchors, topic.path).toContain(target);
+			for (const article of articles) {
+				expect(article.sections.every(({ html }) => !/\{[#/]each|<Icon/.test(html))).toBe(true);
 			}
-			expect(article.sections.every(({ html }) => !/\{[#/]each|<Icon/.test(html))).toBe(true);
 		}
 	});
 
-	it('serves the nested guide and rejects unknown topics or tasks', () => {
-		expect(loadHelpArticle('/help/reader/arbeitsbereich-einrichten').article.level).toBe('guide');
-		expect(() => loadHelpArticle('/help/nicht-vorhanden')).toThrow();
-		expect(() => loadHelpArticle('/help/reader/nicht-vorhanden')).toThrow();
+	it('redirects old guide URLs to the help topic and rejects unknown topics or tasks', () => {
+		const setHeaders = () => {};
+		expect(() =>
+			redirectHelpGuide('reader', 'arbeitsbereich-einrichten', null, setHeaders)
+		).toThrow(
+			expect.objectContaining({
+				status: 308,
+				location: '/help/reader?anleitung=arbeitsbereich-einrichten'
+			})
+		);
+		expect(() => loadHelpTopic('nicht-vorhanden', null, setHeaders)).toThrow(
+			expect.objectContaining({ status: 404 })
+		);
+		expect(() => redirectHelpGuide('reader', 'nicht-vorhanden', null, setHeaders)).toThrow(
+			expect.objectContaining({ status: 404 })
+		);
 	});
 
 	it('keeps API and administration outside the user topic list', () => {
@@ -119,37 +130,31 @@ describe('help catalog and routes', () => {
 		]);
 	});
 
-	it('makes every guide discoverable from its topic and keeps sibling navigation compact', () => {
-		const administrator = { role: 'admin' as const };
-		for (const article of helpArticles.filter(({ level }) => level === 'guide')) {
-			const topic = helpTopics.find(({ id }) => id === article.topic);
-			expect(topic, article.path).toBeDefined();
-			const overview = loadHelpArticle(topic!.path, administrator);
-			expect(
-				overview.guides.map(({ path }) => path),
-				topic!.path
-			).toContain(article.path);
-			expect(overview.headings[0]?.id).toBe('anleitungen');
-			const guide = loadHelpArticle(article.path, administrator);
-			expect(guide.guides.map(({ path }) => path)).toEqual(
-				getHelpGuides(article.topic, administrator).map(({ path }) => path)
-			);
-			expect(guide.guides.every((entry) => !('sections' in entry))).toBe(true);
+	it('returns complete guides directly with their topics', () => {
+		for (const guide of helpArticles.filter(({ level }) => level === 'guide')) {
+			const topic = loadHelpTopic(guide.topic, { role: 'admin' }, () => {});
+			expect(topic.guides, topic.topic.path).toContain(guide);
 		}
 	});
 
-	it('keeps editorial links to help pages and steps valid across guide packages', () => {
+	it('keeps editorial links to canonical help topics, guides and steps valid', () => {
 		for (const article of helpArticles) {
 			for (const section of article.sections) {
 				for (const match of section.html.matchAll(/href="(\/help[^"?]*)"/g)) {
 					const [path, fragment] = match[1]!.split('#');
 					if (path === '/help') continue;
-					const target = getHelpArticle(path!, { role: 'admin' });
-					expect(target, `${article.path} links to ${match[1]}`).toBeDefined();
+					const topic = getHelpArticle(
+						path!,
+						article.audience === 'admin' ? { role: 'admin' } : null
+					);
+					expect(topic?.level, `${article.path} links to ${match[1]}`).toBe('overview');
 					if (fragment) {
+						const targets = helpArticles.filter(({ topic: id }) => id === topic!.id);
 						expect(
-							target!.sections.some(
-								(entry) => entry.id === fragment || entry.html.includes(`id="${fragment}"`)
+							targets.some(
+								(target) =>
+									helpAnchor(target) === fragment ||
+									target.sections.some(({ id }) => helpAnchor(target, id) === fragment)
 							),
 							`${article.path} links to ${match[1]}`
 						).toBe(true);
@@ -157,6 +162,21 @@ describe('help catalog and routes', () => {
 				}
 			}
 		}
+	});
+
+	it('places each finished episode in at least one public help topic or guide', () => {
+		const episodes = new Set(
+			helpArticles
+				.filter(({ audience }) => audience === 'user')
+				.flatMap(({ episode, sections }) => [
+					episode,
+					...sections.map((section) => section.episode)
+				])
+				.filter((episode) => episode != null)
+		);
+		expect(Array.from(episodes).sort((a, b) => a - b)).toEqual(
+			Array.from({ length: 15 }, (_, i) => i + 1)
+		);
 	});
 
 	it('references actual WebP screenshots with useful alternatives and dimensions', () => {

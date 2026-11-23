@@ -1,4 +1,4 @@
-import { getHelpArticles, getHelpGuides, getHelpTopics } from '$lib/help/catalog';
+import { getHelpArticles, getHelpTopics } from '$lib/help/catalog';
 import { helpQuery, searchHelp } from '$lib/help/search';
 import { setHelpResponseHeaders } from '$lib/server/help/access';
 import type { PageServerLoad } from './$types';
@@ -15,8 +15,7 @@ export const load: PageServerLoad = ({ url, locals, setHeaders }) => {
 			title,
 			description,
 			icon,
-			audience,
-			guideCount: getHelpGuides(id, locals.user).length
+			audience
 		}))
 	};
 };

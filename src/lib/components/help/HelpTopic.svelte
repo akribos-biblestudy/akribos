@@ -1,161 +1,180 @@
 <script lang="ts">
+	import { afterNavigate, goto } from '$app/navigation';
 	import Icon from '$lib/components/Icon.svelte';
+	import TutorialVideo from '$lib/components/TutorialVideo.svelte';
 	import HelpSearch from './HelpSearch.svelte';
 	import HelpScreenshot from './HelpScreenshot.svelte';
-	import type { HelpArticle, HelpAudience } from '$lib/help/types';
-	type Topic = { id: string; path: string; title: string; audience: HelpAudience };
-	type Guide = Pick<HelpArticle, 'id' | 'path' | 'title' | 'description' | 'icon'>;
+	import { helpAnchor, helpHref } from '$lib/help/links';
+	import type { HelpArticle, HelpSection } from '$lib/help/types';
+
 	let {
-		article,
-		headings,
+		topic,
+		guides,
 		topics,
-		guides
+		legacyGuideId
 	}: {
-		article: HelpArticle;
-		headings: { id: string; title: string }[];
-		topics: Topic[];
-		guides: Guide[];
+		topic: HelpArticle;
+		guides: HelpArticle[];
+		topics: Pick<HelpArticle, 'id' | 'path' | 'title' | 'audience'>[];
+		legacyGuideId: string | null;
 	} = $props();
-	const topic = $derived(topics.find((item) => item.id === article.topic));
-	const relatedGuides = $derived(guides.filter((guide) => guide.id !== article.id));
+
+	const legacyGuide = $derived(guides.find(({ id }) => id === legacyGuideId));
+	const legacyAnchors = $derived(new Set(legacyGuide?.sections.map(({ id }) => id)));
+	const hasContents = $derived(guides.length > 0 || topic.sections.length > 1);
+
+	afterNavigate(({ to }) => {
+		if (!legacyGuide) return;
+		const section = legacyGuide.sections.find(({ id }) => to?.url.hash === `#${id}`);
+		void goto(helpHref(legacyGuide, section?.id), { replaceState: true });
+	});
 </script>
 
 <svelte:head>
-	<meta name="description" content={article.description} />
+	<title>{topic.title} | Akribos-Hilfe</title>
+	<meta name="description" content={topic.description} />
+	<link rel="canonical" href={topic.path} />
 </svelte:head>
 
-{#snippet topicLink(item: Topic)}
-	<div class:current-topic={article.topic === item.id}>
-		<a href={item.path} aria-current={article.id === item.id ? 'page' : undefined}>{item.title}</a>
-		{#if article.topic === item.id && guides.length}
-			<ul class="topic-guide-links">
-				{#each guides as guide (guide.id)}
-					<li>
-						<a href={guide.path} aria-current={article.id === guide.id ? 'page' : undefined}
-							>{guide.title}</a
-						>
-					</li>
-				{/each}
-			</ul>
+{#snippet contentsLinks()}
+	{#each guides as guide (guide.id)}
+		{#if guides.length === 1}
+			{#each guide.sections as section (section.id)}
+				{#if section.title}<a href={`#${helpAnchor(guide, section.id)}`}>{section.title}</a>{/if}
+			{/each}
+		{:else}
+			<a href={`#${helpAnchor(guide)}`}>{guide.title}</a>
 		{/if}
-	</div>
+	{/each}
+	{#each topic.sections as section (section.id)}
+		{#if section.title}<a href={`#${section.id}`}>{section.title}</a>{/if}
+	{/each}
+{/snippet}
+
+{#snippet aliasesFor(anchor: string)}
+	{#each Object.entries(topic.anchors ?? {}) as [from, to] (from)}
+		{#if to === anchor && !legacyAnchors.has(from)}<span
+				id={from}
+				class="anchor-alias"
+				aria-hidden="true"
+			></span>{/if}
+	{/each}
+{/snippet}
+
+{#snippet sectionBody(article: HelpArticle, section: HelpSection)}
+	{@const inGuide = article.level === 'guide'}
+	{@const anchor = helpAnchor(article, section.id)}
+	{@const headingId = `${anchor}-heading`}
+	<section
+		id={!inGuide && legacyAnchors.has(anchor) ? undefined : anchor}
+		class="article-section"
+		aria-labelledby={section.title ? headingId : undefined}
+	>
+		{@render aliasesFor(anchor)}
+		{#if inGuide && article.id === legacyGuideId}<span
+				id={section.id}
+				class="anchor-alias"
+				aria-hidden="true"
+			></span>{/if}
+		{#if section.title}<svelte:element this={inGuide ? 'h3' : 'h2'} id={headingId}
+				>{section.title}</svelte:element
+			>{/if}
+		{#if section.episode}<div class="help-video">
+				<TutorialVideo episode={section.episode} />
+			</div>{/if}
+		<!-- Editorial HTML is authored only in the repository help catalog. -->
+		<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+		<div class="article-prose">{@html section.html}</div>
+		{#if section.screenshot}<HelpScreenshot {...section.screenshot} />{/if}
+	</section>
 {/snippet}
 
 <main class="help-article-page">
 	<div class="help-breadcrumb">
 		<nav aria-label="Brotkrumennavigation">
-			<a href="/help">Handbuch</a><Icon
-				name="chevron-right"
-				class="size-3.5"
-			/>{#if topic && topic.id !== article.id}<a href={topic.path}>{topic.title}</a><Icon
-					name="chevron-right"
-					class="size-3.5"
-				/>{/if}<span aria-current="page">{article.title}</span>
+			<a href="/help">Hilfe</a><Icon name="chevron-right" class="size-3.5" /><span
+				aria-current="page">{topic.title}</span
+			>
 		</nav>
-		<a class="back-reader" href="/">Zur Bibel <Icon name="arrow-right" class="size-4" /></a>
+		<a class="back-reader" href="/Joh1"><Icon name="book-open" class="size-4" /> Bibel lesen</a>
 	</div>
 	<div class="article-layout">
 		<aside class="topic-navigation">
 			<div class="sticky-navigation">
 				<HelpSearch compact />
 				<nav aria-label="Hilfethemen">
-					<p class="nav-heading">Nutzerhilfe</p>
-					{#each topics.filter((item) => item.audience === 'user') as item (item.id)}{@render topicLink(
-							item
-						)}{/each}
+					<p class="nav-heading">Themen</p>
+					{#each topics.filter((item) => item.audience === 'user') as item (item.id)}
+						<a href={item.path} aria-current={topic.id === item.id ? 'page' : undefined}
+							>{item.title}</a
+						>
+					{/each}
 					<p class="nav-heading specialist-heading">Weitere Bereiche</p>
-					{#each topics.filter((item) => item.audience !== 'user') as item (item.id)}{@render topicLink(
-							item
-						)}{/each}
+					{#each topics.filter((item) => item.audience !== 'user') as item (item.id)}
+						<a href={item.path} aria-current={topic.id === item.id ? 'page' : undefined}
+							>{item.title}</a
+						>
+					{/each}
 				</nav>
 			</div>
 		</aside>
 		<article class="article-content">
 			<div class="mobile-search"><HelpSearch /></div>
 			<header class="article-header">
-				<p class="eyebrow">
-					{article.audience === 'api'
-						? 'API & Integrationen'
-						: article.audience === 'admin'
-							? 'Administration'
-							: 'Nutzerhilfe'} · {article.level === 'guide'
-						? 'Schritt-für-Schritt-Anleitung'
-						: 'Überblick'}
-				</p>
-				<h1>{article.title}</h1>
-				<p class="article-lead">{article.description}</p>
-				{#if article.prerequisite}<p class="prerequisite">
-						<Icon name="info" class="size-5" /><span>{article.prerequisite}</span>
+				<h1>{topic.title}</h1>
+				<p class="article-lead">{topic.description}</p>
+				{#if topic.prerequisite}<p class="prerequisite">
+						<Icon name="info" class="size-5" /><span>{topic.prerequisite}</span>
 					</p>{/if}
+				{#if topic.episode}<div class="help-video">
+						<TutorialVideo episode={topic.episode} />
+					</div>{/if}
 			</header>
-			{#if article.level === 'overview' && guides.length}
-				<section id="anleitungen" class="topic-guides" aria-labelledby="guides-heading">
-					<h2 id="guides-heading">Anleitungen zu diesem Thema</h2>
-					<nav aria-label="Anleitungen zu diesem Thema" class="guide-cards">
-						{#each guides as guide (guide.id)}
-							<a class="guide-card" href={guide.path}>
-								<Icon name={guide.icon} class="size-5" />
-								<span
-									><strong>{guide.title}</strong><span class="guide-description"
-										>{guide.description}</span
-									></span
-								>
-								<Icon name="arrow-right" class="size-4" />
-							</a>
-						{/each}
-					</nav>
-				</section>
+			{#if hasContents}
+				<details class="mobile-contents">
+					<summary>Auf dieser Seite</summary>
+					<nav aria-label="Auf dieser Seite">{@render contentsLinks()}</nav>
+				</details>
 			{/if}
-			<details class="mobile-contents">
-				<summary>In dieser Anleitung</summary>
-				<nav aria-label="Abschnitte dieser Anleitung">
-					{#each headings as heading (heading.id)}<a href={`#${heading.id}`}>{heading.title}</a
-						>{/each}
-				</nav>
-			</details>
-			{#each article.sections as section (section.id)}
-				<section
-					id={section.id}
-					class="article-section"
-					aria-labelledby={section.title ? `${section.id}-heading` : undefined}
-				>
-					{#if section.title}<h2 id={`${section.id}-heading`}>{section.title}</h2>{/if}
-					<!-- Editorial HTML is authored only in the repository help catalog; no request or database content. -->
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					<div class="article-prose">{@html section.html}</div>
-					{#if section.screenshot}<HelpScreenshot {...section.screenshot} />{/if}
+			{#if guides.length}<span id="anleitungen" class="anchor-alias" aria-hidden="true"></span>{/if}
+			{#each guides as guide (guide.id)}
+				{@const anchor = helpAnchor(guide)}
+				<section id={anchor} class="guide" aria-labelledby={`${anchor}-heading`}>
+					{@render aliasesFor(anchor)}
+					<header>
+						<h2 id={`${anchor}-heading`}>{guide.title}</h2>
+						<p class="guide-intro">{guide.description}</p>
+						{#if guide.episode}<div class="help-video">
+								<TutorialVideo episode={guide.episode} />
+							</div>{/if}
+						{#if guide.prerequisite}<p class="prerequisite">
+								<Icon name="info" class="size-5" /><span>{guide.prerequisite}</span>
+							</p>{/if}
+					</header>
+					{#each guide.sections as section (section.id)}{@render sectionBody(guide, section)}{/each}
 				</section>
 			{/each}
+			{#each topic.sections as section (section.id)}{@render sectionBody(topic, section)}{/each}
 			<footer class="article-footer">
-				<p>Weiter im Handbuch</p>
-				<div>
-					<a href="/help"><Icon name="chevron-left" class="size-4" />Alle Themen</a>
-					{#if topic && article.level === 'guide'}<a href={topic.path}
-							>Zum Thema: {topic.title}<Icon name="arrow-right" class="size-4" /></a
-						>{/if}
-				</div>
-				{#if article.level === 'guide' && relatedGuides.length}
-					<nav class="related-guides" aria-label="Weitere Anleitungen zu diesem Thema">
-						{#each relatedGuides as guide (guide.id)}<a href={guide.path}
-								>{guide.title}<Icon name="arrow-right" class="size-4" /></a
-							>{/each}
-					</nav>
-				{/if}
+				<a href="/help"><Icon name="chevron-left" class="size-4" />Alle Themen</a>
 			</footer>
 			<details class="mobile-topics">
 				<summary>Weitere Hilfethemen</summary>
 				<nav aria-label="Weitere Hilfethemen">
-					{#each topics as item (item.id)}<a href={item.path}>{item.title}</a>{/each}
+					{#each topics.filter((item) => item.id !== topic.id) as item (item.id)}<a href={item.path}
+							>{item.title}</a
+						>{/each}
 				</nav>
 			</details>
 		</article>
-		<aside class="section-navigation">
-			<nav aria-label="Auf dieser Seite">
-				<p class="nav-heading">Auf dieser Seite</p>
-				{#each headings as heading (heading.id)}<a href={`#${heading.id}`}>{heading.title}</a
-					>{/each}
-			</nav>
-		</aside>
+		{#if hasContents}
+			<aside class="section-navigation">
+				<nav aria-label="Auf dieser Seite">
+					<p class="nav-heading">Auf dieser Seite</p>
+					{@render contentsLinks()}
+				</nav>
+			</aside>
+		{/if}
 	</div>
 </main>
 
@@ -241,32 +260,10 @@
 		background: color-mix(in oklab, var(--color-accent-500) 9%, transparent);
 		font-weight: 650;
 	}
-	.topic-navigation .current-topic > a {
-		font-weight: 650;
-	}
-	.topic-guide-links {
-		margin: 0.25rem 0 0.8rem 0.1rem;
-		padding-left: 0.7rem;
-		border-left: 1px solid var(--line);
-		list-style: none;
-	}
-	.topic-navigation .topic-guide-links a {
-		margin-left: 0;
-		padding: 0.45rem 0.55rem;
-		font-size: 0.75rem;
-	}
 	.article-content {
 		min-width: 0;
 		max-width: 54rem;
 		margin-inline: auto;
-	}
-	.eyebrow {
-		margin: 0 0 1rem;
-		color: var(--color-accent-700);
-		font-size: 0.7rem;
-		font-weight: 700;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
 	}
 	h1 {
 		margin: 0;
@@ -304,45 +301,6 @@
 		margin-top: 2.75rem;
 		scroll-margin-top: 6rem;
 	}
-	.topic-guides {
-		margin-top: 2.5rem;
-		scroll-margin-top: 6rem;
-	}
-	.guide-cards {
-		display: grid;
-		gap: 0.75rem;
-	}
-	.guide-card {
-		display: grid;
-		grid-template-columns: auto minmax(0, 1fr) auto;
-		align-items: start;
-		gap: 0.85rem;
-		padding: 1.15rem;
-		border: 1px solid var(--line);
-		border-radius: 0.6rem;
-		background: var(--surface-raised);
-		color: var(--color-accent-700);
-	}
-	.guide-card:hover {
-		border-color: var(--color-accent-500);
-		background: color-mix(in oklab, var(--color-accent-500) 5%, var(--surface));
-	}
-	.guide-card :global(svg) {
-		margin-top: 0.2rem;
-	}
-	.guide-card strong {
-		display: block;
-		font-size: 0.95rem;
-		font-weight: 650;
-		line-height: 1.5;
-	}
-	.guide-description {
-		display: block;
-		margin-top: 0.35rem;
-		font-size: 0.825rem;
-		line-height: 1.7;
-		color: var(--color-stone-600);
-	}
 	.article-section + .article-section {
 		border-top: 1px solid var(--line);
 		padding-top: 2.5rem;
@@ -354,8 +312,48 @@
 		line-height: 1.35;
 		letter-spacing: -0.025em;
 	}
+	.guide,
+	.anchor-alias {
+		scroll-margin-top: 6rem;
+	}
+	.guide {
+		border-top: 1px solid var(--line);
+		margin-top: 3rem;
+		padding-top: 2rem;
+	}
+	.guide-intro {
+		margin: -0.5rem 0 0;
+		color: var(--color-stone-600);
+		line-height: 1.65;
+	}
+	:global(.dark) .guide-intro {
+		color: var(--color-stone-400);
+	}
+	h3 {
+		margin: 0 0 1rem;
+		font-size: 1.16rem;
+		font-weight: 650;
+		line-height: 1.4;
+	}
+	.help-video {
+		max-width: 46rem;
+		margin: 1.2rem 0 0;
+	}
+	.article-section .help-video {
+		margin-bottom: 1.2rem;
+	}
+	.anchor-alias {
+		display: block;
+	}
+	:target > h2,
+	:target > h3 {
+		text-decoration: underline;
+		text-decoration-thickness: 2px;
+		text-decoration-color: var(--color-accent-500);
+		text-underline-offset: 0.23em;
+	}
 	.article-prose {
-		font-size: 0.975rem;
+		font-size: 1rem;
 		line-height: 1.85;
 	}
 	.article-prose :global(p) {
@@ -366,7 +364,8 @@
 		text-decoration: underline;
 		text-underline-offset: 3px;
 	}
-	.article-prose :global(h3) {
+	.article-prose :global(h3),
+	.article-prose :global(h4) {
 		margin: 2rem 0 0.7rem;
 		font-size: 1.125rem;
 		font-weight: 650;
@@ -571,34 +570,12 @@
 		padding-top: 1.5rem;
 		border-top: 1px solid var(--line);
 	}
-	.article-footer p {
-		margin-bottom: 0.8rem;
-		font-size: 0.75rem;
-		color: var(--color-stone-500);
-	}
-	.article-footer > div {
-		display: flex;
-		justify-content: space-between;
-		flex-wrap: wrap;
-		gap: 1rem;
-	}
 	.article-footer a {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.4rem;
 		font-size: 0.8rem;
 		color: var(--color-accent-700);
-	}
-	.related-guides {
-		display: grid;
-		gap: 0.8rem;
-		margin-top: 1.3rem;
-		padding-top: 1.3rem;
-		border-top: 1px solid var(--line);
-	}
-	.related-guides a {
-		justify-content: space-between;
-		line-height: 1.6;
 	}
 	.mobile-search,
 	.mobile-contents,
@@ -609,18 +586,16 @@
 		color: var(--color-stone-200);
 	}
 	:global(.dark) .article-lead,
-	:global(.dark) .guide-description,
 	:global(.dark) .topic-navigation nav a,
 	:global(.dark) .section-navigation a,
 	:global(.dark) .help-breadcrumb nav span {
 		color: var(--color-stone-400);
 	}
-	:global(.dark) .eyebrow,
 	:global(.dark) .help-breadcrumb a,
 	:global(.dark) .article-prose :global(a),
 	:global(.dark) .article-prose :global(li::marker),
 	:global(.dark) .article-footer a,
-	:global(.dark) .guide-card,
+	:global(.dark) .mobile-contents a,
 	:global(.dark) .topic-navigation a[aria-current] {
 		color: var(--color-accent-300);
 	}
@@ -707,9 +682,6 @@
 		.article-prose :global(.definition-list > div) {
 			grid-template-columns: 1fr;
 			gap: 0.35rem;
-		}
-		.article-prose {
-			font-size: 0.925rem;
 		}
 		h2 {
 			font-size: 1.3rem;

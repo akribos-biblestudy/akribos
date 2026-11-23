@@ -2,6 +2,7 @@ import type { HelpArticle } from '../types';
 
 export const workspaceArticle: HelpArticle = {
 	id: 'arbeitsbereich-einrichten',
+	episode: 6,
 	topic: 'reader',
 	path: '/help/reader/arbeitsbereich-einrichten',
 	title: 'Einen Arbeitsbereich für dein Bibelstudium einrichten',
@@ -44,7 +45,7 @@ export const workspaceArticle: HelpArticle = {
 		{
 			id: 'voraussetzungen',
 			title: 'Bevor du beginnst',
-			html: `<ul><li>Öffne <a href="/Joh1">Johannes 1 im Reader</a>. Ein Klick auf das Akribos-Logo führt ebenfalls zurück zum Bibeltext.</li><li><a href="/login">Melde dich an</a>, wenn du die Ansicht unter einem eigenen Namen speichern möchtest.</li><li>Für das Beispiel eignen sich eine deutsche Bibel, ein Kommentar zum Neuen Testament und ein griechisches Lexikon. Die Auswahl richtet sich nach den Werken, die für dein Konto verfügbar sind.</li></ul>
+			html: `<ul><li>Öffne <a href="/Joh1">Johannes 1 im Reader</a>.</li><li><a href="/login">Melde dich an</a>, wenn du die Ansicht unter einem eigenen Namen speichern möchtest.</li><li>Für das Beispiel eignen sich eine deutsche Bibel, ein Kommentar zum Neuen Testament und ein griechisches Lexikon. Die Auswahl richtet sich nach den Werken, die für dein Konto verfügbar sind.</li></ul>
 			<p>Am Computer kannst du mehrere Werke nebeneinander anzeigen. Auf dem Smartphone führt dieselbe Anleitung zu einer gemeinsamen Tab-Leiste; dort liest du jeweils ein Werk.</p>`
 		},
 		{
@@ -112,9 +113,9 @@ export const workspaceArticle: HelpArticle = {
 		{
 			id: 'wechseln',
 			title: 'Arbeitsbereiche wechseln und verwalten',
-			html: `<h3>Zu einem anderen Arbeitsbereich wechseln</h3><ol><li>Öffne <strong>Arbeitsbereiche</strong>.</li><li>Wähle den gewünschten Namen, etwa <strong>Standard</strong>.</li><li>Die zugehörigen Werke, Stellen und Suchen werden geöffnet. Der aktive Eintrag ist im Menü hervorgehoben und mit einem Häkchen markiert.</li></ol>
-			<h3>Einen Arbeitsbereich umbenennen</h3><ol><li>Öffne im Arbeitsbereich-Menü das <strong>Stiftsymbol</strong> neben dem gewünschten Eintrag.</li><li>Ändere den Namen.</li><li>Bestätige mit <strong>Speichern</strong>.</li></ol>
-			<h3>Einen Arbeitsbereich löschen</h3><ol><li>Öffne in diesem Browser-Tab zuerst einen anderen Arbeitsbereich. Der hier aktive Eintrag kann nicht gelöscht werden.</li><li>Wähle das Stiftsymbol neben dem nicht mehr benötigten Eintrag.</li><li>Wähle <strong>Löschen …</strong> und bestätige den angezeigten Namen mit <strong>Löschen</strong>.</li></ol><p>Du entfernst damit die gespeicherte Ansicht aus deinem Konto, auch für deine anderen Geräte. Hat ein anderes Gerät diesen Arbeitsbereich noch geöffnet, erhält es beim nächsten Zugriff eine vorhandene Ersatzansicht. Deine Notizen, Ausarbeitungen und Stellensammlungen bleiben in deinem Konto erhalten.</p>`,
+			html: `<h4>Zu einem anderen Arbeitsbereich wechseln</h4><ol><li>Öffne <strong>Arbeitsbereiche</strong>.</li><li>Wähle den gewünschten Namen, etwa <strong>Standard</strong>.</li><li>Die zugehörigen Werke, Stellen und Suchen werden geöffnet. Der aktive Eintrag ist im Menü hervorgehoben und mit einem Häkchen markiert.</li></ol>
+			<h4>Einen Arbeitsbereich umbenennen</h4><ol><li>Öffne im Arbeitsbereich-Menü das <strong>Stiftsymbol</strong> neben dem gewünschten Eintrag.</li><li>Ändere den Namen.</li><li>Bestätige mit <strong>Speichern</strong>.</li></ol>
+			<h4>Einen Arbeitsbereich löschen</h4><ol><li>Öffne in diesem Browser-Tab zuerst einen anderen Arbeitsbereich. Der hier aktive Eintrag kann nicht gelöscht werden.</li><li>Wähle das Stiftsymbol neben dem nicht mehr benötigten Eintrag.</li><li>Wähle <strong>Löschen …</strong> und bestätige den angezeigten Namen mit <strong>Löschen</strong>.</li></ol><p>Du entfernst damit die gespeicherte Ansicht aus deinem Konto, auch für deine anderen Geräte. Hat ein anderes Gerät diesen Arbeitsbereich noch geöffnet, erhält es beim nächsten Zugriff eine vorhandene Ersatzansicht. Deine Notizen, Ausarbeitungen und Stellensammlungen bleiben in deinem Konto erhalten.</p>`,
 			screenshot: {
 				src: '/help/live/workspace-menu.webp',
 				width: 304,
