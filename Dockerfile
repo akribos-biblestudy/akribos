@@ -1,15 +1,23 @@
 # syntax=docker/dockerfile:1
 
-# ---- pinned local PDF compiler -----------------------------------------------
-# The installer selects the official x86_64/arm64 artifact for this stage and checks its SHA256.
-# Keep download tools out of the runtime image. No external renderer is called during export.
-FROM node:24-bookworm-slim AS pdf-tools
+# Keep build-time download tools out of the runtime image.
+FROM node:24-bookworm-slim AS download-tools
 WORKDIR /tools
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl xz-utils \
     && rm -rf /var/lib/apt/lists/*
+
+# ---- pinned local PDF compiler -----------------------------------------------
+# The installer selects the official x86_64/arm64 artifact for this stage and checks its SHA256.
+# No external renderer is called during export.
+FROM download-tools AS pdf-tools
 COPY scripts/install-typst.sh ./install-typst.sh
 RUN sh ./install-typst.sh --prefix /opt/typst
+
+# ---- pinned tutorial media --------------------------------------------------
+FROM download-tools AS tutorial-media
+COPY scripts/install-tutorial-videos.sh ./install-tutorial-videos.sh
+RUN sh ./install-tutorial-videos.sh /opt/tutorial-videos
 
 # ---- build ------------------------------------------------------------------
 FROM node:24-bookworm-slim AS build
@@ -25,6 +33,7 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile
 
+COPY --from=tutorial-media /opt/tutorial-videos ./static/videos
 COPY . .
 RUN pnpm run build
 

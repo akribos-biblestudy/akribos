@@ -103,6 +103,8 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends postgresql-client-17
+      - name: Install pinned tutorial videos
+        run: sh scripts/install-tutorial-videos.sh
       # Creates its own database, migrates and seeds the fixture, then runs against a production build.
       - run: pnpm run test:e2e
       - uses: actions/upload-artifact@v4
