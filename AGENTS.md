@@ -93,9 +93,10 @@ Die sortierbaren Tabellenfilter gelten auch für den Excel-Export. Erkannte Bibe
 Strong-Nummern öffnen das zugehörige Werk über die regulären Reader-Zugriffsprüfungen.
 
 Die Strong-Prüfberechtigung ist eine zusätzliche Einzelberechtigung und gewährt weder Administration
-noch Zugang zu privaten Werken. Prüfungen gelten für ein konkretes Wortvorkommen und werden erst nach
-administrativer Freigabe sichtbar. Ein Fingerabdruck des Verses verhindert, dass Entscheidungen nach
-einem veränderten Reimport irrtümlich übernommen werden. Fehlende Warnungen sind keine Bestätigung.
+noch Zugang zu privaten Werken. Prüfungen gelten für ein konkretes Wortvorkommen. Im Lexikon-Tab
+verschwindet die Warnung bei einer freigegebenen Bestätigung. Freigegebene Fehler bleiben als
+Warnung sichtbar. Ein Fingerabdruck des Verses bindet Entscheidungen an die geprüfte Versfassung.
+Fehlende Warnungen sind keine Bestätigung.
 Die Prüfungs- und Freigabeansicht markieren das konkrete getaggte Wort im vollständigen Vers und
 laden ein lesbares Lexikon erst nach Auswahl. Die Prüfungsübersicht paginiert offene Wortzuordnungen
 nach Fingerprint-Abgleich, nicht Rohverse; ausstehende Entscheidungen anderer bleiben anonym. Auch

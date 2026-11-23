@@ -127,6 +127,35 @@ it('labels an ambiguous legacy link without pretending it identifies the selecte
 	);
 });
 
+it.each([
+	{ decision: 'confirmed', note: null },
+	{
+		decision: 'incorrect',
+		note: 'Die Strong-Zuordnung von „und“ zu H430 wurde als fehlerhaft markiert.'
+	}
+] as const)(
+	'shows a note only for an incorrect assignment after approval ($decision)',
+	async ({ decision, note }) => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				const payload = await response('unconfirmed').json();
+				return Response.json({
+					...payload,
+					reviewCapability: true,
+					reviewState: { decision, approved: true }
+				});
+			})
+		);
+		const screen = await render(ReaderLexiconTab, props);
+		await expect
+			.element(screen.getByRole('heading', { name: 'Grammatik', exact: true }))
+			.toBeVisible();
+		if (note) await expect.element(screen.getByRole('note')).toHaveTextContent(note);
+		else await expect.element(screen.getByRole('note')).not.toBeInTheDocument();
+	}
+);
+
 it('does not let a late response restore another clicked word’s warning', async () => {
 	let completeFirst!: (value: Response) => void;
 	const fetchMock = vi

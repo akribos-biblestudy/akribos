@@ -242,12 +242,10 @@
 					</p>
 				{/if}
 			</header>
-			{#if study?.assignmentStatus && studyReference && studyWord}
+			{#if study?.assignmentStatus && studyReference && studyWord && !(study.reviewState?.approved && study.reviewState.decision === 'confirmed')}
 				<div class="assignment-note" role="note">
 					{#if study.reviewState?.approved}
-						{#if study.reviewState.decision === 'confirmed'}Die Strong-Zuordnung von „{studyWord}“
-							zu {entry.strong} wurde fachlich bestätigt.
-						{:else}Die Strong-Zuordnung von „{studyWord}“ zu {entry.strong} wurde als fehlerhaft markiert.{/if}
+						Die Strong-Zuordnung von „{studyWord}“ zu {entry.strong} wurde als fehlerhaft markiert.
 					{:else if study.assignmentStatus === 'unconfirmed'}
 						Die Strong-Zuordnung von „{studyWord}“ zu {entry.strong} in {formatReference(
 							studyReference
