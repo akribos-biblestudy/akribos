@@ -86,7 +86,6 @@ eingebunden und besitzen keine öffentliche Assetkopie. Das API-Schlüsselformul
 
 | Datei                     | Maße      | Tatsächlich gezeigter Zustand                                                                                            |
 | ------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `admin-analytics.webp`    | 672 × 674 | Detail: Umami-Formular mit fiktiven Adressen und Angaben vor dem Speichern; keine Aktivierung.                           |
 | `admin-backup.webp`       | 862 × 489 | Detail: S3-Formular mit fiktiven Angaben, Zeitplan und Aufbewahrung; kein Secret eingegeben, nichts gespeichert.         |
 | `admin-import.webp`       | 645 × 267 | Detail: Ressourcenimport mit Dateiauswahl und Formaterkennung; kein Ressourcenimport ausgeführt.                         |
 | `admin-resource.webp`     | 618 × 401 | Detail: Ressourcen-Metadaten mit Beschriftungen, Rechtehinweis und Sichtbarkeit; keine Änderung gespeichert.             |
@@ -144,7 +143,7 @@ aus den tatsächlichen Dateien mit Pillow gelesen.
    Geheimnisse sind kein Bildmaterial.
 5. Ressourcen- und Nutzeraufnahmen auf benötigte Formulare oder Suchleisten begrenzen, ohne fremde
    Kontaktdaten abzubilden.
-6. Analyse- und S3-Einstellungen mit eindeutig fiktiven Werten im echten Formular füllen, vor dem
+6. S3-Einstellungen mit eindeutig fiktiven Werten im echten Formular füllen, vor dem
    Speichern aufnehmen und anschließend ohne Speichern verlassen.
 7. Den Restore-Bereich ohne Datei und ohne Ausführung zeigen. Ein Bild der Eingabemaske belegt
    keinen erfolgreich ausgeführten Wiederherstellungsvorgang.
@@ -162,7 +161,7 @@ Die rollenbezogene Prüfung der geschützten Administrationshilfe läuft getrenn
 Verwaltungsformulare. Die Bilder belegen deren sichtbaren Zustand, nicht die Zugriffssperre der neu
 erstellten Hilfeseiten. Die endgültigen Zugangstestergebnisse werden im Workshop-Protokoll ergänzt.
 
-Die abschließende Inventur umfasst 35 öffentliche und sieben geschützte Live-Dateien. Dateibestand
+Die abschließende Inventur umfasst 35 öffentliche und sechs geschützte Live-Dateien. Dateibestand
 und tatsächliche Bildmaße wurden mit den Tabellen abgeglichen. Weitere Aufnahmen müssen mit ihrem
 Aufnahmezustand ergänzt werden. Finale Testergebnisse
 stehen im [Workshop-Protokoll](planning/help-about-workshop.md).

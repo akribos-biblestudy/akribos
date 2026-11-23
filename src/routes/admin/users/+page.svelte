@@ -1,7 +1,15 @@
 <script lang="ts">
 	let { data, form } = $props();
 
-	const dateFormat = new Intl.DateTimeFormat('de-DE', { dateStyle: 'short' });
+	const dateFormat = new Intl.DateTimeFormat('de-DE', {
+		dateStyle: 'short',
+		timeZone: 'Europe/Berlin'
+	});
+	const visitFormat = new Intl.DateTimeFormat('de-DE', {
+		dateStyle: 'short',
+		timeStyle: 'short',
+		timeZone: 'Europe/Berlin'
+	});
 	let query = $state('');
 	let filter = $state('all');
 	const visibleUsers = $derived.by(() => {
@@ -105,8 +113,9 @@
 				<th class="px-3 py-2">Rolle</th>
 				<th class="px-3 py-2">Strong prüfen</th>
 				<th class="px-3 py-2 text-right">Listen</th>
+				<th class="px-3 py-2 text-right">Notizen</th>
 				<th class="px-3 py-2">Registriert</th>
-				<th class="px-3 py-2">Zuletzt aktiv</th>
+				<th class="px-3 py-2">Zuletzt auf der Website aktiv</th>
 				<th class="px-3 py-2"></th>
 			</tr>
 		</thead>
@@ -147,9 +156,24 @@
 							</form>{/if}
 					</td>
 					<td class="px-3 py-2.5 text-right tabular-nums">{user.listCount}</td>
+					<td class="px-3 py-2.5 text-right tabular-nums">{user.noteCount}</td>
 					<td class="px-3 py-2.5 text-xs">{dateFormat.format(new Date(user.createdAt))}</td>
 					<td class="px-3 py-2.5 text-xs">
-						{user.lastLoginAt ? dateFormat.format(new Date(user.lastLoginAt)) : '—'}
+						{#if user.lastWebVisitAt}
+							<time class="whitespace-nowrap" datetime={new Date(user.lastWebVisitAt).toISOString()}
+								>{visitFormat.format(new Date(user.lastWebVisitAt))}</time
+							>
+						{:else}
+							<span class="text-stone-500 dark:text-stone-400">Noch nicht erfasst</span>
+						{/if}
+						{#if user.lastLoginAt}
+							<div class="mt-1 whitespace-nowrap text-stone-500 dark:text-stone-400">
+								Anmeldung
+								<time datetime={new Date(user.lastLoginAt).toISOString()}
+									>{dateFormat.format(new Date(user.lastLoginAt))}</time
+								>
+							</div>
+						{/if}
 					</td>
 					<td class="px-3 py-2.5">
 						<div class="flex gap-2">
@@ -183,7 +207,7 @@
 			{/each}
 			{#if visibleUsers.length === 0}
 				<tr
-					><td colspan="8" class="px-3 py-8 text-center text-sm text-stone-500"
+					><td colspan="9" class="px-3 py-8 text-center text-sm text-stone-500"
 						>Keine passenden Konten.</td
 					></tr
 				>

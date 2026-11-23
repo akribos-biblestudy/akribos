@@ -4,7 +4,7 @@ import { readableResourceCondition } from './resources.ts';
  */
 
 import { createHash, randomBytes } from 'node:crypto';
-import { and, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, lt, or, sql } from 'drizzle-orm';
 import { config } from '../config.ts';
 import type { Database } from '../db/client.ts';
 import {
@@ -75,6 +75,23 @@ export async function createUser(
 
 export async function recordLogin(db: Database, userId: string): Promise<void> {
 	await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, userId));
+}
+
+/** Record at most one authenticated website visit per account in each five-minute interval. */
+export async function recordWebVisit(db: Database, userId: string): Promise<void> {
+	await db
+		.update(users)
+		.set({ lastWebVisitAt: sql`statement_timestamp()` })
+		.where(
+			and(
+				eq(users.id, userId),
+				isNull(users.disabledAt),
+				or(
+					isNull(users.lastWebVisitAt),
+					lt(users.lastWebVisitAt, sql`statement_timestamp() - interval '5 minutes'`)
+				)
+			)
+		);
 }
 
 export async function updatePassword(
@@ -294,7 +311,7 @@ export async function markEmailVerified(db: Database, userId: string): Promise<v
 		.where(eq(users.id, userId));
 }
 
-/** Admin listing, with a count of each account's verse lists. */
+/** Admin listing with each account's owned verse lists and active notes. */
 export async function listUsers(db: Database): Promise<
 	{
 		id: string;
@@ -303,9 +320,11 @@ export async function listUsers(db: Database): Promise<
 		role: string;
 		createdAt: Date;
 		lastLoginAt: Date | null;
+		lastWebVisitAt: Date | null;
 		disabledAt: Date | null;
 		emailVerifiedAt: Date | null;
 		listCount: number;
+		noteCount: number;
 	}[]
 > {
 	const rows = await db.execute<{
@@ -315,15 +334,18 @@ export async function listUsers(db: Database): Promise<
 		role: string;
 		created_at: string;
 		last_login_at: string | null;
+		last_web_visit_at: string | null;
 		disabled_at: string | null;
 		email_verified_at: string | null;
 		list_count: number;
+		note_count: number;
 	}>(sql`
-		select u.id, u.email, u.display_name, u.role, u.created_at, u.last_login_at, u.disabled_at,
-		       u.email_verified_at, count(l.id)::int as list_count
+		select u.id, u.email, u.display_name, u.role, u.created_at, u.last_login_at,
+		       u.last_web_visit_at, u.disabled_at, u.email_verified_at,
+		       (select count(*)::int from verse_lists l where l.user_id = u.id) as list_count,
+		       (select count(*)::int from documents d
+		        where d.user_id = u.id and d.kind = 'note' and d.deleted_at is null) as note_count
 		from users u
-		left join verse_lists l on l.user_id = u.id
-		group by u.id
 		order by u.created_at desc
 	`);
 
@@ -334,9 +356,11 @@ export async function listUsers(db: Database): Promise<
 		role: row.role,
 		createdAt: new Date(row.created_at),
 		lastLoginAt: row.last_login_at ? new Date(row.last_login_at) : null,
+		lastWebVisitAt: row.last_web_visit_at ? new Date(row.last_web_visit_at) : null,
 		disabledAt: row.disabled_at ? new Date(row.disabled_at) : null,
 		emailVerifiedAt: row.email_verified_at ? new Date(row.email_verified_at) : null,
-		listCount: Number(row.list_count)
+		listCount: Number(row.list_count),
+		noteCount: Number(row.note_count)
 	}));
 }
 

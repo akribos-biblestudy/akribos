@@ -13,7 +13,6 @@
 		{ href: '/admin/strong-reviews', label: 'Strong-Prüfung', icon: 'check' },
 		{ href: '/admin/bible-downloads', label: 'Bibel-Downloads', icon: 'download' },
 		{ href: '/admin/users', label: 'Nutzer', icon: 'user' },
-		{ href: '/admin/analytics', label: 'Umami', icon: 'globe' },
 		{ href: '/admin/backup', label: 'Backup', icon: 'lock' }
 	] as const;
 

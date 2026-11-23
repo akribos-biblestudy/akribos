@@ -6,8 +6,7 @@ const calls = vi.hoisted(() => ({
 	db: vi.fn(),
 	resources: vi.fn(),
 	workspaces: vi.fn(),
-	context: vi.fn(),
-	analytics: vi.fn()
+	context: vi.fn()
 }));
 vi.mock('$lib/server/db', () => ({ getDb: calls.db }));
 vi.mock('$lib/server/repositories/resources', () => ({ listBibles: calls.resources }));
@@ -17,7 +16,6 @@ vi.mock('$lib/server/repositories/saved-reader-workspaces', () => ({
 vi.mock('$lib/server/reader-workspace-context', () => ({
 	resolveReaderWorkspaceContext: calls.context
 }));
-vi.mock('$lib/server/analytics/settings', () => ({ readAnalyticsSettings: calls.analytics }));
 
 describe('embedded editor root layout isolation', () => {
 	beforeEach(() => vi.clearAllMocks());
@@ -45,7 +43,6 @@ describe('embedded editor root layout isolation', () => {
 		expect(user?.readerColumns).toEqual(['BROWSER_ONLY']);
 		expect(result.savedWorkspaces).toEqual([]);
 		expect(result.activeSavedWorkspaceId).toBeNull();
-		expect(result.analytics.enabled).toBe(false);
 		expect(result.readerFontScale).toBe(125);
 		expect(cookieWrite).not.toHaveBeenCalled();
 		for (const call of Object.values(calls)) expect(call).not.toHaveBeenCalled();

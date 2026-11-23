@@ -197,7 +197,7 @@ test('administration help and images are restricted to administrators throughout
 		article.sections.flatMap(({ screenshot }) => (screenshot ? [screenshot] : []))
 	);
 	const assertRestricted = async () => {
-		for (const path of ['/help', '/help?q=Umami', '/help/api']) {
+		for (const path of ['/help', '/help?q=S3', '/help/api']) {
 			const response = await page.request.get(path);
 			expect(response.status()).toBe(200);
 			expect(response.headers()['cache-control']).toContain('private, no-store');
@@ -246,12 +246,15 @@ test('administration help and images are restricted to administrators throughout
 			expect(response.headers()['content-type']).toContain('image/webp');
 			expect(response.headers()['cache-control']).toContain('private, no-store');
 		}
-		await admin.goto('http://localhost:4173/help?q=Umami');
-		await expect(admin.locator('.search-result[href^="/help/administration"]')).not.toHaveCount(0);
-		await admin.locator('.search-result[href^="/help/administration"]').first().click();
-		await expect(admin.locator('#umami-einrichten img').first()).toBeVisible();
+		await admin.goto('http://localhost:4173/help?q=S3');
+		const backupGuide = admin.locator(
+			'.search-result[href^="/help/administration#backups-einrichten"]'
+		);
+		await expect(backupGuide).toBeVisible();
+		await backupGuide.click();
+		await expect(admin.locator('#backups-einrichten img').first()).toBeVisible();
 		const loaded = await admin
-			.locator('#umami-einrichten img')
+			.locator('#backups-einrichten img')
 			.first()
 			.evaluate(
 				(image) =>

@@ -23,6 +23,8 @@ import {
 	DocumentTableBackfillError
 } from '$lib/server/documents/table-backfill';
 import { backfillTskResourceKind } from '$lib/server/import/backfill-tsk-kind';
+import { recordWebVisit } from '$lib/server/repositories/users';
+import { isWebDocumentVisit } from '$lib/server/web-visits';
 
 /**
  * Runs once when the server starts.
@@ -121,7 +123,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// lookup's `await`) is unaffected.
 	if (recovered) return new Response(null, { status: 301, headers: { location: recovered } });
 
-	const session = await resolveSession(getDb(), event.cookies);
+	const db = getDb();
+	const session = await resolveSession(db, event.cookies);
 	event.locals.user = session?.user ?? null;
 	event.locals.sessionId = session?.sessionId ?? null;
 	const browserTabId = event.request.headers.get('x-reader-browser-tab');
@@ -152,6 +155,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const started = Date.now();
 	const response = await resolve(event);
 	const duration = Date.now() - started;
+	if (event.locals.user && isWebDocumentVisit(event, response)) {
+		try {
+			await recordWebVisit(db, event.locals.user.id);
+		} catch {
+			logger.warn('Failed to update the last website visit');
+		}
+	}
 
 	// The root layout contains the signed-in user's identity and reader preferences. A child route can
 	// legitimately make its anonymous representation publicly cacheable (reader chapters, published

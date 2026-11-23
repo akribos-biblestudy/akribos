@@ -34,8 +34,7 @@ export const helpArticles: HelpArticle[] = [
 		topic: 'administration',
 		path: '/help/administration',
 		title: 'Administration',
-		description:
-			'Werke importieren und freigeben, Konten betreuen sowie Analyse und Backups verwalten.',
+		description: 'Werke importieren und freigeben, Konten betreuen und Backups verwalten.',
 		icon: 'lock',
 		audience: 'admin',
 		level: 'overview',
@@ -51,7 +50,7 @@ export const helpArticles: HelpArticle[] = [
 			{
 				id: 'bereiche',
 				title: 'Bereiche der Administration',
-				html: `<p><strong>Ressourcen</strong> betreut die verfügbaren Werke und deren Freigaben; <strong>Importieren</strong> liest neue Bibeln und Nachschlagewerke ein. <strong>Nutzer</strong> verwaltet Rollen und Zugänge. <strong>Umami</strong> enthält Einstellungen zur freiwilligen Analyse. Unter <strong>Backup</strong> richtest du Sicherungen ein und stellst Daten bei Bedarf wieder her.</p><p>Für den persönlichen Import eigener Word- oder Markdown-Dokumente gehe zur <a href="/help/import-export">Nutzerhilfe für Import &amp; Export</a>.</p>`
+				html: `<p><strong>Ressourcen</strong> betreut die verfügbaren Werke und deren Freigaben; <strong>Importieren</strong> liest neue Bibeln und Nachschlagewerke ein. <strong>Nutzer</strong> verwaltet Rollen und Zugänge. Unter <strong>Backup</strong> richtest du Sicherungen ein und stellst Daten bei Bedarf wieder her.</p><p>Für den persönlichen Import eigener Word- oder Markdown-Dokumente gehe zur <a href="/help/import-export">Nutzerhilfe für Import &amp; Export</a>.</p>`
 			}
 		]
 	}
