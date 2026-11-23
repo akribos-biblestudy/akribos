@@ -352,7 +352,8 @@ gelesenen Hash erneut, damit parallele Formulare kein inzwischen gesetztes Passw
 Ausstehende E-Mail-Anmeldungen werden dabei ungültig. Anmeldeseiten sind `private, no-store` und
 `noindex`; Anmeldelinks werden in langsamen Request-Logs geschwärzt. Weiterleitungsziele bleiben
 lokale Pfade; ohne explizites Ziel führt jede Anmeldung über `/` zur Bibelansicht.
-Die globale Referrer-Regel bleibt `same-origin`, damit native POSTs funktionieren.
+Die dokumentweite Referrer-Policy darf nicht `no-referrer` sein. Browser-Formular-POSTs senden sonst
+`Origin: null` und werden von SvelteKits CSRF-Schutz abgewiesen.
 
 Die native App verlinkt fest auf `/datenschutz#konto-loeschen`. Erhalte diesen Anker als Einstieg
 zum Löschformular. Die Browser-Anmeldung für dieses Ziel akzeptiert bestehende Konten und kehrt
@@ -1486,10 +1487,15 @@ sortierte Bibel. Eine Ressourcenlöschung setzt die Präferenz per Fremdschlüss
 Einstellung ist unabhängig von den offenen Reader-Ressourcen und wird über die Session auf allen
 Geräten angewendet.
 
-## Referrer-Policy und Formulare
+## Benutzerstatistik
 
-Die dokumentweite Referrer-Policy darf nicht `no-referrer` sein. Native Formular-POSTs senden sonst
-`Origin: null` und werden von SvelteKits CSRF-Schutz abgewiesen.
+`/admin/users` zeigt die Anzahl eigener, nicht gelöschter Notizen aus `documents` mit `kind = note`
+und `users.last_web_visit_at`. Dieser Zeitpunkt erfasst erfolgreiche, angemeldete Websiteaufrufe
+und echte Browserinteraktionen. Browser und Datenbank begrenzen Aktualisierungen auf einmal
+pro fünf Minuten. Der POST enthält keine Seitenadresse oder Eingabedaten. Die Datenbank speichert
+pro Konto nur den neuesten Zeitpunkt und liefert ihn ausschließlich an die Benutzerverwaltung.
+App-API, eingebetteter Editor, Vorladen und Gastaufrufe zählen nicht. `last_login_at` bleibt ein
+eigener Anmeldezeitpunkt. Für ältere Konten bleibt die Websiteaktivität bis zur ersten Erfassung leer.
 
 ### Begrenzte Arbeit bei Kommentar- und Sammlungsabfragen
 

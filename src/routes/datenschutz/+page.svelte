@@ -59,6 +59,13 @@
 			Kommentare und Leseeinstellungen) bereitzustellen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b
 			DSGVO (Erfüllung des Nutzungsverhältnisses).
 		</p>
+		<p class="mt-3 text-stone-700 dark:text-stone-300">
+			Für die Benutzerverwaltung speichern wir bei angemeldeten Besuchen den Zeitpunkt der letzten
+			Aktivität auf der Website. Seitenaufrufe und Interaktionen können diesen Zeitpunkt im Abstand
+			von mindestens fünf Minuten aktualisieren. Dafür wird nur der neueste Zeitpunkt am Konto
+			gespeichert. Die Verwaltung sieht außerdem die Anzahl deiner aktiven Notizen. Bei einer
+			Kontolöschung entfällt auch diese Zuordnung.
+		</p>
 	</section>
 
 	<section class="mb-8">

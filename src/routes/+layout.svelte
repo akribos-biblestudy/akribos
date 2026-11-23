@@ -11,7 +11,13 @@
 	import readingFont from '$lib/assets/fonts/akribos-text-regular.woff2?url';
 	import { page } from '$app/state';
 	import { onMount, setContext } from 'svelte';
-	import { goto, replaceState, beforeNavigate, invalidateAll } from '$app/navigation';
+	import {
+		afterNavigate,
+		goto,
+		replaceState,
+		beforeNavigate,
+		invalidateAll
+	} from '$app/navigation';
 	import { createWorkspacePersistence, readWorkspacePersistence } from '$lib/reader/persistence';
 	import { INITIAL_READER_COLUMNS_COOKIE, initialReaderColumns } from '$lib/reader/initial-layout';
 	import {
@@ -30,6 +36,43 @@
 	let { children, data } = $props();
 	let browserWorkspaceError = $state('');
 	let resumeOwner: string | null | undefined;
+	let lastVisitSignal: { userId: string; at: number } | null = null;
+	const webVisitCooldown = 5 * 60_000;
+
+	async function reportWebVisit(): Promise<void> {
+		const userId = data.user?.id;
+		if (!userId || data.appEditor || page.status >= 400 || document.visibilityState !== 'visible')
+			return;
+
+		const at = performance.now();
+		if (lastVisitSignal?.userId === userId && at - lastVisitSignal.at < webVisitCooldown) return;
+		lastVisitSignal = { userId, at };
+		try {
+			await fetch('/api/account/web-visit', {
+				method: 'POST',
+				headers: { 'x-akribos-web-visit': '1' },
+				referrerPolicy: 'origin',
+				keepalive: true
+			});
+		} catch {
+			// A network failure must not interrupt reading.
+		}
+	}
+
+	afterNavigate(() => void reportWebVisit());
+	onMount(() => {
+		if (data.appEditor) return;
+		const listeners = new AbortController();
+		const options = { capture: true, passive: true, signal: listeners.signal };
+		const onInteraction = (event: Event) => {
+			if (event.isTrusted) void reportWebVisit();
+		};
+		window.addEventListener('pointerdown', onInteraction, options);
+		window.addEventListener('keydown', onInteraction, options);
+		window.addEventListener('wheel', onInteraction, options);
+		return () => listeners.abort();
+	});
+
 	$effect(() => {
 		if (data.appEditor) return;
 		const owner = data.user?.id ?? null;
