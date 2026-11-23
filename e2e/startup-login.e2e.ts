@@ -86,7 +86,15 @@ for (const javaScriptEnabled of [true, false]) {
 			await page.getByRole('button', { name: 'Weiter', exact: true }).click();
 			await page.getByLabel('Passwort', { exact: true }).fill('seed-reader-password');
 			await expect(page.locator('input[name="redirectTo"]').first()).toHaveValue('/');
-			await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+			const origin = new URL(page.url()).origin;
+			const [response] = await Promise.all([
+				page.waitForResponse(
+					(response) =>
+						response.request().method() === 'POST' && new URL(response.url()).pathname === '/login'
+				),
+				page.getByRole('button', { name: 'Anmelden', exact: true }).click()
+			]);
+			expect(await response.request().headerValue('origin')).toBe(origin);
 			// Existing accounts resume their saved passage rather than always resetting to John 1.
 			await expect(page).toHaveURL((url) => parseReference(url.pathname.slice(1)) !== null);
 			await expect(page.locator('.reader-tile').first()).toBeVisible();
@@ -95,3 +103,13 @@ for (const javaScriptEnabled of [true, false]) {
 		}
 	});
 }
+
+test('password sign-in rejects foreign and opaque origins', async ({ request }) => {
+	for (const origin of ['null', 'https://untrusted.example.test']) {
+		const response = await request.post('/login?/login', {
+			headers: { origin },
+			form: { email: '', password: '' }
+		});
+		expect(response.status(), origin).toBe(403);
+	}
+});

@@ -1,4 +1,3 @@
-import { readAnalyticsSettings } from '$lib/server/analytics/settings';
 import { getDb } from '$lib/server/db';
 import { listSavedReaderWorkspaces } from '$lib/server/repositories/saved-reader-workspaces';
 import { listBibles } from '$lib/server/repositories/resources';
@@ -28,15 +27,6 @@ export async function load({ cookies, locals, url }) {
 		return {
 			appEditor: true,
 			initializeReaderWorkspace: false,
-			analytics: {
-				enabled: false,
-				scriptUrl: '',
-				websiteId: '',
-				provider: '',
-				privacyUrl: '',
-				privacyDetails: '',
-				revision: ''
-			},
 			savedWorkspaces: [] as SavedWorkspaceSummary[],
 			activeSavedWorkspaceId: null,
 			activeSavedWorkspaceVersion: null,
@@ -55,6 +45,8 @@ export async function load({ cookies, locals, url }) {
 			tourGuestDone: true
 		};
 	}
+	if (cookies.get('analytics-consent') !== undefined)
+		cookies.delete('analytics-consent', { path: '/' });
 	const db = getDb();
 	const bibles = await listBibles(db, locals.user?.id);
 	const defaultBibleId = bibles.some((bible) => bible.id === locals.user?.defaultBibleId)
@@ -81,7 +73,6 @@ export async function load({ cookies, locals, url }) {
 	return {
 		appEditor: false,
 		initializeReaderWorkspace,
-		analytics: await readAnalyticsSettings(db),
 		savedWorkspaces,
 		...context.selection,
 		bibles,

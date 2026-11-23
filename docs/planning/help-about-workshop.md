@@ -63,7 +63,7 @@ vorherigen 13 Themenanker bleiben auf der Übersicht erreichbar.
 | Stellensammlungen                    | Anlegen, Verse und Kommentare; Einladungen, Rollen, Antworten/Reaktionen, Leselink, Widerruf, Entfernen und Austritt.                                                           |
 | Import und Export                    | DOCX, Markdown und ZIP; Vorschau, Konvertierung und Bestätigung; Markdown, Word und PDF einschließlich Umfangsgrenzen.                                                          |
 | API                                  | Schlüssel anlegen und verwenden, öffentliche/persönliche Zugriffe und Verweis auf die technische Referenz.                                                                      |
-| Administration                       | Ressourcen und Importe, Nutzer/Rollen, Umami, Backups, Restore und Freigabe eigener Notizen.                                                                                    |
+| Administration                       | Ressourcen und Importe, Nutzer/Rollen, Backups, Restore und Freigabe eigener Notizen.                                                                                           |
 
 Die Artikel nennen Voraussetzungen und aktuelle Oberflächenbezeichnungen. Nummerierte Schritte
 stehen vor vertiefenden Erklärungen, mobilen Hinweisen und konkreter Problemhilfe. Themenübersichten

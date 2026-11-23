@@ -280,7 +280,7 @@ Speicherqueue wie der Browser. Diese Route ist keine Authentifizierungsausnahme:
 gültige Session und Dokumentbesitz bleiben erforderlich. Root-Layout, Client-Hook
 und Browser-Tab-Initialisierung dürfen hier keine Browser-Arbeitsbereiche auflösen,
 anlegen, wiederherstellen oder Reader-Cookies schreiben. Auch Datenabrufe der Route
-bleiben isoliert. Kein SiteHeader, Analytics oder globales Reader-Kontextmenü.
+bleiben isoliert. Kein SiteHeader oder globales Reader-Kontextmenü.
 Die Einbettung besitzt ein enges versioniertes Nachrichtenprotokoll für Speichern,
 Lesemodus, Entwurfssicherung und native Navigation. Ausstehende Saves müssen vor
 nativer Navigation bestätigt sein; Konflikte und Fehler verhindern das Verlassen.
@@ -1486,35 +1486,10 @@ sortierte Bibel. Eine Ressourcenlöschung setzt die Präferenz per Fremdschlüss
 Einstellung ist unabhängig von den offenen Reader-Ressourcen und wird über die Session auf allen
 Geräten angewendet.
 
-## Freiwillige Umami-Analyse
+## Referrer-Policy und Formulare
 
-Die Admin-Seite `/admin/analytics` speichert Umami unter `settings[analytics.umami]`, standardmäßig
-abgeschaltet. Aktivierung verlangt eine HTTPS-Skriptadresse ohne Zugangsdaten, eine Website-UUID,
-Betreiber, Datenschutzhinweis-URL und Angaben zu Verarbeitung/Speicherfristen. Diese Angaben werden
-als Text in `/datenschutz` ausgegeben. Die eigentliche Aufbewahrung wird beim Analysebetreiber gepflegt.
-
-`Analytics.svelte` lädt das Skript ausschließlich nach Einwilligung und nur in erlaubten öffentlichen
-Seitenbereichen. DNT/GPC verhindern das Laden. Das notwendige Cookie `analytics-consent` speichert für
-180 Tage die Entscheidung und den Hash der Konfiguration, keine Konto- oder Besucherkennung. Ändern
-sich Empfänger, Adresse oder Datenschutzhinweise, gilt die alte Entscheidung nicht mehr. Widerruf
-stoppt weitere Aufrufe; die Datenschutzerklärung bietet die Einstellmöglichkeit dauerhaft an.
-
-Automatik, Klicktracking und zusätzliche Umami-Funktionen bleiben mit `data-auto-track=false` aus.
-Analyseereignisse enthalten nur `website`, den festen Titel `Akribos` und die Kategorie aus
-`analyticsPage(routeId)`. Technische Umami-Header können zusätzlich den Hostnamen und einen
-flüchtigen Sitzungs-Cache enthalten; eine Kontoverknüpfung wird nicht angelegt.
-Der Reader wird als `/reader` gezählt, niemals mit Lesestelle, Ressourcen, Suchbegriff oder Parametern.
-Konto-, Dokument-, Freigabe- und Admin-Routen sind ausgeschlossen. `data-before-send` prüft die Freigabe
-nochmals und verwirft weitere Eigenschaften. Eine späte Skriptantwort darf nach Widerruf keinen Aufruf
-senden. Bei aktivierter Integration verhindert `Referrer-Policy: same-origin` per Meta-Tag HTTP-
-Referrer an externe Analyseziele; das Skript selbst wird zusätzlich mit `no-referrer` geladen.
-Die dokumentweite Richtlinie darf nicht `no-referrer` sein: Native Formular-POSTs senden sonst
-`Origin: null`, wodurch SvelteKits CSRF-Schutz auch die Anmeldung abweist. Der CSRF-Schutz bleibt
-aktiv; der Analytics-E2E-Test prüft die Anmeldung mit und ohne JavaScript bei eingeschalteter Analyse
-sowie die Abweisung fremder und `null`-Origins. Die Einbindung verlangt Umami >= 2.18.
-
-Der Analytics-E2E-Test verwendet eine eigene temporäre Datenbank und einen zweiten Produktionsserver,
-damit die globale Aktivierung keinen Einwilligungsdialog in parallel laufende Reader-Tests einblendet.
+Die dokumentweite Referrer-Policy darf nicht `no-referrer` sein. Native Formular-POSTs senden sonst
+`Origin: null` und werden von SvelteKits CSRF-Schutz abgewiesen.
 
 ### Begrenzte Arbeit bei Kommentar- und Sammlungsabfragen
 

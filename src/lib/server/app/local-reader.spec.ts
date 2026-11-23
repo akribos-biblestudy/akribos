@@ -57,9 +57,6 @@ vi.mock('../repositories/users', () => ({
 	updateReaderWorkspace: mock.update,
 	updateReaderFontScale: mock.font
 }));
-vi.mock('../analytics/settings', () => ({
-	readAnalyticsSettings: async () => ({ enabled: false })
-}));
 vi.mock('../reader-chapter', () => ({ loadReaderTabChapter: async () => ({ verses: [] }) }));
 vi.mock('../repositories/verse-lists', () => ({ listVerseLists: async () => [] }));
 vi.mock('../repositories/highlight-styles', () => ({ listHighlightStyles: async () => [] }));
