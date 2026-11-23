@@ -138,9 +138,10 @@ erhalten. Bekannte alte Artikelpfade leiten auf die Themenseite weiter. Dabei er
 das ursprüngliche Fragment, während der Übergangsparameter den alten Artikel identifiziert.
 Unbekannte oder nicht lesbare Artikel liefern 404.
 
-`TutorialVideo.svelte` bindet das Intro und die zugeordneten Erklärvideos mit deutschen
-Untertiteln ein. Der Player lädt die MP4-Datei erst bei Benutzung. Das Skript
-`scripts/prepare-tutorial-videos.sh` bereitet die Webdateien aus dem Medien-Checkout vor.
+`TutorialVideo.svelte` lädt die MP4-Datei erst bei Benutzung und bietet deutsche Untertitel an.
+Docker und die Browser-Tests installieren dieselben Webdateien aus einem versionierten,
+prüfsummengeprüften Archiv. Für [Videoaufbereitung und Medienaktualisierungen](docs/operations.md#container-registry-and-automatic-deployment)
+gilt der dort dokumentierte Ablauf.
 
 Administrationshilfe (`audience: admin`, `/help/administration` einschließlich aller Unterseiten)
 ist ausschließlich für angemeldete Administratoren zugänglich. Direkte Aufrufe müssen die Rolle
