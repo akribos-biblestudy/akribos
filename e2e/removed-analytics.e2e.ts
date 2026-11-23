@@ -58,8 +58,10 @@ test('legacy Umami settings cannot display consent or load the tracker', async (
 
 		await seedAdminSession(context);
 		await page.goto('/admin');
+		await expect(page).toHaveURL('/admin');
 		await expect(page.getByRole('link', { name: 'Umami', exact: true })).toHaveCount(0);
-		expect((await page.request.get('/admin/analytics')).status()).toBe(404);
+		const retired = await page.request.get('/admin/analytics', { maxRedirects: 0 });
+		expect(retired.ok()).toBe(false);
 	} finally {
 		if (previous)
 			await sql`update settings set value = ${sql.json(previous.value)} where key = ${legacyKey}`;
