@@ -6,21 +6,28 @@
 	<h1 class="mb-6 text-2xl font-semibold">Impressum</h1>
 
 	<section class="mb-8">
-		<h2 class="mb-2 text-lg font-semibold">Angaben gemäß § 5 TMG</h2>
+		<h2 class="mb-2 text-lg font-semibold">Anbieter gemäß § 5 DDG</h2>
 		<p class="text-stone-700 dark:text-stone-300">
-			Mirko Hecky<br />
-			Hosleite 13<br />
-			95478 Kemnath<br />
+			slim-it GmbH<br />
+			Bayreuther Straße 5b<br />
+			95494 Gesees<br />
 			Deutschland
+		</p>
+		<p class="mt-3 text-stone-700 dark:text-stone-300">
+			Geschäftsführer sind Daniel Simon und Mirko Hecky.<br />
+			Handelsregister HRB 6908, Amtsgericht Bayreuth<br />
+			Umsatzsteuer-Identifikationsnummer DE 322 282 899
 		</p>
 	</section>
 
 	<section class="mb-8">
 		<h2 class="mb-2 text-lg font-semibold">Kontakt</h2>
 		<p class="text-stone-700 dark:text-stone-300">
-			E-Mail: <a
-				class="text-accent-600 hover:underline dark:text-accent-400"
-				href="mailto:info@akribos.de">info@akribos.de</a
+			<a class="text-accent-600 hover:underline dark:text-accent-400" href="mailto:info@slim-it.de"
+				>info@slim-it.de</a
+			><br />
+			<a class="text-accent-600 hover:underline dark:text-accent-400" href="tel:+4992019174270"
+				>+49 9201 91742-70</a
 			>
 		</p>
 	</section>

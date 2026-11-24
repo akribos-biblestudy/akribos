@@ -183,6 +183,11 @@ test('Impressum and Datenschutz are reachable only from the global menu', async 
 	await page.getByRole('menuitem', { name: 'Impressum' }).click();
 	await expect(page).toHaveURL(/\/impressum$/);
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('Impressum');
+	await expect(page.getByText('slim-it GmbH', { exact: false })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'info@slim-it.de' })).toHaveAttribute(
+		'href',
+		'mailto:info@slim-it.de'
+	);
 
 	await page.goto('/Joh3');
 	await page.getByRole('button', { name: 'Konto-Menü' }).click();
