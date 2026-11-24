@@ -61,4 +61,12 @@ describe('embedded document images', () => {
 			/Bilder sind zusammen zu groß/
 		);
 	});
+
+	it('bounds total decoded pixels for highly compressed images', () => {
+		const image =
+			'data:image/png;base64,' + readFileSync('e2e/fixtures/document-image.png').toString('base64');
+		expect(() =>
+			documentMarkdownToHtml('![Bild][shared] '.repeat(34) + `\n\n[shared]: ${image}\n`)
+		).toThrow(/zu viele Pixel/);
+	});
 });

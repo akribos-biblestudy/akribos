@@ -22,6 +22,7 @@ async function fixture(page: Page) {
 				email,
 				passwordHash: await hashPassword(password),
 				role: 'admin',
+				displayName: 'Bilder Test',
 				emailVerifiedAt: new Date(),
 				tourCompletedAt: new Date()
 			})
@@ -74,7 +75,7 @@ test('note and sermon images persist privately and a shared snapshot keeps its o
 		await page
 			.getByLabel('Bilddatei', { exact: true })
 			.setInputFiles('e2e/fixtures/document-image.png');
-		const image = page.locator('.tiptap img');
+		const image = page.locator('.tiptap img[src]');
 		await expect(image).toBeVisible();
 		await expect
 			.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth))
@@ -96,7 +97,7 @@ test('note and sermon images persist privately and a shared snapshot keeps its o
 		});
 	}
 	await page.goto(`/notes/${noteId}`);
-	const source = await page.locator('.tiptap img').getAttribute('src');
+	const source = await page.locator('.tiptap img[src]').getAttribute('src');
 	const controls = page.getByTestId('publication-controls');
 	const slug = `bild-${crypto.randomUUID()}`;
 	await controls.getByLabel('Webadresse').fill(slug);
