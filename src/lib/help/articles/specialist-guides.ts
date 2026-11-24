@@ -378,13 +378,13 @@ export const specialistGuides: HelpArticle[] = [
 	{
 		id: 'notizen-teilen',
 		episode: 12,
-		topic: 'administration',
-		path: '/help/administration/notizen-teilen',
+		topic: 'dokumente',
+		path: '/help/dokumente/notizen-teilen',
 		title: 'Eine eigene Notiz als Leselink freigeben',
 		description:
 			'Erstelle einen nicht gelisteten Schnappschuss deiner Notiz, aktualisiere ihn bewusst und ziehe die Freigabe bei Bedarf zurück.',
 		icon: 'file-text',
-		audience: 'admin',
+		audience: 'user',
 		level: 'guide',
 		keywords: [
 			'Notiz',
@@ -397,25 +397,17 @@ export const specialistGuides: HelpArticle[] = [
 			'Leselink'
 		],
 		prerequisite:
-			'Ein Administratorkonto, eine eigene Notiz und ein im Profil gesetzter Anzeigename. Ausarbeitungen können nicht über diesen Ablauf freigegeben werden.',
+			'Ein angemeldetes Konto, eine eigene Notiz und ein im Profil gesetzter Anzeigename. Für Ausarbeitungen stehen die Datei-Exporte bereit.',
 		sections: [
 			{
 				id: 'freigeben',
 				title: '1. Den freizugebenden Stand vorbereiten',
-				html: `<ol><li>Öffne deine eigene Notiz in der <a href="/notes">Notizbibliothek</a>.</li><li>Prüfe Titel, Text, Schlagwörter und verknüpfte Bibelstellen. Diese Angaben gehören zum freigegebenen Schnappschuss.</li><li>Prüfe unter <a href="/account">Profil &amp; Sicherheit</a> deinen Anzeigenamen; er wird als Autorenname verwendet.</li><li>Öffne in der Notiz den Bereich <strong>Freigabe per Link</strong>.</li></ol><p>Dieser Ablauf ist für Administratoren auf ihre eigenen Notizen beschränkt. Er macht fremde private Dokumente nicht zugänglich. Für normale Nutzer zeigt der Bereich einen Hinweis auf die benötigte Administratorrolle.</p>`
+				html: `<ol><li>Öffne deine eigene Notiz in der <a href="/notes">Notizbibliothek</a>.</li><li>Prüfe Titel, Text, Schlagwörter und verknüpfte Bibelstellen. Diese Angaben gehören zum freigegebenen Schnappschuss.</li><li>Prüfe unter <a href="/account">Profil &amp; Sicherheit</a> deinen Anzeigenamen; er wird als Autorenname verwendet.</li><li>Öffne in der Notiz den Bereich <strong>Freigabe per Link</strong>.</li></ol><p>Jedes angemeldete Konto kann eigene Notizen per Leselink freigeben. Prüfe vor der Freigabe, welche Inhalte die Empfänger sehen sollen.</p>`
 			},
 			{
 				id: 'link',
 				title: '2. Einen Schnappschuss freigeben',
-				html: `<ol><li>Wähle unter <strong>Webadresse</strong> einen verständlichen, eindeutigen Namen für den Link.</li><li>Ergänze bei Bedarf eine <strong>Kurzbeschreibung</strong> mit höchstens 500 Zeichen.</li><li>Klicke auf <strong>Schnappschuss freigeben</strong>.</li><li>Öffne <strong>Freigegebenen Link öffnen</strong> und prüfe die Leseransicht.</li><li>Kopiere erst danach die Adresse für die vorgesehenen Empfänger.</li></ol><aside class="callout"><strong>Nicht gelistet bedeutet: Jeder mit dem Link kann lesen.</strong><p>Die Notiz erscheint in keiner öffentlichen Übersicht und wird nicht zur Suchmaschinenindexierung angeboten. Der Link ist dennoch kein passwortgeschützter Zugang: Empfänger können ihn weitergeben und den Inhalt ohne Anmeldung lesen.</p></aside><p>Die Webadresse wird in eine passende URL-Kennung umgewandelt. Falls sie bereits von einer anderen Freigabe verwendet wird, wähle einen unterscheidbaren Namen. Ohne Anzeigenamen kann keine Freigabe angelegt werden; die Konto-E-Mail wird nicht als Ersatzname veröffentlicht.</p>`,
-				screenshot: {
-					src: '/help/media/note-sharing.webp',
-					width: 320,
-					height: 341,
-					alt: 'Freigabeformular einer eigenen Admin-Notiz mit Webadresse, Kurzbeschreibung und Schaltfläche Schnappschuss freigeben.',
-					caption:
-						'Vor der ersten Freigabe prüfst du Webadresse und Kurzbeschreibung. Die Aufnahme zeigt das vorbereitete Formular; es wurde noch kein Schnappschuss freigegeben.'
-				}
+				html: `<ol><li>Wähle unter <strong>Webadresse</strong> einen verständlichen, eindeutigen Namen für den Link.</li><li>Ergänze bei Bedarf eine <strong>Kurzbeschreibung</strong> mit höchstens 500 Zeichen.</li><li>Klicke auf <strong>Schnappschuss freigeben</strong>.</li><li>Öffne <strong>Freigegebenen Link öffnen</strong> und prüfe die Leseransicht.</li><li>Kopiere erst danach die Adresse für die vorgesehenen Empfänger.</li></ol><aside class="callout"><strong>Nicht gelistet bedeutet: Jeder mit dem Link kann lesen.</strong><p>Die Notiz erscheint in keiner öffentlichen Übersicht und wird nicht zur Suchmaschinenindexierung angeboten. Der Link ist dennoch kein passwortgeschützter Zugang: Empfänger können ihn weitergeben und den Inhalt ohne Anmeldung lesen.</p></aside><p>Die Webadresse wird in eine passende URL-Kennung umgewandelt. Falls sie bereits von einer anderen Freigabe verwendet wird, wähle einen unterscheidbaren Namen. Ohne Anzeigenamen kann keine Freigabe angelegt werden; die Konto-E-Mail wird nicht als Ersatzname veröffentlicht.</p>`
 			},
 			{
 				id: 'aktualisieren',

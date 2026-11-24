@@ -137,7 +137,6 @@ export async function load({ params, locals, url, setHeaders }) {
 		sermonBoard,
 		collections,
 		availableCollections: availableCollections.map(({ id, title }) => ({ id, title })),
-		isAdmin: user.role === 'admin',
 		returnTo: safeReturnTo(url.searchParams.get('returnTo'))
 	};
 }
@@ -314,7 +313,6 @@ export const actions = {
 			documentId,
 			document: initialDocument
 		} = await ownedEditor(locals, params.id, url);
-		if (user.role !== 'admin') return fail(403, { error: 'forbidden' as const });
 		if (initialDocument.kind === 'sermon') {
 			return fail(400, { error: 'notPublishable' as const });
 		}
@@ -354,7 +352,6 @@ export const actions = {
 
 	unpublish: async ({ params, locals, url }) => {
 		const { user, documentId } = await ownedEditor(locals, params.id, url);
-		if (user.role !== 'admin') return fail(403, { error: 'forbidden' as const });
 		const result = await unpublishDocument(getDb(), user.id, documentId);
 		if (!result.ok) {
 			return fail(result.reason === 'forbidden' ? 403 : 404, { error: result.reason });
