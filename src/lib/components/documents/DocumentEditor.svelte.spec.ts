@@ -38,6 +38,77 @@ function fullyVisible(element: HTMLElement, host: HTMLElement): boolean {
 }
 
 describe('DocumentEditor tables and autosave', () => {
+	it.each(['png', 'jpeg'])(
+		'uploads a %s image, autosaves it and preserves it across Markdown and remount',
+		async (format) => {
+			await page.viewport(390, 844);
+			let saved = {
+				id: crypto.randomUUID(),
+				title: 'Bildnotiz',
+				bodyMarkdown: '',
+				bodyHtml: '',
+				revision: 1
+			};
+			vi.stubGlobal(
+				'fetch',
+				vi.fn<typeof fetch>(async (_input, init) => {
+					if (init?.method !== 'PATCH') return Response.json({ incoming: [], outgoing: [] });
+					const payload = JSON.parse(String(init.body));
+					saved = {
+						...saved,
+						bodyMarkdown: payload.markdown,
+						bodyHtml: documentMarkdownToHtml(payload.markdown).html,
+						revision: saved.revision + 1
+					};
+					return Response.json({ document: saved });
+				})
+			);
+			const screen = await render(DocumentEditor, { document: saved });
+			const canvas = document.createElement('canvas');
+			canvas.width = 1200;
+			canvas.height = 600;
+			canvas.getContext('2d')!.fillRect(0, 0, 1200, 600);
+			const blob = await new Promise<Blob>((resolve) =>
+				canvas.toBlob((value) => resolve(value!), `image/${format}`)
+			);
+			const transfer = new DataTransfer();
+			transfer.items.add(new File([blob], `Gemeinde.${format}`, { type: `image/${format}` }));
+			const input = screen.container.querySelector<HTMLInputElement>('input[type="file"]')!;
+			input.files = transfer.files;
+			input.dispatchEvent(new Event('change', { bubbles: true }));
+			await expect
+				.poll(() => saved.bodyMarkdown)
+				.toContain(`![Gemeinde](data:image/${format};base64,`);
+			const image = screen.container.querySelector<HTMLImageElement>('.tiptap img')!;
+			await expect.poll(() => image.naturalWidth).toBe(1200);
+			expect(image.getBoundingClientRect().width).toBeLessThanOrEqual(390);
+			await page.getByRole('tab', { name: 'Markdown', exact: true }).click();
+			await page.getByRole('tab', { name: 'Visuell', exact: true }).click();
+			expect(screen.container.querySelector('.tiptap img')).not.toBeNull();
+			await screen.unmount();
+			const reopened = await render(DocumentEditor, { document: saved });
+			expect(reopened.container.querySelector('.tiptap img')?.getAttribute('src')).toContain(
+				`data:image/${format};base64,`
+			);
+		}
+	);
+	it('rejects unsupported image files without changing the document', async () => {
+		const fetchMock = vi.fn<typeof fetch>(async () =>
+			Response.json({ incoming: [], outgoing: [] })
+		);
+		vi.stubGlobal('fetch', fetchMock);
+		const screen = await render(DocumentEditor, {
+			document: { id: crypto.randomUUID(), title: 'Notiz', bodyMarkdown: 'Mein Text', revision: 1 }
+		});
+		const transfer = new DataTransfer();
+		transfer.items.add(new File(['<svg/>'], 'Bild.svg', { type: 'image/svg+xml' }));
+		const input = screen.container.querySelector<HTMLInputElement>('input[type="file"]')!;
+		input.files = transfer.files;
+		input.dispatchEvent(new Event('change', { bubbles: true }));
+		await expect.element(page.getByRole('alert')).toHaveTextContent('PNG- oder JPEG-Datei');
+		expect(screen.container.querySelector('.tiptap')?.textContent).toBe('Mein Text');
+		expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false);
+	});
 	it('saves an empty table, edits it on mobile and retains it across Markdown and remount', async () => {
 		await page.viewport(390, 844);
 		let saved = {

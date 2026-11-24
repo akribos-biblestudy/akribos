@@ -103,6 +103,13 @@
 		letter-spacing: -0.02em;
 	}
 
+	.document-prose img,
+	[data-bible-reference-prose] img {
+		max-width: 100%;
+		height: auto;
+		vertical-align: middle;
+	}
+
 	.document-prose table,
 	[data-bible-reference-prose] table {
 		display: block;

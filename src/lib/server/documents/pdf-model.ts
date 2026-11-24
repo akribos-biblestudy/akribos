@@ -1,6 +1,10 @@
 import { type Token, type Tokens } from 'marked';
 import { findBibleReferences } from '$lib/bible/link-references';
-import { decodeHtmlEntities, safeLinkHref } from '$lib/notes/document-markdown';
+import {
+	decodeHtmlEntities,
+	documentMarkdownToHtml,
+	safeLinkHref
+} from '$lib/notes/document-markdown';
 import {
 	createDocumentFootnoteLexer,
 	parseDocumentFootnotes,
@@ -8,6 +12,7 @@ import {
 	type DocumentFootnoteReferenceToken
 } from '$lib/notes/document-footnotes';
 import { MAX_DOCUMENT_MARKDOWN_BYTES } from '$lib/notes/documents';
+import { parseDocumentImage } from '$lib/notes/document-images';
 
 export class PdfExportError extends Error {
 	readonly status: 413 | 422 | 503 | 504;
@@ -28,6 +33,7 @@ type TextStyle = {
 };
 export type PdfInlineRun = TextStyle & {
 	text: string;
+	image?: { bytes: number[]; format: 'png' | 'jpg'; width: number; height: number };
 	href?: string;
 	bibleReference?: boolean;
 	footnoteId?: string;
@@ -164,9 +170,22 @@ export function pdfInlineRuns(
 				case 'br':
 					append('\n', style, href);
 					break;
-				case 'image':
-					append((token as Tokens.Image).text, style, href);
+				case 'image': {
+					const value = token as Tokens.Image;
+					const image = parseDocumentImage(value.href);
+					if (image)
+						runs.push({
+							text: value.text,
+							image: {
+								bytes: Array.from(image.bytes),
+								format: image.type,
+								width: image.width,
+								height: image.height
+							}
+						});
+					else append(value.text, style, href);
 					break;
+				}
 				case 'html': {
 					// Only attribute-free editor formatting and hard breaks are portable.
 					const tag = (token as Tokens.Tag).text.toLowerCase();
@@ -195,6 +214,8 @@ export function createPdfModel(
 ): PdfDocumentModel {
 	if (Buffer.byteLength(markdown, 'utf8') > MAX_DOCUMENT_MARKDOWN_BYTES)
 		throw new PdfExportError(413, 'Das Dokument ist für den PDF-Export zu groß.');
+	// Bound repeated reference-style embedded images before allocating their decoded byte arrays.
+	documentMarkdownToHtml(markdown);
 	const parsed = parseDocumentFootnotes(markdown);
 	const referenced = new Set<string>();
 	let blockCount = 0;

@@ -182,6 +182,13 @@ export const de = {
 	'documents.editor.visual': 'Visuell',
 	'documents.editor.markdown': 'Markdown',
 	'documents.editor.formatting': 'Text formatieren',
+	'documents.editor.imageFile': 'Bilddatei',
+	'documents.editor.imageInsert': 'Bild einfügen',
+	'documents.editor.imageBusy': 'Bild wird eingefügt …',
+	'documents.editor.imageHint':
+		'PNG oder JPEG auswählen oder aus der Zwischenablage einfügen. Bilder werden bei Bedarf verkleinert. Das Dokument darf insgesamt 1 MiB groß sein.',
+	'documents.editor.imageModeChanged':
+		'Bitte wechsle zurück zu Visuell und füge das Bild erneut ein.',
 	'documents.tables.insert': 'Tabelle einfügen',
 	'documents.tables.description': 'Drei Spalten mit Kopfzeile und zwei Datenzeilen',
 	'documents.tables.edit': 'Tabelle bearbeiten',

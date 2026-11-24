@@ -15,6 +15,9 @@
 	} from '$lib/notes/document-markdown';
 	import { t } from '$lib/i18n';
 	import { Editor } from '@tiptap/core';
+	import { DocumentImage } from './document-image';
+	import { prepareDocumentImage } from '$lib/notes/document-images';
+	import { MAX_DOCUMENT_MARKDOWN_BYTES } from '$lib/notes/documents';
 	import { Placeholder } from '@tiptap/extension-placeholder';
 	import { StarterKit } from '@tiptap/starter-kit';
 	import {
@@ -85,6 +88,57 @@
 	type SaveState = 'saved' | 'dirty' | 'saving' | 'error' | 'conflict';
 
 	let editorRoot: HTMLElement | undefined = $state();
+	let imageInput: HTMLInputElement | undefined = $state();
+	let imageBusy = $state(false);
+	let imageError = $state('');
+
+	async function insertImage(file: File): Promise<void> {
+		if (!editor || readOnly || appSuspended || imageBusy) return;
+		imageBusy = true;
+		imageError = '';
+		const currentEditor = editor;
+		const currentDocumentId = document.id;
+		try {
+			const source = await prepareDocumentImage(file);
+			if (
+				currentEditor.isDestroyed ||
+				editor !== currentEditor ||
+				document.id !== currentDocumentId
+			)
+				return;
+			if (readOnly || appSuspended) return;
+			if (mode !== 'visual') throw new Error(t('documents.editor.imageModeChanged'));
+			syncMarkdownFromVisual();
+			if (
+				new TextEncoder().encode(markdown).length + source.length + 512 >
+				MAX_DOCUMENT_MARKDOWN_BYTES
+			)
+				throw new Error(
+					'Das Dokument ist mit diesem Bild zu groß. Bitte verwende ein kleineres Bild oder teile das Dokument auf.'
+				);
+			documentMarkdownToHtml(`${markdown}\n\n![Bild](${source})`);
+			currentEditor
+				.chain()
+				.focus()
+				.insertContent({
+					type: 'documentImage',
+					attrs: {
+						src: source,
+						alt: file.name
+							.replace(/\.[^.]+$/, '')
+							.replace(/\s+/g, ' ')
+							.slice(0, 200)
+					}
+				})
+				.run();
+		} catch (error) {
+			imageError =
+				error instanceof Error ? error.message : 'Das Bild konnte nicht eingefügt werden.';
+		} finally {
+			imageBusy = false;
+			if (imageInput) imageInput.value = '';
+		}
+	}
 	let zen = $state(false);
 	let outlineOpen = $state(untrack(() => !compact));
 	let sidePanelTab = $state<'outline' | 'links'>('outline');
@@ -1220,6 +1274,7 @@
 			element: editorHost,
 			editable: !readOnly,
 			extensions: [
+				DocumentImage,
 				...DocumentFootnotes,
 				...DocumentTables,
 				StarterKit.configure({
@@ -1233,6 +1288,12 @@
 			],
 			content: documentMarkdownToHtml(markdown).html,
 			editorProps: {
+				handlePaste: (_view, event) => {
+					const file = event.clipboardData?.files[0];
+					if (!file || !file.type.startsWith('image/') || readOnly) return false;
+					void insertImage(file);
+					return true;
+				},
 				handleDOMEvents: {
 					click: (_view, event) => onEditorLinkClick(event),
 					auxclick: (_view, event) => onEditorLinkClick(event),
@@ -1432,6 +1493,9 @@
 			</div>
 		{/if}
 	</header>
+	{#if imageError}<p role="alert" class="px-4 py-2 text-sm text-red-700 dark:text-red-300">
+			{imageError}
+		</p>{/if}
 
 	<div
 		id="document-visual-panel"
@@ -1441,6 +1505,24 @@
 	>
 		{#if editor && !readOnly && !appEmbedded}
 			<div class="editor-toolbar" role="toolbar" aria-label={t('documents.editor.formatting')}>
+				<input
+					bind:this={imageInput}
+					type="file"
+					accept="image/png,image/jpeg"
+					class="hidden"
+					aria-label={t('documents.editor.imageFile')}
+					onchange={(event) => {
+						const file = event.currentTarget.files?.[0];
+						if (file) void insertImage(file);
+					}}
+				/>
+				<button
+					type="button"
+					disabled={imageBusy}
+					title={t('documents.editor.imageHint')}
+					onclick={() => imageInput?.click()}
+					>{t(imageBusy ? 'documents.editor.imageBusy' : 'documents.editor.imageInsert')}</button
+				>
 				<button
 					type="button"
 					class:active={formatting.active.has('bold')}

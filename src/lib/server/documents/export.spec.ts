@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -27,6 +27,57 @@ const fixture = {
 } as OwnedDocumentExport;
 
 describe('portable rich document exports', () => {
+	it('fits images to table cells and rejects reference-image expansion before export', async () => {
+		const source =
+			'data:image/png;base64,' +
+			(await readFile('e2e/fixtures/document-image.png')).toString('base64');
+		const data = {
+			...fixture,
+			document: {
+				...fixture.document,
+				bodyMarkdown: `| A | B |\n| --- | --- |\n| ![A](${source}) | ![B](${source}) |\n`
+			}
+		};
+		const docx = await createDocxExport(data);
+		const xml = strFromU8(unzipSync(docx.buffer)['word/document.xml']!);
+		const widths = [...xml.matchAll(/<wp:extent cx="(\d+)"/g)].map((match) => Number(match[1]));
+		expect(widths).toHaveLength(2);
+		for (const width of widths) expect(width).toBeLessThanOrEqual(269 * 9525);
+		const smallSource =
+			'data:image/png;base64,' +
+			(await readFile('e2e/fixtures/document-image-small.png')).toString('base64');
+		const huge = {
+			...fixture,
+			document: {
+				...fixture.document,
+				bodyMarkdown: '![A][same] '.repeat(250) + `\n\n[same]: ${smallSource}\n`
+			}
+		};
+		await expect(createDocxExport(huge)).rejects.toThrow(/Bilder sind zusammen zu groß/);
+		await expect(createPdfExport(huge)).rejects.toThrow(/Bilder sind zusammen zu groß/);
+	});
+	it('embeds document images in Word and PDF', async () => {
+		const source =
+			'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQSjMGAAFpALw5l2YJAAAAAElFTkSuQmCC';
+		const data = {
+			...fixture,
+			document: { ...fixture.document, bodyMarkdown: `Vorher ![Bild](${source}) danach.` }
+		};
+		const docx = await createDocxExport(data);
+		const zip = unzipSync(docx.buffer);
+		expect(Object.keys(zip).some((path) => path.startsWith('word/media/'))).toBe(true);
+		expect(strFromU8(zip['word/document.xml']!)).toContain('<w:drawing>');
+		const pdf = await createPdfExport(data);
+		const directory = await mkdtemp(join(tmpdir(), 'akribos-image-export-'));
+		try {
+			const path = join(directory, 'image.pdf');
+			await writeFile(path, pdf.buffer);
+			const { stdout } = await promisify(execFile)('pdfimages', ['-list', path]);
+			expect(stdout).toMatch(/\d+\s+\d+\s+image\s+1\s+1/);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
 	it('preserves encoded table code punctuation in actual DOCX and PDF output', async () => {
 		const markdown =
 			'| Code |\n| --- |\n' +

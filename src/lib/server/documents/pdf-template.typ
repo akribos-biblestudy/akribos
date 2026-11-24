@@ -65,6 +65,7 @@
 
 #let joined(left, right) = {
   (left != none and right != none and not ("footnoteNumber" in left) and not ("footnoteNumber" in right)
+    and not ("image" in left) and not ("image" in right)
     and left.at("language", default: none) == right.at("language", default: none)
     and left.text.match(regex("\\S$")) != none and right.text.match(regex("^\\S")) != none)
 }
@@ -88,7 +89,7 @@
   let groups = ()
   let pieces = ()
   for run in runs {
-    if "footnoteNumber" in run {
+    if "footnoteNumber" in run or "image" in run {
       if pieces.len() > 1 { groups.push(pieces) }
       pieces = ()
     } else {
@@ -117,7 +118,11 @@
 #let render-inline(runs, render-blocks, width: 162mm) = {
   validate-rtl-words(runs, width)
   for (index, run) in runs.enumerate() {
-    if "footnoteNumber" in run {
+    if "image" in run {
+      let raster = run.image
+      let image-width = calc.min(width, raster.width * 0.75pt, 180mm * raster.width / raster.height)
+      box(image(bytes(raster.bytes), format: raster.format, width: image-width, alt: run.text))
+    } else if "footnoteNumber" in run {
       let id = label("fn-" + str(run.footnoteNumber))
       if run.at("repeat", default: false) { footnote(id) }
       else {

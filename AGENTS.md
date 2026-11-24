@@ -1130,6 +1130,17 @@ Markdown repariert; ein neuer privater Entwurf darf nie in den Snapshot gelangen
 aktuelle Veröffentlichung folgt der technischen Revisionsanhebung. Mehrdeutige HTML-Quellen ohne
 passendes Markdown bleiben unverändert. Betriebslogs enthalten nur Zähler, keine privaten Inhalte.
 
+Dokumentbilder werden als validierte PNG-/JPEG-Data-URIs im kanonischen Markdown gespeichert und
+teilen dadurch Eigentum, Papierkorb, Sicherung und Veröffentlichungs-Snapshot des Dokuments. Der
+gemeinsame Parser `src/lib/notes/document-images.ts` begrenzt jedes Bild auf 512 KiB und 4096 Pixel
+je Seite; das gesamte Markdown bleibt auf 1 MiB begrenzt. Aufgelöste Bildvorkommen (auch wiederholte
+Markdown-Referenzen und Fußnoten) teilen 1 MiB Bildquelltext und 24 Megapixel als Gesamtgrenze,
+bevor HTML oder Export-Bildmodelle aufgebaut werden. Der Browser bereitet ausgewählte Dateien
+und eingefügte Zwischenablagebilder proportional auf höchstens 1920 Pixel vor. Nur validierte
+Rasterdaten dürfen als `img` in Editor/Leseansichten und als eingebettete Bilddaten in Word/PDF
+gelangen; externe URLs, SVG, HTML-Attribute und Dateipfade sind keine Bildquellen. Markdown-Import
+und -Export erhalten diese selbst enthaltenen Bilder. Word-Bildimport bleibt ausgeschlossen.
+
 Der Dokumentimport unter `/notes/import` akzeptiert Word-`.docx`- und UTF-8-`.md`-Dateien oder genau
 ein ZIP mit Markdown. Word wird mit Mammoth im Speicher in bereinigtes Markdown umgewandelt;
 alle ZIP-Bestandteile werden vorab auf Pfade und insgesamt 16 MiB entpackte Größe geprüft, XML
@@ -1146,7 +1157,7 @@ nicht gemischt werden. Vorschau ist schreibfrei; Bestätigen parst und validiert
 statt versteckten Preview-Feldern zu vertrauen, und erzeugt immer ein privates Dokument. YAML-Aliase
 sind vollständig deaktiviert, damit auch innerhalb der Größenlimits keine Alias-Expansion stattfinden
 kann. Rohes HTML,
-unsichere Links/YAML-Felder, Embeds, Bilder und Anhänge werden abgewiesen oder mit sichtbarer Warnung
+unsichere Links/YAML-Felder, Embeds, externe Bilder und Anhänge werden abgewiesen oder mit sichtbarer Warnung
 entfernt. Pro Dokument gelten höchstens 100 Stellenanker und 50 ausgewählte Tags; Komma und Backslash
 sind in Tagsegmenten nicht zulässig. Tags werden nie implizit als Bibelstellen interpretiert. Exporte
 stehen owner-only als Markdown/YAML, Word `.docx` und PDF bereit, enthalten aber keine E-Mail,

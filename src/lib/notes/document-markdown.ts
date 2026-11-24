@@ -3,6 +3,7 @@ import { marked, Renderer, type Tokens } from 'marked';
 import TurndownService from 'turndown';
 import { parseDocument, stringify as stringifyYaml } from 'yaml';
 import { encodeDocumentInlineCode } from './document-inline-code.ts';
+import { parseDocumentImage } from './document-images.ts';
 import {
 	createDocumentFootnoteMarked,
 	isDocumentFootnoteId,
@@ -118,7 +119,7 @@ export class DocumentMarkdownError extends Error {
  * explain the boundary without duplicating its contract.
  */
 export const MARKDOWN_ROUND_TRIP_LIMITATIONS = [
-	'Raw HTML, media, embeds and attributes are removed.',
+	'Raw HTML, external media, embeds and attributes are removed.',
 	'Merged table cells, ordered-list start numbers and link titles are not retained.',
 	'Task checkboxes become ordinary readable text.',
 	'Line endings and trailing whitespace are normalised.'
@@ -152,9 +153,10 @@ const ALLOWED_HTML_TAGS = new Set([
 	'tbody',
 	'tr',
 	'th',
-	'td'
+	'td',
+	'img'
 ]);
-const VOID_HTML_TAGS = new Set(['hr', 'br']);
+const VOID_HTML_TAGS = new Set(['hr', 'br', 'img']);
 const DANGEROUS_RAW_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed', 'svg', 'math']);
 const ATTACHMENT_EXTENSIONS = new Set([
 	'png',
@@ -585,6 +587,8 @@ export function documentContentDisposition(
 }
 
 class SafeDocumentRenderer extends Renderer {
+	private imageSourceBytes = 0;
+	private imagePixels = 0;
 	private readonly warnings?: WarningCollector;
 	private readonly stripAttachmentLinks: boolean;
 
@@ -632,7 +636,27 @@ class SafeDocumentRenderer extends Renderer {
 		return safeHref ? `<a href="${escapeHtmlAttribute(safeHref)}">${label}</a>` : label;
 	}
 
-	override image({ text, tokens }: Tokens.Image): string {
+	override image({ href, text, tokens }: Tokens.Image): string {
+		// Reference-style Markdown can repeat one data URI thousands of times. Bound resolved
+		// occurrences before decoding or constructing HTML, not just the authored source text.
+		if (href.startsWith('data:image/')) {
+			this.imageSourceBytes += href.length;
+			if (this.imageSourceBytes > MAX_DOCUMENT_MARKDOWN_BYTES)
+				throw new DocumentMarkdownError(
+					'file_too_large',
+					'Die eingebetteten Bilder sind zusammen zu groß (höchstens 1 MiB).'
+				);
+		}
+		const image = parseDocumentImage(href);
+		if (image) {
+			this.imagePixels += image.width * image.height;
+			if (this.imagePixels > 24_000_000)
+				throw new DocumentMarkdownError(
+					'file_too_large',
+					'Die Bilder enthalten zusammen zu viele Pixel. Bitte verkleinere sie oder teile das Dokument auf.'
+				);
+			return `<img src="${href}" alt="${escapeHtmlAttribute(text)}">`;
+		}
 		this.warnings?.add('image', 'An image or attachment was removed from the import.');
 		const label = tokens
 			? this.parser.parseInline(tokens, this.parser.textRenderer)
@@ -716,6 +740,14 @@ function createTurndownService(
 	service.addRule('table', {
 		filter: 'table',
 		replacement: (_content, node) => tableMarkdown(node as HTMLElement, footnotes)
+	});
+	service.addRule('documentImage', {
+		filter: 'img',
+		replacement: (_content, node) => {
+			const source = (node as HTMLElement).getAttribute('src') ?? '';
+			const label = (node as HTMLElement).getAttribute('alt') ?? '';
+			return parseDocumentImage(source) ? `![${escapeMarkdownLabel(label)}](${source})` : '';
+		}
 	});
 	if (tableCell) service.addRule('cellHardBreak', { filter: 'br', replacement: () => '<br>' });
 	if (tableCell)
@@ -1160,6 +1192,13 @@ function sanitiseDocumentHtml(input: string): string {
 			const tag = String(name).toLowerCase();
 			if (!ALLOWED_HTML_TAGS.has(tag)) return '';
 			if (slash) return VOID_HTML_TAGS.has(tag) ? '' : `</${tag}>`;
+			if (tag === 'img') {
+				const source = readHtmlAttribute(String(rest), 'src') ?? '';
+				const alt = readHtmlAttribute(String(rest), 'alt') ?? '';
+				return parseDocumentImage(source)
+					? `<img src="${source}" alt="${escapeHtmlAttribute(alt)}">`
+					: '';
+			}
 			if (VOID_HTML_TAGS.has(tag)) return `<${tag}>`;
 			if (tag === 'th' || tag === 'td') {
 				const align = readHtmlAttribute(String(rest), 'align');
