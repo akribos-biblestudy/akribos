@@ -1832,41 +1832,83 @@ test('custom sermon templates, delivery history, rich exports and board movement
 	await expect(page.getByTestId('document-editor')).toBeVisible();
 });
 
-test('a normal account cannot publish a note through either the UI or a forged action', async ({
-	page
+test('a normal account manages its own note snapshot while foreign and anonymous actions are rejected', async ({
+	page,
+	browser,
+	request
 }) => {
-	await loginAs(page, SEED_READER);
+	await loginNewReader(page);
 	const id = await createNoteFromLibrary(page);
+	const slug = `reader-snapshot-${id}`;
+	const original = `erste-fassung-${id}`;
+	const updated = `privater-entwurf-${id}`;
 	await saveMarkdownDocument(page, {
 		title: NORMAL_PRIVATE_NOTE_TITLE,
-		markdown: `## Privat\n\nDieser Entwurf ${RUN_ID} darf nicht veröffentlicht werden.\n`,
-		requestMarker: RUN_ID
+		markdown: original,
+		requestMarker: original
 	});
 
 	const controls = page.getByTestId('publication-controls');
-	await expect(controls).toContainText(
-		'Nur Administratoren können eigene Notizen per Link freigeben.'
-	);
-	await expect(controls.getByRole('button', { name: /freigeben/i })).toHaveCount(0);
+	await controls.getByLabel('Webadresse').fill(slug);
+	await controls.getByRole('button', { name: 'Schnappschuss freigeben' }).click();
+	await expect(controls.getByRole('link', { name: 'Freigegebenen Link öffnen' })).toBeVisible();
+	const shared = `/notes/published/${slug}`;
+	expect(await (await request.get(shared)).text()).toContain(original);
 
-	const forged = await page.evaluate(async (documentId) => {
-		const current = await fetch(`/api/documents/${documentId}`).then((response) => response.json());
-		const form = new FormData();
-		form.set('revision', String(current.document.revision));
-		form.set('visibility', 'public');
-		form.set('slug', `forged-${documentId}`);
-		form.set('excerpt', 'Darf nicht erscheinen');
-		const response = await fetch(`/notes/${documentId}?/publish`, {
-			method: 'POST',
-			body: form
-		});
-		return { status: response.status, body: await response.json() };
-	}, id);
-	// Named-action fetches use SvelteKit's JSON action envelope; the transport stays 200 while the
-	// server-enforced failure retains its actual status inside the response.
-	expect(forged.status).toBe(200);
-	expect(forged.body).toMatchObject({ type: 'failure', status: 403 });
-	expect(JSON.stringify(forged.body)).toContain('forbidden');
+	const foreignContext = await browser.newContext();
+	try {
+		const foreign = await foreignContext.newPage();
+		await loginNewReader(foreign);
+		for (const action of ['publish', 'unpublish']) {
+			const result = await foreign.evaluate(
+				async ({ id, action }) => {
+					const form = new FormData();
+					form.set('revision', '1');
+					form.set('visibility', 'unlisted');
+					form.set('slug', 'foreign-attempt');
+					const response = await fetch(`/notes/${id}?/${action}`, {
+						method: 'POST',
+						headers: { accept: 'application/json' },
+						body: form
+					});
+					return { status: response.status, body: await response.json() };
+				},
+				{ id, action }
+			);
+			expect(result).toMatchObject({ status: 404, body: { type: 'error' } });
+			const anonymous = await request.post(`/notes/${id}?/${action}`, {
+				headers: { origin: new URL(page.url()).origin, accept: 'application/json' },
+				form: { revision: '1', visibility: 'unlisted', slug: 'anonymous-attempt' },
+				maxRedirects: 0
+			});
+			expect(await anonymous.json()).toMatchObject({ type: 'redirect', status: 303 });
+		}
+	} finally {
+		await foreignContext.close();
+	}
+
+	await saveMarkdownDocument(page, {
+		title: NORMAL_PRIVATE_NOTE_TITLE,
+		markdown: updated,
+		requestMarker: updated
+	});
+	const oldSnapshot = await (await request.get(shared)).text();
+	expect(oldSnapshot).toContain(original);
+	expect(oldSnapshot).not.toContain(updated);
+	await controls.getByRole('button', { name: 'Freigabe aktualisieren' }).click();
+	await expect(controls).toContainText('Die Freigabe entspricht der Arbeitskopie.');
+	const newSnapshot = await (await request.get(shared)).text();
+	expect(newSnapshot).toContain(updated);
+	expect(newSnapshot).not.toContain(original);
+	const privateDraft = (await (await page.request.get(`/api/documents/${id}`)).json()).document
+		.bodyMarkdown;
+
+	await controls.getByRole('button', { name: 'Freigabe zurückziehen' }).click();
+	await expect(controls.getByRole('button', { name: 'Schnappschuss freigeben' })).toBeVisible();
+	expect((await request.get(shared)).status()).toBe(404);
+	expect(
+		(await (await page.request.get(`/api/documents/${id}`)).json()).document.bodyMarkdown
+	).toBe(privateDraft);
 });
 
 test('note sharing permits only unlisted immutable snapshots and retires public discovery', async ({

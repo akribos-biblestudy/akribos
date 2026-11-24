@@ -63,6 +63,22 @@ describe('help catalog access', () => {
 
 describe('help server loads', () => {
 	it.each(readerRoles)(
+		'opens note sharing instructions and old bookmarks for a $label',
+		async ({ user }) => {
+			const data = await loadTopic(event('/help/dokumente', user) as never);
+			expect(data.guides.some(({ id }) => id === 'notizen-teilen')).toBe(true);
+			await expect(
+				Promise.resolve().then(() =>
+					loadGuide(event('/help/administration/notizen-teilen', user) as never)
+				)
+			).rejects.toMatchObject({
+				status: 308,
+				location: '/help/dokumente?anleitung=notizen-teilen'
+			});
+		}
+	);
+
+	it.each(readerRoles)(
 		'excludes restricted metadata and content from every public topic response for a $label',
 		async ({ user }) => {
 			for (const topic of publicTopics) {

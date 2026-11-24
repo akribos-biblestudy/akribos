@@ -38,7 +38,11 @@ export function redirectHelpGuide(
 	user: HelpViewer,
 	setHeaders: RequestEvent['setHeaders']
 ): never {
-	const guide = readHelpEntry(`/help/${topicId}/${guideId}`, user, setHeaders);
+	const path =
+		topicId === 'administration' && guideId === 'notizen-teilen'
+			? '/help/dokumente/notizen-teilen'
+			: `/help/${topicId}/${guideId}`;
+	const guide = readHelpEntry(path, user, setHeaders);
 	// A Location without its own fragment preserves the bookmark's original fragment.
 	redirect(308, `/help/${guide.topic}?${LEGACY_HELP_GUIDE_PARAM}=${guide.id}`);
 }

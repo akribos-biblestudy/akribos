@@ -745,76 +745,69 @@
 						<Icon name="globe" class="size-4" />
 						{t('documents.publication.title')}
 					</h2>
-					{#if !data.isAdmin}
-						<p class="mt-3 text-xs leading-relaxed text-stone-500 dark:text-stone-400">
-							<Icon name="lock" class="mr-1 inline size-3.5" />
-							{t('documents.publication.adminOnly')}
-						</p>
-					{:else}
-						{#if data.publication}
-							<div
-								class="mt-3 rounded-lg border px-3 py-2.5 text-xs {publicationIsOutdated
-									? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-100'
-									: 'border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/50 dark:text-green-200'}"
-							>
-								<p class="font-semibold">
-									{t('documents.publication.current', {
-										date: dateFormat.format(new Date(data.publication.publishedAt))
-									})}
-								</p>
-								<p class="mt-1">
-									{publicationIsOutdated
-										? t('documents.publication.outdated')
-										: t('documents.publication.currentCopy')}
-								</p>
-								<a
-									href="/notes/published/{data.publication.slug}"
-									class="mt-2 inline-flex items-center gap-1 font-semibold underline"
-								>
-									{t('documents.publication.open')}
-									<Icon name="open-external" class="size-3" />
-								</a>
-							</div>
-						{/if}
-
-						<form
-							method="POST"
-							action={documentAction('publish')}
-							class="mt-3 space-y-3"
-							onsubmit={flushBeforeSubmit}
+					{#if data.publication}
+						<div
+							class="mt-3 rounded-lg border px-3 py-2.5 text-xs {publicationIsOutdated
+								? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-100'
+								: 'border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/50 dark:text-green-200'}"
 						>
-							<input type="hidden" name="revision" value={currentRevision} />
-							<input type="hidden" name="visibility" value="unlisted" />
-							<p class="text-xs leading-relaxed text-stone-500 dark:text-stone-400">
-								{t('documents.publication.unlistedHint')}
+							<p class="font-semibold">
+								{t('documents.publication.current', {
+									date: dateFormat.format(new Date(data.publication.publishedAt))
+								})}
 							</p>
-							<label class="field-label">
-								<span>{t('documents.publication.slug')}</span>
-								<input
-									name="slug"
-									class="field-control font-mono"
-									value={data.publication?.slug ?? workingDocument.title}
-								/>
-							</label>
-							<label class="field-label">
-								<span>{t('documents.publication.excerpt')}</span>
-								<textarea name="excerpt" maxlength="500" rows="3" class="field-control resize-y"
-									>{data.publication?.excerpt ?? ''}</textarea
-								>
-							</label>
-							<button type="submit" class="primary-small w-full">
-								{data.publication
-									? t('documents.publication.update')
-									: t('documents.publication.publish')}
+							<p class="mt-1">
+								{publicationIsOutdated
+									? t('documents.publication.outdated')
+									: t('documents.publication.currentCopy')}
+							</p>
+							<a
+								href="/notes/published/{data.publication.slug}"
+								class="mt-2 inline-flex items-center gap-1 font-semibold underline"
+							>
+								{t('documents.publication.open')}
+								<Icon name="open-external" class="size-3" />
+							</a>
+						</div>
+					{/if}
+
+					<form
+						method="POST"
+						action={documentAction('publish')}
+						class="mt-3 space-y-3"
+						onsubmit={flushBeforeSubmit}
+					>
+						<input type="hidden" name="revision" value={currentRevision} />
+						<input type="hidden" name="visibility" value="unlisted" />
+						<p class="text-xs leading-relaxed text-stone-500 dark:text-stone-400">
+							{t('documents.publication.unlistedHint')}
+						</p>
+						<label class="field-label">
+							<span>{t('documents.publication.slug')}</span>
+							<input
+								name="slug"
+								class="field-control font-mono"
+								value={data.publication?.slug ?? workingDocument.title}
+							/>
+						</label>
+						<label class="field-label">
+							<span>{t('documents.publication.excerpt')}</span>
+							<textarea name="excerpt" maxlength="500" rows="3" class="field-control resize-y"
+								>{data.publication?.excerpt ?? ''}</textarea
+							>
+						</label>
+						<button type="submit" class="primary-small w-full">
+							{data.publication
+								? t('documents.publication.update')
+								: t('documents.publication.publish')}
+						</button>
+					</form>
+					{#if data.publication}
+						<form method="POST" action={documentAction('unpublish')} class="mt-2">
+							<button type="submit" class="danger-small w-full">
+								{t('documents.publication.unpublish')}
 							</button>
 						</form>
-						{#if data.publication}
-							<form method="POST" action={documentAction('unpublish')} class="mt-2">
-								<button type="submit" class="danger-small w-full">
-									{t('documents.publication.unpublish')}
-								</button>
-							</form>
-						{/if}
 					{/if}
 				</section>
 			{/if}

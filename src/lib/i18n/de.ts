@@ -429,8 +429,6 @@ export const de = {
 	'documents.import.error.invalidFrontmatter':
 		'Das YAML-Frontmatter ist ungültig oder überschreitet seine sichere Größen- und Komplexitätsgrenze.',
 	'documents.publication.title': 'Freigabe per Link',
-	'documents.publication.adminOnly':
-		'Nur Administratoren können eigene Notizen per Link freigeben.',
 	'documents.publication.private':
 		'Notizen können ausschließlich nicht gelistet per Link freigegeben werden.',
 	'documents.publication.unlistedHint':
