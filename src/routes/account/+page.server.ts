@@ -77,10 +77,40 @@ export const actions = {
 		locals.user.defaultBibleId = bibleId;
 		return { defaultBibleSaved: true };
 	},
-	profile: async ({ request, locals }) => {
+	profile: async ({ request, locals, cookies }) => {
 		if (!locals.user) redirect(303, '/login');
 		const form = await request.formData();
-		await updateProfile(getDb(), locals.user.id, String(form.get('displayName') ?? ''));
+		const displayName = String(form.get('displayName') ?? '').trim();
+		const current = String(form.get('currentPassword') ?? '');
+		const next = String(form.get('password') ?? '');
+		const repeat = String(form.get('passwordRepeat') ?? '');
+		const db = getDb();
+
+		if (!next && !repeat) {
+			await updateProfile(db, locals.user.id, displayName);
+			locals.user.displayName = displayName || null;
+			return { saved: true };
+		}
+
+		const user = await findUserByEmail(db, locals.user.email);
+		if (
+			!user ||
+			user.disabledAt ||
+			(user.passwordHash !== null && !(await verifyPassword(user.passwordHash, current)))
+		) {
+			return fail(400, { passwordError: 'current' as const, displayName });
+		}
+		if (next !== repeat) return fail(400, { passwordError: 'mismatch' as const, displayName });
+		if (checkPasswordStrength(next))
+			return fail(400, { passwordError: 'weak' as const, displayName });
+
+		if (!(await updatePassword(db, user.id, next, user.passwordHash, { displayName })))
+			return fail(400, { passwordError: 'current' as const, displayName });
+		locals.user.displayName = displayName || null;
+		// Other devices are signed out, then this one is signed back in.
+		await destroyAllSessions(db, user.id);
+		await createSession(db, cookies, user.id, request.headers.get('user-agent') ?? undefined);
+
 		return { saved: true };
 	},
 
@@ -92,35 +122,6 @@ export const actions = {
 		const savedScale = await updateReaderFontScale(getDb(), locals.user.id, scale);
 		writeFontScale(cookies, savedScale);
 		return { readerSaved: true };
-	},
-
-	password: async ({ request, locals, cookies }) => {
-		if (!locals.user) redirect(303, '/login');
-
-		const form = await request.formData();
-		const current = String(form.get('currentPassword') ?? '');
-		const next = String(form.get('password') ?? '');
-		const repeat = String(form.get('passwordRepeat') ?? '');
-
-		const db = getDb();
-		const user = await findUserByEmail(db, locals.user.email);
-		if (
-			!user ||
-			user.disabledAt ||
-			(user.passwordHash !== null && !(await verifyPassword(user.passwordHash, current)))
-		) {
-			return fail(400, { passwordError: 'current' as const });
-		}
-		if (next !== repeat) return fail(400, { passwordError: 'mismatch' as const });
-		if (checkPasswordStrength(next)) return fail(400, { passwordError: 'weak' as const });
-
-		if (!(await updatePassword(db, user.id, next, user.passwordHash)))
-			return fail(400, { passwordError: 'current' as const });
-		// Other devices are signed out, then this one is signed back in.
-		await destroyAllSessions(db, user.id);
-		await createSession(db, cookies, user.id, request.headers.get('user-agent') ?? undefined);
-
-		return { passwordSaved: true };
 	},
 
 	createApiKey: async ({ request, locals }) => {

@@ -571,8 +571,11 @@ export const de = {
 	'account.security': 'Passwort ändern',
 	'account.setPassword': 'Passwort festlegen',
 	'account.setPasswordHint':
-		'Du meldest dich bisher per E-Mail an. Mit einem Passwort kannst du dich künftig direkt anmelden. Andere Geräte werden beim Speichern abgemeldet.',
-	'account.securityHint': 'Nach dem Ändern werden alle anderen Geräte abgemeldet.',
+		'Du kannst dich weiterhin per E-Mail anmelden und die Passwortfelder leer lassen. Wenn du ein Passwort festlegst, werden andere Geräte abgemeldet.',
+	'account.securityHint':
+		'Lass die Passwortfelder leer, wenn du dein Passwort behalten möchtest. Bei einer Passwortänderung werden andere Geräte abgemeldet.',
+	'account.currentPasswordError': 'Das aktuelle Passwort fehlt oder ist falsch.',
+	'account.passwordRetry': 'Lade die Seite neu und versuche es erneut.',
 	'account.appearance': 'Darstellung',
 	'account.appearanceHint': 'Lesedarstellung und persönliche Voreinstellungen.',
 	'account.theme': 'Zwischen hellem und dunklem Design wechseln',

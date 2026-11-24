@@ -51,13 +51,29 @@ for (const javaScriptEnabled of [true, false]) {
 				page.getByRole('heading', { name: 'Passwort festlegen', exact: true })
 			).toBeVisible();
 			await expect(page.getByLabel('Aktuelles Passwort')).toHaveCount(0);
+			const save = page.getByRole('button', { name: 'Speichern', exact: true });
+			await expect(save).toHaveCount(1);
+			await page.getByLabel('Anzeigename').fill('Neuer Leser');
+			await page.getByLabel('Neues Passwort').fill(PASSWORD);
+			await page.getByLabel('Passwort wiederholen').fill('abweichendes-passwort');
+			await save.click();
+			await expect(page.getByRole('alert')).toContainText('Passwörter stimmen nicht überein');
+			await expect(page.getByLabel('Anzeigename')).toHaveValue('Neuer Leser');
+			await expect(page.locator('main > header')).toContainText(email);
+
 			await page.getByLabel('Neues Passwort').fill(PASSWORD);
 			await page.getByLabel('Passwort wiederholen').fill(PASSWORD);
-			await page
-				.locator('form[action="?/password"]')
-				.getByRole('button', { name: 'Speichern', exact: true })
-				.click();
+			await save.click();
 			await expect(page.getByLabel('Aktuelles Passwort')).toBeVisible();
+			await expect(page.locator('main > header')).toContainText('Neuer Leser');
+			await page.goto('/account');
+			await expect(page.getByLabel('Anzeigename')).toHaveValue('Neuer Leser');
+
+			await page.getByLabel('Anzeigename').fill('Neuer Anzeigename');
+			await save.click();
+			await expect(page.locator('main > header')).toContainText('Neuer Anzeigename');
+			await page.goto('/account');
+			await expect(page.getByLabel('Anzeigename')).toHaveValue('Neuer Anzeigename');
 			await page.getByRole('button', { name: 'Abmelden', exact: true }).click();
 			await page.goto(link);
 			await expect(page.getByRole('alert')).toContainText('bereits verwendet');

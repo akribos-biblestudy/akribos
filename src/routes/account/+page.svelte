@@ -14,7 +14,7 @@
 
 	const passwordMessage = $derived(
 		form?.passwordError === 'current'
-			? t('auth.login.failed')
+			? t('account.currentPasswordError')
 			: form?.passwordError === 'mismatch'
 				? t('auth.register.passwordMismatch')
 				: form?.passwordError === 'weak'
@@ -108,65 +108,67 @@
 						<TextField
 							name="displayName"
 							label={t('auth.displayName')}
-							value={data.user?.displayName ?? ''}
+							value={form?.displayName ?? data.user?.displayName ?? ''}
 							autocomplete="name"
 						/>
 						<TextField
 							name="email"
 							label={t('auth.email')}
 							value={data.user?.email ?? ''}
+							autocomplete="username"
 							hint={t('account.emailHint')}
 							readonly
 						/>
-						<div class="flex items-center gap-3">
-							<Button>{t('action.save')}</Button>
-							{#if form?.saved}
-								<span class="text-sm text-stone-500 dark:text-stone-400">{t('account.saved')}</span>
+						<section class="space-y-3 border-t border-stone-200 pt-3 dark:border-stone-800">
+							<div>
+								<h3 class="text-sm font-semibold">
+									{data.hasPassword ? t('account.security') : t('account.setPassword')}
+								</h3>
+								<p class="mt-1 text-xs text-stone-500 dark:text-stone-400">
+									{data.hasPassword ? t('account.securityHint') : t('account.setPasswordHint')}
+								</p>
+							</div>
+							{#if data.hasPassword}
+								<TextField
+									name="currentPassword"
+									type="password"
+									label={t('auth.passwordCurrent')}
+									autocomplete="current-password"
+									error={form?.passwordError === 'current'
+										? (passwordMessage ?? undefined)
+										: undefined}
+								/>
+							{:else if form?.passwordError === 'current'}
+								<p role="alert" class="text-xs text-red-700 dark:text-red-300">
+									{t('account.passwordRetry')}
+								</p>
 							{/if}
-						</div>
-					</form>
-				</Card>
-
-				<Card
-					title={data.hasPassword ? t('account.security') : t('account.setPassword')}
-					description={data.hasPassword ? t('account.securityHint') : t('account.setPasswordHint')}
-				>
-					{#if form?.passwordSaved}
-						<p class="mb-3 text-sm text-stone-600 dark:text-stone-300">{t('account.saved')}</p>
-					{/if}
-					<form method="POST" action="?/password" use:enhance class="max-w-sm space-y-3">
-						{#if data.hasPassword}
 							<TextField
-								name="currentPassword"
+								name="password"
 								type="password"
-								label={t('auth.passwordCurrent')}
-								autocomplete="current-password"
-								error={form?.passwordError === 'current'
+								label={t('auth.passwordNew')}
+								autocomplete="new-password"
+								minlength={data.minPasswordLength}
+								error={form?.passwordError === 'weak' ? (passwordMessage ?? undefined) : undefined}
+							/>
+							<TextField
+								name="passwordRepeat"
+								type="password"
+								label={t('auth.passwordRepeat')}
+								autocomplete="new-password"
+								error={form?.passwordError === 'mismatch'
 									? (passwordMessage ?? undefined)
 									: undefined}
-								required
 							/>
-						{/if}
-						<TextField
-							name="password"
-							type="password"
-							label={t('auth.passwordNew')}
-							autocomplete="new-password"
-							minlength={data.minPasswordLength}
-							error={form?.passwordError === 'weak' ? (passwordMessage ?? undefined) : undefined}
-							required
-						/>
-						<TextField
-							name="passwordRepeat"
-							type="password"
-							label={t('auth.passwordRepeat')}
-							autocomplete="new-password"
-							error={form?.passwordError === 'mismatch'
-								? (passwordMessage ?? undefined)
-								: undefined}
-							required
-						/>
-						<Button>{t('action.save')}</Button>
+						</section>
+						<div class="flex items-center gap-3">
+							<Button variant="primary">{t('action.save')}</Button>
+							{#if form?.saved}
+								<span role="status" class="text-sm text-stone-500 dark:text-stone-400">
+									{t('account.saved')}
+								</span>
+							{/if}
+						</div>
 					</form>
 				</Card>
 
