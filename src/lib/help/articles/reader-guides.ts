@@ -520,7 +520,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'profil',
 				title: 'Den Anzeigenamen ändern',
-				html: `<ol><li>Öffne im Konto-Menü <strong>Mein Konto</strong> oder direkt <a href="/account">Einstellungen</a>.</li><li>Wähle <strong>Profil &amp; Sicherheit</strong>.</li><li>Ändere unter <strong>Profil</strong> den <strong>Anzeigenamen</strong>.</li><li>Wähle <strong>Speichern</strong> und beachte die Rückmeldung <strong>Gespeichert.</strong></li></ol><p>Der Anzeigename hilft anderen Personen, deine Beiträge auf geteilten Stellensammlungen zuzuordnen. Die E-Mail-Adresse wird im Profil angezeigt, ist dort aber nicht bearbeitbar. Der Anzeigename verändert deine Anmeldeadresse nicht.</p>`
+				html: `<ol><li>Öffne im Konto-Menü <strong>Mein Konto</strong> oder direkt <a href="/account">Einstellungen</a>.</li><li>Wähle <strong>Profil &amp; Sicherheit</strong>.</li><li>Ändere unter <strong>Profil</strong> den <strong>Anzeigenamen</strong>. Wenn du nur den Namen ändern möchtest, lass die Passwortfelder leer.</li><li>Wähle <strong>Speichern</strong> und beachte die Rückmeldung <strong>Gespeichert.</strong></li></ol><p>Der Anzeigename hilft anderen Personen, deine Beiträge auf geteilten Stellensammlungen zuzuordnen. Die E-Mail-Adresse wird im Profil angezeigt, ist dort aber nicht bearbeitbar. Der Anzeigename verändert deine Anmeldeadresse nicht.</p>`
 			},
 			{
 				id: 'passwort-festlegen',

@@ -98,7 +98,8 @@ export async function updatePassword(
 	db: Database,
 	userId: string,
 	password: string,
-	expectedHash?: string | null
+	expectedHash?: string | null,
+	profile?: { displayName: string }
 ): Promise<boolean> {
 	const passwordHash = await hashPassword(password);
 	return db.transaction(async (tx) => {
@@ -110,7 +111,11 @@ export async function updatePassword(
 		await lockLoginEmail(tx, account.email);
 		const [updated] = await tx
 			.update(users)
-			.set({ passwordHash, updatedAt: new Date() })
+			.set({
+				passwordHash,
+				displayName: profile ? profile.displayName.trim() || null : undefined,
+				updatedAt: new Date()
+			})
 			.where(
 				and(
 					eq(users.id, userId),
