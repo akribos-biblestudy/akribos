@@ -396,10 +396,16 @@ Edge-Test behaupten.
 
 ### Container registry and automatic deployment
 
-The `image` job in `.github/workflows/ci.yml` runs after lint, type, unit and end-to-end tests. On a
-push to `main` it publishes two GHCR tags: `latest` for Coolify and the full Git commit SHA for an
-immutable rollback reference. Only after that push succeeds does the `deploy` job call Coolify. Set
-these repository secrets under **Settings → Secrets and variables → Actions**:
+Pull requests run lint, type checks, unit and end-to-end tests, and a container build. For a pull
+request targeting `main`, the workflow records the Git tree checked out for that run. On a push to
+`main`, the workflow skips the test jobs only if the merged pull request has a successful CI run
+whose recorded tree matches the pushed tree exactly. A direct push, different tree, missing record,
+or failed lookup runs the checks on `main`.
+
+After CI passes or verifies a matching run, the `image` job on `main` builds and publishes the
+`latest` GHCR tag for Coolify and the full Git commit SHA as an immutable rollback reference.
+Only after publishing succeeds does the `deploy` job call Coolify. Set these repository secrets under
+**Settings → Secrets and variables → Actions**:
 
 | Secret            | Value                                                         |
 | ----------------- | ------------------------------------------------------------- |

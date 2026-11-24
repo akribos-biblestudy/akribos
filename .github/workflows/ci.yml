@@ -10,6 +10,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   DATABASE_URL: postgres://strongs:strongs@localhost:5432/strongs
   SESSION_SECRET: ci-secret-ci-secret-ci-secret-ci-secret-0123
@@ -17,8 +20,55 @@ env:
   BACKUP_ENCRYPTION_KEY: ci-backup-encryption-key-ci-backup-encryption-key
 
 jobs:
+  previous_ci:
+    name: Look for CI on the same source tree
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    outputs:
+      reuse: ${{ steps.lookup.outputs.reuse }}
+    steps:
+      - name: Verify the merged tree was tested in the pull request
+        id: lookup
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          repo="repos/$GITHUB_REPOSITORY"
+          head_sha=$(gh api "$repo/commits/$GITHUB_SHA/pulls" | jq -r --arg sha "$GITHUB_SHA" '
+            first(.[] | select(.merged_at and .merge_commit_sha == $sha and .base.ref == "main") | .head.sha) // empty
+          ')
+          if [[ -z "$head_sha" ]]; then
+            echo 'No pull request matches this merge. Running CI.'
+            exit 0
+          fi
+
+          tree=$(gh api "$repo/git/commits/$GITHUB_SHA" | jq -er '.tree.sha')
+          runs=$(gh api --method GET "$repo/actions/workflows/ci.yml/runs" \
+            -f event=pull_request -f status=success -f head_sha="$head_sha" -F per_page=20 \
+            --jq '.workflow_runs[] | [.id, .run_attempt] | @tsv')
+          while IFS=$'\t' read -r run_id attempt; do
+            [[ -n "$run_id" && -n "$attempt" ]] || continue
+            matches=$(gh api --method GET "$repo/actions/runs/$run_id/artifacts" \
+              -f name="tested-tree-$attempt-$tree" \
+              --jq '[.artifacts[] | select(.expired == false)] | length')
+            if [[ "$matches" == 1 ]]; then
+              echo 'reuse=true' >> "$GITHUB_OUTPUT"
+              echo "The same source tree passed CI in pull request run $run_id, attempt $attempt."
+              exit 0
+            fi
+          done <<< "$runs"
+          echo 'No successful pull request run matches this tree. Running CI.'
+
   check:
     name: Lint, types and unit tests
+    needs: previous_ci
+    if: ${{ !cancelled() && needs.previous_ci.outputs.reuse != 'true' }}
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -65,6 +115,8 @@ jobs:
 
   e2e:
     name: End-to-end tests
+    needs: previous_ci
+    if: ${{ !cancelled() && needs.previous_ci.outputs.reuse != 'true' }}
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -118,13 +170,26 @@ jobs:
 
   image:
     name: Build and publish container image
-    needs: [check, e2e]
+    needs: [previous_ci, check, e2e]
+    if: >-
+      ${{ !cancelled() && (
+        (needs.check.result == 'success' && needs.e2e.result == 'success') ||
+        (needs.previous_ci.result == 'success' && needs.previous_ci.outputs.reuse == 'true' &&
+          needs.check.result == 'skipped' && needs.e2e.result == 'skipped')
+      ) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v5
+      - name: Record the tree checked out for the pull request
+        id: tested_tree
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          echo "sha=$tree" >> "$GITHUB_OUTPUT"
+          echo "$tree" > "$RUNNER_TEMP/tested-tree.txt"
       - uses: docker/setup-buildx-action@v3
       - name: Log in to GitHub Container Registry
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -145,11 +210,21 @@ jobs:
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Publish the tested source tree ID
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tested-tree-${{ github.run_attempt }}-${{ steps.tested_tree.outputs.sha }}
+          path: ${{ runner.temp }}/tested-tree.txt
+          if-no-files-found: error
+          retention-days: 30
 
   deploy:
     name: Deploy to Coolify
     needs: [image]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: >-
+      ${{ !cancelled() && needs.image.result == 'success' &&
+        github.ref == 'refs/heads/main' && github.event_name == 'push' }}
     runs-on: ubuntu-latest
     # Set COOLIFY_WEBHOOK (the resource's deploy webhook URL) and COOLIFY_TOKEN as repository
     # secrets to enable deployment. Without them the step is skipped instead of failing.

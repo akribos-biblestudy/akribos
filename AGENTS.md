@@ -16,7 +16,9 @@ Akribos ist eine SvelteKit-5-Anwendung (Runes) mit TypeScript, PostgreSQL/Drizzl
 Paketmanager ist `pnpm` (Node >= 24).
 
 Das Produktionsimage wird nach erfolgreichen CI-Tests von GitHub Actions nach
-`ghcr.io/akribos-biblestudy/akribos` veröffentlicht. `compose.yaml` darf für den App-Service kein
+`ghcr.io/akribos-biblestudy/akribos` veröffentlicht. Ein Push auf `main` überspringt die Tests nur,
+wenn ein erfolgreicher PR-Lauf denselben Git-Baum geprüft und dokumentiert hat. Fehlt der Nachweis,
+prüft der Push-Lauf den Stand selbst. `compose.yaml` darf für den App-Service kein
 `build:` enthalten: Coolify zieht ausschließlich das vorgebaute Image und löst den Deploy erst über
 den nachgelagerten Actions-Webhook aus. Dieser ruft den Coolify-Deploy-Endpunkt mit `POST` auf;
 ein `GET` wird von der Produktionsinstanz mit HTTP 405 abgewiesen.
