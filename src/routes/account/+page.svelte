@@ -11,6 +11,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	let { data, form } = $props();
+	let profileSaving = $state(false);
 
 	const passwordMessage = $derived(
 		form?.passwordError === 'current'
@@ -104,7 +105,32 @@
 		<div class="min-w-0 flex-1 space-y-5">
 			{#if activeSection === 'profileSecurity'}
 				<Card title={t('account.profile')} description={t('account.profileHint')}>
-					<form method="POST" action="?/profile" use:enhance class="max-w-sm space-y-3">
+					<form
+						method="POST"
+						action="?/profile"
+						use:enhance={({ formElement, cancel }) => {
+							if (profileSaving) {
+								cancel();
+								return;
+							}
+							profileSaving = true;
+							return async ({ result, update }) => {
+								try {
+									if (result.type === 'success') {
+										for (const input of formElement.querySelectorAll<HTMLInputElement>(
+											'input[type="password"]'
+										)) {
+											input.value = '';
+										}
+									}
+									await update({ reset: false });
+								} finally {
+									profileSaving = false;
+								}
+							};
+						}}
+						class="max-w-sm space-y-3"
+					>
 						<TextField
 							name="displayName"
 							label={t('auth.displayName')}
@@ -162,7 +188,7 @@
 							/>
 						</section>
 						<div class="flex items-center gap-3">
-							<Button variant="primary">{t('action.save')}</Button>
+							<Button variant="primary" disabled={profileSaving}>{t('action.save')}</Button>
 							{#if form?.saved}
 								<span role="status" class="text-sm text-stone-500 dark:text-stone-400">
 									{t('account.saved')}
