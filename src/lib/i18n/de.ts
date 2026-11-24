@@ -182,6 +182,13 @@ export const de = {
 	'documents.editor.visual': 'Visuell',
 	'documents.editor.markdown': 'Markdown',
 	'documents.editor.formatting': 'Text formatieren',
+	'documents.editor.imageFile': 'Bilddatei',
+	'documents.editor.imageInsert': 'Bild einfügen',
+	'documents.editor.imageBusy': 'Bild wird eingefügt …',
+	'documents.editor.imageHint':
+		'PNG oder JPEG auswählen oder aus der Zwischenablage einfügen. Bilder werden bei Bedarf verkleinert. Das Dokument darf insgesamt 1 MiB groß sein.',
+	'documents.editor.imageModeChanged':
+		'Bitte wechsle zurück zu Visuell und füge das Bild erneut ein.',
 	'documents.tables.insert': 'Tabelle einfügen',
 	'documents.tables.description': 'Drei Spalten mit Kopfzeile und zwei Datenzeilen',
 	'documents.tables.edit': 'Tabelle bearbeiten',
@@ -330,11 +337,11 @@ export const de = {
 	'documents.import.passageLimit':
 		'Pro Dokument werden höchstens {maximum} Bibelstellen verknüpft.',
 	'documents.import.limitation.rawHtml':
-		'Rohes HTML außer Unterstreichen und Hervorheben sowie Medien, Einbettungen und Attribute werden entfernt.',
+		'Rohes HTML außer unterstützter Formatierung sowie externe Medien, Einbettungen und Attribute werden entfernt. Eingebettete PNG- und JPEG-Bilder bleiben innerhalb der Größenlimits erhalten.',
 	'documents.import.limitation.headingDepth':
 		'Überschriften ab Ebene 4 werden auf Ebene 3 zurückgeführt.',
 	'documents.import.limitation.layout':
-		'Tabellenlayout, Startwerte nummerierter Listen und Linktitel bleiben nicht erhalten.',
+		'Zusammengeführte Tabellenzellen, Startwerte nummerierter Listen und Linktitel bleiben nicht erhalten.',
 	'documents.import.limitation.taskCheckboxes':
 		'Aufgaben-Kontrollkästchen werden zu gewöhnlichem lesbarem Text.',
 	'documents.import.limitation.whitespace':

@@ -6,13 +6,16 @@ const STATIC_MESSAGE_KEYS = new Map<string, MessageKey>([
 		'Word layout, images, attachments and comments are not imported.',
 		'documents.import.wordLimitations'
 	],
-	['Raw HTML, media, embeds and attributes are removed.', 'documents.import.limitation.rawHtml'],
+	[
+		'Raw HTML, external media, embeds and attributes are removed.',
+		'documents.import.limitation.rawHtml'
+	],
 	[
 		'Heading levels deeper than three are folded into level three.',
 		'documents.import.limitation.headingDepth'
 	],
 	[
-		'Table layout, ordered-list start numbers and link titles are not retained.',
+		'Merged table cells, ordered-list start numbers and link titles are not retained.',
 		'documents.import.limitation.layout'
 	],
 	['Task checkboxes become ordinary readable text.', 'documents.import.limitation.taskCheckboxes'],

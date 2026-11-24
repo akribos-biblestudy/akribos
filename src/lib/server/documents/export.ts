@@ -5,6 +5,7 @@ import {
 	HeadingLevel,
 	ExternalHyperlink,
 	FootnoteReferenceRun,
+	ImageRun,
 	type IRunStylePropertiesOptions,
 	Packer,
 	Paragraph,
@@ -15,6 +16,7 @@ import {
 	WidthType
 } from 'docx';
 import { type Token, type Tokens } from 'marked';
+import { parseDocumentImage } from '$lib/notes/document-images';
 import { formatPassage, passageFromDbEndpoints } from '$lib/bible/passage';
 import { formatGermanCalendarDate } from '$lib/notes/calendar-date';
 import {
@@ -25,6 +27,7 @@ import {
 } from '$lib/notes/document-footnotes';
 import {
 	documentContentDisposition,
+	documentMarkdownToHtml,
 	decodeHtmlEntities,
 	safeLinkHref,
 	safeDocumentFilename,
@@ -169,9 +172,10 @@ function wordInlineRuns(
 	baseUrl: string,
 	footnotes?: WordFootnoteContext,
 	initialStyle: IRunStylePropertiesOptions = {},
-	tokens?: Token[]
-): Array<TextRun | ExternalHyperlink | FootnoteReferenceRun> {
-	const runs: Array<TextRun | ExternalHyperlink | FootnoteReferenceRun> = [];
+	tokens?: Token[],
+	imageWidth = 570
+): Array<TextRun | ExternalHyperlink | FootnoteReferenceRun | ImageRun> {
+	const runs: Array<TextRun | ExternalHyperlink | FootnoteReferenceRun | ImageRun> = [];
 	const append = (
 		text: string,
 		style: IRunStylePropertiesOptions,
@@ -229,9 +233,25 @@ function wordInlineRuns(
 				case 'html':
 					if (/^<br\s*\/?\s*>$/iu.test((token as Tokens.Tag).text)) append('', style, href, true);
 					break;
-				case 'image':
-					append((token as Tokens.Image).text, style, href);
+				case 'image': {
+					const value = token as Tokens.Image;
+					const image = parseDocumentImage(value.href);
+					if (image) {
+						const scale = Math.min(1, Math.max(1, imageWidth) / image.width, 700 / image.height);
+						runs.push(
+							new ImageRun({
+								type: image.type,
+								data: image.bytes,
+								transformation: {
+									width: Math.round(image.width * scale),
+									height: Math.round(image.height * scale)
+								},
+								altText: { name: value.text, description: value.text, title: value.text }
+							})
+						);
+					} else append(value.text, style, href);
 					break;
+				}
 			}
 		}
 	};
@@ -281,7 +301,8 @@ function markdownWordBlocks(
 															baseUrl,
 															footnotes,
 															{ bold: rowIndex === 0 },
-															cell.tokens
+															cell.tokens,
+															(570 - block.indent * 24) / table.header.length - 16
 														),
 														alignment:
 															table.align[column] === 'center'
@@ -313,7 +334,14 @@ function markdownWordBlocks(
 								? [new TextRun('────────')]
 								: [
 										...(block.prefix ? [new TextRun(block.prefix)] : []),
-										...wordInlineRuns(block.text, baseUrl, footnotes, {}, block.tokens)
+										...wordInlineRuns(
+											block.text,
+											baseUrl,
+											footnotes,
+											{},
+											block.tokens,
+											570 - block.indent * 24
+										)
 									],
 					...(block.heading ? { heading: headings[block.heading - 1] } : {}),
 					...(block.indent ? { indent: { left: block.indent * 360 } } : {}),
@@ -332,6 +360,7 @@ export async function createDocxExport(
 	contentDisposition: string;
 	buffer: Buffer;
 }> {
+	documentMarkdownToHtml(data.document.bodyMarkdown);
 	const parsed = parseDocumentFootnotes(data.document.bodyMarkdown);
 	const baseUrl = options.baseUrl ?? 'https://akribos.de';
 	const footnotes: WordFootnoteContext = { definitions: parsed.footnotes, referenced: new Set() };
