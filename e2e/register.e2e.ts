@@ -66,14 +66,36 @@ for (const javaScriptEnabled of [true, false]) {
 			await save.click();
 			await expect(page.getByLabel('Aktuelles Passwort')).toBeVisible();
 			await expect(page.locator('main > header')).toContainText('Neuer Leser');
+			await expect(page.getByLabel('Anzeigename')).toHaveValue('Neuer Leser');
+			await expect(page.getByLabel('E-Mail-Adresse')).toHaveValue(email);
+			await expect(page.getByLabel('Aktuelles Passwort')).toHaveValue('');
+			await expect(page.getByLabel('Neues Passwort')).toHaveValue('');
+			await expect(page.getByLabel('Passwort wiederholen')).toHaveValue('');
 			await page.goto('/account');
 			await expect(page.getByLabel('Anzeigename')).toHaveValue('Neuer Leser');
 
-			await page.getByLabel('Anzeigename').fill('Neuer Anzeigename');
-			await save.click();
-			await expect(page.locator('main > header')).toContainText('Neuer Anzeigename');
+			let savedName = 'Neuer Leser';
+			for (const editedName of [null, null, 'Neuer Anzeigename', null]) {
+				if (editedName !== null) {
+					await page.getByLabel('Anzeigename').fill(editedName);
+					savedName = editedName;
+				}
+				const saved = page.waitForResponse(
+					(response) =>
+						response.request().method() === 'POST' &&
+						new URL(response.url()).searchParams.has('/profile')
+				);
+				await save.click();
+				expect((await saved).ok()).toBe(true);
+				await expect(save).toBeEnabled();
+				await expect(page.getByRole('status').filter({ hasText: 'Gespeichert.' })).toBeVisible();
+				await expect(page.getByLabel('Anzeigename')).toHaveValue(savedName);
+				await expect(page.getByLabel('E-Mail-Adresse')).toHaveValue(email);
+				await expect(page.locator('main > header')).toContainText(savedName);
+			}
 			await page.goto('/account');
 			await expect(page.getByLabel('Anzeigename')).toHaveValue('Neuer Anzeigename');
+			await expect(page.getByLabel('E-Mail-Adresse')).toHaveValue(email);
 			await page.getByRole('button', { name: 'Abmelden', exact: true }).click();
 			await page.goto(link);
 			await expect(page.getByRole('alert')).toContainText('bereits verwendet');
