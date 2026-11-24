@@ -1363,6 +1363,8 @@ Das Benutzer-Menü (`/account`) enthält nur Profil & Sicherheit sowie Darstellu
 Abschnitt steht im `tab`-Queryparameter und bleibt über Reload und Browser-History erhalten.
 Das Profil verwendet eine gemeinsame Speicheraktion für Anzeigename und optionales Passwort.
 Bei einer Passwortänderung werden beide Werte erst nach erfolgreicher Prüfung gemeinsam geschrieben.
+Die erfolgreiche Profilaktion verwendet `update({ reset: false })` und leert gezielt die
+Passwortfelder. Ein allgemeiner Formular-Reset leert auch unveränderte Kontofelder im Browser.
 Stellensammlungen sind der dritte Reiter im Dokumentbereich und liegen unter `/lists`; dort können
 eigene und geteilte Sammlungen geöffnet und neue angelegt werden. Alte `/account?tab=lists`-Links
 leiten zur neuen Übersicht weiter. Konto-GETs laden weder Sammlungen noch die Legacy-Kommentarliste.
