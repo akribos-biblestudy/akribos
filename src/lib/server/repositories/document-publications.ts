@@ -1,4 +1,4 @@
-/** Explicit, admin-only publication snapshots for note working copies. */
+/** Explicit publication snapshots for owned note working copies. */
 
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
@@ -52,8 +52,8 @@ function postgresErrorCode(error: unknown): string | undefined {
 /**
  * Copies the complete visitor-facing state from an owned note into its current snapshot. The
  * requested unlisted visibility is applied to the working copy in the same locked transaction,
- * so validation failures cannot leave visibility and snapshot out of sync. The actor's role and
- * ownership are read from the database rather than trusted from request data.
+ * so validation failures cannot leave visibility and snapshot out of sync. The active account and
+ * ownership are read from the database.
  */
 export async function publishDocument(
 	db: Database,
@@ -70,11 +70,11 @@ export async function publishDocument(
 	try {
 		return await db.transaction(async (tx) => {
 			const [actor] = await tx
-				.select({ role: users.role, displayName: users.displayName })
+				.select({ displayName: users.displayName })
 				.from(users)
-				.where(eq(users.id, actorUserId))
+				.where(and(eq(users.id, actorUserId), isNull(users.disabledAt)))
 				.limit(1);
-			if (actor?.role !== 'admin') return { ok: false, reason: 'forbidden' };
+			if (!actor) return { ok: false, reason: 'forbidden' };
 
 			const [document] = await tx
 				.select()
@@ -206,11 +206,11 @@ export async function unpublishDocument(
 ): Promise<UnpublishDocumentResult> {
 	return db.transaction(async (tx) => {
 		const [actor] = await tx
-			.select({ role: users.role })
+			.select({ id: users.id })
 			.from(users)
-			.where(eq(users.id, actorUserId))
+			.where(and(eq(users.id, actorUserId), isNull(users.disabledAt)))
 			.limit(1);
-		if (actor?.role !== 'admin') return { ok: false, reason: 'forbidden' };
+		if (!actor) return { ok: false, reason: 'forbidden' };
 
 		const [document] = await tx
 			.select({ id: documents.id })

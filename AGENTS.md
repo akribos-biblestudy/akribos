@@ -901,8 +901,8 @@ explizit gewählten Blatt-Tags, und ein Filter auf einen Pfad schließt seine Na
 Besucherseiten lesen ausschließlich `document_publications`, nie die veränderliche Arbeitskopie. Ein
 explizites Veröffentlichen sperrt die Arbeitskopie und ersetzt atomar die vollständige aktuelle
 Momentaufnahme (Titel, Exzerpt, bereinigtes HTML/Markdown, Autorname, Tags und Stellen); weitere
-Autosaves werden erst durch erneutes Veröffentlichen sichtbar. Nur ein Admin darf eine **eigene** aktive
-Notiz (`note`) mit nicht leerem Anzeigenamen veröffentlichen; eine
+Autosaves werden erst durch erneutes Veröffentlichen sichtbar. Jedes aktive Konto darf eine **eigene**
+aktive Notiz (`note`) mit nicht leerem Anzeigenamen veröffentlichen; eine
 E-Mail-Adresse ist nie Autor-Fallback. Freigaben sind ausschließlich `unlisted` und über ihren
 bestehenden Slug ohne Anmeldung abrufbar; das ist keine Zugriffskontrolle oder geheime Freigabe.
 Öffentliche Notizübersicht und Atom-Feed sind entfernt und liefern `410 Gone`; die Sitemap enthält
@@ -913,7 +913,7 @@ Migration `0037_unlisted_note_sharing.sql` stellt bestehende `public`-Arbeitskop
 auf `unlisted` um, ohne Link, Inhalt oder Autor zu ändern. Sie erhöht betroffene Dokumentrevisionen;
 bisher aktuelle Schnappschüsse bleiben revisionsgleich, bereits veraltete bleiben veraltet.
 Datenbank-Constraints und Form-/Repository-Validierung verbieten neue `public`-Werte. Persönliche Blogs
-(#186) bleiben zurückgestellt; die bestehende Beschränkung auf eigene Admin-Notizen bleibt bestehen.
+(#186) bleiben zurückgestellt.
 Freigabe-HTML bleibt `private, no-store`, weil das globale Layout auch für Gäste Cookie-Präferenzen
 enthält. Die cookie-freie Sitemap bleibt öffentlich mit `max-age=0, must-revalidate`.
 Sobald eine Session aufgelöst wurde, erzwingt `hooks.server.ts` abschließend für

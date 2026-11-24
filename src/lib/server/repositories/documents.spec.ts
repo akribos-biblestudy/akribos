@@ -18,7 +18,8 @@ import {
 import {
 	getOwnedDocumentPublication,
 	getPublishedDocumentBySlug,
-	publishDocument
+	publishDocument,
+	unpublishDocument
 } from './document-publications.ts';
 import {
 	listDocumentsByTag,
@@ -608,7 +609,7 @@ describe.sequential('unified document repositories', () => {
 		);
 	});
 
-	it('publishes only an admin-owned note and keeps working changes out of its snapshot', async () => {
+	it('publishes owned notes for regular accounts and admins while keeping private changes out of snapshots', async () => {
 		const ownerNote = await createDocument(db, ownerId, {
 			kind: 'note',
 			title: 'Owner note',
@@ -621,7 +622,15 @@ describe.sequential('unified document repositories', () => {
 				excerpt: '',
 				visibility: 'unlisted'
 			})
-		).toMatchObject({ ok: false, reason: 'forbidden' });
+		).toMatchObject({ ok: true });
+		expect(await unpublishDocument(db, adminId, ownerNote.id)).toMatchObject({
+			ok: false,
+			reason: 'notFound'
+		});
+		expect(await unpublishDocument(db, ownerId, ownerNote.id)).toEqual({
+			ok: true,
+			unpublished: true
+		});
 		expect(
 			await publishDocument(db, adminId, ownerNote.id, {
 				slug: `foreign-${randomUUID()}`,
@@ -725,6 +734,39 @@ describe.sequential('unified document repositories', () => {
 		expect(second.ok && second.publication.bodyMarkdown).toBe('Version two');
 		expect(second.ok && second.publication.publicationRevision).toBe(changed.document.revision);
 		expect((await getDocument(db, adminId, note.id))?.revision).toBe(changed.document.revision);
+	});
+
+	it('rejects publication changes from missing or disabled accounts', async () => {
+		const owner = await createUser(db, {
+			email: `disabled-publisher-${randomUUID()}@example.com`,
+			password: 'a-fairly-good-password',
+			displayName: 'Disabled Publisher'
+		});
+		if (!owner.ok) throw new Error('failed to create disabled publisher');
+		const note = await createDocument(db, owner.user.id, {
+			kind: 'note',
+			title: 'Owned note',
+			...EMPTY_BODY
+		});
+		const input = {
+			slug: `disabled-${randomUUID()}`,
+			excerpt: '',
+			visibility: 'unlisted' as const
+		};
+		expect(await publishDocument(db, owner.user.id, note.id, input)).toMatchObject({ ok: true });
+		await db.update(users).set({ disabledAt: new Date() }).where(eq(users.id, owner.user.id));
+
+		for (const actorId of [owner.user.id, randomUUID()]) {
+			expect(await publishDocument(db, actorId, note.id, input)).toMatchObject({
+				ok: false,
+				reason: 'forbidden'
+			});
+			expect(await unpublishDocument(db, actorId, note.id)).toMatchObject({
+				ok: false,
+				reason: 'forbidden'
+			});
+		}
+		expect((await getOwnedDocumentPublication(db, owner.user.id, note.id))?.slug).toBe(input.slug);
 	});
 
 	it('serializes publication snapshots with concurrent working-copy mutations', async () => {

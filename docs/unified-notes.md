@@ -8,7 +8,7 @@ public content and a compatibility migration.
 
 A **document** is an owner-private working copy. The product has two writing areas:
 
-- `note` for study notes, which an administrator may publish;
+- `note` for study notes, which their owner may share by link;
 - `sermon` for a preparation document in an owner-configurable workflow (initially
   `idea -> research -> outline -> ready -> delivered`).
 
@@ -20,9 +20,8 @@ searches and organises notes; `/sermons` is a focused workflow view over sermon 
 storage model.
 
 Documents are private to their owner. Administrator status does not grant access to another user's
-working copy. Publication is both owner-scoped and administrator-only. This deliberately chooses the
-least-privilege interpretation of the feature: an administrator may publish their own note, but
-cannot browse or publish another account's private drafts.
+working copy. Every active account can publish, update and withdraw snapshots of its own notes. Each
+operation checks document ownership in the route and repository.
 
 `body_markdown` is the portable source. The application derives allow-listed `body_html` for rendering
 and markup-free `plain_text` for library search, and updates all three together. Title/body autosave
@@ -101,8 +100,8 @@ Snapshots are exclusively `unlisted`. The former `/notes/published` index and At
 accessible and carry `noindex, nofollow` in both HTTP and HTML. Such a link is not a password or an
 authorisation boundary and may be forwarded. Crawling of the old URLs remains allowed so search engines
 can see the removal/noindex responses. This does not guarantee immediate removal from external indexes.
-Private drafts have no snapshot. Sharing still requires an administrator's own note and a non-empty
-display name; ordinary accounts cannot invoke it, and an email address is never an author fallback.
+Private drafts have no snapshot. Sharing requires an active owner's note and a non-empty display name.
+The stored display name becomes the snapshot's author label; an email address is never an author fallback.
 
 Migration `0037_unlisted_note_sharing.sql` converts existing public working copies and snapshots to
 unlisted while preserving content, author, slug and sharing dates. It increments affected working-copy
