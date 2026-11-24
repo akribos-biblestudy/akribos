@@ -337,11 +337,11 @@ export const de = {
 	'documents.import.passageLimit':
 		'Pro Dokument werden höchstens {maximum} Bibelstellen verknüpft.',
 	'documents.import.limitation.rawHtml':
-		'Rohes HTML außer Unterstreichen und Hervorheben sowie Medien, Einbettungen und Attribute werden entfernt.',
+		'Rohes HTML außer unterstützter Formatierung sowie externe Medien, Einbettungen und Attribute werden entfernt. Eingebettete PNG- und JPEG-Bilder bleiben innerhalb der Größenlimits erhalten.',
 	'documents.import.limitation.headingDepth':
 		'Überschriften ab Ebene 4 werden auf Ebene 3 zurückgeführt.',
 	'documents.import.limitation.layout':
-		'Tabellenlayout, Startwerte nummerierter Listen und Linktitel bleiben nicht erhalten.',
+		'Zusammengeführte Tabellenzellen, Startwerte nummerierter Listen und Linktitel bleiben nicht erhalten.',
 	'documents.import.limitation.taskCheckboxes':
 		'Aufgaben-Kontrollkästchen werden zu gewöhnlichem lesbarem Text.',
 	'documents.import.limitation.whitespace':

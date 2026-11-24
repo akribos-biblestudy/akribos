@@ -6,8 +6,12 @@ describe('German Obsidian import diagnostics', () => {
 	it('localizes every published round-trip limitation', () => {
 		for (const limitation of MARKDOWN_ROUND_TRIP_LIMITATIONS) {
 			expect(localizeImportMessage(limitation)).not.toBe(limitation);
+			expect(localizeImportMessage(limitation)).not.toBe(localizeImportMessage('unknown'));
 		}
 		expect(localizeImportMessage(MARKDOWN_ROUND_TRIP_LIMITATIONS[0])).toMatch(/Rohes HTML/u);
+		expect(localizeImportMessage(MARKDOWN_ROUND_TRIP_LIMITATIONS[0])).toContain(
+			'PNG- und JPEG-Bilder bleiben'
+		);
 	});
 
 	it('localizes static and field-specific parser warnings without exposing English fallbacks', () => {
