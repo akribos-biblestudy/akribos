@@ -256,7 +256,12 @@ test('the about page loads with a visible heading', async ({ page }) => {
 test('the landing page shows the introduction, a prominent reader link and product screenshots', async ({
 	page
 }) => {
-	await page.goto('/about');
+	const response = await page.goto('/');
+	const previewImage = new URL('/landing/akribos-vorschau.jpg', page.url()).href;
+	expect(await response?.text()).toContain(`property="og:image" content="${previewImage}"`);
+	const previewResponse = await page.request.get(previewImage);
+	expect(previewResponse.ok()).toBe(true);
+	expect(previewResponse.headers()['content-type']).toBe('image/jpeg');
 
 	const readerLink = page
 		.locator('.hero')
@@ -266,6 +271,15 @@ test('the landing page shows the introduction, a prominent reader link and produ
 	await expect
 		.poll(async () => (await readerLink.boundingBox())?.height ?? 0)
 		.toBeGreaterThanOrEqual(48);
+	const stores = page.getByRole('navigation', { name: 'Akribos-App herunterladen' });
+	await expect(stores.getByRole('link', { name: /im App Store laden/ })).toHaveAttribute(
+		'href',
+		'https://apps.apple.com/de/app/akribos/id6827126169'
+	);
+	await expect(stores.getByRole('link', { name: /bei Google Play laden/ })).toHaveAttribute(
+		'href',
+		'https://play.google.com/store/apps/details?id=de.akribos.app&hl=de'
+	);
 	const playIntro = page.getByRole('button', { name: 'Video abspielen: Akribos kennenlernen' });
 	await expect(playIntro).toBeVisible();
 	await playIntro.click();
@@ -296,7 +310,9 @@ test('the landing page shows the introduction, a prominent reader link and produ
 		{ width: 390, height: 844 }
 	]) {
 		await page.setViewportSize(viewport);
-		for (const screenshot of await page.locator('.landing img[src^="/help/live/"]:visible').all()) {
+		for (const screenshot of await page
+			.locator('.landing img[src^="/help/live/"]:visible, .store-links img:visible')
+			.all()) {
 			await screenshot.scrollIntoViewIfNeeded();
 			await expect
 				.poll(() => screenshot.evaluate((image) => (image as HTMLImageElement).naturalWidth))

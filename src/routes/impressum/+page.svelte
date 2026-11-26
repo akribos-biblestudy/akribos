@@ -48,5 +48,10 @@
 			Rechtehinweis; er steht in der jeweiligen Spalte des Lesers. Die Software selbst ist
 			quelloffen.
 		</p>
+		<p class="mt-3 text-stone-700 dark:text-stone-300">
+			Apple, das Apple-Logo, iPhone und iPad sind Marken von Apple Inc. App Store ist eine
+			Dienstleistungsmarke von Apple Inc. Diese Marken sind in den USA und weiteren Ländern
+			eingetragen. Android, Google Play und das Google Play-Logo sind Marken von Google LLC.
+		</p>
 	</section>
 </main>
