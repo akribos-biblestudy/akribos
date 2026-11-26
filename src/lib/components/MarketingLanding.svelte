@@ -6,6 +6,11 @@
 	import TutorialVideo from './TutorialVideo.svelte';
 	import HelpScreenshot from './help/HelpScreenshot.svelte';
 
+	const description =
+		'Vergleiche Bibelübersetzungen, schlage Wörter im Urtext nach und halte Gedanken direkt am Vers fest. Kostenlos im Browser und als App.';
+	const canonicalUrl = $derived(new URL('/', page.url).href);
+	const previewImage = $derived(new URL('/landing/akribos-vorschau.jpg', page.url).href);
+
 	const studyFeatures = [
 		{
 			icon: 'search',
@@ -38,11 +43,22 @@
 </script>
 
 <svelte:head>
+	<meta name="description" content={description} />
+	<link rel="canonical" href={canonicalUrl} />
+	<meta property="og:type" content="website" />
+	<meta property="og:locale" content="de_DE" />
+	<meta property="og:site_name" content="Akribos" />
+	<meta property="og:url" content={canonicalUrl} />
+	<meta property="og:title" content="Akribos – Die Bibel lesen und tiefer verstehen" />
+	<meta property="og:description" content={description} />
+	<meta property="og:image" content={previewImage} />
+	<meta property="og:image:type" content="image/jpeg" />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
 	<meta
-		name="description"
-		content="Mit Akribos liest du die Bibel kostenlos im Browser, vergleichst Übersetzungen, schlägst im Urtext nach und verknüpfst deine Gedanken mit Bibelstellen."
+		property="og:image:alt"
+		content="Akribos. Die Bibel lesen. Tiefe entdecken. Der Bibel-Reader mit einer Wortstudie zu Johannes 3,16."
 	/>
-	<link rel="canonical" href={new URL('/', page.url).href} />
 </svelte:head>
 
 {#snippet readBibleLink()}
@@ -83,7 +99,7 @@
 		<main id="inhalt">
 			<section class="hero page-width" aria-labelledby="hero-heading">
 				<div class="hero-copy">
-					<p class="landing-label">Bibelstudium im Browser</p>
+					<p class="landing-label">Bibelstudium</p>
 					<h1 id="hero-heading">Die Bibel lesen.<br /><em>Tiefe entdecken.</em></h1>
 					<p class="hero-description">
 						Vergleiche Übersetzungen, erforsche den Urtext und halte deine Gedanken direkt an der
@@ -93,6 +109,24 @@
 						{@render readBibleLink()}
 						<span class="entry-note">Kostenlos · ohne Anmeldung</span>
 					</div>
+					<nav class="store-links" aria-label="Akribos-App herunterladen">
+						<a href="https://apps.apple.com/de/app/akribos/id6827126169">
+							<img
+								src="/landing/app-store-de.svg"
+								alt="Akribos für iPhone und iPad im App Store laden"
+								width="120"
+								height="40"
+							/>
+						</a>
+						<a href="https://play.google.com/store/apps/details?id=de.akribos.app&hl=de">
+							<img
+								src="/landing/google-play-de.png"
+								alt="Akribos für Android bei Google Play laden"
+								width="137"
+								height="53"
+							/>
+						</a>
+					</nav>
 				</div>
 
 				<div class="intro" id="intro">
