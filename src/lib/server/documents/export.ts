@@ -6,6 +6,7 @@ import {
 	ExternalHyperlink,
 	FootnoteReferenceRun,
 	ImageRun,
+	type IParagraphOptions,
 	type IRunStylePropertiesOptions,
 	Packer,
 	Paragraph,
@@ -16,7 +17,7 @@ import {
 	WidthType
 } from 'docx';
 import { type Token, type Tokens } from 'marked';
-import { parseDocumentImage } from '$lib/notes/document-images';
+import { parseDocumentImage, parseDocumentImageLayoutTitle } from '$lib/notes/document-images';
 import { formatPassage, passageFromDbEndpoints } from '$lib/bible/passage';
 import { formatGermanCalendarDate } from '$lib/notes/calendar-date';
 import {
@@ -167,6 +168,17 @@ type WordFootnoteContext = {
 	referenced: Set<string>;
 };
 
+type WordInlineRun = TextRun | ExternalHyperlink | FootnoteReferenceRun | ImageRun;
+const wordImageAlignments = {
+	left: AlignmentType.LEFT,
+	center: AlignmentType.CENTER,
+	right: AlignmentType.RIGHT
+} as const;
+type PositionedImage = {
+	image: ImageRun;
+	alignment: (typeof wordImageAlignments)[keyof typeof wordImageAlignments];
+};
+
 function wordInlineRuns(
 	markdown: string,
 	baseUrl: string,
@@ -174,8 +186,8 @@ function wordInlineRuns(
 	initialStyle: IRunStylePropertiesOptions = {},
 	tokens?: Token[],
 	imageWidth = 570
-): Array<TextRun | ExternalHyperlink | FootnoteReferenceRun | ImageRun> {
-	const runs: Array<TextRun | ExternalHyperlink | FootnoteReferenceRun | ImageRun> = [];
+): Array<WordInlineRun | PositionedImage> {
+	const runs: Array<WordInlineRun | PositionedImage> = [];
 	const append = (
 		text: string,
 		style: IRunStylePropertiesOptions,
@@ -237,18 +249,24 @@ function wordInlineRuns(
 					const value = token as Tokens.Image;
 					const image = parseDocumentImage(value.href);
 					if (image) {
-						const scale = Math.min(1, Math.max(1, imageWidth) / image.width, 700 / image.height);
-						runs.push(
-							new ImageRun({
-								type: image.type,
-								data: image.bytes,
-								transformation: {
-									width: Math.round(image.width * scale),
-									height: Math.round(image.height * scale)
-								},
-								altText: { name: value.text, description: value.text, title: value.text }
-							})
-						);
+						const { align, width } = parseDocumentImageLayoutTitle(value.title);
+						const availableWidth = Math.max(1, (imageWidth * (width ?? 100)) / 100);
+						const scale = Math.min(1, availableWidth / image.width, 700 / image.height);
+						const run = new ImageRun({
+							type: image.type,
+							data: image.bytes,
+							transformation: {
+								width: Math.max(1, Math.round(image.width * scale)),
+								height: Math.max(1, Math.round(image.height * scale))
+							},
+							altText: { name: value.text, description: value.text, title: value.text }
+						});
+						if (align || width)
+							runs.push({
+								image: run,
+								alignment: wordImageAlignments[align ?? 'left']
+							});
+						else runs.push(run);
 					} else append(value.text, style, href);
 					break;
 				}
@@ -260,6 +278,34 @@ function wordInlineRuns(
 		initialStyle
 	);
 	return runs;
+}
+
+/** Positioned images occupy their own paragraph, including within a table cell or footnote. */
+function wordParagraphs(
+	runs: Array<WordInlineRun | PositionedImage>,
+	options: IParagraphOptions
+): Paragraph[] {
+	const paragraphs: Paragraph[] = [];
+	let children: WordInlineRun[] = [];
+	for (const run of runs) {
+		if (!('image' in run)) {
+			children.push(run);
+			continue;
+		}
+		if (children.length) paragraphs.push(new Paragraph({ ...options, children }));
+		children = [];
+		paragraphs.push(
+			new Paragraph({
+				indent: options.indent,
+				spacing: options.spacing,
+				alignment: run.alignment,
+				children: [run.image]
+			})
+		);
+	}
+	if (children.length || !paragraphs.length)
+		paragraphs.push(new Paragraph({ ...options, children }));
+	return paragraphs;
 }
 
 function markdownWordBlocks(
@@ -294,16 +340,16 @@ function markdownWordBlocks(
 										(cell, column) =>
 											new TableCell({
 												...(rowIndex === 0 ? { shading: { fill: 'EAF2EA' } } : {}),
-												children: [
-													new Paragraph({
-														children: wordInlineRuns(
-															cell.text,
-															baseUrl,
-															footnotes,
-															{ bold: rowIndex === 0 },
-															cell.tokens,
-															(570 - block.indent * 24) / table.header.length - 16
-														),
+												children: wordParagraphs(
+													wordInlineRuns(
+														cell.text,
+														baseUrl,
+														footnotes,
+														{ bold: rowIndex === 0 },
+														cell.tokens,
+														(570 - block.indent * 24) / table.header.length - 16
+													),
+													{
 														alignment:
 															table.align[column] === 'center'
 																? AlignmentType.CENTER
@@ -311,8 +357,8 @@ function markdownWordBlocks(
 																	? AlignmentType.RIGHT
 																	: AlignmentType.LEFT,
 														spacing: { after: 80 }
-													})
-												]
+													}
+												)
 											})
 									)
 								})
@@ -320,34 +366,32 @@ function markdownWordBlocks(
 					})
 				];
 			}
-			return [
-				new Paragraph({
-					children:
-						block.kind === 'code'
-							? block.text
-									.split('\n')
-									.map(
-										(text, index) =>
-											new TextRun({ text, font: 'Courier New', ...(index ? { break: 1 } : {}) })
-									)
-							: block.kind === 'rule'
-								? [new TextRun('────────')]
-								: [
-										...(block.prefix ? [new TextRun(block.prefix)] : []),
-										...wordInlineRuns(
-											block.text,
-											baseUrl,
-											footnotes,
-											{},
-											block.tokens,
-											570 - block.indent * 24
-										)
-									],
-					...(block.heading ? { heading: headings[block.heading - 1] } : {}),
-					...(block.indent ? { indent: { left: block.indent * 360 } } : {}),
-					spacing: { after: 120 }
-				})
-			];
+			const runs =
+				block.kind === 'code'
+					? block.text
+							.split('\n')
+							.map(
+								(text, index) =>
+									new TextRun({ text, font: 'Courier New', ...(index ? { break: 1 } : {}) })
+							)
+					: block.kind === 'rule'
+						? [new TextRun('────────')]
+						: [
+								...(block.prefix ? [new TextRun(block.prefix)] : []),
+								...wordInlineRuns(
+									block.text,
+									baseUrl,
+									footnotes,
+									{},
+									block.tokens,
+									570 - block.indent * 24
+								)
+							];
+			return wordParagraphs(runs, {
+				...(block.heading ? { heading: headings[block.heading - 1] } : {}),
+				...(block.indent ? { indent: { left: block.indent * 360 } } : {}),
+				spacing: { after: 120 }
+			});
 		}
 	);
 }

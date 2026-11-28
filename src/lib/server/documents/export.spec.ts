@@ -7,6 +7,7 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import type { OwnedDocumentExport } from './export';
 import { createDocxExport, createPdfExport } from './export';
+import { createPdfModel } from './pdf-model';
 import { parseDocumentFootnotes } from '$lib/notes/document-footnotes';
 import { previewWordDocument } from './word-import';
 
@@ -56,6 +57,44 @@ describe('portable rich document exports', () => {
 		await expect(createDocxExport(huge)).rejects.toThrow(/Bilder sind zusammen zu groß/);
 		await expect(createPdfExport(huge)).rejects.toThrow(/Bilder sind zusammen zu groß/);
 	});
+	it('sets the chosen image alignment and width in Word and PDF', async () => {
+		const source =
+			'data:image/png;base64,' +
+			(await readFile('e2e/fixtures/document-image.png')).toString('base64');
+		const markdown = `Vorher ![A](${source} "akribos:image:right:50") nachher.\n`;
+		const data = { ...fixture, document: { ...fixture.document, bodyMarkdown: markdown } };
+		const docx = await createDocxExport(data);
+		const xml = strFromU8(unzipSync(docx.buffer)['word/document.xml']!);
+		const paragraphs = [...xml.matchAll(/<w:p>([\s\S]*?)<\/w:p>/gu)].map((match) => match[1]!);
+		const picture = paragraphs.findIndex((paragraph) => paragraph.includes('<w:drawing>'));
+		expect(paragraphs[picture - 1]).toContain('Vorher');
+		expect(paragraphs[picture]).toContain('<w:jc w:val="right"/>');
+		expect(paragraphs[picture]).toContain(`<wp:extent cx="${285 * 9525}"`);
+		expect(paragraphs[picture + 1]).toContain('nachher');
+
+		expect(createPdfModel('Titel', markdown, []).blocks).toMatchObject([
+			{
+				kind: 'paragraph',
+				runs: [
+					{ text: 'Vorher ' },
+					{ image: { layout: { align: 'right', width: 50 } } },
+					{ text: ' nachher.' }
+				]
+			}
+		]);
+		const pdf = await createPdfExport(data);
+		const directory = await mkdtemp(join(tmpdir(), 'akribos-image-layout-'));
+		try {
+			const path = join(directory, 'image.pdf');
+			await writeFile(path, pdf.buffer);
+			const { stdout } = await promisify(execFile)('pdfimages', ['-list', path]);
+			// 1200 pixels printed at 81 mm (50% of the 162 mm text width) yields about 376 dpi.
+			expect(stdout).toMatch(/image\s+1200\s+600\s+.*\b37[0-9]\s+37[0-9]\s/u);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	it('embeds document images in Word and PDF', async () => {
 		const source =
 			'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQSjMGAAFpALw5l2YJAAAAAElFTkSuQmCC';

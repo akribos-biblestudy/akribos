@@ -21,6 +21,29 @@ describe('embedded document images', () => {
 		expect(previewObsidianMarkdown('bild.md', '# Titel\n\n' + markdown).html).toContain(png);
 	});
 
+	it('preserves validated placement through Markdown and rejects unknown layout values', () => {
+		const markdown = `![Bild](${png} "akribos:image:center:50")\n`;
+		const { html } = documentMarkdownToHtml(markdown);
+		expect(html).toContain('data-image-align="center" data-image-width="50"');
+		expect(documentHtmlToMarkdown(html)).toBe(markdown);
+		expect(previewObsidianMarkdown('bild.md', markdown).html).toBe(html);
+
+		for (const title of [
+			'Es ist ein Bild',
+			'akribos:image:center:999',
+			'akribos:image:middle:50'
+		]) {
+			expect(documentMarkdownToHtml(`![Bild](${png} "${title}")`).html).toContain(
+				`<img src="${png}" alt="Bild">`
+			);
+		}
+		expect(
+			documentHtmlToMarkdown(
+				`<img src="${png}" alt="Bild" data-image-align="fixed" data-image-width="500">`
+			)
+		).toBe(`![Bild](${png})\n`);
+	});
+
 	it('rejects remote, active, malformed and oversized sources and strips unsafe attributes', () => {
 		for (const source of [
 			'https://example.test/tracker.png',

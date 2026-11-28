@@ -120,8 +120,13 @@
   for (index, run) in runs.enumerate() {
     if "image" in run {
       let raster = run.image
-      let image-width = calc.min(width, raster.width * 0.75pt, 180mm * raster.width / raster.height)
-      box(image(bytes(raster.bytes), format: raster.format, width: image-width, alt: run.text))
+      let width-limit = width * (if raster.layout.width == none { 100 } else { raster.layout.width }) / 100
+      let image-width = calc.min(width-limit, raster.width * 0.75pt, 180mm * raster.width / raster.height)
+      let picture = box(image(bytes(raster.bytes), format: raster.format, width: image-width, alt: run.text))
+      if raster.layout.align != none or raster.layout.width != none {
+        let alignment = if raster.layout.align == "center" { center } else if raster.layout.align == "right" { right } else { left }
+        align(alignment, picture)
+      } else { picture }
     } else if "footnoteNumber" in run {
       let id = label("fn-" + str(run.footnoteNumber))
       if run.at("repeat", default: false) { footnote(id) }

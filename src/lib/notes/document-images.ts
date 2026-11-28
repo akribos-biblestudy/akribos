@@ -21,6 +21,28 @@ export type DocumentImage = {
 	height: number;
 };
 
+export const documentImageAlignments = ['left', 'center', 'right'] as const;
+export const documentImageWidths = [25, 50, 75] as const;
+
+export type DocumentImageLayout = {
+	align: (typeof documentImageAlignments)[number] | null;
+	width: (typeof documentImageWidths)[number] | null;
+};
+
+export function documentImageLayout(align: unknown, width: unknown): DocumentImageLayout {
+	return {
+		align: documentImageAlignments.find((option) => option === align) ?? null,
+		width:
+			documentImageWidths.find((option) => option === width || String(option) === width) ?? null
+	};
+}
+
+/** A standard Markdown image title carries the optional layout for Akribos renderers. */
+export function parseDocumentImageLayoutTitle(title?: string | null): DocumentImageLayout {
+	const match = /^akribos:image:(left|center|right|auto):(25|50|75|auto)$/.exec(title ?? '');
+	return documentImageLayout(match?.[1], match?.[2]);
+}
+
 /** Accept bounded PNG/JPEG data only. Remote URLs, SVG and arbitrary data URIs are inert. */
 export function parseDocumentImage(source: string): DocumentImage | null {
 	if (source.length > Math.ceil(MAX_DOCUMENT_IMAGE_BYTES / 3) * 4 + 32) return null;

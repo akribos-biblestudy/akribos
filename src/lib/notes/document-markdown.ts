@@ -3,7 +3,12 @@ import { marked, Renderer, type Tokens } from 'marked';
 import TurndownService from 'turndown';
 import { parseDocument, stringify as stringifyYaml } from 'yaml';
 import { encodeDocumentInlineCode } from './document-inline-code.ts';
-import { parseDocumentImage } from './document-images.ts';
+import {
+	documentImageLayout,
+	parseDocumentImage,
+	parseDocumentImageLayoutTitle,
+	type DocumentImageLayout
+} from './document-images.ts';
 import {
 	createDocumentFootnoteMarked,
 	isDocumentFootnoteId,
@@ -636,7 +641,7 @@ class SafeDocumentRenderer extends Renderer {
 		return safeHref ? `<a href="${escapeHtmlAttribute(safeHref)}">${label}</a>` : label;
 	}
 
-	override image({ href, text, tokens }: Tokens.Image): string {
+	override image({ href, text, tokens, title }: Tokens.Image): string {
 		// Reference-style Markdown can repeat one data URI thousands of times. Bound resolved
 		// occurrences before decoding or constructing HTML, not just the authored source text.
 		if (href.startsWith('data:image/')) {
@@ -655,7 +660,7 @@ class SafeDocumentRenderer extends Renderer {
 					'file_too_large',
 					'Die Bilder enthalten zusammen zu viele Pixel. Bitte verkleinere sie oder teile das Dokument auf.'
 				);
-			return `<img src="${href}" alt="${escapeHtmlAttribute(text)}">`;
+			return documentImageHtml(href, text, parseDocumentImageLayoutTitle(title));
 		}
 		this.warnings?.add('image', 'An image or attachment was removed from the import.');
 		const label = tokens
@@ -744,9 +749,16 @@ function createTurndownService(
 	service.addRule('documentImage', {
 		filter: 'img',
 		replacement: (_content, node) => {
-			const source = (node as HTMLElement).getAttribute('src') ?? '';
-			const label = (node as HTMLElement).getAttribute('alt') ?? '';
-			return parseDocumentImage(source) ? `![${escapeMarkdownLabel(label)}](${source})` : '';
+			const element = node as HTMLElement;
+			const source = element.getAttribute('src') ?? '';
+			if (!parseDocumentImage(source)) return '';
+			const label = element.getAttribute('alt') ?? '';
+			const { align, width } = documentImageLayout(
+				element.getAttribute('data-image-align'),
+				element.getAttribute('data-image-width')
+			);
+			const title = align || width ? ` "akribos:image:${align ?? 'auto'}:${width ?? 'auto'}"` : '';
+			return `![${escapeMarkdownLabel(label)}](${source}${title})`;
 		}
 	});
 	if (tableCell) service.addRule('cellHardBreak', { filter: 'br', replacement: () => '<br>' });
@@ -1183,6 +1195,16 @@ function readSermon(
 	};
 }
 
+function documentImageHtml(
+	source: string,
+	alt: string,
+	{ align, width }: DocumentImageLayout
+): string {
+	const alignmentAttribute = align ? ` data-image-align="${align}"` : '';
+	const widthAttribute = width ? ` data-image-width="${width}"` : '';
+	return `<img src="${source}" alt="${escapeHtmlAttribute(alt)}"${alignmentAttribute}${widthAttribute}>`;
+}
+
 function sanitiseDocumentHtml(input: string): string {
 	const html = stripDangerousRawHtml(input);
 
@@ -1196,7 +1218,14 @@ function sanitiseDocumentHtml(input: string): string {
 				const source = readHtmlAttribute(String(rest), 'src') ?? '';
 				const alt = readHtmlAttribute(String(rest), 'alt') ?? '';
 				return parseDocumentImage(source)
-					? `<img src="${source}" alt="${escapeHtmlAttribute(alt)}">`
+					? documentImageHtml(
+							source,
+							alt,
+							documentImageLayout(
+								readHtmlAttribute(String(rest), 'data-image-align'),
+								readHtmlAttribute(String(rest), 'data-image-width')
+							)
+						)
 					: '';
 			}
 			if (VOID_HTML_TAGS.has(tag)) return `<${tag}>`;

@@ -12,7 +12,11 @@ import {
 	type DocumentFootnoteReferenceToken
 } from '$lib/notes/document-footnotes';
 import { MAX_DOCUMENT_MARKDOWN_BYTES } from '$lib/notes/documents';
-import { parseDocumentImage } from '$lib/notes/document-images';
+import {
+	parseDocumentImage,
+	parseDocumentImageLayoutTitle,
+	type DocumentImageLayout
+} from '$lib/notes/document-images';
 
 export class PdfExportError extends Error {
 	readonly status: 413 | 422 | 503 | 504;
@@ -33,7 +37,13 @@ type TextStyle = {
 };
 export type PdfInlineRun = TextStyle & {
 	text: string;
-	image?: { bytes: number[]; format: 'png' | 'jpg'; width: number; height: number };
+	image?: {
+		bytes: number[];
+		format: 'png' | 'jpg';
+		width: number;
+		height: number;
+		layout: DocumentImageLayout;
+	};
 	href?: string;
 	bibleReference?: boolean;
 	footnoteId?: string;
@@ -180,7 +190,8 @@ export function pdfInlineRuns(
 								bytes: Array.from(image.bytes),
 								format: image.type,
 								width: image.width,
-								height: image.height
+								height: image.height,
+								layout: parseDocumentImageLayoutTitle(value.title)
 							}
 						});
 					else append(value.text, style, href);
