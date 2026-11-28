@@ -1164,9 +1164,11 @@ stehen owner-only als Markdown/YAML, Word `.docx` und PDF bereit, enthalten aber
 Eigentümer-ID oder Veröffentlichungsberechtigung. Import/Export von Anlagen und automatisches
 Zusammenführen sind nicht implementiert. Der PDF-Export löst relative Linkziele gegen den Request-Ursprung auf, bewahrt Links als
 klickbare grüne Annotationen und färbt auch freie, vom gemeinsamen Parser erkannte Bibelstellen grün;
-Inline-Code bleibt davon ausgenommen. Auf jeder A4-Seite setzt er eine Akribos-Kopfzeile
-sowie eine Fußzeile mit Seitenzahl. Der gewählte Entwurf B „Akribos Studienblatt“ verwendet die echte
-Akribos-Text-Schriftfamilie, Noto Sans Hebrew, echte Fett-/Kursivschnitte und abgesetzte Zitatflächen.
+Inline-Code bleibt davon ausgenommen. Alle PDF-Vorlagen verwenden A4, Akribos Text, Noto Sans Hebrew
+und Seitenzahlen. Die Vorlagenliste in `pdf-templates.ts` muss mit `users_pdf_template_check` übereinstimmen.
+`studienausgabe` ist der Standard für bestehende und neue Konten. Der eigentümergeprüfte PDF-Endpunkt
+verwendet `locals.pdfTemplate` und übernimmt einen ausgefüllten Profil-Anzeigenamen des Eigentümers
+in die Fußzeile und PDF-Metadaten.
 `pdf-model.ts` bildet Markdown in typisierte JSON-Daten ab; ausschließlich `pdf-template.typ` ist
 ausführbarer Typst-Code. Nutzereingaben dürfen niemals in Quelltext, Pfade oder Imports interpoliert
 werden. Der gepinnte Typst-0.15.1-Prozess arbeitet ohne Shell, Systemfonts oder geerbte App-Secrets in

@@ -28,8 +28,8 @@ quotations, nested lists, ordered-list starting numbers, task status, horizontal
 with their column alignment. Code preserves literal whitespace and does not acquire Bible-reference
 links. Safe authored links remain annotations; relative destinations resolve against the export
 request's origin. Free Bible references use the shared parser and remain clickable. Neither links
-nor image descriptions cause an external request. The PDF embeds validated PNG and JPEG images
-within the available line width. Attachments remain outside document export. Visible metadata includes passage anchors, tags and applicable sermon dates,
+nor image descriptions cause an external request. Images and attachments remain outside document
+export, as before. Visible metadata includes passage anchors, tags and applicable sermon dates,
 series, format and delivery history. No owner ID, account email or publication authority is added.
 
 Native Typst footnotes reserve space at the bottom of the page of their first reference. Their
