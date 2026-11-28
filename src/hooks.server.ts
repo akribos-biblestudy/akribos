@@ -1,4 +1,5 @@
 import { isUuid } from '$lib/server/documents/application';
+import { DEFAULT_PDF_TEMPLATE } from '$lib/notes/pdf-templates';
 import { redirect, type Handle, type ServerInit } from '@sveltejs/kit';
 import { getDb } from '$lib/server/db';
 import { resolveSession } from '$lib/server/auth/session';
@@ -127,6 +128,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const session = await resolveSession(db, event.cookies);
 	event.locals.user = session?.user ?? null;
 	event.locals.sessionId = session?.sessionId ?? null;
+	event.locals.pdfTemplate = session?.pdfTemplate ?? DEFAULT_PDF_TEMPLATE;
 	const browserTabId = event.request.headers.get('x-reader-browser-tab');
 	if (browserTabId && isUuid(browserTabId)) event.locals.readerBrowserTabId = browserTabId;
 	const sourceTabId = event.request.headers.get('x-reader-browser-source');

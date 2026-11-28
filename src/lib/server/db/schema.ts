@@ -46,6 +46,7 @@ import {
 	SERMON_FORMATS,
 	SERMON_WORKFLOW_STATES
 } from '../../notes/documents.ts';
+import { DEFAULT_PDF_TEMPLATE, PDF_TEMPLATES } from '../../notes/pdf-templates.ts';
 import { COMMENT_REACTION_EMOJIS } from '../../notes/reactions.ts';
 import type { ReaderWorkspace } from '../../reader/workspace.ts';
 import { DEFAULT_SERMON_COLUMNS, type SermonColumn } from '../../notes/sermon-board.ts';
@@ -349,6 +350,9 @@ export const users = pgTable(
 			.notNull()
 			.default('before'),
 		copyIncludeSource: boolean('copy_include_source').notNull().default(false),
+		pdfTemplate: text('pdf_template', { enum: PDF_TEMPLATES })
+			.notNull()
+			.default(DEFAULT_PDF_TEMPLATE),
 		/**
 		 * Account-level fallback for colour scheme, used only to seed a device that has not set its own
 		 * cookie yet — a device's own choice always wins afterwards. Null means "this account has never
@@ -372,7 +376,11 @@ export const users = pgTable(
 	},
 	(table) => [
 		uniqueIndex('users_email_idx').on(table.email),
-		check('users_reader_font_scale_check', sql`${table.readerFontScale} between 70 and 200`)
+		check('users_reader_font_scale_check', sql`${table.readerFontScale} between 70 and 200`),
+		check(
+			'users_pdf_template_check',
+			sql`${table.pdfTemplate} in ('studienausgabe', 'buchsatz', 'lesemanuskript')`
+		)
 	]
 );
 

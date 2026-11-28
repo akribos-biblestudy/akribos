@@ -5,6 +5,7 @@ import { readableResourceCondition } from './resources.ts';
 
 import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, gt, isNull, lt, or, sql } from 'drizzle-orm';
+import type { PdfTemplate } from '../../notes/pdf-templates.ts';
 import { config } from '../config.ts';
 import type { Database } from '../db/client.ts';
 import {
@@ -432,4 +433,12 @@ export async function updateCopyPreferences(
 			updatedAt: new Date()
 		})
 		.where(eq(users.id, userId));
+}
+
+export async function updatePdfTemplate(
+	db: Database,
+	userId: string,
+	pdfTemplate: PdfTemplate
+): Promise<void> {
+	await db.update(users).set({ pdfTemplate, updatedAt: new Date() }).where(eq(users.id, userId));
 }
