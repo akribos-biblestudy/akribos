@@ -33,6 +33,12 @@ Die Tabelle zeigt Abstände in PDF-Punkten. Gemessen wurde mit `pdftotext -bbox-
 
 Der heutige Export, A und B benötigen je zwei A4-Seiten. In C beginnt der letzte Abschnitt „Das Gespräch vorbereiten“ durch den weiteren Satz auf Seite drei. Alle Umbrüche entstehen beim Satz.
 
+## Zitate und Autor in der Fußzeile
+
+A setzt Zitate kursiv und eingerückt. Eine feine linke Linie von 0,8 pt markiert den Zitatblock im neutralen Farbton des Buchsatzes. Gemessen zwischen den Textfeldern im PDF ist der Weißraum im Beispiel vor dem Zitat von 2,1 auf 12,0 pt und danach von 3,9 auf 13,6 pt gestiegen.
+
+A, B und C setzen den Autorennamen links in die Fußzeile jeder Seite. „Mara Beispiel“ ist eine fiktive Angabe im gemeinsamen Beispielmodell. Bei einem fehlenden oder leeren Wert entfällt die Namensangabe in Fußzeile und PDF-Metadaten. Für die spätere Einbindung in Akribos kommt der freiwillig gepflegte Profil-Anzeigename als Quelle infrage. Die Zuweisung eines konkreten Autorennamens an ein Dokument ist eine eigene fachliche Entscheidung. [Beispielmodell](document.json)
+
 ## Mögliche Vorlagenauswahl
 
 In den Benutzereinstellungen könnte eine Auswahl unter „PDF-Export“ die bevorzugte Vorlage speichern. Im Exportmenü wäre eine abweichende Vorlage für den einzelnen Download wählbar. Für die Umsetzung steht zuerst die Stilentscheidung an. Diese Proben betreffen den PDF-Export.

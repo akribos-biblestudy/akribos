@@ -1,5 +1,7 @@
 // Isolated design specimen. build.py inserts the pinned production inline renderer.
 #let doc = json("document.json")
+#let supplied-author = doc.at("author", default: none)
+#let author = if type(supplied-author) == str { supplied-author.trim() } else { "" }
 #let design = sys.inputs.at("design")
 #let book = design == "buchsatz"
 #let study = design == "studienausgabe"
@@ -15,7 +17,7 @@
 #let item-gap = if book { 11.5pt } else if study { 12.8pt } else { 15pt }
 #let folio(body) = text(size: 8.5pt, fill: muted, body)
 
-#set document(title: doc.title, author: "", date: none)
+#set document(title: doc.title, author: if author != "" { (author,) } else { () }, date: none)
 #set page(
   paper: "a4",
   margin: (
@@ -39,9 +41,13 @@
   footer: context {
     let number = counter(page).display()
     if book {
-      align(center, folio(number))
+      if author != "" {
+        grid(columns: (1fr, auto, 1fr), folio(author), folio(number), [])
+      } else {
+        align(center, folio(number))
+      }
     } else {
-      folio[akribos.de]
+      folio(if author != "" { author + " · akribos.de" } else { "akribos.de" })
       h(1fr)
       folio(number)
     }
@@ -90,10 +96,11 @@
       block(
         width: 100%,
         breakable: true,
-        inset: if book { (left: 9mm, right: 5mm) } else { (x: 5mm, y: 3.8mm) },
+        inset: if book { (left: 9mm, right: 5mm, y: 1.3mm) } else { (x: 5mm, y: 3.8mm) },
         fill: if study { rgb("eef4ef") } else { none },
-        stroke: if book { none } else if study { (left: 1.4pt + accent) } else { (left: 0.8pt + hairline) },
-        above: 0.9em, below: 0.95em,
+        stroke: (left: if study { 1.4pt + accent } else { 0.8pt + hairline }),
+        above: if book { 1.45em } else { 0.9em },
+        below: if book { 1.48em } else { 0.95em },
         {
           set par(justify: false, leading: if book { 0.69em } else { 0.74em })
           set text(style: "italic", size: if book { 11.8pt } else if study { 12.7pt } else { 14.8pt })
