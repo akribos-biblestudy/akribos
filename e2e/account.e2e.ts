@@ -343,18 +343,32 @@ test('the verse menu ticks and unticks an existing list', async ({ page }) => {
 
 	await page.goto('/Joh3');
 	const verse = page.locator('#Joh3_16 a.verse-number');
+	const disclosure = page.getByRole('menuitem', { name: 'Stellensammlungen' });
+	const collection = page.getByRole('menuitemcheckbox', { name: 'Merkverse' });
+	const markedVerse = page.locator('#Joh3_16 .verse-number.in-list');
 
 	await verse.click();
-	await page.getByRole('menuitem', { name: 'Merkverse' }).click();
-	await expect(page.locator('#Joh3_16 .verse-number.in-list')).toHaveCount(1);
+	await disclosure.click();
+	const added = page.waitForResponse((response) =>
+		new URL(response.url()).searchParams.has('/addToList')
+	);
+	await collection.click();
+	expect((await added).ok()).toBe(true);
+	await expect(markedVerse).toHaveCount(1);
 
 	// Reopening shows it ticked, and clicking again takes the verse back out.
 	await page.reload();
 	await verse.click();
-	await page.getByRole('menuitem', { name: 'Merkverse' }).click();
-	await expect(page.locator('#Joh3_16 .verse-number.in-list')).toHaveCount(0);
+	await disclosure.click();
+	await expect(collection).toHaveAttribute('aria-checked', 'true');
+	const removed = page.waitForResponse((response) =>
+		new URL(response.url()).searchParams.has('/removeFromList')
+	);
+	await collection.click();
+	expect((await removed).ok()).toBe(true);
+	await expect(markedVerse).toHaveCount(0);
 	await page.reload();
-	await expect(page.locator('#Joh3_16 .verse-number.in-list')).toHaveCount(0);
+	await expect(markedVerse).toHaveCount(0);
 });
 
 test('the verse menu offers signing in rather than a list', async ({ page }) => {
