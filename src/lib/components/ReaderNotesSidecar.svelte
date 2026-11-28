@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { BibleQuotation } from '$lib/actions/verse-hover-popover';
 	import type { ReaderNotesFilters } from '$lib/reader/url-state';
 	import type { VerseRef } from '$lib/bible/reference';
 	import { rememberReaderDocument } from '$lib/reader/document-navigation';
@@ -13,6 +14,7 @@
 
 	type SidecarDocument = {
 		id: string;
+		kind: DocumentKind;
 		title: string;
 		bodyMarkdown: string;
 		bodyHtml: string;
@@ -247,6 +249,18 @@
 		return editor ? editor.flush() : true;
 	}
 
+	export function canInsertBibleQuotation(): boolean {
+		return (
+			loadState === 'ready' &&
+			loadedDocument?.kind === 'note' &&
+			editor?.canInsertBibleQuotation() === true
+		);
+	}
+
+	export function insertBibleQuotation(quotation: BibleQuotation): void {
+		if (canInsertBibleQuotation()) editor?.insertBibleQuotation(quotation);
+	}
+
 	/** Leaves a dirty/conflicted editor visible until its serial autosave can complete safely. */
 	export async function requestClose(): Promise<boolean> {
 		if (!(await flush())) return false;
@@ -344,7 +358,9 @@
 					document={loadedDocument}
 					{bibleId}
 					compact
-					onSaved={(next) => (loadedDocument = next)}
+					onSaved={(next) => {
+						if (loadedDocument?.id === next.id) loadedDocument = { ...loadedDocument, ...next };
+					}}
 					onOpenDocument={openDocument}
 					{onOpenBibleReference}
 				/>

@@ -14,6 +14,7 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import type { BibleQuotation } from '$lib/actions/verse-hover-popover';
 	import { formatCopiedVerses } from '$lib/bible/copy-verse';
 	import { t } from '$lib/i18n';
 	import Icon from './Icon.svelte';
@@ -33,17 +34,20 @@
 		/** Keys are `${book}:${chapter}:${verse}:${listId}` for every loaded verse in a list. */
 		marks,
 		/** The reader's own highlight palette, in display order. */
-		highlightStyles
+		highlightStyles,
+		onInsertVerseInNote
 	}: {
 		lists: { id: string; title: string }[];
 		signedIn: boolean;
 		marks: Set<string>;
 		highlightStyles: { id: string; color: string; name: string | null }[];
+		onInsertVerseInNote?: (quotation: BibleQuotation) => void | Promise<void>;
 	} = $props();
 
 	let menu: Menu | undefined = $state();
 	let context = $state<VerseContext | null>(null);
 	let source = $state('');
+	let translation = $state('');
 	let copied = $state<'text' | 'link' | null>(null);
 	let activeStyleId = $state<string | null>(null);
 	let onHighlightChange: ((styleId: string | null) => void) | undefined;
@@ -73,7 +77,14 @@
 		activeStyleId = highlight;
 		onHighlightChange = onChange;
 		onOpenNotes = resource?.kind === 'bible' ? openNotes : undefined;
+		translation = resource?.name ?? '';
 		menu?.openAt(anchor, { focus: focusMenu });
+	}
+
+	function insertVerseInNote(): void {
+		if (!context || !onInsertVerseInNote) return;
+		menu?.close();
+		void onInsertVerseInNote({ reference: context.label, translation, text: context.text });
 	}
 
 	const linkUrl = $derived(context ? new URL(context.path, page.url.origin).toString() : '');
@@ -178,6 +189,12 @@
 
 		{#if signedIn && onOpenNotes}
 			<hr />
+			{#if onInsertVerseInNote && context.text.trim()}
+				<button type="button" role="menuitem" class="notes-item" onclick={insertVerseInNote}>
+					<Icon name="quote" class="size-4 shrink-0" />
+					<span>{t('documents.reader.insertVerse')}</span>
+				</button>
+			{/if}
 			<button
 				type="button"
 				role="menuitem"
