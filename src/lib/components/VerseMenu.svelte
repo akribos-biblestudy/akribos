@@ -135,7 +135,8 @@
 		{#if signedIn && highlightStyles.length > 0}
 			<p class="menu-label">{t('highlights.menuLabel')}</p>
 			<div class="swatches" role="group" aria-label={t('highlights.menuLabel')}>
-				{#each highlightStyles as style (style.id)}
+				{#each highlightStyles as style, index (style.id)}
+					{@const label = style.name ?? t('highlights.numbered', { number: index + 1 })}
 					{@const active = activeStyleId === style.id}
 					<form
 						method="POST"
@@ -143,7 +144,11 @@
 						role="none"
 						use:enhance={() => {
 							pickHighlight(style.id);
-							return async ({ update }) => update({ reset: false, invalidateAll: false });
+							return async ({ result, update }) => {
+								if (result.type !== 'success') {
+									await update({ reset: false, invalidateAll: false });
+								}
+							};
 						}}
 					>
 						<input type="hidden" name="reference" value={context.reference} />
@@ -154,8 +159,8 @@
 							class="swatch"
 							class:active
 							style:--swatch-color={style.color}
-							title={style.name ?? t('highlights.unnamed')}
-							aria-label={style.name ?? t('highlights.unnamed')}
+							title={label}
+							aria-label={label}
 							aria-checked={active}
 						></button>
 					</form>
@@ -231,7 +236,11 @@
 								// These actions update the collection's timestamp on success without moving
 								// the reader. Reflect that order in the next menu opening.
 								if (result.type === 'success') {
-									recentLists = [list, ...recentLists.filter((item) => item.id !== list.id)];
+									const updated = recentLists.find((item) => item.id === list.id);
+									if (updated) {
+										recentLists = [updated, ...recentLists.filter((item) => item.id !== list.id)];
+									}
+									return; // Preserve the focus restored by close().
 								}
 								await update({ reset: false, invalidateAll: false });
 							};

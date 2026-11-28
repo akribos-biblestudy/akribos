@@ -623,6 +623,7 @@ export const de = {
 	'highlights.errorLimit': 'Es sind bereits {max} Farben angelegt.',
 	'highlights.menuLabel': 'Markieren',
 	'highlights.unnamed': 'Unbenannte Farbe',
+	'highlights.numbered': 'Markierungsfarbe {number}',
 	'highlights.showVerses': 'Verse anzeigen',
 	'highlights.back': 'Zurück zu Versmarkierungen',
 	'highlights.versesTitle': 'Markierte Verse: {name}',
