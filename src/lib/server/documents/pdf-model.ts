@@ -1,5 +1,6 @@
 import { type Token, type Tokens } from 'marked';
 import { findBibleReferences } from '$lib/bible/link-references';
+import { DEFAULT_PDF_TEMPLATE, isPdfTemplate, type PdfTemplate } from '$lib/notes/pdf-templates';
 import {
 	decodeHtmlEntities,
 	documentMarkdownToHtml,
@@ -53,8 +54,17 @@ export type PdfBlock =
 	| { kind: 'table'; headers: PdfInlineRun[][]; rows: PdfInlineRun[][][]; align: (string | null)[] }
 	| { kind: 'code'; text: string }
 	| { kind: 'rule' };
+export type PdfLayoutOptions = {
+	template?: PdfTemplate;
+	author?: string | null;
+	firstPassage?: string;
+};
+
 export type PdfDocumentModel = {
 	title: string;
+	template: PdfTemplate;
+	author?: string;
+	firstPassage?: string;
 	metadata: PdfInlineRun[][];
 	blocks: PdfBlock[];
 	footnotes: { number: number; blocks: PdfBlock[] }[];
@@ -210,7 +220,8 @@ export function createPdfModel(
 	title: string,
 	markdown: string,
 	metadata: string[],
-	baseUrl?: string
+	baseUrl?: string,
+	options: PdfLayoutOptions = {}
 ): PdfDocumentModel {
 	if (Buffer.byteLength(markdown, 'utf8') > MAX_DOCUMENT_MARKDOWN_BYTES)
 		throw new PdfExportError(413, 'Das Dokument ist für den PDF-Export zu groß.');
@@ -314,8 +325,12 @@ export function createPdfModel(
 		};
 		(referenced.has(note.id) ? footnotes : orphans).push(entry);
 	}
+	const author = options.author?.replace(/\s+/gu, ' ').trim();
 	return {
 		title,
+		template: isPdfTemplate(options.template) ? options.template : DEFAULT_PDF_TEMPLATE,
+		...(author ? { author } : {}),
+		...(options.firstPassage ? { firstPassage: options.firstPassage } : {}),
 		metadata: metadata.map((line) => pdfInlineRuns(line, [], baseUrl)),
 		blocks: body,
 		footnotes,

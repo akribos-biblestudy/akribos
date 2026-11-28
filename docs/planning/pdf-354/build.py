@@ -15,7 +15,7 @@ REPO = HERE.parents[2]
 BASELINE = "f1c068c"
 TEMPLATE = "src/lib/server/documents/pdf-template.typ"
 SPECIMENS = (
-    ("00-heutiger-export", "Heutiger Export"),
+    ("00-heutiger-export", "Bisheriger Export"),
     ("01-buchsatz", "A · Buchsatz"),
     ("02-studienausgabe", "B · Studienausgabe"),
     ("03-lesemanuskript", "C · Lesemanuskript"),

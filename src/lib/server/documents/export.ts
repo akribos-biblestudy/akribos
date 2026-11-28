@@ -46,7 +46,7 @@ export type OwnedDocumentExport = {
 };
 
 export { pdfInlineRuns } from './pdf-model';
-import { createPdfModel } from './pdf-model';
+import { createPdfModel, type PdfLayoutOptions } from './pdf-model';
 import { renderPdf } from './pdf-renderer';
 
 export async function loadOwnedDocumentExport(
@@ -423,13 +423,21 @@ export async function createDocxExport(
 
 export async function createPdfExport(
 	data: OwnedDocumentExport,
-	options: { baseUrl?: string; signal?: AbortSignal } = {}
+	options: Pick<PdfLayoutOptions, 'template' | 'author'> & {
+		baseUrl?: string;
+		signal?: AbortSignal;
+	} = {}
 ): Promise<{ filename: string; contentDisposition: string; buffer: Buffer }> {
 	const model = createPdfModel(
 		data.document.title,
 		data.document.bodyMarkdown,
 		metadataLines(data),
-		options.baseUrl
+		options.baseUrl,
+		{
+			template: options.template,
+			author: options.author,
+			firstPassage: data.passages[0]?.reference
+		}
 	);
 	const buffer = await renderPdf(model, options.signal);
 	const filename = safeDocumentFilename(data.document.title, 'pdf');

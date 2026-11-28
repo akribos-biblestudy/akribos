@@ -2,11 +2,11 @@
 
 Vergleich für [Issue #354](https://github.com/akribos-biblestudy/akribos/issues/354). Alle vier PDFs enthalten dieselbe Beispielnotiz zu Jakobus 1,22–25. Die Notiz zeigt Bibelstellen und Schlagwörter, eine zweizeilige Überschrift, ein Bibelzitat mit Seitenfußnoten, griechische Wörter, eine Tabelle und eine nummerierte Liste mit umbrochenen Einträgen. Die Schriftfamilie Akribos Text bleibt die gemeinsame Grundlage.
 
-![Erste Seiten und nummerierte Liste des heutigen Exports und der drei Entwürfe](vergleich.png)
+![Erste Seiten und nummerierte Liste des bisherigen Exports und der drei Entwürfe](vergleich.png)
 
 | PDF                                         | Schriftbild                                                                              |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [Heutiger Export](00-heutiger-export.pdf)   | Akribos Studienblatt aus #294 mit 11,2 pt, grünen Überschriften und linksbündigem Text.  |
+| [Bisheriger Export](00-heutiger-export.pdf) | Akribos Studienblatt aus #294 mit 11,2 pt, grünen Überschriften und linksbündigem Text.  |
 | [A · Buchsatz](01-buchsatz.pdf)             | 134 mm Satzspiegel, 11,4 pt, Blocksatz mit deutscher Silbentrennung, zentrierter Titel.  |
 | [B · Studienausgabe](02-studienausgabe.pdf) | 152 mm Satzspiegel, 11,8 pt, dunkelgrüne Hierarchie und feine Tabellenlinien.            |
 | [C · Lesemanuskript](03-lesemanuskript.pdf) | 152 mm Satzspiegel, 13,4 pt, weiterer Zeilenabstand und deutliche Zwischenüberschriften. |
@@ -23,25 +23,25 @@ Im Tufte-Musterhandout liegen die Grundlinien von Autor und Datum knapp 20 PDF-P
 
 Die Tabelle zeigt Abstände in PDF-Punkten. Gemessen wurde mit `pdftotext -bbox-layout` an aufeinanderfolgenden Zeilen gleichen Schriftgrads. Für „zuvor“ wurde das erweiterte Beispiel auch mit den bisherigen Entwurfsvorlagen aus Commit `c608079` gesetzt. So geht derselbe Text in jede Messung ein.
 
-| Grundlinienabstand                   | Heutiger Export | A · zuvor → neu | B · zuvor → neu | C · zuvor → neu |
-| ------------------------------------ | --------------- | --------------- | --------------- | --------------- |
-| Fließtext                            | 12,5            | 13,2 → 15,0     | 14,9 → 16,6     | 17,5 → 20,0     |
-| Mehrzeilige Überschrift              | 16,7            | 18,5 → 21,4     | 22,8 → 25,1     | 26,1 → 29,1     |
-| Bibelstellen und Schlagwörter        | 7,8             | 9,6 → 13,7      | 9,9 → 15,0      | 9,9 → 15,6      |
-| Zeilen innerhalb eines Listenpunkts  | 12,5            | 13,2 → 15,0     | 14,9 → 16,6     | 17,5 → 20,0     |
-| Letzte Zeile bis zur nächsten Nummer | 11,9            | 12,7 → 18,5     | 13,2 → 20,1     | 14,9 → 23,2     |
+| Grundlinienabstand                   | Bisheriger Export | A · zuvor → neu | B · zuvor → neu | C · zuvor → neu |
+| ------------------------------------ | ----------------- | --------------- | --------------- | --------------- |
+| Fließtext                            | 12,5              | 13,2 → 15,0     | 14,9 → 16,6     | 17,5 → 20,0     |
+| Mehrzeilige Überschrift              | 16,7              | 18,5 → 21,4     | 22,8 → 25,1     | 26,1 → 29,1     |
+| Bibelstellen und Schlagwörter        | 7,8               | 9,6 → 13,7      | 9,9 → 15,0      | 9,9 → 15,6      |
+| Zeilen innerhalb eines Listenpunkts  | 12,5              | 13,2 → 15,0     | 14,9 → 16,6     | 17,5 → 20,0     |
+| Letzte Zeile bis zur nächsten Nummer | 11,9              | 12,7 → 18,5     | 13,2 → 20,1     | 14,9 → 23,2     |
 
-Der heutige Export, A und B benötigen je zwei A4-Seiten. In C beginnt der letzte Abschnitt „Das Gespräch vorbereiten“ durch den weiteren Satz auf Seite drei. Alle Umbrüche entstehen beim Satz.
+Der bisherige Export, A und B benötigen je zwei A4-Seiten. In C beginnt der letzte Abschnitt „Das Gespräch vorbereiten“ durch den weiteren Satz auf Seite drei. Alle Umbrüche entstehen beim Satz.
 
 ## Zitate und Autor in der Fußzeile
 
 A setzt Zitate kursiv und eingerückt. Eine feine linke Linie von 0,8 pt markiert den Zitatblock im neutralen Farbton des Buchsatzes. Gemessen zwischen den Textfeldern im PDF ist der Weißraum im Beispiel vor dem Zitat von 2,1 auf 12,0 pt und danach von 3,9 auf 13,6 pt gestiegen.
 
-A, B und C setzen den Autorennamen links in die Fußzeile jeder Seite. „Mara Beispiel“ ist eine fiktive Angabe im gemeinsamen Beispielmodell. Bei einem fehlenden oder leeren Wert entfällt die Namensangabe in Fußzeile und PDF-Metadaten. Für die spätere Einbindung in Akribos kommt der freiwillig gepflegte Profil-Anzeigename als Quelle infrage. Die Zuweisung eines konkreten Autorennamens an ein Dokument ist eine eigene fachliche Entscheidung. [Beispielmodell](document.json)
+A, B und C setzen den Autorennamen links in die Fußzeile jeder Seite. „Mara Beispiel“ ist eine fiktive Angabe im gemeinsamen Beispielmodell. Bei einem fehlenden oder leeren Wert entfällt die Namensangabe in Fußzeile und PDF-Metadaten. Der produktive PDF-Export bezieht den Namen aus dem aktuell gepflegten Profil-Anzeigenamen. [Beispielmodell](document.json), [Produktiver PDF-Export](../../pdf-export.md)
 
-## Mögliche Vorlagenauswahl
+## Vorlagenauswahl
 
-In den Benutzereinstellungen könnte eine Auswahl unter „PDF-Export“ die bevorzugte Vorlage speichern. Im Exportmenü wäre eine abweichende Vorlage für den einzelnen Download wählbar. Für die Umsetzung steht zuerst die Stilentscheidung an. Diese Proben betreffen den PDF-Export.
+Die PDF-Vorlage lässt sich in den Benutzereinstellungen auswählen. Studienausgabe ist die Standardeinstellung.
 
 ## Reproduktion
 
@@ -53,4 +53,4 @@ python3 docs/planning/pdf-354/build.py
 
 Das Skript setzt [ein gemeinsames Exportmodell](document.json) mit der Produktionsvorlage vom Commit `f1c068c`. Für die drei Entwürfe kombiniert es denselben Inline-Renderer mit [eigenen Typst-Stilen](entwuerfe.typ). Die Schriften kommen aus `data/fonts/pdf`, die Systemschriftensuche ist abgeschaltet. Für die PNG-Vorschau können Poppler- und ImageMagick-Versionen sichtbare Unterschiede verursachen.
 
-Das kurze Bibelzitat stammt aus Luther 1912. Der übrige Beispieltext wurde für diesen Vergleich geschrieben. Die Proben decken normale Textumbrüche ab. Vor einer produktiven Vorlagenauswahl müssen der Export mit langen Fußnoten, Bildern sowie schmalen und mehrseitigen Tabellen und die Verarbeitung von Rechts-nach-links-Schrift gegen die regulären Exporttests geprüft werden.
+Das kurze Bibelzitat stammt aus Luther 1912. Der übrige Beispieltext wurde für diesen Vergleich geschrieben. Die Proben decken normale Textumbrüche ab. Der produktive Export verwendet dieselbe Seitentypografie mit eigenem Umbruch für unter anderem lange Fußnoten, Bilder und schmale Tabellen. Die Abnahme steht in der [Dokumentation des produktiven Exports](../../pdf-export.md).
