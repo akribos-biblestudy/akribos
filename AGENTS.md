@@ -755,8 +755,8 @@ Dokumenttitel ist global in `src/routes/+layout.svelte` fest auf
 Es existiert nur eine `VerseMenu`-Instanz für den ganzen Reader. Ein Klick übergibt Anker, Referenz,
 Text und Highlight-Zustand an `openAt()`; so werden nicht hunderte Menüs und Formulare im Fließtext
 gerendert. Highlights werden optimistisch in allen passenden Einträgen von `columnStreams`
-aktualisiert, Listenmarkierungen im reaktiven `marks`-Set. Die Stellensammlungen öffnen sich als
-eingeklappter Bereich mit bis zu zehn eigenen oder geteilten Sammlungen nach `updated_at`.
+aktualisiert, Listenmarkierungen im reaktiven `marks`-Set. Die Stellensammlungen sind beim Öffnen
+des Versmenüs eingeklappt und zeigen bis zu zehn eigene oder geteilte Sammlungen nach `updated_at`.
 Erfolgreiches Hinzufügen oder Entfernen rückt die Sammlung lokal nach oben, ohne den Lesetext
 neu zu laden. Beim Aufklappen misst das Menü seine Höhe erneut.
 

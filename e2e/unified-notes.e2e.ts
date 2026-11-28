@@ -527,30 +527,18 @@ test('a reader verse creates and reopens a translation-specific unified note', a
 	// contextual menu, and exposes the filterable personal library.
 	await page.getByTestId('layout-picker').click();
 	await page.getByTestId('reader-notes-sidecar-toggle').click();
-	let sidecar = page.getByTestId('reader-notes-sidecar');
+	const sidecar = page.getByTestId('reader-notes-sidecar');
 	await expect(sidecar.getByTestId('reader-notes-current-context')).toContainText('Johannes 3,16');
 	await expect(sidecar.getByTestId('reader-notes-sidecar-create')).toBeVisible();
 	await expect(sidecar).not.toContainText('Für diese Stelle ist noch keine Notiz verknüpft.');
 	await expect(sidecar.getByText('Keine passenden Dokumente gefunden.')).toBeVisible();
 	await expect(sidecar.getByLabel('Dokumenttyp filtern')).toHaveCount(0);
 	await expect(sidecar.getByLabel('Tag filtern')).toBeVisible();
-	await sidecar.getByRole('button', { name: 'Notizbereich schließen' }).click();
-
-	const firstBible = page.locator('.flow-column[data-resource-id]').first();
-	await firstBible.locator('a.verse-number', { hasText: /^16$/ }).click();
-	await page.getByRole('menuitem', { name: /Notizen zu Johannes 3,16 öffnen/ }).click();
-
-	const panel = page.getByTestId('reader-notes-panel');
-	await expect(panel).toBeVisible();
-	await expect(panel).not.toContainText('Zu dieser Stelle gibt es noch keine Notiz.');
-	await expect(panel.getByLabel('Übersetzungsbezug')).toHaveValue(/.+/);
+	await expect(sidecar.getByLabel('Übersetzungsbezug')).toHaveValue('SEEDDE');
 
 	const readerUrl = page.url();
-	await panel.getByRole('button', { name: 'Notiz zu Johannes 3,16 erstellen' }).click();
+	await sidecar.getByTestId('reader-notes-sidecar-create').click();
 	await expect(page).toHaveURL(readerUrl);
-
-	sidecar = page.getByTestId('reader-notes-sidecar');
-	await expect(sidecar).toBeVisible();
 	await expect(sidecar.getByTestId('reader-notes-sidecar-editor')).toBeVisible();
 	await sidecar.getByTestId('reader-notes-sidecar-title').fill(title);
 	await sidecar.getByRole('tab', { name: 'Markdown' }).click();
@@ -614,7 +602,6 @@ test('a reader verse creates and reopens a translation-specific unified note', a
 
 	// The same owned document resumes after reload, without putting its id in the Reader URL.
 	await page.reload();
-	sidecar = page.getByTestId('reader-notes-sidecar');
 	await expect(sidecar.getByTestId('reader-notes-sidecar-title')).toHaveValue(title);
 	await sidecar.getByRole('tab', { name: 'Markdown' }).click();
 	await expect(sidecar.getByTestId('reader-notes-sidecar-body-markdown')).toHaveValue(
@@ -741,9 +728,9 @@ test('the verse menu inserts its translation as a saved quote at the visual note
 		hasText: /^16$/
 	});
 	const action = page.getByRole('menuitem', { name: 'In Notiz einfügen', exact: true });
-	const openNotes = page.getByRole('menuitem', { name: /Notizen zu Johannes 3,16 öffnen/ });
+	const menu = page.getByRole('menu', { name: 'Vers Johannes 3,16', exact: true });
 	await verse.click();
-	await expect(openNotes).toBeVisible();
+	await expect(menu).toBeVisible();
 	await expect(action).toHaveCount(0);
 	await page.keyboard.press('Escape');
 
@@ -753,7 +740,7 @@ test('the verse menu inserts its translation as a saved quote at the visual note
 	const create = sidecar.getByTestId('reader-notes-sidecar-create');
 	await expect(create).toBeVisible();
 	await verse.click();
-	await expect(openNotes).toBeVisible();
+	await expect(menu).toBeVisible();
 	await expect(action).toHaveCount(0);
 	await page.keyboard.press('Escape');
 	await create.click();
@@ -788,7 +775,7 @@ test('the verse menu inserts its translation as a saved quote at the visual note
 	await sidecar.getByRole('button', { name: 'Notizbereich schließen' }).click();
 	await expect(sidecar).not.toBeVisible();
 	await verse.click();
-	await expect(openNotes).toBeVisible();
+	await expect(menu).toBeVisible();
 	await expect(action).toHaveCount(0);
 });
 

@@ -227,8 +227,10 @@ test('the reader uses unified notes instead of the legacy inline comment editor'
 	);
 	await firstTranslation.locator('a.verse-number', { hasText: /^16$/ }).click();
 	await expect(page.getByRole('menuitem', { name: /Kommentar für .* hinzufügen/ })).toHaveCount(0);
-	await page.getByRole('menuitem', { name: /Notizen zu Johannes 3,16 öffnen/ }).click();
-	await expect(page.getByTestId('reader-notes-panel')).toBeVisible();
+	await page.keyboard.press('Escape');
+	await page.getByTestId('layout-picker').click();
+	await page.getByTestId('reader-notes-sidecar-toggle').click();
+	await expect(page.getByTestId('reader-notes-sidecar')).toBeVisible();
 	await expect(page.locator('.verse-comment-row')).toHaveCount(0);
 });
 
@@ -260,6 +262,7 @@ test('the verse menu creates a list and adds the verse in one step', async ({ pa
 	// The point of the menu: no list has to exist first.
 	await page.goto('/Joh3');
 	await page.locator('#Joh3_16 a.verse-number').click();
+	await page.getByRole('menuitem', { name: 'Stellensammlungen' }).click();
 	const created = page.waitForResponse(
 		(response) => response.request().method() === 'POST' && response.url().includes('?/addToList')
 	);
@@ -317,7 +320,7 @@ test('a signed-in reader can highlight a verse with a colour and clear it', asyn
 	// Picking the same swatch again clears the highlight instead of re-applying it.
 	await page.goto('/Joh3');
 	await page.locator('#Joh3_16 a.verse-number').click();
-	await expect(swatches.first()).toHaveAttribute('aria-pressed', 'true');
+	await expect(swatches.first()).toHaveAttribute('aria-checked', 'true');
 	const cleared = page.waitForResponse(
 		(response) =>
 			response.request().method() === 'POST' &&

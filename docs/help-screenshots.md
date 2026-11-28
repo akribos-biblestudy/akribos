@@ -70,7 +70,7 @@ Ablage: `static/help/live/`. Bild-URL: `/help/live/<Dateiname>`.
 | `tab-groups.webp`             | 271 × 75    | Detail: A–E und „Keine“ im Tabgruppenmenü; A ausgewählt.                                                                            |
 | `tab-move.webp`               | 192 × 108   | Detail: Ziele 2 und 3 im Menü „Tab verschieben“.                                                                                    |
 | `verse-collection.webp`       | 1440 × 1000 | Private Sammlung mit Joh 1,4–5, Joh 8,12 und Joh 12,46, vor der ergänzten Diskussion.                                               |
-| `verse-menu.webp`             | 320 × 398   | Detail: angemeldetes Versmenü Joh 3,16 mit Kopieren, Farben, Notizen und Sammlungen.                                                |
+| `verse-menu.webp`             | 321 × 258   | Detail: kompaktes Versmenü zu Joh 3,16 mit geöffneter Notiz.                                                                        |
 | `workspace-create.webp`       | 464 × 286   | Detail: „Neuer Arbeitsbereich“, Name „Johannes studieren“, vor dem Absenden.                                                        |
 | `workspace-menu.webp`         | 304 × 156   | Detail: „Johannes studieren“ und „Standard“ mit Bearbeitung und Neuanlage.                                                          |
 | `workspace-overview.webp`     | 1440 × 1000 | Johannes 1 in drei Kacheln: Bibel, Kommentar und griechisches Lexikon G3056 zu „Wort“; Gruppe A.                                    |

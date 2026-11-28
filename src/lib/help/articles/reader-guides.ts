@@ -418,9 +418,9 @@ export const readerGuides: HelpArticle[] = [
 				html: `<ol><li>Öffne zum Beispiel <a href="/Joh3,16">Johannes 3,16</a> in deiner Bibel.</li><li>Klicke auf die kleine <strong>Versnummer 16</strong>. Das Versmenü öffnet sich.</li><li>Wähle <strong>Vers kopieren</strong>, um Stellenangabe und Text in die Zwischenablage zu übernehmen.</li><li>Zum dauerhaften Hervorheben öffnest du das Menü erneut und wählst unter <strong>Markieren</strong> eine Farbe.</li></ol><p>Für Vers 1 verwendest du die große Kapitelzahl am Kapitelanfang. Sie öffnet dasselbe Menü für den ersten Vers.</p>`,
 				screenshot: {
 					src: '/help/live/verse-menu.webp',
-					width: 320,
-					height: 398,
-					alt: 'Versmenü für Johannes 3,16 mit Kopieraktionen, Markierungsfarben, Notizen und Stellensammlungen.',
+					width: 321,
+					height: 258,
+					alt: 'Kompaktes Versmenü für Johannes 3,16 mit zehn Farben, Kopieraktionen, Einfügen in die geöffnete Notiz und eingeklappten Stellensammlungen.',
 					caption:
 						'Die Versnummer öffnet die Aktionen zum ganzen Vers. Persönliche Farben und Sammlungen erscheinen nach der Anmeldung.'
 				}
@@ -433,7 +433,7 @@ export const readerGuides: HelpArticle[] = [
 			{
 				id: 'menue',
 				title: 'Die Aktionen des Versmenüs',
-				html: `<dl class="definition-list"><div><dt>Nur diesen Vers anzeigen</dt><dd>Öffnet die direkte Adresse der ausgewählten Bibelstelle.</dd></div><div><dt>Vers kopieren</dt><dd>Kopiert die vollständige Stellenangabe und den Text aus dem angeklickten Werk. Nach erfolgreichem Kopieren erscheint kurz „Kopiert“.</dd></div><div><dt>Link kopieren</dt><dd>Kopiert einen direkten Link zu dieser Stelle. Wer den Link öffnet, liest sie in seiner verfügbaren Leseansicht.</dd></div><div><dt>Markieren</dt><dd>Zeigt deine persönlichen Farben. Ein Klick markiert den ganzen Vers.</dd></div><div><dt>Notizen zur Stelle</dt><dd>Öffnet den Notizbereich zum gewählten Vers. Dort kannst du passende Notizen lesen oder neu beginnen.</dd></div><div><dt>Stellensammlungen</dt><dd>Fügt den Vers einer Sammlung hinzu oder entfernt ihn aus einer bereits ausgewählten Sammlung.</dd></div></dl><p>Ohne Anmeldung erscheint <strong>Zum Speichern anmelden</strong> für persönliche Funktionen. Zum Schließen des Menüs klickst du außerhalb oder drückst <kbd>Escape</kbd>.</p><p><strong>Ein Stellenlink und ein Arbeitsbereich-Link sind verschieden:</strong> „Link kopieren“ im Versmenü teilt die Bibelstelle. Für die Zusammenstellung mit Tabs und Suchen kopierst du die vollständige Reader-Adresse aus der Adressleiste. Beide Linkarten erteilen keinen Zugriff auf private Werke oder persönliche Notizen.</p>`
+				html: `<dl class="definition-list"><div><dt>Markieren</dt><dd>Zeigt deine persönlichen Farben. Ein Klick markiert den ganzen Vers.</dd></div><div><dt>Vers kopieren</dt><dd>Kopiert die vollständige Stellenangabe und den Text aus dem angeklickten Werk. Nach erfolgreichem Kopieren erscheint kurz „Kopiert“.</dd></div><div><dt>Link kopieren</dt><dd>Kopiert einen direkten Link zu dieser Stelle. Wer den Link öffnet, liest sie in seiner verfügbaren Leseansicht.</dd></div><div><dt>In Notiz einfügen</dt><dd>Fügt den Vers als Zitat am Cursor ein. Der Eintrag erscheint bei einer geöffneten, bearbeitbaren Notiz im Notizbereich.</dd></div><div><dt>Stellensammlungen</dt><dd>Klappe die bis zu zehn zuletzt bearbeiteten Sammlungen auf, um den Vers hinzuzufügen oder zu entfernen. Hier kannst du auch eine Sammlung anlegen.</dd></div></dl><p>Ohne Anmeldung erscheint <strong>Zum Speichern anmelden</strong> für persönliche Funktionen. Zum Schließen des Menüs klickst du außerhalb oder drückst <kbd>Escape</kbd>.</p><p><strong>Ein Stellenlink und ein Arbeitsbereich-Link sind verschieden:</strong> „Link kopieren“ im Versmenü teilt die Bibelstelle. Für die Zusammenstellung mit Tabs und Suchen kopierst du die vollständige Reader-Adresse aus der Adressleiste. Beide Linkarten erteilen keinen Zugriff auf private Werke oder persönliche Notizen.</p>`
 			},
 			{
 				id: 'markieren',

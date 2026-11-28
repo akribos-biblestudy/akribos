@@ -101,7 +101,7 @@ test('picking the active colour again clears the verse', async ({ page }) => {
 	await expect(verse(page, 'SEEDDE', JOHN_17)).toHaveCSS('background-color', FIRST_SWATCH_COLOR);
 
 	await openVerseMenu(page, 'SEEDDE', JOHN_17);
-	await expect(swatches(page).first()).toHaveAttribute('aria-pressed', 'true');
+	await expect(swatches(page).first()).toHaveAttribute('aria-checked', 'true');
 	await swatches(page).first().click();
 
 	await expect(verse(page, 'SEEDDE', JOHN_17)).not.toHaveCSS(
