@@ -8,6 +8,7 @@ import {
 	addVerseToList,
 	canDeleteItem,
 	createVerseList,
+	createVerseListWithVerse,
 	loadVerseListItems,
 	removeVerseFromList
 } from './verse-lists.ts';
@@ -48,6 +49,18 @@ describe('removeVerseFromList enforces the same rule against the database', () =
 			await db.delete(users).where(eq(users.id, id));
 		}
 		await closeDb();
+	});
+
+	it('rolls back a new collection if its first verse cannot be inserted', async () => {
+		const ownerId = await makeUser();
+		await expect(
+			createVerseListWithVerse(db, ownerId, 'Erste Sammlung', {
+				book: 43,
+				chapter: 3,
+				verse: 2 ** 31
+			})
+		).rejects.toThrow();
+		expect(await db.select().from(verseLists).where(eq(verseLists.userId, ownerId))).toEqual([]);
 	});
 
 	it('adds complete ranges atomically, preserves existing items and serializes concurrent positions', async () => {

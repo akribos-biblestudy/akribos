@@ -256,23 +256,89 @@ test('a shared list is readable without an account', async ({ page, browser }) =
 	await anonymous.close();
 });
 
-test('the verse menu creates a list and adds the verse in one step', async ({ page }) => {
+test('the verse menu creates a named list and adds the verse in one step', async ({
+	page
+}, testInfo) => {
 	await register(page, uniqueEmail());
 
-	// The point of the menu: no list has to exist first.
+	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto('/Joh3');
-	await page.locator('#Joh3_16 a.verse-number').click();
-	await page.getByRole('menuitem', { name: 'Stellensammlungen' }).click();
-	const created = page.waitForResponse(
-		(response) => response.request().method() === 'POST' && response.url().includes('?/addToList')
+	const verse = page.locator('#Joh3_16 a.verse-number');
+	await verse.click();
+
+	const menu = page.getByRole('menu', { name: /Johannes 3,16/ });
+	const collections = menu.getByRole('menuitem', { name: 'Stellensammlungen' });
+	const title = menu.getByRole('textbox', { name: 'Titel der Stellensammlung' });
+	const create = menu.getByRole('button', {
+		name: 'Stellensammlung anlegen und Vers hinzufügen'
+	});
+	await expect(title).toHaveCount(0);
+	await collections.press('Enter');
+	await page.keyboard.press('Tab');
+	await expect(title).toBeFocused();
+	await expect(create).toBeDisabled();
+	await title.fill('   ');
+	await expect(create).toBeDisabled();
+
+	const enteredName = '  Johannesstudium  ';
+	await title.fill(enteredName);
+	await title.press('Home');
+	expect(await title.evaluate((input: HTMLInputElement) => input.selectionStart)).toBe(0);
+	await title.press('End');
+	expect(await title.evaluate((input: HTMLInputElement) => input.selectionStart)).toBe(
+		enteredName.length
 	);
-	await page.getByRole('menuitem', { name: 'Neue Liste mit diesem Vers' }).click();
+	await menu.screenshot({ path: testInfo.outputPath('named-verse-collection.png') });
+
+	const addToList = (url: URL) => url.searchParams.has('/addToList');
+	await page.route(addToList, (route) => route.abort());
+	await title.press('Enter');
+	await expect(menu.getByRole('alert')).toHaveText(
+		'Die Stellensammlung konnte nicht angelegt werden.'
+	);
+	await expect(title).toHaveValue(enteredName);
+	await expect(title).toBeFocused();
+	await page.unroute(addToList);
+
+	const created = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && addToList(new URL(response.url()))
+	);
+	await create.click();
 	expect((await created).ok()).toBe(true);
+	await expect(menu).toBeHidden();
+	await expect(verse).toBeFocused();
+	await verse.click();
+	await collections.click();
+	await expect(menu.getByRole('menuitemcheckbox', { name: 'Johannesstudium' })).toHaveAttribute(
+		'aria-checked',
+		'true'
+	);
 
 	await gotoLists(page);
-	await expect(page.getByRole('link', { name: /Johannes 3,16/ })).toBeVisible();
-	await page.getByRole('link', { name: /Johannes 3,16/ }).click();
+	await page.getByRole('link', { name: /Johannesstudium/ }).click();
+	await expect(page.getByRole('textbox', { name: 'Umbenennen' })).toHaveValue('Johannesstudium');
 	await expect(page.getByRole('link', { name: 'Johannes 3,16' })).toBeVisible();
+});
+
+test('the verse menu action rejects empty and overlong new list titles', async ({ page }) => {
+	await register(page, uniqueEmail());
+	await page.goto('/Joh3');
+	const statuses = await page.evaluate(async () =>
+		Promise.all(
+			['   ', 'Nam'.repeat(101)].map(async (title) => {
+				const response = await fetch('?/addToList', {
+					method: 'POST',
+					headers: { accept: 'application/json', 'x-sveltekit-action': 'true' },
+					body: new URLSearchParams({ listId: '', title, reference: 'Joh3,16' })
+				});
+				return (await response.json()).status;
+			})
+		)
+	);
+	expect(statuses).toEqual([400, 400]);
+
+	await gotoLists(page);
+	await expect(page.getByText('Du hast noch keine Stellensammlung.')).toBeVisible();
 });
 
 test('a signed-in reader can highlight a verse with a colour and clear it', async ({ page }) => {

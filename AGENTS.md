@@ -805,6 +805,8 @@ nicht allein einem Media Query, damit auch Touchscreen-Desktops mit Maus korrekt
 Stellensammlungen prüfen eingegebene Kapitel gegen den kanonischen Buchumfang. Ein Versbereich
 innerhalb eines Kapitels wird vollständig und atomar übernommen; bereits vorhandene Verse bleiben
 erhalten. Die Zeile der Sammlung serialisiert die Positionsvergabe bei parallelen Ergänzungen.
+Eine neue Stellensammlung aus dem Versmenü verlangt einen getrimmten Titel mit höchstens 300 Zeichen.
+Anlage und erster Vers werden in derselben Transaktion gespeichert.
 `NoteEditor` sendet höchstens eine Anfrage gleichzeitig und bestätigt nur deren HTML-Momentaufnahme.
 Später getippter Text bleibt sichtbar und ungespeichert. Die Kommentar-Action liefert dafür die
 angelegte Kommentar-ID zurück; ein weiterer Save aktualisiert nur diesen Kommentar des gleichen

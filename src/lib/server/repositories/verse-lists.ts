@@ -11,6 +11,7 @@
 import { randomBytes } from 'node:crypto';
 import { and, asc, eq, max, sql, type SQL } from 'drizzle-orm';
 import type { VerseSegment } from '../../bible/segments.ts';
+import { MAX_VERSE_LIST_TITLE_LENGTH } from '../../notes/verse-lists.ts';
 import type { Database } from '../db/client.ts';
 import {
 	users,
@@ -90,7 +91,7 @@ export async function listVerseLists(db: Database, userId: string): Promise<Vers
 }
 
 export async function createVerseList(
-	db: Database,
+	db: Pick<Database, 'insert'>,
 	userId: string,
 	title: string
 ): Promise<VerseList> {
@@ -99,6 +100,25 @@ export async function createVerseList(
 		.values({ userId, title: title.trim() || 'Neue Stellensammlung' })
 		.returning();
 	return list!;
+}
+
+export async function createVerseListWithVerse(
+	db: Database,
+	userId: string,
+	title: string,
+	reference: { book: number; chapter: number; verse: number }
+): Promise<VerseList> {
+	return db.transaction(async (tx) => {
+		const list = await createVerseList(tx, userId, title);
+		await tx.insert(verseListItems).values({
+			listId: list.id,
+			bookId: reference.book,
+			chapter: reference.chapter,
+			verse: reference.verse,
+			addedByUserId: userId
+		});
+		return list;
+	});
 }
 
 export async function findVerseList(
@@ -288,7 +308,10 @@ export async function removeVerseFromList(
 export async function renameVerseList(db: Database, listId: string, title: string): Promise<void> {
 	await db
 		.update(verseLists)
-		.set({ title: title.trim().slice(0, 300) || 'Neue Stellensammlung', updatedAt: new Date() })
+		.set({
+			title: title.trim().slice(0, MAX_VERSE_LIST_TITLE_LENGTH) || 'Neue Stellensammlung',
+			updatedAt: new Date()
+		})
 		.where(eq(verseLists.id, listId));
 }
 

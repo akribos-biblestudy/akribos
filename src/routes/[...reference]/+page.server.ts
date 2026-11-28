@@ -14,6 +14,7 @@ import {
 	type VerseRef
 } from '$lib/bible/reference';
 import { normalizeStrongId, strongLanguage } from '$lib/bible/strong';
+import { parseVerseListTitle } from '$lib/notes/verse-lists';
 import { getDb } from '$lib/server/db';
 import {
 	activateReaderTab,
@@ -76,7 +77,7 @@ import {
 } from '$lib/server/reader-preferences';
 import {
 	addVerseToList,
-	createVerseList,
+	createVerseListWithVerse,
 	findListAccess,
 	listVerseLists,
 	removeVerseFromList
@@ -827,17 +828,17 @@ export const actions = {
 		if (!reference?.verse) return fail(400, { error: 'reference' });
 
 		const db = getDb();
-		const access = listId
-			? await findListAccess(db, listId, locals.user.id)
-			: { list: await createVerseList(db, locals.user.id, String(form.get('title') ?? '')) };
-		if (!access?.list) return fail(404, { error: 'list' });
+		const verse = { book: reference.book, chapter: reference.chapter, verse: reference.verse };
+		if (!listId) {
+			const title = parseVerseListTitle(form.get('title'));
+			if (!title) return fail(400, { error: 'title' });
+			const list = await createVerseListWithVerse(db, locals.user.id, title, verse);
+			return { added: true, listId: list.id };
+		}
+		const access = await findListAccess(db, listId, locals.user.id);
+		if (!access) return fail(404, { error: 'list' });
 
-		await addVerseToList(
-			db,
-			access.list.id,
-			{ book: reference.book, chapter: reference.chapter, verse: reference.verse },
-			locals.user.id
-		);
+		await addVerseToList(db, access.list.id, verse, locals.user.id);
 
 		return { added: true, listId: access.list.id };
 	},
