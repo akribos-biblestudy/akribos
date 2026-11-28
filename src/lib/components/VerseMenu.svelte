@@ -12,11 +12,11 @@
 
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { BibleQuotation } from '$lib/actions/verse-hover-popover';
 	import { formatCopiedVerses } from '$lib/bible/copy-verse';
 	import { t } from '$lib/i18n';
+	import { flushSync, tick } from 'svelte';
 	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
 
@@ -51,7 +51,10 @@
 	let copied = $state<'text' | 'link' | null>(null);
 	let activeStyleId = $state<string | null>(null);
 	let onHighlightChange: ((styleId: string | null) => void) | undefined;
-	let onOpenNotes = $state<(() => void) | undefined>();
+	const collectionGroupId = $props.id();
+	let collectionsOpen = $state(false);
+	// Start from the server's updated-at order, refreshed by navigation and list creation.
+	let recentLists = $derived(lists.slice(0, 10));
 
 	/**
 	 * `highlight` is the style currently on this verse, if any (null for none); `onChange` fires
@@ -61,24 +64,23 @@
 	 */
 	export function openAt(
 		anchor: HTMLElement,
-		_verseNumber: number,
 		next: VerseContext,
 		highlight: string | null,
 		onChange: (styleId: string | null) => void,
-		resource: { id: string; name: string; kind: string } | null,
-		openNotes: (() => void) | undefined,
-		focusMenu = true
+		resource: { id: string; name: string }
 	): void {
 		context = next;
 		source =
-			page.data.readerResources.find((item: { id: string }) => item.id === resource?.id)?.abbrev ??
+			page.data.readerResources.find((item: { id: string }) => item.id === resource.id)?.abbrev ??
 			'';
 		copied = null;
 		activeStyleId = highlight;
 		onHighlightChange = onChange;
-		onOpenNotes = resource?.kind === 'bible' ? openNotes : undefined;
-		translation = resource?.name ?? '';
-		menu?.openAt(anchor, { focus: focusMenu });
+		translation = resource.name;
+		collectionsOpen = false;
+		// The anchored menu measures its contents and focuses its first item synchronously.
+		flushSync();
+		menu?.openAt(anchor);
 	}
 
 	function insertVerseInNote(): void {
@@ -89,11 +91,11 @@
 
 	const linkUrl = $derived(context ? new URL(context.path, page.url.origin).toString() : '');
 
-	const inList = $derived(
-		new Set(
-			lists.filter((list) => marks.has(`${context?.reference}:${list.id}`)).map((list) => list.id)
-		)
-	);
+	async function toggleCollections(): Promise<void> {
+		collectionsOpen = !collectionsOpen;
+		await tick();
+		menu?.reposition();
+	}
 
 	async function copy(what: 'text' | 'link', value: string): Promise<void> {
 		try {
@@ -122,20 +124,50 @@
 	}
 </script>
 
-<Menu bind:this={menu} label={context ? t('verse.menu', { reference: context.label }) : ''}>
+<Menu
+	bind:this={menu}
+	label={context ? t('verse.menu', { reference: context.label }) : ''}
+	minWidth={signedIn ? '20rem' : undefined}
+>
 	{#if context}
 		<p class="menu-label">{context.label}</p>
 
-		<button
-			type="button"
-			role="menuitem"
-			onclick={() => {
-				menu?.close();
-				void goto(context!.path);
-			}}
-		>
-			{t('verse.showOnly')}
-		</button>
+		{#if signedIn && highlightStyles.length > 0}
+			<p class="menu-label">{t('highlights.menuLabel')}</p>
+			<div class="swatches" role="group" aria-label={t('highlights.menuLabel')}>
+				{#each highlightStyles as style, index (style.id)}
+					{@const label = style.name ?? t('highlights.numbered', { number: index + 1 })}
+					{@const active = activeStyleId === style.id}
+					<form
+						method="POST"
+						action={active ? '?/removeHighlight' : '?/setHighlight'}
+						role="none"
+						use:enhance={() => {
+							pickHighlight(style.id);
+							return async ({ result, update }) => {
+								if (result.type !== 'success') {
+									await update({ reset: false, invalidateAll: false });
+								}
+							};
+						}}
+					>
+						<input type="hidden" name="reference" value={context.reference} />
+						{#if !active}<input type="hidden" name="styleId" value={style.id} />{/if}
+						<button
+							type="submit"
+							role="menuitemcheckbox"
+							class="swatch"
+							class:active
+							style:--swatch-color={style.color}
+							title={label}
+							aria-label={label}
+							aria-checked={active}
+						></button>
+					</form>
+				{/each}
+			</div>
+			<hr />
+		{/if}
 
 		<button
 			type="button"
@@ -155,57 +187,10 @@
 		<button type="button" role="menuitem" onclick={() => copy('link', linkUrl)}>
 			{copied === 'link' ? t('action.copied') : t('verse.copyLink')}
 		</button>
-
-		{#if signedIn && highlightStyles.length > 0}
-			<hr />
-			<p class="menu-label">{t('highlights.menuLabel')}</p>
-			<div class="swatches" role="none">
-				{#each highlightStyles as style (style.id)}
-					{@const active = activeStyleId === style.id}
-					<form
-						method="POST"
-						action={active ? '?/removeHighlight' : '?/setHighlight'}
-						role="none"
-						use:enhance={() => {
-							pickHighlight(style.id);
-							return async ({ update }) => update({ reset: false, invalidateAll: false });
-						}}
-					>
-						<input type="hidden" name="reference" value={context.reference} />
-						{#if !active}<input type="hidden" name="styleId" value={style.id} />{/if}
-						<button
-							type="submit"
-							class="swatch"
-							class:active
-							style:background-color={style.color}
-							title={style.name ?? t('highlights.unnamed')}
-							aria-label={style.name ?? t('highlights.unnamed')}
-							aria-pressed={active}
-						></button>
-					</form>
-				{/each}
-			</div>
-		{/if}
-
-		{#if signedIn && onOpenNotes}
-			<hr />
-			{#if onInsertVerseInNote && context.text.trim()}
-				<button type="button" role="menuitem" class="notes-item" onclick={insertVerseInNote}>
-					<Icon name="quote" class="size-4 shrink-0" />
-					<span>{t('documents.reader.insertVerse')}</span>
-				</button>
-			{/if}
-			<button
-				type="button"
-				role="menuitem"
-				class="notes-item"
-				onclick={() => {
-					onOpenNotes?.();
-					menu?.close();
-				}}
-			>
-				<Icon name="file-text" class="size-4 shrink-0" />
-				<span>{t('documents.reader.open', { reference: context.label })}</span>
+		{#if signedIn && onInsertVerseInNote && context.text.trim()}
+			<button type="button" role="menuitem" onclick={insertVerseInNote}>
+				<Icon name="quote" class="size-4 shrink-0" />
+				<span>{t('documents.reader.insertVerse')}</span>
 			</button>
 		{/if}
 
@@ -216,55 +201,87 @@
 				{t('verse.signInToSave')}
 			</a>
 		{:else}
-			<p class="menu-label">{t('lists.title')}</p>
+			<button
+				type="button"
+				role="menuitem"
+				aria-expanded={collectionsOpen}
+				aria-controls={collectionGroupId}
+				onclick={toggleCollections}
+			>
+				<Icon name="list" class="size-4 shrink-0" />
+				<span>{t('lists.title')}</span>
+				<Icon
+					name={collectionsOpen ? 'chevron-down' : 'chevron-right'}
+					class="ml-auto size-4 shrink-0"
+				/>
+			</button>
 
-			{#each lists as list (list.id)}
-				{@const present = inList.has(list.id)}
+			<div
+				id={collectionGroupId}
+				class="collections"
+				role="group"
+				aria-label={t('lists.title')}
+				hidden={!collectionsOpen}
+			>
+				{#each recentLists as list (list.id)}
+					{@const present = marks.has(`${context.reference}:${list.id}`)}
+					<form
+						method="POST"
+						action={present ? '?/removeFromList' : '?/addToList'}
+						role="none"
+						use:enhance={() => {
+							mark(list.id, !present);
+							menu?.close();
+							return async ({ result, update }) => {
+								// These actions update the collection's timestamp on success without moving
+								// the reader. Reflect that order in the next menu opening.
+								if (result.type === 'success') {
+									const updated = recentLists.find((item) => item.id === list.id);
+									if (updated) {
+										recentLists = [updated, ...recentLists.filter((item) => item.id !== list.id)];
+									}
+									return; // Preserve the focus restored by close().
+								}
+								await update({ reset: false, invalidateAll: false });
+							};
+						}}
+					>
+						<input type="hidden" name="listId" value={list.id} />
+						<input type="hidden" name="reference" value={context.reference} />
+						<button
+							type="submit"
+							role="menuitemcheckbox"
+							aria-checked={present}
+							title={present ? t('lists.removeVerse') : t('lists.addVerse')}
+						>
+							<span class="truncate">{list.title}</span>
+							{#if present}
+								<Icon name="check" class="menu-check size-4 shrink-0" />
+							{/if}
+						</button>
+					</form>
+				{/each}
+
+				<!-- The first verse a reader wants to keep is the moment they need a list, so the list is
+				     created here rather than on the settings page. -->
 				<form
 					method="POST"
-					action={present ? '?/removeFromList' : '?/addToList'}
+					action="?/addToList"
 					role="none"
 					use:enhance={() => {
-						mark(list.id, !present);
 						menu?.close();
-						// The chapter itself has not changed, so nothing needs re-fetching.
-						return async ({ update }) => update({ reset: false, invalidateAll: false });
+						return async ({ update }) => update({ reset: false });
 					}}
 				>
-					<input type="hidden" name="listId" value={list.id} />
+					<input type="hidden" name="listId" value="" />
 					<input type="hidden" name="reference" value={context.reference} />
-					<button
-						type="submit"
-						role="menuitem"
-						title={present ? t('lists.removeVerse') : t('lists.addVerse')}
-					>
-						<span class="truncate">{list.title}</span>
-						{#if present}
-							<Icon name="check" class="menu-check size-4 shrink-0" />
-						{/if}
+					<input type="hidden" name="title" value={context.label} />
+					<button type="submit" role="menuitem" class="new-list">
+						<Icon name="plus" class="size-4 shrink-0" />
+						{t('lists.newWithVerse')}
 					</button>
 				</form>
-			{/each}
-
-			<!-- The first verse a reader wants to keep is the moment they need a list, so the list is
-			     created here rather than on the settings page. -->
-			<form
-				method="POST"
-				action="?/addToList"
-				role="none"
-				use:enhance={() => {
-					menu?.close();
-					return async ({ update }) => update({ reset: false });
-				}}
-			>
-				<input type="hidden" name="listId" value="" />
-				<input type="hidden" name="reference" value={context.reference} />
-				<input type="hidden" name="title" value={context.label} />
-				<button type="submit" role="menuitem" class="new-list">
-					<Icon name="plus" class="size-4 shrink-0" />
-					{t('lists.newWithVerse')}
-				</button>
-			</form>
+			</div>
 		{/if}
 	{/if}
 </Menu>
@@ -274,34 +291,44 @@
 		color: var(--color-accent-600);
 	}
 
-	.notes-item {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
 	:global(.dark) .new-list {
 		color: var(--color-accent-400);
 	}
 
+	.collections {
+		margin-inline-start: 0.65rem;
+		padding-inline-start: 0.25rem;
+		border-inline-start: 1px solid var(--color-stone-200);
+	}
+
+	:global(.dark) .collections {
+		border-color: var(--color-stone-700);
+	}
+
 	.swatches {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.4rem;
-		padding: 0.2rem 0.75rem 0.5rem;
+		display: grid;
+		grid-template-columns: repeat(10, minmax(0, 1fr));
+		gap: 0.2rem;
+		padding: 0.15rem 0.45rem 0.35rem;
 	}
 
-	.swatch {
-		box-sizing: border-box;
-		width: 1.5rem;
-		height: 1.5rem;
-		border-radius: 999px;
-		border: 1px solid rgb(28 25 23 / 0.15);
-		cursor: pointer;
+	.swatches .swatch[role] {
+		display: grid;
+		min-height: 1.8rem;
+		place-items: center;
+		padding: 0;
 	}
 
-	.swatch.active {
-		border: 2px solid var(--color-stone-700);
-		box-shadow: 0 0 0 2px var(--color-stone-50);
+	.swatch::before {
+		content: '';
+		width: min(100%, 1.5rem);
+		aspect-ratio: 1;
+		border-radius: 50%;
+		border: 1px solid rgb(28 25 23 / 0.2);
+		background: var(--swatch-color);
+	}
+
+	.swatch.active::before {
+		box-shadow: inset 0 0 0 2px var(--color-stone-700);
 	}
 </style>

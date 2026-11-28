@@ -112,6 +112,10 @@
 		finishClose();
 	}
 
+	export function reposition(): void {
+		if (isShowing()) place();
+	}
+
 	export function isOpen(): boolean {
 		return open;
 	}

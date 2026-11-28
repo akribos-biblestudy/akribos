@@ -97,7 +97,6 @@ export const de = {
 
 	// --- verse menu ---------------------------------------------------------
 	'verse.menu': 'Vers {reference}',
-	'verse.showOnly': 'Nur diesen Vers anzeigen',
 	'verse.copyText': 'Vers kopieren',
 	'verse.copyLink': 'Link kopieren',
 	'verse.signInToSave': 'Zum Speichern anmelden',
@@ -451,13 +450,7 @@ export const de = {
 	'documents.editor.actionError': 'Die Änderung konnte nicht gespeichert werden.',
 	'documents.tags.error': 'Die Schlagwörter konnten nicht gespeichert werden.',
 	'documents.passages.error': 'Die Bibelstellen-Verknüpfung konnte nicht gespeichert werden.',
-	'documents.reader.title': 'Notizen zu dieser Stelle',
-	'documents.reader.open': 'Notizen zu {reference} öffnen',
 	'documents.reader.insertVerse': 'In Notiz einfügen',
-	'documents.reader.create': 'Notiz zu {reference} erstellen',
-	'documents.reader.panelClose': 'Notizenleiste schließen',
-	'documents.reader.count': '{count} Notizen',
-	'documents.reader.translationSpecific': 'Nur für dieses Werk',
 	'documents.returnToReader': 'Zurück zum Bibeltext',
 
 	// --- sermon workflow ----------------------------------------------------
@@ -630,6 +623,7 @@ export const de = {
 	'highlights.errorLimit': 'Es sind bereits {max} Farben angelegt.',
 	'highlights.menuLabel': 'Markieren',
 	'highlights.unnamed': 'Unbenannte Farbe',
+	'highlights.numbered': 'Markierungsfarbe {number}',
 	'highlights.showVerses': 'Verse anzeigen',
 	'highlights.back': 'Zurück zu Versmarkierungen',
 	'highlights.versesTitle': 'Markierte Verse: {name}',
@@ -921,7 +915,7 @@ export const de = {
 		'Nach der Anmeldung kannst du Verse markieren, Notizen und Ausarbeitungen schreiben, Stellensammlungen anlegen und Arbeitsbereiche geräteübergreifend speichern. Über das Konto-Menü meldest du dich an. Das Lesen und Studieren der Bibel bleibt auch ohne Konto möglich.',
 	'tour.accountBenefits.register': 'Konto erstellen',
 	'tour.verseMenu.body':
-		'Klicke auf eine Versnummer, um sie hervorzuheben, eine verknüpfte Notiz zu beginnen oder sie einer Stellensammlung zuzuordnen.',
+		'Öffne über die Versnummer das Menü zum Markieren, Kopieren und Sammeln. Bei einer geöffneten, bearbeitbaren Notiz kannst du den Vers dort als Zitat einfügen.',
 	'tour.readerNotes.title': 'Notizen im Bibeltext',
 	'tour.readerNotes.body':
 		'Ein Symbol steht nur am Anfang oder Ende eines verknüpften Abschnitts; die dezente Punktlinie markiert den gesamten Bereich. Ein Klick öffnet die Notizspalte.',

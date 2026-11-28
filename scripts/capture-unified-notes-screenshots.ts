@@ -62,28 +62,8 @@ try {
 	await capture(readerPage, 'document-editor.png');
 
 	await readerPage.goto(`${baseUrl}/Joh3,16`);
-	// Prove client hydration before clicking a verse-number link. Without this handshake a cold dev
-	// server can still be compiling, and the link's normal navigation wins before Svelte attaches its
-	// menu handler.
 	await openLayoutMenuAfterHydration(readerPage);
-	const layoutMenu = readerPage.getByRole('menu', { name: 'Kachelanordnung' });
-	await readerPage.keyboard.press('Escape');
-	await layoutMenu.waitFor({ state: 'hidden' });
-	// The demo account may retain a previously customised workspace order; address the seeded Bible
-	// explicitly instead of assuming the first visible resource is a Bible.
-	const readerBible = readerPage.locator('.flow-column[data-resource-id="SEEDDE"]').first();
-	await readerBible.locator('a.verse-number', { hasText: /^16$/ }).click();
-	await readerPage.getByRole('menuitem', { name: /Notizen zu Johannes 3,16 öffnen/ }).click();
-	await readerPage.getByTestId('reader-notes-panel').waitFor();
-	await capture(readerPage, 'reader-notes-panel.png', false);
-	await readerPage.keyboard.press('Escape');
-	await readerPage.getByTestId('reader-notes-panel').waitFor({ state: 'hidden' });
-
-	const readerIndicator = readerBible
-		.getByRole('button', { name: /Notizen zu Joh 3,16 öffnen/ })
-		.first();
-	await readerIndicator.waitFor();
-	await readerIndicator.click();
+	await readerPage.getByTestId('reader-notes-sidecar-toggle').click();
 	const readerSidecar = readerPage.getByTestId('reader-notes-sidecar');
 	await readerSidecar.waitFor();
 	await readerSidecar.getByTestId('reader-notes-sidecar-context').waitFor();

@@ -20,6 +20,16 @@ export type ReaderDocumentSummary = {
 	translationSpecific: boolean;
 };
 
+export type ReaderNotesContext = {
+	reference: string;
+	passage: string;
+	chapterPassage: string;
+	linkGroup: string;
+	returnTo: string;
+	resource: { id: string; title: string };
+	documents: ReaderDocumentSummary[];
+};
+
 /** Minimal client-only metadata needed to expose a just-created note before the Reader reloads. */
 export type ReaderCreatedDocument = {
 	id: string;
