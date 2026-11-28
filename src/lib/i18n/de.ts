@@ -449,6 +449,7 @@ export const de = {
 	'documents.passages.error': 'Die Bibelstellen-Verknüpfung konnte nicht gespeichert werden.',
 	'documents.reader.title': 'Notizen zu dieser Stelle',
 	'documents.reader.open': 'Notizen zu {reference} öffnen',
+	'documents.reader.insertVerse': 'In Notiz einfügen',
 	'documents.reader.create': 'Notiz zu {reference} erstellen',
 	'documents.reader.panelClose': 'Notizenleiste schließen',
 	'documents.reader.count': '{count} Notizen',

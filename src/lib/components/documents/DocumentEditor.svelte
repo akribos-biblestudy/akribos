@@ -14,7 +14,7 @@
 		safeLinkHref
 	} from '$lib/notes/document-markdown';
 	import { t } from '$lib/i18n';
-	import { Editor } from '@tiptap/core';
+	import { Editor, getHTMLFromFragment, type JSONContent } from '@tiptap/core';
 	import { DocumentImage } from './document-image';
 	import { prepareDocumentImage } from '$lib/notes/document-images';
 	import { MAX_DOCUMENT_MARKDOWN_BYTES } from '$lib/notes/documents';
@@ -166,6 +166,7 @@
 	let editorHost: HTMLDivElement | undefined = $state();
 	let editorState = $state<{ editor: Editor | null }>({ editor: null });
 	let mode = $state<Mode>('visual');
+	let markdownInput = $state<HTMLTextAreaElement>();
 	let title = $state(untrack(() => document.title));
 	let markdown = $state(untrack(() => document.bodyMarkdown));
 	let revision = $state(untrack(() => document.revision));
@@ -1190,24 +1191,68 @@
 		if (window.document.visibilityState === 'hidden' && saveState === 'dirty') void save();
 	}
 
-	function insertBibleQuotation(quotation: BibleQuotation): void {
-		if (!editor || readOnly) return;
+	function bibleQuotationBlock(quotation: BibleQuotation): JSONContent {
 		const source = [quotation.reference, quotation.translation].filter(Boolean).join(' · ');
-		editor
-			.chain()
-			.focus()
-			.insertContent({
-				type: 'blockquote',
-				content: [
-					{ type: 'paragraph', content: [{ type: 'text', text: quotation.text }] },
-					{
-						type: 'paragraph',
-						content: [{ type: 'text', marks: [{ type: 'bold' }], text: source }]
-					}
-				]
-			})
-			.run();
+		return {
+			type: 'blockquote',
+			content: [
+				{ type: 'paragraph', content: [{ type: 'text', text: quotation.text }] },
+				{
+					type: 'paragraph',
+					content: [{ type: 'text', marks: [{ type: 'bold' }], text: source }]
+				}
+			]
+		};
+	}
+
+	function insertVisualBibleQuotation(quotation: BibleQuotation): void {
 		quotationState = 'idle';
+		if (!editor || readOnly || mode !== 'visual') return;
+		editor.chain().focus().insertContent(bibleQuotationBlock(quotation)).run();
+	}
+
+	export function canInsertBibleQuotation(): boolean {
+		return (
+			editor !== null &&
+			!readOnly &&
+			!appSuspended &&
+			!destroyed &&
+			(mode === 'visual' || markdownInput !== undefined)
+		);
+	}
+
+	export function insertBibleQuotation(quotation: BibleQuotation): void {
+		if (!editor || !canInsertBibleQuotation()) return;
+		if (mode === 'visual') {
+			insertVisualBibleQuotation(quotation);
+			return;
+		}
+
+		const input = markdownInput;
+		if (!input) return;
+		const { selectionStart, selectionEnd, value } = input;
+		const before = value.slice(0, selectionStart);
+		const after = value.slice(selectionEnd);
+		const prefix = !before || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
+		const trailingBreaks = after.startsWith('\n\n') ? 2 : after.startsWith('\n') ? 1 : 0;
+		const quote = editor.schema.nodeFromJSON({
+			type: 'doc',
+			content: [bibleQuotationBlock(quotation)]
+		});
+		const source = documentHtmlToMarkdown(
+			getHTMLFromFragment(quote.content, editor.schema)
+		).trimEnd();
+		input.setRangeText(
+			prefix + source + '\n'.repeat(2 - trailingBreaks),
+			selectionStart,
+			selectionEnd,
+			'end'
+		);
+		const cursor = input.selectionEnd + trailingBreaks;
+		input.setSelectionRange(cursor, cursor);
+		markdown = input.value;
+		updateFromMarkdown();
+		input.focus({ preventScroll: true });
 	}
 
 	function editLink(): void {
@@ -1262,7 +1307,7 @@
 		}
 		quotationState = 'loading';
 		try {
-			insertBibleQuotation(await loadBibleQuotation(bibleId, reference));
+			insertVisualBibleQuotation(await loadBibleQuotation(bibleId, reference));
 		} catch {
 			quotationState = 'error';
 		}
@@ -1910,7 +1955,7 @@
 				use:verseHoverPopover={{
 					bibleId,
 					tooltipId: bibleReferenceTooltipId,
-					onInsert: readOnly ? undefined : insertBibleQuotation,
+					onInsert: readOnly ? undefined : insertVisualBibleQuotation,
 					onOpen: onOpenBibleReference
 						? async (reference) => (await flush()) && (await onOpenBibleReference!(reference))
 						: undefined,
@@ -2042,6 +2087,7 @@
 			<label class="sr-only" for="document-markdown">{t('documents.editor.markdown')}</label>
 			<textarea
 				id="document-markdown"
+				bind:this={markdownInput}
 				data-testid={compact ? 'reader-notes-sidecar-body-markdown' : undefined}
 				bind:value={markdown}
 				readonly={readOnly}

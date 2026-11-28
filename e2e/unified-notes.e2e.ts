@@ -730,6 +730,106 @@ async function saveMarkdownDocument(
 	);
 }
 
+test('the verse menu inserts its translation as a saved quote at the visual note caret', async ({
+	page
+}) => {
+	await loginNewReader(page);
+	await page.goto(
+		'/Joh3,16?layout=columns-2&tab=1.1:SEEDDE:A:Joh3,16&tab=2.1:SEEDPLAIN:B:Joh3,16&active=1.1&active=2.1&focus=1'
+	);
+	const verse = page.locator('.flow-column[data-resource-id="SEEDPLAIN"] a.verse-number', {
+		hasText: /^16$/
+	});
+	const action = page.getByRole('menuitem', { name: 'In Notiz einfügen', exact: true });
+	const openNotes = page.getByRole('menuitem', { name: /Notizen zu Johannes 3,16 öffnen/ });
+	await verse.click();
+	await expect(openNotes).toBeVisible();
+	await expect(action).toHaveCount(0);
+	await page.keyboard.press('Escape');
+
+	await page.getByTestId('layout-picker').click();
+	await page.getByTestId('reader-notes-sidecar-toggle').click();
+	const sidecar = page.getByTestId('reader-notes-sidecar');
+	const create = sidecar.getByTestId('reader-notes-sidecar-create');
+	await expect(create).toBeVisible();
+	await verse.click();
+	await expect(openNotes).toBeVisible();
+	await expect(action).toHaveCount(0);
+	await page.keyboard.press('Escape');
+	await create.click();
+
+	const body = sidecar.getByTestId('reader-notes-sidecar-body');
+	await body.click();
+	await page.keyboard.insertText('Vorher.Nachher.');
+	await body.press('Home');
+	for (let offset = 0; offset < 'Vorher.'.length; offset += 1) await body.press('ArrowRight');
+
+	const saved = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'PATCH' &&
+			!!response.request().postData()?.includes('Johannes 3,16 · Schlicht Tab')
+	);
+	await verse.click();
+	await action.click();
+	await expect(body).toBeFocused();
+	await expect(body.locator('blockquote strong')).toHaveText('Johannes 3,16 · Schlicht Tab');
+	await expect(body.locator(':scope > *')).toHaveText([
+		'Vorher.',
+		/Denn so sehr hat Gott die Welt geliebt.*Johannes 3,16 · Schlicht Tab/s,
+		'Nachher.'
+	]);
+	const response = await saved;
+	expect(response.ok()).toBe(true);
+	const result = await response.json();
+	expect(result.document.bodyMarkdown.trimEnd()).toMatch(
+		/^Vorher\.\n\n> Denn so sehr hat Gott die Welt geliebt[\s\S]*\n\nNachher\.$/
+	);
+
+	await sidecar.getByRole('button', { name: 'Notizbereich schließen' }).click();
+	await expect(sidecar).not.toBeVisible();
+	await verse.click();
+	await expect(openNotes).toBeVisible();
+	await expect(action).toHaveCount(0);
+});
+
+test('a verse inserted on mobile returns to the Markdown note cursor', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await loginNewReader(page);
+	const id = await createNoteFromLibrary(page);
+	const readerUrl = '/Joh3,16?layout=single&tab=1.1:SEEDPLAIN:A:Joh3,16&active=1.1&focus=1';
+	await page.goto(`/notes/${id}?returnTo=${encodeURIComponent(readerUrl)}`);
+	await page.getByRole('button', { name: 'Im Arbeitsbereich öffnen', exact: true }).click();
+
+	const sidecar = page.getByTestId('reader-notes-sidecar');
+	await sidecar.getByRole('tab', { name: 'Markdown' }).click();
+	const markdown = sidecar.getByTestId('reader-notes-sidecar-body-markdown');
+	await markdown.fill('Vorher.Nachher.');
+	await markdown.press('Home');
+	for (let offset = 0; offset < 'Vorher.'.length; offset += 1) await markdown.press('ArrowRight');
+	await page.getByTestId('reader-mobile-reading-view').click();
+	await page.locator('.flow-column:visible a.verse-number', { hasText: /^16$/ }).click();
+	await page.getByRole('menuitem', { name: 'In Notiz einfügen', exact: true }).click();
+
+	await expect(page.getByTestId('reader-mobile-notes-view')).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
+	await expect(markdown).toBeFocused();
+	await expect(markdown).toHaveValue(
+		/^Vorher\.\n\n> Denn so sehr hat Gott die Welt geliebt[\s\S]*Johannes 3,16 · Schlicht Tab[\s\S]*\n\nNachher\.$/
+	);
+	expect(
+		await markdown.evaluate((input: HTMLTextAreaElement) => input.value.slice(input.selectionStart))
+	).toBe('Nachher.');
+	await sidecar.getByRole('tab', { name: 'Visuell' }).click();
+	await expect(sidecar.locator('.document-prose blockquote strong')).toHaveText(
+		'Johannes 3,16 · Schlicht Tab'
+	);
+	await expect(sidecar.getByTestId('reader-notes-sidecar-save-status')).toHaveText('Gespeichert');
+	const saved = await (await page.request.get(`/api/documents/${id}`)).json();
+	expect(saved.document.bodyMarkdown).toContain('> Denn so sehr hat Gott die Welt geliebt');
+});
+
 test('private workspaces enforce authentication and owner-scoped not-found responses', async ({
 	page
 }) => {

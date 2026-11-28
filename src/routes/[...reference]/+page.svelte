@@ -40,7 +40,7 @@
 	} from '$lib/bible/segments';
 	import { spanRangeForVerse } from '$lib/bible/highlight-span';
 	import { readerLocation } from '$lib/reader-location.svelte';
-	import { verseHoverPopover } from '$lib/actions/verse-hover-popover';
+	import { verseHoverPopover, type BibleQuotation } from '$lib/actions/verse-hover-popover';
 	import { renderCommentaryHtml } from '$lib/bible/commentary-html';
 	import { readerContentLinks } from '$lib/actions/reader-content-links';
 	import { strongHover } from '$lib/actions/strong-hover';
@@ -870,6 +870,15 @@
 		setReaderNotesSidecarOpen(true);
 		await tick();
 		await readerNotesSidecar?.openDocument(id);
+	}
+
+	async function insertReaderVerseInNote(quotation: BibleQuotation): Promise<void> {
+		if (!readerNotesSidecarOpen || !readerNotesSidecar?.canInsertBibleQuotation()) return;
+		if (isMobileViewport) {
+			mobileReaderView = 'notes';
+			await tick();
+		}
+		if (readerNotesSidecarOpen) readerNotesSidecar?.insertBibleQuotation(quotation);
 	}
 
 	/** Makes a sidecar-created note discoverable immediately; a reload remains backed by the DB. */
@@ -3268,6 +3277,9 @@
 	signedIn={data.user !== null}
 	{marks}
 	highlightStyles={data.highlightStyles}
+	onInsertVerseInNote={readerNotesSidecarOpen && readerNotesSidecar?.canInsertBibleQuotation()
+		? insertReaderVerseInNote
+		: undefined}
 />
 
 <!-- One owner-only panel for all contextual verse-menu actions. -->
