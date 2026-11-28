@@ -7,8 +7,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { onDestroy, tick } from 'svelte';
 	import type { DocumentKind, DocumentSource } from '$lib/notes/documents';
-	import type { ReaderCreatedDocument } from '$lib/reader/document-notes';
-	import type { ReaderNotesContext } from './ReaderNotesPanel.svelte';
+	import type { ReaderCreatedDocument, ReaderNotesContext } from '$lib/reader/document-notes';
 	import Icon from './Icon.svelte';
 	import type DocumentEditor from './documents/DocumentEditor.svelte';
 

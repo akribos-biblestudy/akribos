@@ -48,9 +48,6 @@
 	import { t } from '$lib/i18n';
 	import Icon from '$lib/components/Icon.svelte';
 	import ReaderLexiconTab from '$lib/components/ReaderLexiconTab.svelte';
-	import ReaderNotesPanel, {
-		type ReaderNotesContext
-	} from '$lib/components/ReaderNotesPanel.svelte';
 	import ReaderNotesSidecar from '$lib/components/ReaderNotesSidecar.svelte';
 	import ReaderResourceTabs from '$lib/components/ReaderResourceTabs.svelte';
 	import ReaderTabSearchResults from '$lib/components/ReaderTabSearchResults.svelte';
@@ -102,7 +99,8 @@
 		readerDocumentsAt,
 		type ReaderCreatedDocument,
 		type ReaderDocumentAnchor,
-		type ReaderDocumentSummary
+		type ReaderDocumentSummary,
+		type ReaderNotesContext
 	} from '$lib/reader/document-notes';
 	import {
 		DEFAULT_READER_NOTES_SIDECAR_WIDTH,
@@ -405,7 +403,6 @@
 	 * derived from page data, so it is rebuilt from the server's answer on every navigation.
 	 */
 	let verseMenu = $state<VerseMenu | undefined>();
-	let readerNotesPanel = $state<ReaderNotesPanel | undefined>();
 	let readerNotesSidecar = $state<ReaderNotesSidecar | undefined>();
 	let readerNotesSidecarOpen = $state(false);
 	let readerNotesContext = $state<ReaderNotesContext | null>(null);
@@ -743,7 +740,6 @@
 		finishSidecarResize(event);
 	}
 
-	/** Opens the whole-verse menu (verse-number click, or a selection covering the entire verse). */
 	function openVerseMenuForWholeVerse(
 		anchor: HTMLElement,
 		book: number,
@@ -751,11 +747,7 @@
 		verse: number,
 		verseEnd: number | null,
 		segments: Parameters<typeof segmentsToText>[0],
-		resource: { id: string; name: string; kind: 'bible' },
-		documents: ReaderDocumentSummary[],
-		tileId: string,
-		tabId: string,
-		focusMenu = true
+		resource: { id: string; name: string }
 	) {
 		const reference = {
 			book,
@@ -766,7 +758,6 @@
 
 		verseMenu?.openAt(
 			anchor,
-			verse,
 			{
 				reference: formatReference(reference),
 				label: formatReference(reference, { style: 'full' }),
@@ -775,20 +766,7 @@
 			},
 			highlightByKey.get(`${book}:${chapter}:${verse}`)?.styleId ?? null,
 			(styleId) => updateStreamHighlight(book, chapter, verse, styleId),
-			resource,
-			() =>
-				openReaderNotesPanel(
-					anchor,
-					book,
-					chapter,
-					verse,
-					verseEnd,
-					resource,
-					documents,
-					tileId,
-					tabId
-				),
-			focusMenu
+			resource
 		);
 	}
 
@@ -837,39 +815,6 @@
 			resource: { id: resource.id, title: resource.name },
 			documents
 		};
-	}
-
-	function openReaderNotesPanel(
-		anchor: HTMLElement,
-		book: number,
-		chapter: number,
-		verse: number,
-		verseEnd: number | null,
-		resource: { id: string; name: string; kind: 'bible' },
-		documents: ReaderDocumentSummary[],
-		tileId: string,
-		tabId: string
-	): void {
-		const context = readerNotesContextForVerse(
-			book,
-			chapter,
-			verse,
-			verseEnd,
-			resource,
-			documents,
-			tileId,
-			tabId
-		);
-		readerNotesContext = context;
-		void readerNotesPanel?.openForVerse(anchor, context);
-	}
-
-	async function openReaderSidecarDocument(id: string): Promise<void> {
-		readerNotesSidecarOpen = true;
-		if (isMobileViewport) mobileReaderView = 'notes';
-		setReaderNotesSidecarOpen(true);
-		await tick();
-		await readerNotesSidecar?.openDocument(id);
 	}
 
 	async function insertReaderVerseInNote(quotation: BibleQuotation): Promise<void> {
@@ -956,10 +901,7 @@
 		verse: number,
 		verseEnd: number | null,
 		segments: Parameters<typeof segmentsToText>[0],
-		resource: { id: string; name: string; kind: 'bible' },
-		documents: ReaderDocumentSummary[],
-		tileId: string,
-		tabId: string
+		resource: { id: string; name: string }
 	) {
 		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
 			return;
@@ -973,10 +915,7 @@
 			verse,
 			verseEnd,
 			segments,
-			resource,
-			documents,
-			tileId,
-			tabId
+			resource
 		);
 	}
 
@@ -2937,12 +2876,6 @@
 														partialHighlightsByKey.get(
 															`${stream.reference.book}:${stream.reference.chapter}:${cell.verse}:${column.resource.id}`
 														) ?? []}
-													{@const attachedDocuments = readerDocumentsAt(stream.documentAnchors, {
-														book: stream.reference.book,
-														chapter: stream.reference.chapter,
-														verse: cell.verse,
-														verseEnd: cell.verseEnd
-													})}
 													<p
 														class="flow-verse"
 														class:has-line-break={hasVerseLineBreak(cell.segments)}
@@ -3008,12 +2941,8 @@
 																			cell.segments,
 																			{
 																				id: column.resource.id,
-																				name: column.resource.tabTitle,
-																				kind: 'bible'
-																			},
-																			attachedDocuments,
-																			column.tileId,
-																			column.activeTab.id
+																				name: column.resource.tabTitle
+																			}
 																		)}
 																>
 																	{stream.reference.chapter}
@@ -3053,12 +2982,8 @@
 																			cell.segments,
 																			{
 																				id: column.resource.id,
-																				name: column.resource.tabTitle,
-																				kind: 'bible'
-																			},
-																			attachedDocuments,
-																			column.tileId,
-																			column.activeTab.id
+																				name: column.resource.tabTitle
+																			}
 																		)}
 																>
 																	{cell.verse}{#if cell.verseEnd && cell.verseEnd > cell.verse}-{cell.verseEnd}{/if}
@@ -3280,13 +3205,6 @@
 	onInsertVerseInNote={readerNotesSidecarOpen && readerNotesSidecar?.canInsertBibleQuotation()
 		? insertReaderVerseInNote
 		: undefined}
-/>
-
-<!-- One owner-only panel for all contextual verse-menu actions. -->
-<ReaderNotesPanel
-	bind:this={readerNotesPanel}
-	onOpenDocument={data.user ? openReaderSidecarDocument : undefined}
-	onDocumentCreated={data.user ? recordCreatedReaderDocument : undefined}
 />
 
 <!-- One dialog for the whole page, opened for whichever column was clicked. -->

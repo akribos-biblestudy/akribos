@@ -755,7 +755,10 @@ Dokumenttitel ist global in `src/routes/+layout.svelte` fest auf
 Es existiert nur eine `VerseMenu`-Instanz für den ganzen Reader. Ein Klick übergibt Anker, Referenz,
 Text und Highlight-Zustand an `openAt()`; so werden nicht hunderte Menüs und Formulare im Fließtext
 gerendert. Highlights werden optimistisch in allen passenden Einträgen von `columnStreams`
-aktualisiert, Listenmarkierungen im reaktiven `marks`-Set.
+aktualisiert, Listenmarkierungen im reaktiven `marks`-Set. Die Stellensammlungen öffnen sich als
+eingeklappter Bereich mit bis zu zehn eigenen oder geteilten Sammlungen nach `updated_at`.
+Erfolgreiches Hinzufügen oder Entfernen rückt die Sammlung lokal nach oben, ohne den Lesetext
+neu zu laden. Beim Aufklappen misst das Menü seine Höhe erneut.
 
 `Menu.svelte` nutzt die Popover-API nur dort, wo der Browser sie hat, und fällt sonst auf ein
 einfaches `position: fixed`-Element mit eigener Dismiss-Behandlung zurück: Die eingebauten Browser
@@ -1064,11 +1067,9 @@ offene Dokument-IDs gehören weiterhin weder in Reader-URLs noch in geräteüber
 oder `localStorage`. Bei gesperrtem Sitzungsspeicher bleibt der Kontext-Übergang im laufenden Tab möglich.
 Die Sidecar-Bibliothek öffnet Dokumente im `compact`-Modus von `DocumentEditor.svelte`. Laden und Autosave verwenden unverändert das eigentümergeprüfte interne
 `GET`/`PATCH /api/documents/[id]`. Wechsel, Ausblenden und Schließen warten auf `flush()`; ein
-Speicherfehler oder Revisionskonflikt lässt den Editor sichtbar. `ReaderNotesPanel` bleibt der eine
-kontextuelle Dialog aus dem Versmenü und übergibt neu angelegte oder ausgewählte Dokumente an das
-Sidecar, wenn JavaScript aktiv ist; der normale Form-Redirect bleibt der funktionsfähige No-JS-Pfad.
-Notizen erzeugen keine Icons oder Unterstreichungen im Bibeltext; der Sidecar und das Versmenü
-bleiben die Zugänge zu persönlichen Dokumenten.
+Speicherfehler oder Revisionskonflikt lässt den Editor sichtbar. Notizen erzeugen keine Icons oder
+Unterstreichungen im Bibeltext. Der Notizbereich öffnet die Bibliothek und legt Notizen zur sichtbaren
+Stelle an. „In Notiz einfügen“ im Versmenü verlangt einen geöffneten, bearbeitbaren Sidecar-Editor.
 
 Dokumenttabellen verwenden echte rechteckige GFM-Tabellen: genau eine Kopfzeile, beliebig viele
 Datenzeilen, leere Zellen und Ausrichtung je Spalte. Die sichere HTML-Ableitung erlaubt `table`,
