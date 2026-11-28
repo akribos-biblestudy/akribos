@@ -69,9 +69,20 @@ test('note and sermon images persist privately and a shared snapshot keeps its o
 	browser
 }, testInfo) => {
 	const [noteId, sermonId] = await fixture(page);
-	await page.setViewportSize({ width: 390, height: 844 });
 	for (const id of [noteId, sermonId]) {
+		const viewport = id === noteId ? 'mobile' : 'desktop';
+		await page.setViewportSize(
+			viewport === 'mobile' ? { width: 390, height: 844 } : { width: 1280, height: 900 }
+		);
 		await page.goto(`/notes/${id}`);
+		const toolbar = page.getByRole('toolbar', { name: 'Text formatieren' });
+		const inserts = toolbar.getByRole('button', { name: /^(Fußnote|Tabelle|Bild) einfügen$/ });
+		await expect(inserts).toHaveCount(3);
+		for (const [index, name] of ['Fußnote', 'Tabelle', 'Bild'].entries()) {
+			await expect(inserts.nth(index)).toHaveAccessibleName(`${name} einfügen`);
+			await expect(inserts.nth(index).locator('svg')).toBeVisible();
+			await expect(inserts.nth(index)).toHaveText('');
+		}
 		await page
 			.getByLabel('Bilddatei', { exact: true })
 			.setInputFiles('e2e/fixtures/document-image.png');
@@ -80,20 +91,49 @@ test('note and sermon images persist privately and a shared snapshot keeps its o
 		await expect
 			.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth))
 			.toBe(1200);
+		await image.click();
+		const imageOptions = page.getByRole('group', { name: 'Bild bearbeiten' });
+		const alignment = imageOptions.getByLabel('Ausrichtung');
+		const width = imageOptions.getByLabel('Maximale Breite');
+		await expect(imageOptions).toBeVisible();
+		await page.keyboard.press('Enter');
+		await expect(alignment).toBeFocused();
+		await width.selectOption('50');
+		await alignment.selectOption('center');
+		await expect(image).toHaveAttribute('data-image-width', '50');
+		await expect(image).toHaveAttribute('data-image-align', 'center');
+		await alignment.selectOption('right');
+		await expect(image).toHaveAttribute('data-image-align', 'right');
+		await page.screenshot({ path: testInfo.outputPath(`image-popover-${viewport}.png`) });
+		await page.keyboard.press('Escape');
+		await expect(imageOptions).toHaveCount(0);
+		await expect(page.getByRole('textbox', { name: 'Schreibe deine Gedanken …' })).toBeFocused();
 		await expect
 			.poll(
 				async () =>
 					(await (await page.request.get(`/api/documents/${id}`)).json()).document.bodyMarkdown
 			)
-			.toContain('data:image/png;base64,');
+			.toContain('"akribos:image:right:50"');
 		await page.reload();
 		await expect(image).toBeVisible();
-		expect(
-			await image.evaluate((element) => element.getBoundingClientRect().width)
-		).toBeLessThanOrEqual(390);
+		await expect(image).toHaveAttribute('data-image-width', '50');
+		await expect(image).toHaveAttribute('data-image-align', 'right');
+		const geometry = await image.evaluate((element) => {
+			const { width, right } = element.getBoundingClientRect();
+			const parent = element.parentElement!.getBoundingClientRect();
+			return { widthRatio: width / parent.width, rightGap: parent.right - right };
+		});
+		expect(geometry.widthRatio).toBeCloseTo(0.5, 2);
+		expect(geometry.rightGap).toBeCloseTo(0, 1);
+		await page.getByRole('tab', { name: 'Markdown', exact: true }).click();
+		await expect(page.getByRole('textbox', { name: 'Markdown', exact: true })).toHaveValue(
+			/"akribos:image:right:50"/u
+		);
+		await page.getByRole('tab', { name: 'Visuell', exact: true }).click();
+		await expect(image).toHaveAttribute('data-image-width', '50');
 		expect((await request.get(`/api/documents/${id}`)).status()).toBe(401);
 		await page.screenshot({
-			path: testInfo.outputPath(`${id === noteId ? 'note' : 'sermon'}-image-mobile.png`)
+			path: testInfo.outputPath(`${id === noteId ? 'note' : 'sermon'}-image-${viewport}.png`)
 		});
 	}
 	await page.goto(`/notes/${noteId}`);
@@ -107,10 +147,10 @@ test('note and sermon images persist privately and a shared snapshot keeps its o
 	const publicPage = await publicContext.newPage();
 	try {
 		await publicPage.goto(`/notes/published/${slug}`);
-		await expect(publicPage.locator('[data-testid="published-note"] img')).toHaveAttribute(
-			'src',
-			source!
-		);
+		const image = publicPage.locator('[data-testid="published-note"] img');
+		await expect(image).toHaveAttribute('src', source!);
+		await expect(image).toHaveAttribute('data-image-width', '50');
+		await expect(image).toHaveAttribute('data-image-align', 'right');
 		await page.getByRole('tab', { name: 'Markdown', exact: true }).click();
 		await page
 			.getByRole('textbox', { name: 'Markdown', exact: true })
