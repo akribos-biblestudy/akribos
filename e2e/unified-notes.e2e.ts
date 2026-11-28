@@ -2309,6 +2309,53 @@ test('editor selection tools, outline, counts and Zen mode preserve the same doc
 	await expect(zen).toHaveCount(0);
 });
 
+test('the visual editor scrolls beyond the last line to the middle of the writing area', async ({
+	page
+}) => {
+	await loginNewReader(page);
+	const id = await createNoteFromLibrary(page);
+	const editor = page.getByTestId('document-editor');
+	const host = editor.locator('.editor-host');
+	const end = 'Letzte Zeile der Notiz.';
+	const lastLine = editor.getByText(end, { exact: true });
+
+	await expect(editor.locator('.document-prose')).toHaveAttribute('contenteditable', 'true');
+	expect(await host.evaluate((element) => element.scrollHeight - element.clientHeight)).toBe(0);
+	await saveMarkdownDocument(page, {
+		title: 'Notiz zum Scrollen',
+		markdown: 'Ein Absatz zum Schreiben.\n\n'.repeat(40) + end,
+		requestMarker: end
+	});
+	await page.getByRole('tab', { name: 'Visuell', exact: true }).click();
+
+	async function expectEndAtMiddle() {
+		await expect(lastLine).toBeAttached();
+		await host.hover();
+		await page.mouse.wheel(0, 10_000);
+		await expect
+			.poll(() =>
+				lastLine.evaluate((line) => {
+					const area = line.closest('.editor-host')!.getBoundingClientRect();
+					return Math.abs((line.getBoundingClientRect().bottom - area.top) / area.height - 0.5);
+				})
+			)
+			.toBeLessThan(0.04);
+		await expect(lastLine).toBeInViewport();
+	}
+
+	await expectEndAtMiddle();
+	await page.setViewportSize({ width: 390, height: 844 });
+	await editor.getByRole('button', { name: 'Zen-Modus', exact: true }).click();
+	await expect(page.getByRole('dialog', { name: 'Zen-Modus', exact: true })).toBeVisible();
+	await expectEndAtMiddle();
+
+	await page.setViewportSize({ width: 1280, height: 720 });
+	await page.goto(`/notes/${id}?returnTo=%2FJoh3%2C16`);
+	await page.getByRole('button', { name: 'Im Arbeitsbereich öffnen', exact: true }).click();
+	await expect(page.getByTestId('reader-notes-sidecar-editor')).toBeVisible();
+	await expectEndAtMiddle();
+});
+
 test('slash commands create blocks and mentions add owner-private backlinks', async ({ page }) => {
 	await loginNewReader(page);
 	const targetId = await createNoteFromLibrary(page);
