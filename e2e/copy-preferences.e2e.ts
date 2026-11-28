@@ -72,6 +72,23 @@ test('copy settings persist for every format and reject an invalid position', as
 				await expect
 					.poll(() => page.evaluate(() => navigator.clipboard.readText()))
 					.toBe(selectionCopy);
+
+				await verse.evaluate((element) => {
+					const first = element.querySelector('.verse-text')!;
+					const next = element.nextElementSibling!.querySelector('.verse-text')!;
+					const range = document.createRange();
+					range.setStartBefore(first);
+					range.setEndAfter(next);
+					const selection = window.getSelection()!;
+					selection.removeAllRanges();
+					selection.addRange(range);
+				});
+				await page.keyboard.press('Control+c');
+				expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+					'Denn so sehr hat Gott die Welt geliebt, dass er seinen Sohn gab.\n' +
+						'Denn Gott hat seinen Sohn nicht in die Welt gesandt, damit er sie richte.\n' +
+						'– Johannes 3,16-17 (Schlicht)'
+				);
 				await page.goto('/account?tab=appearance');
 			}
 		}
