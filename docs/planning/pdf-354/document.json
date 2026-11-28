@@ -1,0 +1,241 @@
+{
+	"title": "Vom Hören zum Tun",
+	"metadata": [
+		[
+			{ "text": "Bibelstelle: " },
+			{ "text": "Jakobus 1,22–25", "href": "https://akribos.de/Jak1,22" }
+		],
+		[{ "text": "Notiz · Textbeobachtung" }]
+	],
+	"blocks": [
+		{
+			"kind": "paragraph",
+			"runs": [
+				{
+					"text": "Jakobus benutzt ein vertrautes Bild: Jemand betrachtet sein Gesicht im Spiegel und geht weiter. Der kurze Blick genügt, um etwas zu sehen. Ob daraus eine Veränderung entsteht, entscheidet sich erst danach.",
+					"italic": true
+				}
+			]
+		},
+		{ "kind": "heading", "level": 1, "runs": [{ "text": "Den Gedankengang lesen" }] },
+		{
+			"kind": "quote",
+			"blocks": [
+				{
+					"kind": "paragraph",
+					"runs": [
+						{
+							"text": "„Seid aber Täter des Worts und nicht Hörer allein, wodurch ihr euch selbst betrügt.“"
+						},
+						{ "text": " — Jakobus 1,22", "italic": true }
+					]
+				}
+			]
+		},
+		{
+			"kind": "paragraph",
+			"runs": [
+				{
+					"text": "Die Aufforderung in Vers 22 gibt dem Abschnitt seine Richtung. Jakobus stellt "
+				},
+				{ "text": "Hören und Handeln", "bold": true },
+				{ "text": " nebeneinander." },
+				{ "text": "", "footnoteNumber": 1 },
+				{
+					"text": " Wer zuhört, hat bereits etwas aufgenommen. Der Text fragt, ob das Aufgenommene im weiteren Verlauf eine Rolle spielt. Die Warnung vor Selbsttäuschung richtet sich darum an Menschen, die das Wort kennen und sich mit dem bloßen Hören zufriedengeben."
+				}
+			]
+		},
+		{
+			"kind": "paragraph",
+			"runs": [
+				{ "text": "Im Griechischen stehen " },
+				{ "text": "ποιητής", "italic": true },
+				{ "text": " und " },
+				{ "text": "ἀκροατής", "italic": true },
+				{
+					"text": " einander gegenüber. Der Unterschied wird durch das Beispiel in den Versen 23 und 24 anschaulich. Die Person sieht sich, entfernt sich und hat bald vergessen, was sie gesehen hat. Jakobus beschreibt damit ein Nacheinander von Wahrnehmung, Weggehen und Vergessen."
+				}
+			]
+		},
+		{ "kind": "heading", "level": 2, "runs": [{ "text": "Was der Spiegel zeigt" }] },
+		{
+			"kind": "paragraph",
+			"runs": [
+				{
+					"text": "Der Spiegel gibt einen augenblicklichen Eindruck. Er erklärt weder, wie die Person an diesen Punkt gekommen ist, noch nimmt er ihr eine Entscheidung ab. Für die Auslegung lohnt es sich, bei den Verben zu bleiben. Das Gleichnis verliert seine Bewegung, wenn man nur beim Bild des Spiegels verweilt."
+				},
+				{ "text": "", "footnoteNumber": 2 }
+			]
+		},
+		{ "kind": "heading", "level": 1, "runs": [{ "text": "Die Verben im Vergleich" }] },
+		{
+			"kind": "paragraph",
+			"runs": [
+				{
+					"text": "Vers 25 verändert den Ablauf. Auf das genaue Hinsehen folgt ein Bleiben. Am Ende steht ein Mensch, der sich von dem Gelesenen zu konkretem Handeln führen lässt. Das kurze Schema hält fest, wie die aufeinanderfolgenden Verse diesen Gedanken entwickeln."
+				}
+			]
+		},
+		{
+			"kind": "table",
+			"headers": [
+				[{ "text": "Vers" }],
+				[{ "text": "Beobachtung" }],
+				[{ "text": "Funktion im Abschnitt" }]
+			],
+			"rows": [
+				[[{ "text": "22" }], [{ "text": "Hören und tun" }], [{ "text": "Aufforderung" }]],
+				[
+					[{ "text": "23–24" }],
+					[{ "text": "Sehen, gehen, vergessen" }],
+					[{ "text": "Vergleich mit dem Spiegel" }]
+				],
+				[
+					[{ "text": "25" }],
+					[{ "text": "Hineinschauen und bleiben" }],
+					[{ "text": "Gegenbild und Zusage" }]
+				]
+			],
+			"align": ["right", null, null]
+		},
+		{
+			"kind": "paragraph",
+			"runs": [
+				{
+					"text": "Die Abfolge lässt sich gut am Stück lesen. Der Vergleich verlangsamt den Gedankengang gerade so weit, dass seine einzelnen Bewegungen erkennbar werden. Bei einer zweiten Lektüre kann man die Verben der beiden Szenen markieren und anschließend die Stellen nebeneinander lesen."
+				}
+			]
+		},
+		{ "kind": "heading", "level": 1, "runs": [{ "text": "Ein zweiter Lesedurchgang" }] },
+		{
+			"kind": "paragraph",
+			"runs": [
+				{
+					"text": "Der nähere Zusammenhang hilft, Verbindungen im Brief zu erkennen. In den vorausgehenden Versen geht es darum, zuzuhören und das Wort aufzunehmen. Später nennt der Brief konkrete Formen des Handelns."
+				},
+				{ "text": "", "footnoteNumber": 3 },
+				{
+					"text": " Für eine persönliche Notiz ist es hilfreich, die Beobachtungen am Wortlaut von den eigenen Folgerungen zu unterscheiden."
+				}
+			]
+		},
+		{
+			"kind": "list",
+			"ordered": true,
+			"start": 1,
+			"items": [
+				{
+					"blocks": [
+						{
+							"kind": "paragraph",
+							"runs": [
+								{ "text": "Jakobus 1,19–27", "href": "https://akribos.de/Jak1,19" },
+								{ "text": " lesen und den Wechsel von Aufforderung, Bild und Zusage markieren." }
+							]
+						}
+					]
+				},
+				{
+					"blocks": [
+						{
+							"kind": "paragraph",
+							"runs": [
+								{
+									"text": "In eigenen Worten zusammenfassen, was im Gleichnis nach dem Blick in den Spiegel geschieht."
+								}
+							]
+						}
+					]
+				},
+				{
+					"blocks": [
+						{
+							"kind": "paragraph",
+							"runs": [
+								{
+									"text": "Eine Frage aufschreiben, zu der sich beim nächsten Lesen ein Beispiel im Text finden lässt."
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		{ "kind": "heading", "level": 2, "runs": [{ "text": "Für die eigene Notiz" }] },
+		{
+			"kind": "paragraph",
+			"runs": [
+				{ "text": "Ein möglicher Schlusssatz für diese Notiz lautet: " },
+				{
+					"text": "Beim nächsten Lesen achte ich darauf, was vom ersten Eindruck im Alltag Bestand hat.",
+					"italic": true
+				},
+				{
+					"text": " Diese Formulierung hält die Spannung des Abschnitts fest. Zugleich lässt sie Raum für weitere Beobachtungen, wenn der Text später noch einmal gelesen oder gemeinsam besprochen wird."
+				}
+			]
+		},
+		{ "kind": "heading", "level": 2, "runs": [{ "text": "Das Gespräch vorbereiten" }] },
+		{
+			"kind": "paragraph",
+			"runs": [
+				{
+					"text": "Für eine gemeinsame Lektüre lässt sich der Abschnitt zuerst laut lesen. Beim zweiten Lesen kann jede Person ein Verb nennen, das ihr aufgefallen ist. So entsteht eine Sammlung von Beobachtungen, die noch keiner gemeinsamen Deutung bedarf. Erst danach lohnt sich die Frage, welche Rolle das jeweils genannte Verb im Vergleich spielt."
+				}
+			]
+		},
+		{
+			"kind": "paragraph",
+			"runs": [
+				{
+					"text": "Die Gesprächsnotizen lassen sich mit einer Rückfrage prüfen: An welcher Stelle im Abschnitt sehe ich das? Die Antwort kann ein Wort, ein Gegensatz oder der Aufbau des Vergleichs sein. Offene Fragen bleiben für die nächste Lektüre stehen."
+				}
+			]
+		}
+	],
+	"footnotes": [
+		{
+			"number": 1,
+			"blocks": [
+				{
+					"kind": "paragraph",
+					"runs": [
+						{
+							"text": "Das Zitat folgt Luther 1912. Die griechischen Wörter werden in ihrer Wörterbuchform angegeben."
+						}
+					]
+				}
+			]
+		},
+		{
+			"number": 2,
+			"blocks": [
+				{
+					"kind": "paragraph",
+					"runs": [
+						{
+							"text": "Die Reihenfolge „sieht – geht – vergisst“ beschreibt die drei Schritte in Vers 24 in einer knappen Arbeitsparaphrase."
+						}
+					]
+				}
+			]
+		},
+		{
+			"number": 3,
+			"blocks": [
+				{
+					"kind": "paragraph",
+					"runs": [
+						{ "text": "Zum Zusammenhang siehe " },
+						{ "text": "Jakobus 1,19–21", "href": "https://akribos.de/Jak1,19" },
+						{ "text": " und " },
+						{ "text": "Jakobus 1,26–27", "href": "https://akribos.de/Jak1,26" },
+						{ "text": "." }
+					]
+				}
+			]
+		}
+	],
+	"orphans": []
+}
