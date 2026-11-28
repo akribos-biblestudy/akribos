@@ -1140,6 +1140,9 @@ und eingefügte Zwischenablagebilder proportional auf höchstens 1920 Pixel vor.
 Rasterdaten dürfen als `img` in Editor/Leseansichten und als eingebettete Bilddaten in Word/PDF
 gelangen; externe URLs, SVG, HTML-Attribute und Dateipfade sind keine Bildquellen. Markdown-Import
 und -Export erhalten diese selbst enthaltenen Bilder. Word-Bildimport bleibt ausgeschlossen.
+Bildausrichtung und maximale Breite liegen im optionalen Markdown-Bildtitel `akribos:image:<align>:<width>`.
+`document-images.ts` validiert beide Werte für Editor, Leseansicht und Exporte. Bilder ohne Layout
+bleiben inline. Positionierte Bilder stehen in einer eigenen Zeile mit proportionaler Größe.
 
 Der Dokumentimport unter `/notes/import` akzeptiert Word-`.docx`- und UTF-8-`.md`-Dateien oder genau
 ein ZIP mit Markdown. Word wird mit Mammoth im Speicher in bereinigtes Markdown umgewandelt;

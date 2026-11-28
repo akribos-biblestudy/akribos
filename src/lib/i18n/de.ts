@@ -162,7 +162,6 @@ export const de = {
 	'documents.delete': 'In den Papierkorb',
 	'documents.deleteConfirm': 'Dieses Dokument in den Papierkorb verschieben?',
 	'documents.restore': 'Dokument wiederherstellen',
-	'documents.footnotes.label': 'Fußnote',
 	'documents.footnotes.insert': 'Fußnote einfügen',
 	'documents.footnotes.insertDescription': 'Eine formatierbare Anmerkung am Dokumentende ergänzen',
 	'documents.footnotes.edit': 'Fußnote {number} bearbeiten',
@@ -185,8 +184,13 @@ export const de = {
 	'documents.editor.imageFile': 'Bilddatei',
 	'documents.editor.imageInsert': 'Bild einfügen',
 	'documents.editor.imageBusy': 'Bild wird eingefügt …',
-	'documents.editor.imageHint':
-		'PNG oder JPEG auswählen oder aus der Zwischenablage einfügen. Bilder werden bei Bedarf verkleinert. Das Dokument darf insgesamt 1 MiB groß sein.',
+	'documents.editor.imageEdit': 'Bild bearbeiten',
+	'documents.editor.imageAlignment': 'Ausrichtung',
+	'documents.editor.imageLeft': 'Links',
+	'documents.editor.imageCenter': 'Mittig',
+	'documents.editor.imageRight': 'Rechts',
+	'documents.editor.imageWidth': 'Maximale Breite',
+	'documents.editor.imageFullWidth': 'Volle Breite',
 	'documents.editor.imageModeChanged':
 		'Bitte wechsle zurück zu Visuell und füge das Bild erneut ein.',
 	'documents.tables.insert': 'Tabelle einfügen',

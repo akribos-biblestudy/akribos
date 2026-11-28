@@ -16,10 +16,16 @@
 	import { t } from '$lib/i18n';
 	import { Editor } from '@tiptap/core';
 	import { DocumentImage } from './document-image';
-	import { prepareDocumentImage } from '$lib/notes/document-images';
+	import {
+		documentImageAlignments,
+		documentImageLayout,
+		documentImageWidths,
+		prepareDocumentImage
+	} from '$lib/notes/document-images';
 	import { MAX_DOCUMENT_MARKDOWN_BYTES } from '$lib/notes/documents';
 	import { Placeholder } from '@tiptap/extension-placeholder';
 	import { StarterKit } from '@tiptap/starter-kit';
+	import { NodeSelection } from '@tiptap/pm/state';
 	import {
 		addRowBefore,
 		addRowAfter,
@@ -144,6 +150,8 @@
 	let sidePanelTab = $state<'outline' | 'links'>('outline');
 	let floatingMenu: HTMLElement | undefined = $state();
 	let selectionMenuOpen = $state(false);
+	let imageMenuOpen = $state(false);
+	let imageAlignmentInput: HTMLSelectElement | undefined = $state();
 	let floatingPosition = $state({ left: 8, top: 8 });
 	let placementFrame = 0;
 	let pointerSelecting = false;
@@ -347,6 +355,18 @@
 	);
 
 	const editor = $derived(editorState.editor);
+	const selectedImage = $derived.by(() => {
+		const selection = editorState.editor?.state.selection;
+		return selection instanceof NodeSelection && selection.node.type.name === DocumentImage.name
+			? documentImageLayout(selection.node.attrs.align, selection.node.attrs.width)
+			: null;
+	});
+	const imageAlignmentLabels = {
+		left: 'documents.editor.imageLeft',
+		center: 'documents.editor.imageCenter',
+		right: 'documents.editor.imageRight'
+	} as const;
+
 	// Tiptap mutates one Editor instance. Derive toolbar state from the transaction wrapper,
 	// not from Editor identity, so active marks and undo/redo update after every transaction.
 	const formatting = $derived.by(() => {
@@ -441,24 +461,35 @@
 
 	async function placeFloatingMenu(): Promise<void> {
 		if (readOnly || !editor || mode !== 'visual') return;
+		imageMenuOpen =
+			!!selectedImage &&
+			editor.isEditable &&
+			!linkEditorOpen &&
+			!pointerSelecting &&
+			!selectionDismissed &&
+			(editor.isFocused || !!floatingMenu?.contains(window.document.activeElement));
 		if (!linkEditorOpen) {
 			selectionMenuOpen =
+				!selectedImage &&
 				!assistantMenu &&
 				!pointerSelecting &&
 				!selectionDismissed &&
 				!editor.state.selection.empty &&
 				editor.isFocused;
 		}
-		if (!linkEditorOpen && !selectionMenuOpen) return;
+		if (!linkEditorOpen && !selectionMenuOpen && !imageMenuOpen) return;
 		await tick();
 		if (!floatingMenu || !editor || editor.isDestroyed) return;
 		const { from, to } = editor.state.selection;
-		const start = editor.view.coordsAtPos(from);
-		const end = editor.view.coordsAtPos(to);
+		const image = imageMenuOpen ? editor.view.nodeDOM(from) : null;
+		const bounds = image instanceof HTMLImageElement ? image.getBoundingClientRect() : null;
+		const start = bounds ?? editor.view.coordsAtPos(from);
+		const end = bounds ?? editor.view.coordsAtPos(to);
 		const host = editorHost?.getBoundingClientRect();
 		const visibleTop = Math.max(8, host?.top ?? 8);
 		const visibleBottom = Math.min(window.innerHeight - 8, host?.bottom ?? window.innerHeight - 8);
 		if (end.bottom < visibleTop || start.top > visibleBottom) {
+			imageMenuOpen = false;
 			selectionMenuOpen = false;
 			linkEditorOpen = false;
 			return;
@@ -562,6 +593,7 @@
 		} else if (!floatingMenu?.contains(event.target)) {
 			assistantMenu = null;
 			selectionDismissed = true;
+			imageMenuOpen = false;
 			selectionMenuOpen = false;
 			linkEditorOpen = false;
 		}
@@ -1100,6 +1132,7 @@
 			editor.commands.setContent(html, { emitUpdate: false });
 			applyingContent = false;
 		}
+		imageMenuOpen = false;
 		selectionMenuOpen = false;
 		linkEditorOpen = false;
 		mode = nextMode;
@@ -1135,8 +1168,13 @@
 			zen = !zen;
 			return;
 		}
-		if (event.key === 'Escape' && (linkEditorOpen || selectionMenuOpen)) {
+		if (
+			!event.defaultPrevented &&
+			event.key === 'Escape' &&
+			(linkEditorOpen || selectionMenuOpen || imageMenuOpen)
+		) {
 			selectionDismissed = true;
+			imageMenuOpen = false;
 			event.preventDefault();
 			linkEditorOpen = false;
 			selectionMenuOpen = false;
@@ -1208,6 +1246,16 @@
 			})
 			.run();
 		quotationState = 'idle';
+	}
+
+	function updateImageLayout(align: unknown, width: unknown): void {
+		if (!editor?.isEditable || appSuspended) return;
+		const { selection, tr } = editor.state;
+		if (!(selection instanceof NodeSelection) || selection.node.type.name !== DocumentImage.name)
+			return;
+		const attrs = { ...selection.node.attrs, ...documentImageLayout(align, width) };
+		tr.setNodeMarkup(selection.from, undefined, attrs);
+		editor.view.dispatch(tr.setSelection(NodeSelection.create(tr.doc, selection.from)));
 	}
 
 	function editLink(): void {
@@ -1320,6 +1368,14 @@
 						!event.ctrlKey &&
 						!event.metaKey &&
 						!event.altKey;
+					if (plainEnter && selectedImage && view.editable && !appSuspended) {
+						event.preventDefault();
+						selectionDismissed = false;
+						imageMenuOpen = true;
+						queuePlacement();
+						void tick().then(() => imageAlignmentInput?.focus({ preventScroll: true }));
+						return true;
+					}
 					if (plainEnter) {
 						const resolvedPosition = view.state.selection.$from;
 						if (resolvedPosition.parent.isTextblock) {
@@ -1352,6 +1408,8 @@
 				editorState = { editor };
 				updateFromVisual();
 			},
+			onFocus: queuePlacement,
+			onBlur: queuePlacement,
 			onSelectionUpdate: () => {
 				selectionDismissed = false;
 				queuePlacement();
@@ -1518,13 +1576,6 @@
 				/>
 				<button
 					type="button"
-					disabled={imageBusy}
-					title={t('documents.editor.imageHint')}
-					onclick={() => imageInput?.click()}
-					>{t(imageBusy ? 'documents.editor.imageBusy' : 'documents.editor.imageInsert')}</button
-				>
-				<button
-					type="button"
 					class:active={formatting.active.has('bold')}
 					aria-pressed={formatting.active.has('bold')}
 					onclick={() => editor.chain().focus().toggleBold().run()}
@@ -1571,19 +1622,28 @@
 				>
 				<button
 					type="button"
-					class="footnote-insert"
 					disabled={!canInsertFootnote}
 					aria-label={t('documents.footnotes.insert')}
 					title={`${t('documents.footnotes.insert')} · Strg/Cmd+Alt+F`}
 					aria-keyshortcuts="Control+Alt+F Meta+Alt+F"
 					onclick={() => editor.chain().focus().insertDocumentFootnote().run()}
-					><span aria-hidden="true">a<sup>1</sup></span> {t('documents.footnotes.label')}</button
+					><Icon name="superscript" class="size-4" /></button
 				>
 				<button
 					type="button"
 					disabled={!editor.can().insertDocumentTable()}
+					aria-label={t('documents.tables.insert')}
+					title={t('documents.tables.insert')}
 					onclick={() => editor.chain().focus().insertDocumentTable().run()}
-					>{t('documents.tables.insert')}</button
+					><Icon name="table" class="size-4" /></button
+				>
+				<button
+					type="button"
+					disabled={imageBusy}
+					aria-busy={imageBusy}
+					aria-label={t(imageBusy ? 'documents.editor.imageBusy' : 'documents.editor.imageInsert')}
+					title={t('documents.editor.imageInsert')}
+					onclick={() => imageInput?.click()}><Icon name="image" class="size-4" /></button
 				>
 				{#if documentFootnotes.length}
 					<select
@@ -1750,10 +1810,11 @@
 			</div>
 		{/if}
 
-		{#if (selectionMenuOpen || linkEditorOpen) && editor && !readOnly}
+		{#if (selectionMenuOpen || linkEditorOpen || imageMenuOpen) && editor && !readOnly}
 			<div
 				class="floating-menu"
 				bind:this={floatingMenu}
+				onfocusout={queuePlacement}
 				style:left={`${floatingPosition.left}px`}
 				style:top={`${floatingPosition.top}px`}
 			>
@@ -1810,8 +1871,36 @@
 						>
 						{#if linkError}<p role="alert">{t('documents.editor.linkInvalid')}</p>{/if}
 					</form>
-				{/if}
-				{#if !linkEditorOpen}
+				{:else if imageMenuOpen && selectedImage}
+					<div class="image-editor" role="group" aria-label={t('documents.editor.imageEdit')}>
+						<label>
+							{t('documents.editor.imageAlignment')}
+							<select
+								bind:this={imageAlignmentInput}
+								value={selectedImage.align ?? 'left'}
+								onchange={(event) =>
+									updateImageLayout(event.currentTarget.value, selectedImage?.width)}
+							>
+								{#each documentImageAlignments as align (align)}
+									<option value={align}>{t(imageAlignmentLabels[align])}</option>
+								{/each}
+							</select>
+						</label>
+						<label>
+							{t('documents.editor.imageWidth')}
+							<select
+								value={selectedImage.width ?? ''}
+								onchange={(event) =>
+									updateImageLayout(selectedImage?.align, event.currentTarget.value)}
+							>
+								<option value="">{t('documents.editor.imageFullWidth')}</option>
+								{#each documentImageWidths as width (width)}
+									<option value={width}>{width} %</option>
+								{/each}
+							</select>
+						</label>
+					</div>
+				{:else if selectionMenuOpen}
 					<div
 						class="selection-toolbar"
 						role="toolbar"
@@ -2172,6 +2261,25 @@
 		border-radius: 0.65rem;
 		background: var(--surface);
 		box-shadow: 0 6px 24px rgb(0 0 0 / 0.16);
+	}
+	.image-editor {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.55rem;
+		padding: 0.65rem;
+		font-size: 0.78rem;
+	}
+	.image-editor label {
+		display: grid;
+		flex: 1;
+		gap: 0.25rem;
+	}
+	.image-editor select {
+		min-height: 2.25rem;
+		border: 1px solid var(--line);
+		border-radius: 0.35rem;
+		background: var(--surface);
+		padding: 0.35rem 0.45rem;
 	}
 	.assistant-menu {
 		position: fixed;
@@ -2538,11 +2646,6 @@
 		color: var(--color-stone-600);
 		font-size: 0.78rem;
 		line-height: 1.1;
-	}
-	.editor-toolbar .footnote-insert {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.35rem;
 	}
 	.editor-toolbar .footnote-reuse {
 		max-width: min(12rem, 100%);

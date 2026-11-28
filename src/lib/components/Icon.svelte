@@ -16,6 +16,7 @@
 			| 'chevron-down'
 			| 'chevron-left'
 			| 'chevron-right'
+			| 'image'
 			| 'info'
 			| 'italic'
 			| 'download'
@@ -46,6 +47,8 @@
 			| 'star'
 			| 'strikethrough'
 			| 'sun'
+			| 'superscript'
+			| 'table'
 			| 'tag'
 			| 'trash'
 			| 'undo'
@@ -121,6 +124,15 @@
 	{:else if name === 'user'}
 		<circle cx="12" cy="8.25" r="3.25" />
 		<path d="M5.75 19.5c.7-3.5 2.9-5.5 6.25-5.5s5.55 2 6.25 5.5" />
+	{:else if name === 'image'}
+		<rect x="3" y="3" width="18" height="18" rx="2" />
+		<circle cx="8.5" cy="8.5" r="1.5" />
+		<path d="m21 15-5-5L5 21" />
+	{:else if name === 'table'}
+		<rect x="3" y="4" width="18" height="16" rx="2" />
+		<path d="M3 9h18M3 14.5h18M9 9v11m6-11v11" />
+	{:else if name === 'superscript'}
+		<path d="m4 11 8 8m0-8-8 8m11-14h3a1.5 1.5 0 0 1 0 3h-1a2 2 0 0 0-2 2v1h5" />
 	{:else if name === 'info'}
 		<circle cx="12" cy="12" r="9" />
 		<path d="M12 11v5" />

@@ -7,6 +7,7 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import type { OwnedDocumentExport } from './export';
 import { createDocxExport, createPdfExport } from './export';
+import { createPdfModel } from './pdf-model';
 import { parseDocumentFootnotes } from '$lib/notes/document-footnotes';
 import { previewWordDocument } from './word-import';
 
@@ -56,6 +57,64 @@ describe('portable rich document exports', () => {
 		await expect(createDocxExport(huge)).rejects.toThrow(/Bilder sind zusammen zu groß/);
 		await expect(createPdfExport(huge)).rejects.toThrow(/Bilder sind zusammen zu groß/);
 	});
+	it('sets the chosen image alignment and width in Word and PDF', async () => {
+		const source =
+			'data:image/png;base64,' +
+			(await readFile('e2e/fixtures/document-image.png')).toString('base64');
+		const markdown = `Vorher ![A](${source} "akribos:image:right:50") nachher.\n`;
+		const data = { ...fixture, document: { ...fixture.document, bodyMarkdown: markdown } };
+		const docx = await createDocxExport(data);
+		const xml = strFromU8(unzipSync(docx.buffer)['word/document.xml']!);
+		const paragraphs = [...xml.matchAll(/<w:p>([\s\S]*?)<\/w:p>/gu)].map((match) => match[1]!);
+		const picture = paragraphs.findIndex((paragraph) => paragraph.includes('<w:drawing>'));
+		expect(paragraphs[picture - 1]).toContain('Vorher');
+		expect(paragraphs[picture]).toContain('<w:jc w:val="right"/>');
+		expect(paragraphs[picture]).toContain(`<wp:extent cx="${285 * 9525}"`);
+		expect(paragraphs[picture + 1]).toContain('nachher');
+
+		expect(createPdfModel('Titel', markdown, []).blocks).toMatchObject([
+			{
+				kind: 'paragraph',
+				runs: [
+					{ text: 'Vorher ' },
+					{ image: { layout: { align: 'right', width: 50 } } },
+					{ text: ' nachher.' }
+				]
+			}
+		]);
+		const pdf = await createPdfExport({
+			...data,
+			document: {
+				...data.document,
+				bodyMarkdown: `${markdown}\n![A](${source} "akribos:image:right:auto")\n`
+			}
+		});
+		const directory = await mkdtemp(join(tmpdir(), 'akribos-image-layout-'));
+		try {
+			const path = join(directory, 'image.pdf');
+			await writeFile(path, pdf.buffer);
+			const { stdout } = await promisify(execFile)('pdfimages', ['-list', path]);
+			const pictures = stdout
+				.split('\n')
+				.map((line) => line.trim().split(/\s+/u))
+				.filter((fields) => fields[2] === 'image');
+			expect(pictures).toHaveLength(2);
+			const [halfWidth, fullWidth] = pictures.map((fields) => {
+				expect(fields.slice(3, 5)).toEqual(['1200', '600']);
+				const xPpi = Number(fields.at(-4));
+				const yPpi = Number(fields.at(-3));
+				expect(xPpi).toBeGreaterThan(0);
+				expect(yPpi).toBeGreaterThan(0);
+				return { xPpi, yPpi };
+			});
+			// The same raster at half the rendered size has double the density, with integer PPI rounding.
+			expect(Math.abs(halfWidth!.xPpi - 2 * fullWidth!.xPpi)).toBeLessThanOrEqual(2);
+			expect(Math.abs(halfWidth!.yPpi - 2 * fullWidth!.yPpi)).toBeLessThanOrEqual(2);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	it('embeds document images in Word and PDF', async () => {
 		const source =
 			'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQSjMGAAFpALw5l2YJAAAAAElFTkSuQmCC';
