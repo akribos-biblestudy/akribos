@@ -227,8 +227,12 @@
 				{#if collectionsOpen}
 					<NewVerseListForm
 						reference={context.reference}
-						onCreated={(listId) => {
-							mark(listId, true);
+						onCreated={(list) => {
+							mark(list.id, true);
+							recentLists = [list, ...recentLists.filter((item) => item.id !== list.id)].slice(
+								0,
+								10
+							);
 							menu?.close();
 						}}
 					/>

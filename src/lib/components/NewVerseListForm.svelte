@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
 	import { t } from '$lib/i18n';
 	import { MAX_VERSE_LIST_TITLE_LENGTH, parseVerseListTitle } from '$lib/notes/verse-lists';
 	import { onDestroy } from 'svelte';
 	import Icon from './Icon.svelte';
 
-	let { reference, onCreated }: { reference: string; onCreated: (listId: string) => void } =
-		$props();
+	let {
+		reference,
+		onCreated
+	}: { reference: string; onCreated: (list: { id: string; title: string }) => void } = $props();
 	let title = $state('');
 	let pending = $state(false);
 	let message = $state('');
@@ -23,7 +24,8 @@
 	role="none"
 	class="new-list"
 	use:enhance={({ cancel }) => {
-		if (!validTitle || pending) {
+		const submittedTitle = validTitle;
+		if (!submittedTitle || pending) {
 			cancel();
 			return;
 		}
@@ -31,9 +33,9 @@
 		message = '';
 		return async ({ result, update }) => {
 			if (result.type === 'success') {
-				if (!destroyed && typeof result.data?.listId === 'string') onCreated(result.data.listId);
-				// Refresh the collection choices without resetting the focus restored by the menu.
-				await invalidateAll();
+				if (!destroyed && typeof result.data?.listId === 'string') {
+					onCreated({ id: result.data.listId, title: submittedTitle });
+				}
 			} else if (result.type === 'redirect') {
 				await update({ reset: false });
 			} else if (!destroyed) {
