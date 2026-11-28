@@ -1,17 +1,27 @@
-# PDF export: Akribos Studienblatt
+# PDF export
 
-Issue [#294](https://github.com/akribos-biblestudy/akribos/issues/294) selected variant B, the
-**Akribos Studienblatt**, for implementation. The [decision](https://github.com/akribos-biblestudy/akribos/issues/294#issuecomment-5776479111)
-and original [design comparisons](planning/pdf-294/README.md) document that choice. The samples are
-design history; production downloads use the implementation described here.
+The [issue #354 designs](planning/pdf-354/README.md) build on the Akribos Studienblatt from
+[issue #294](https://github.com/akribos-biblestudy/akribos/issues/294). The three A4 templates are
+selected in the account settings. Studienausgabe is the default.
 
 ## Layout and content
 
-The fixed A4 layout has 24 mm margins, Akribos Text at 11.2 pt, green headings and links, pale green
-quotation panels, a small Akribos header and a numbered footer on every page. Regular, semibold and
-bold text and their genuine italic faces come from the same local font family as the reader. Noto
-Sans Hebrew handles Hebrew runs with explicit right-to-left direction; polytonic Greek stays in
-Akribos Text. Code uses Typst's bundled DejaVu Sans Mono. The PDF embeds the necessary font subsets.
+| Template       | Body text | Layout                                                                                                                      |
+| -------------- | --------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Studienausgabe | 11.8 pt   | 152 mm text width, dark-green headings, tinted quotation boxes and horizontal table rules                                   |
+| Buchsatz       | 11.4 pt   | 134 mm text width, German hyphenation and justification, italic quotations with a fine left rule and additional white space |
+| Lesemanuskript | 13.4 pt   | 152 mm text width, dark-blue headings, wider line spacing and a fine left rule for quotations                               |
+
+All three use the reader's Akribos Text font family including genuine bold and italic faces.
+Noto Sans Hebrew handles Hebrew runs with explicit right-to-left direction; polytonic Greek stays
+in Akribos Text. Code uses Typst's bundled DejaVu Sans Mono. The PDF embeds the needed font subsets.
+
+Continuations show a running title, with the first passage reference in Studienausgabe and
+Lesemanuskript. Each footer displays the page number and the optional profile display name. The
+export normalizes whitespace in that name and renders it as plain text. A long name can end with
+an ellipsis in the footer and retains its full normalized value in the PDF author metadata. Empty
+names omit the author. Owner export uses the current authenticated profile without fallback to the
+account email or a publication snapshot.
 
 The Markdown adapter preserves headings, nested bold/italic, strike-through, the editor’s underline/highlight, inline and block code,
 quotations, nested lists, ordered-list starting numbers, task status, horizontal rules and tables
@@ -82,9 +92,9 @@ capacity must account for the number of replicas.
 ## Verification
 
 `pdf-export.spec.ts` runs the actual pinned compiler and checks the resulting PDF with Poppler. It
-checks embedded faces, metadata and annotations, literal executable-looking text, genuine page
-footnotes, repeated/orphan notes, long-note continuation, all-page headers/footers and complete
-extraction of long words/code/URLs/table cells. `pdf-renderer.spec.ts` checks the isolated subprocess
+checks the three templates' geometry and author footers, embedded faces, metadata and annotations,
+literal executable-looking text, genuine page footnotes, repeated/orphan notes, long-note
+continuation, all-page headers/footers and complete extraction of long words/code/URLs/table cells. `pdf-renderer.spec.ts` checks the isolated subprocess
 boundary, secret stripping, timeout, output bounds, cancellation and private-diagnostic handling.
 Existing Word tests continue to check native editable footnotes and import round trips. The shared
 owner-only routes remain covered by the document-export E2E tests.

@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { isPdfTemplate } from '$lib/notes/pdf-templates';
 import { getDb } from '$lib/server/db';
 import {
 	checkPasswordStrength,
@@ -12,7 +13,8 @@ import {
 	updateProfile,
 	updateReaderFontScale,
 	updateDefaultBible,
-	updateCopyPreferences
+	updateCopyPreferences,
+	updatePdfTemplate
 } from '$lib/server/repositories/users';
 import {
 	countApiKeys,
@@ -46,6 +48,7 @@ export async function load({ locals, url, cookies }) {
 
 	return {
 		hasPassword: Boolean(account?.passwordHash),
+		pdfTemplate: locals.pdfTemplate,
 		readerFontScale: readFontScale(cookies, locals.user.readerFontScale),
 		minPasswordLength: MIN_PASSWORD_LENGTH,
 		apiKeys,
@@ -56,6 +59,15 @@ export async function load({ locals, url, cookies }) {
 }
 
 export const actions = {
+	pdfExport: async ({ request, locals }) => {
+		if (!locals.user) redirect(303, '/login');
+		const form = await request.formData();
+		const pdfTemplate = form.get('pdfTemplate');
+		if (!isPdfTemplate(pdfTemplate)) return fail(400, { pdfTemplateError: true });
+		await updatePdfTemplate(getDb(), locals.user.id, pdfTemplate);
+		locals.pdfTemplate = pdfTemplate;
+		return { pdfTemplateSaved: true };
+	},
 	copyPreferences: async ({ request, locals }) => {
 		if (!locals.user) redirect(303, '/login');
 		const form = await request.formData();

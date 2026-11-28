@@ -80,7 +80,7 @@ export function setSessionCookie(cookies: Cookies, token: string, expiresAt: Dat
 export async function resolveSession(
 	db: Database,
 	cookies: Cookies
-): Promise<{ user: SessionUser; sessionId: string } | null> {
+): Promise<{ user: SessionUser; sessionId: string; pdfTemplate: User['pdfTemplate'] } | null> {
 	const token = cookies.get(SESSION_COOKIE);
 	if (!token) return null;
 
@@ -100,6 +100,7 @@ export async function resolveSession(
 			defaultBibleId: users.defaultBibleId,
 			copyReferencePosition: users.copyReferencePosition,
 			copyIncludeSource: users.copyIncludeSource,
+			pdfTemplate: users.pdfTemplate,
 			theme: users.theme,
 			tourCompletedAt: users.tourCompletedAt,
 			disabledAt: users.disabledAt
@@ -125,6 +126,7 @@ export async function resolveSession(
 
 	return {
 		sessionId,
+		pdfTemplate: row.pdfTemplate,
 		user: {
 			id: row.id,
 			email: row.email,

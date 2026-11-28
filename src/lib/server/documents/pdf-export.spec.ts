@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_PDF_TEMPLATE, PDF_TEMPLATES } from '$lib/notes/pdf-templates';
 import { createPdfExport, type OwnedDocumentExport } from './export';
 import { createPdfModel, pdfInlineRuns } from './pdf-model';
 
@@ -23,10 +24,14 @@ const fixture = {
 	deliveries: [{ date: new Date('2026-09-13T00:00:00.000Z'), location: 'Gemeinde Nord' }]
 } as OwnedDocumentExport;
 
-async function inspectPdf(markdown: string, title = fixture.document.title) {
+async function inspectPdf(
+	markdown: string,
+	title = fixture.document.title,
+	options: Parameters<typeof createPdfExport>[1] = {}
+) {
 	const result = await createPdfExport(
 		{ ...fixture, document: { ...fixture.document, title, bodyMarkdown: markdown } },
-		{ baseUrl: 'https://reader.example.test' }
+		{ baseUrl: 'https://reader.example.test', ...options }
 	);
 	const directory = await mkdtemp(join(tmpdir(), 'akribos-pdf-test-'));
 	try {
@@ -154,7 +159,97 @@ describe('PDF document model', () => {
 	});
 });
 
+function wordBox(pdf: Awaited<ReturnType<typeof inspectPdf>>, word: string) {
+	const match = [
+		...pdf.bbox.matchAll(
+			/<word xMin="([^"]+)" yMin="([^"]+)" xMax="([^"]+)" yMax="([^"]+)">([^<]+)<\/word>/g
+		)
+	].find((entry) => entry[5] === word);
+	expect(match, `missing PDF word ${word}`).toBeDefined();
+	return {
+		left: Number(match![1]),
+		top: Number(match![2]),
+		right: Number(match![3]),
+		bottom: Number(match![4])
+	};
+}
+
 describe('production Typst PDF export', () => {
+	it('uses Studienausgabe as the default for callers without preferences', async () => {
+		const implicit = await inspectPdf('Ein kurzer Text.');
+		const explicit = await inspectPdf('Ein kurzer Text.', undefined, {
+			template: DEFAULT_PDF_TEMPLATE
+		});
+		expect(implicit.buffer).toEqual(explicit.buffer);
+		expect(implicit.text).toContain('AKRIBOS');
+		expect(implicit.info).not.toMatch(/^Author:/m);
+	});
+
+	it.each([
+		{ template: 'buchsatz', left: 107.717, line: 14.99 },
+		{ template: 'studienausgabe', left: 82.205, line: 16.58 },
+		{ template: 'lesemanuskript', left: 82.205, line: 20.04 }
+	] as const)(
+		'sets $template geometry and the normalized author on every page',
+		async ({ template, left, line }) => {
+			const body = Array.from(
+				{ length: 11 },
+				(_, index) => `Absatz ${index}. ${'Ein längerer Text für den Seitenumbruch. '.repeat(22)}`
+			).join('\n\n');
+			const pdf = await inspectPdf(
+				`Satzanfang und ein Test.<br>Satzfortsetzung und ein Test.
+
+${body}`,
+				undefined,
+				{
+					template,
+					author: '  Mara\n  Beispiel  '
+				}
+			);
+			const start = wordBox(pdf, 'Satzanfang');
+			const continuation = wordBox(pdf, 'Satzfortsetzung');
+			expect(start.left).toBeCloseTo(left, 2);
+			expect(continuation.top - start.top).toBeCloseTo(line, 1);
+			expect(pdf.info).toMatch(/^Author:\s+Mara Beispiel$/m);
+			expect(pdf.pages.length).toBeGreaterThan(1);
+			for (const [index, page] of pdf.pages.entries()) {
+				const footer = page.trimEnd().split('\n').at(-1);
+				expect(footer).toContain('Mara Beispiel');
+				expect(footer).toMatch(new RegExp(`\\s${index + 1}$`));
+			}
+		}
+	);
+
+	it('adds space and a text inset around Buchsatz quotations', async () => {
+		const pdf = await inspectPdf('Davor\n\n> Zitat\n\nDanach', undefined, {
+			template: 'buchsatz'
+		});
+		const before = wordBox(pdf, 'Davor');
+		const quote = wordBox(pdf, 'Zitat');
+		const after = wordBox(pdf, 'Danach');
+		expect(quote.left - before.left).toBeCloseTo(25.51, 1);
+		expect(quote.top - before.bottom).toBeGreaterThan(10);
+		expect(after.top - quote.bottom).toBeGreaterThan(10);
+	});
+
+	it('omits whitespace-only authors and fits long names beside the folio', async () => {
+		const blank = await inspectPdf('Ein Text.', undefined, { author: ' \n  ' });
+		expect(blank.info).not.toMatch(/^Author:/m);
+		expect(blank.pages[0]?.trimEnd().split('\n').at(-1)).toMatch(/^akribos\.de +1$/);
+
+		const author = 'Ä'.repeat(200);
+		const long = await inspectPdf('Ein Text.', undefined, { template: 'buchsatz', author });
+		expect(long.info).toContain(author);
+		const name =
+			/<word xMin="([^"]+)" yMin="([^"]+)" xMax="([^"]+)" yMax="([^"]+)">Ä+…<\/word>/.exec(
+				long.bbox
+			);
+		expect(name).toBeDefined();
+		const folio = wordBox(long, '1');
+		expect(Number(name![3])).toBeLessThan(folio.left - 4);
+		expect(Number(name![2])).toBeCloseTo(folio.top, 1);
+	});
+
 	it('renders actual table columns, an empty middle cell and separate hard-break lines', async () => {
 		const pdf = await inspectPdf(
 			'| Linkskopf | Mittekopf | Rechtskopf |\n| :--- | :---: | ---: |\n| ERSTE<br>ZWEITE[^t] | | RAND |\n| **Fettzelle** | Zentrum | Ende |\n\n[^t]: Echte Tabellenfußnote.'
@@ -224,9 +319,11 @@ describe('production Typst PDF export', () => {
 		expect(pdf.info).not.toContain(fixture.document.id);
 	});
 
-	it('places first-use notes at the page foot with repeated links and visible unreferenced notes', async () => {
+	it.each(PDF_TEMPLATES)('places native and unreferenced footnotes in %s', async (template) => {
 		const pdf = await inspectPdf(
-			'AnkerA[^a], AnkerB[^b], wieder[^a].\n\n[^a]: FussnotentextA mit **Fettdruck**.\n\n[^b]: FussnotentextB [Quelle](https://example.test/footnote).\n\n[^c]: VerwaisterText bleibt erhalten.'
+			'AnkerA[^a], AnkerB[^b], wieder[^a].\n\n[^a]: FussnotentextA mit **Fettdruck**.\n\n[^b]: FussnotentextB [Quelle](https://example.test/footnote).\n\n[^c]: VerwaisterText bleibt erhalten.',
+			undefined,
+			{ template }
 		);
 		expect(pdf.pages[0]).toContain('AnkerA');
 		expect(pdf.pages[0]).toContain('FussnotentextA');
@@ -250,9 +347,8 @@ describe('production Typst PDF export', () => {
 		expect(pdf.pages.length).toBeGreaterThan(1);
 		for (let i = 0; i < 9; i++) expect(pdf.text).toContain(`Abschnitt${i}`);
 		for (const [index, page] of pdf.pages.entries()) {
-			expect(page).toContain('AKRIBOS');
-			expect(page).toContain('akribos.de');
-			expect(page).toMatch(new RegExp(`Seite ${index + 1} / ${pdf.pages.length}`));
+			expect(page).toContain(index === 0 ? 'AKRIBOS' : fixture.document.title);
+			expect(page.trimEnd().split('\n').at(-1)).toMatch(new RegExp(`^akribos\\.de +${index + 1}$`));
 		}
 	});
 
@@ -283,19 +379,23 @@ describe('production Typst PDF export', () => {
 		expect(pdf.links).not.toMatch(/\/Joh3,16(?:\s|$)/);
 	});
 
-	it('keeps long words across style changes and combining Greek graphemes complete', async () => {
-		const greek = 'α\u0313\u0301';
-		const pdf = await inspectPdf(
-			`${'a'.repeat(70)}**${'b'.repeat(70)}**\n\n${greek.repeat(120)}\n\n<u>Unterstrichen</u> und <mark>Markiert</mark>.`,
-			't'.repeat(150)
-		);
-		const compact = pdf.text.replace(/\s/g, '');
-		for (const character of ['a', 'b']) expect(compact).toContain(character.repeat(70));
-		expect(compact).toContain('t'.repeat(150));
-		expect(compact.normalize('NFC')).toContain(greek.normalize('NFC').repeat(120));
-		expect(pdf.text).toContain('Unterstrichen');
-		expect(pdf.text).toContain('Markiert');
-	});
+	it.each(PDF_TEMPLATES)(
+		'keeps long title and formatted words complete in %s',
+		async (template) => {
+			const greek = 'α\u0313\u0301';
+			const pdf = await inspectPdf(
+				`${'a'.repeat(70)}**${'b'.repeat(70)}**\n\n${greek.repeat(120)}\n\n<u>Unterstrichen</u> und <mark>Markiert</mark>.`,
+				't'.repeat(150),
+				{ template }
+			);
+			const compact = pdf.text.replace(/\s/g, '');
+			for (const character of ['a', 'b']) expect(compact).toContain(character.repeat(70));
+			expect(compact).toContain('t'.repeat(150));
+			expect(compact.normalize('NFC')).toContain(greek.normalize('NFC').repeat(120));
+			expect(pdf.text).toContain('Unterstrichen');
+			expect(pdf.text).toContain('Markiert');
+		}
+	);
 
 	it('keeps mixed Hebrew and subsequent German words in their proper visual reading order', async () => {
 		const pdf = await inspectPdf('Vorwort ראשון שני שלישי erstes zweites drittes.');

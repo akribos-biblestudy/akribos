@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import { ACCOUNT_DELETION_PATH } from '$lib/auth/account-deletion';
 	import { t } from '$lib/i18n';
+	import { PDF_TEMPLATES } from '$lib/notes/pdf-templates';
 	import { FONT_SCALE_STEP, MAX_FONT_SCALE, MIN_FONT_SCALE } from '$lib/reader/font-scale';
 	import Button from '$lib/components/Button.svelte';
 	import Card from '$lib/components/Card.svelte';
@@ -38,12 +39,12 @@
 
 	let newColor = $state('#FFF1C6');
 
-	type Section = 'profileSecurity' | 'appearance';
+	type Section = 'profileSecurity' | 'appearance' | 'pdfExport';
 
 	const DEFAULT_SECTION: Section = 'profileSecurity';
 
 	function isSection(value: string | null): value is Section {
-		return value === 'profileSecurity' || value === 'appearance';
+		return value === 'profileSecurity' || value === 'appearance' || value === 'pdfExport';
 	}
 
 	/**
@@ -76,7 +77,8 @@
 
 	const sections = [
 		{ id: 'profileSecurity' as const, label: t('account.nav.profileSecurity') },
-		{ id: 'appearance' as const, label: t('account.appearance') }
+		{ id: 'appearance' as const, label: t('account.appearance') },
+		{ id: 'pdfExport' as const, label: t('account.pdfExport') }
 	];
 </script>
 
@@ -312,7 +314,7 @@
 						{/if}
 					</div>
 				</Card>
-			{:else}
+			{:else if activeSection === 'appearance'}
 				<Card title={t('account.appearance')} description={t('account.appearanceHint')}>
 					<!-- The toggle is icon-only in the header, where the context is obvious; here it needs saying. -->
 					<div class="flex items-center gap-2">
@@ -510,6 +512,41 @@
 							>
 						</form>
 					{/if}
+				</Card>
+			{:else}
+				<Card title={t('account.pdfExport')} description={t('account.pdfExport.hint')}>
+					<form
+						method="POST"
+						action="?tab=pdfExport&/pdfExport"
+						use:enhance
+						class="max-w-sm space-y-3"
+					>
+						<label for="pdf-template" class="block text-sm font-medium">
+							{t('account.pdfExport.template')}
+						</label>
+						<select
+							id="pdf-template"
+							name="pdfTemplate"
+							value={data.pdfTemplate}
+							class="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+						>
+							{#each PDF_TEMPLATES as template (template)}
+								<option value={template}>{t(`account.pdfExport.template.${template}`)}</option>
+							{/each}
+						</select>
+						<div class="flex items-center gap-3">
+							<Button type="submit">{t('action.save')}</Button>
+							{#if form?.pdfTemplateSaved}
+								<span role="status" class="text-sm text-stone-500 dark:text-stone-400">
+									{t('account.saved')}
+								</span>
+							{:else if form?.pdfTemplateError}
+								<span role="alert" class="text-sm text-red-700 dark:text-red-300">
+									{t('account.pdfExport.invalidTemplate')}
+								</span>
+							{/if}
+						</div>
+					</form>
 				</Card>
 			{/if}
 		</div>

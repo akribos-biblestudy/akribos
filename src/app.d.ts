@@ -50,6 +50,8 @@ declare global {
 			> | null;
 			/** Session id, needed to renew or revoke the session. */
 			sessionId: string | null;
+			/** Account PDF preference. Kept separate from the user serialized by the root layout. */
+			pdfTemplate: import('$lib/notes/pdf-templates').PdfTemplate;
 			readerBrowserTabId?: string;
 			readerBrowserSourceId?: string;
 			/** Native app owns its Reader state locally; never load or persist a named workspace. */

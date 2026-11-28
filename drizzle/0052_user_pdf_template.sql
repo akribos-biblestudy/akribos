@@ -1,0 +1,2 @@
+ALTER TABLE "users" ADD COLUMN "pdf_template" text DEFAULT 'studienausgabe' NOT NULL;--> statement-breakpoint
+ALTER TABLE "users" ADD CONSTRAINT "users_pdf_template_check" CHECK ("users"."pdf_template" in ('studienausgabe', 'buchsatz', 'lesemanuskript'));
