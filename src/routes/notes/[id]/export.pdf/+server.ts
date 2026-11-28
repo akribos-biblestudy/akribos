@@ -14,7 +14,12 @@ export async function GET({ params, locals, url, setHeaders, request }) {
 	if (!data) error(404, 'Dokument nicht gefunden');
 	let exported;
 	try {
-		exported = await createPdfExport(data, { baseUrl: url.origin, signal: request.signal });
+		exported = await createPdfExport(data, {
+			baseUrl: url.origin,
+			signal: request.signal,
+			template: locals.pdfTemplate,
+			author: user.displayName
+		});
 	} catch (caught) {
 		if (caught instanceof PdfExportError) error(caught.status, caught.message);
 		throw caught;
