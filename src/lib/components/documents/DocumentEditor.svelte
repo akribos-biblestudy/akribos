@@ -15,7 +15,6 @@
 	} from '$lib/notes/document-markdown';
 	import { t } from '$lib/i18n';
 	import { Editor } from '@tiptap/core';
-	import { NodeSelection } from '@tiptap/pm/state';
 	import { DocumentImage } from './document-image';
 	import {
 		documentImageAlignments,
@@ -26,6 +25,7 @@
 	import { MAX_DOCUMENT_MARKDOWN_BYTES } from '$lib/notes/documents';
 	import { Placeholder } from '@tiptap/extension-placeholder';
 	import { StarterKit } from '@tiptap/starter-kit';
+	import { NodeSelection } from '@tiptap/pm/state';
 	import {
 		addRowBefore,
 		addRowAfter,
