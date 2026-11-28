@@ -82,14 +82,34 @@ describe('portable rich document exports', () => {
 				]
 			}
 		]);
-		const pdf = await createPdfExport(data);
+		const pdf = await createPdfExport({
+			...data,
+			document: {
+				...data.document,
+				bodyMarkdown: `${markdown}\n![A](${source} "akribos:image:right:auto")\n`
+			}
+		});
 		const directory = await mkdtemp(join(tmpdir(), 'akribos-image-layout-'));
 		try {
 			const path = join(directory, 'image.pdf');
 			await writeFile(path, pdf.buffer);
 			const { stdout } = await promisify(execFile)('pdfimages', ['-list', path]);
-			// 1200 pixels printed at 81 mm (50% of the 162 mm text width) yields about 376 dpi.
-			expect(stdout).toMatch(/image\s+1200\s+600\s+.*\b37[0-9]\s+37[0-9]\s/u);
+			const pictures = stdout
+				.split('\n')
+				.map((line) => line.trim().split(/\s+/u))
+				.filter((fields) => fields[2] === 'image');
+			expect(pictures).toHaveLength(2);
+			const [halfWidth, fullWidth] = pictures.map((fields) => {
+				expect(fields.slice(3, 5)).toEqual(['1200', '600']);
+				const xPpi = Number(fields.at(-4));
+				const yPpi = Number(fields.at(-3));
+				expect(xPpi).toBeGreaterThan(0);
+				expect(yPpi).toBeGreaterThan(0);
+				return { xPpi, yPpi };
+			});
+			// The same raster at half the rendered size has double the density, with integer PPI rounding.
+			expect(Math.abs(halfWidth!.xPpi - 2 * fullWidth!.xPpi)).toBeLessThanOrEqual(2);
+			expect(Math.abs(halfWidth!.yPpi - 2 * fullWidth!.yPpi)).toBeLessThanOrEqual(2);
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
