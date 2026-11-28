@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Compile the #354 PDF specimens with the existing print fonts and inline renderer."""
 
+import math
 import os
 from pathlib import Path
 import shutil
 import subprocess
 from tempfile import TemporaryDirectory
+from xml.etree import ElementTree
 
 
 HERE = Path(__file__).resolve().parent
@@ -33,15 +35,40 @@ def compile_pdf(typst, source, output, *options):
         raise RuntimeError(result.stderr)
 
 
+def list_crop(pdf, width):
+    # Locate the numbered list in this specimen even when it moves to another page.
+    layout = ElementTree.fromstring(subprocess.check_output(["pdftotext", "-bbox-layout", pdf, "-"]))
+    for page_number, page in enumerate(layout.findall(".//{*}page"), start=1):
+        start = None
+        for line in page.findall(".//{*}line"):
+            words = " ".join(word.text or "" for word in line.findall("./{*}word"))
+            if "Jakobus 1,19–27 lesen," in words:
+                start = float(line.attrib["yMin"])
+            if start is not None and words.endswith("finden lässt."):
+                scale = width / float(page.attrib["width"])
+                top = math.floor(start * scale)
+                bottom = math.ceil(float(line.attrib["yMax"]) * scale)
+                return page_number, top, bottom - top
+    raise RuntimeError(f"Die vollständige nummerierte Liste fehlt in {pdf}")
+
+
 def render_preview(work):
-    command = ["magick", "-size", "1760x674", "xc:#e9ebe7"]
+    preview_width = 416
+    command = ["magick", "-size", "1760x848", "xc:#e9ebe7"]
     font = REPO / "data/fonts/pdf/akribos-text-semibold.ttf"
     for index, (name, label) in enumerate(SPECIMENS):
+        pdf = HERE / f"{name}.pdf"
         image = work / name
+        list_image = work / f"{name}-list"
+        poppler = [
+            "pdftoppm", "-singlefile", "-scale-to-x", str(preview_width), "-scale-to-y", "-1", "-png",
+        ]
+        subprocess.run([*poppler, "-f", "1", "-l", "1", pdf, image], check=True)
+        page, top, height = list_crop(pdf, preview_width)
         subprocess.run(
             [
-                "pdftoppm", "-f", "1", "-l", "1", "-singlefile", "-scale-to-x", "416",
-                "-scale-to-y", "-1", "-png", str(HERE / f"{name}.pdf"), str(image),
+                *poppler, "-f", str(page), "-l", str(page), "-y", str(top),
+                "-W", str(preview_width), "-H", str(height), pdf, list_image,
             ],
             check=True,
         )
@@ -50,7 +77,10 @@ def render_preview(work):
             str(image.with_suffix(".png")), "-geometry", f"+{x}+60", "-composite",
             "-font", str(font), "-pointsize", "30", "-fill", "#27312b",
             "-annotate", f"+{x}+43", label,
+            "-fill", "white", "-draw", f"rectangle {x},700 {x + preview_width - 1},826",
+            str(list_image.with_suffix(".png")), "-geometry", f"+{x}+708", "-composite",
         ])
+    command.extend(["-pointsize", "22", "-fill", "#27312b", "-annotate", "+24+687", "Nummerierte Liste"])
     subprocess.run([*command, "-strip", f"PNG8:{HERE / 'vergleich.png'}"], check=True)
 
 

@@ -2,10 +2,10 @@
 	"title": "Vom Hören zum Tun",
 	"metadata": [
 		[
-			{ "text": "Bibelstelle: " },
+			{ "text": "Bibelstellen: " },
 			{ "text": "Jakobus 1,22–25", "href": "https://akribos.de/Jak1,22" }
 		],
-		[{ "text": "Notiz · Textbeobachtung" }]
+		[{ "text": "Schlagwörter: Jakobus, Textbeobachtung, Hören und Handeln" }]
 	],
 	"blocks": [
 		{
@@ -17,7 +17,13 @@
 				}
 			]
 		},
-		{ "kind": "heading", "level": 1, "runs": [{ "text": "Den Gedankengang lesen" }] },
+		{
+			"kind": "heading",
+			"level": 1,
+			"runs": [
+				{ "text": "Wie Jakobus die Aufforderung zum Handeln mit dem Bild vom Spiegel entfaltet" }
+			]
+		},
 		{
 			"kind": "quote",
 			"blocks": [
@@ -131,7 +137,9 @@
 							"kind": "paragraph",
 							"runs": [
 								{ "text": "Jakobus 1,19–27", "href": "https://akribos.de/Jak1,19" },
-								{ "text": " lesen und den Wechsel von Aufforderung, Bild und Zusage markieren." }
+								{
+									"text": " lesen, den Wechsel von Aufforderung, Bild und Zusage markieren und die drei Teile je mit einem Stichwort in eigenen Worten benennen."
+								}
 							]
 						}
 					]

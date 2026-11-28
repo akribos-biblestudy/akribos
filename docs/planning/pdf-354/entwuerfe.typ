@@ -10,6 +10,9 @@
 #let hairline = if book { rgb("a8a29a") } else if study { rgb("a4b8ae") } else { rgb("aebbc3") }
 #let measure-width = if book { 134mm } else { 152mm }
 #let type-size = if book { 11.4pt } else if study { 11.8pt } else { 13.4pt }
+#let body-leading = if book { 0.70em } else if study { 0.79em } else { 0.88em }
+#let heading-leading = if book { 0.72em } else if study { 0.78em } else { 0.84em }
+#let item-gap = if book { 11.5pt } else if study { 12.8pt } else { 15pt }
 #let folio(body) = text(size: 8.5pt, fill: muted, body)
 
 #set document(title: doc.title, author: "", date: none)
@@ -52,9 +55,10 @@
   fill: ink,
   hyphenate: book,
 )
-#set par(justify: book, leading: if book { 0.54em } else if study { 0.65em } else { 0.69em })
+#set par(justify: book, leading: body-leading)
 #set heading(numbering: none)
-#show heading: set text(fill: accent, weight: "semibold")
+#show heading: set text(fill: accent, weight: "semibold", hyphenate: false)
+#show heading: set par(justify: false, leading: heading-leading)
 #show heading.where(level: 1): set text(size: if book { 16pt } else if study { 18pt } else { 20pt })
 #show heading.where(level: 2): set text(size: if book { 13pt } else if study { 13.8pt } else { 15.3pt }, style: if book { "italic" } else { "normal" })
 #show link: set text(fill: accent)
@@ -67,8 +71,8 @@
 )
 #show footnote.entry: set text(size: if book { 9.1pt } else if study { 9.4pt } else { 10.2pt })
 #show footnote.entry: set par(justify: false, leading: 0.46em)
-#set list(indent: 1em, body-indent: 0.5em, spacing: 0.45em)
-#set enum(indent: 0.65em, body-indent: 0.65em, spacing: 0.5em)
+#set list(indent: 1em, body-indent: 0.5em, spacing: item-gap)
+#set enum(indent: 0.65em, body-indent: 0.65em, spacing: item-gap)
 #set raw(theme: none)
 #show raw: set text(font: ("DejaVu Sans Mono", "Akribos Text", "Noto Sans Hebrew"), size: 0.85em)
 
@@ -80,7 +84,7 @@
       block(above: gap, below: gap,
         layout(size => par(render-inline(item.runs, render-blocks, width: size.width))))
     } else if item.kind == "heading" {
-      block(sticky: true, above: if item.level == 1 { 1.38em } else { 1.02em }, below: 0.49em,
+      block(sticky: true, above: if item.level == 1 { 1.65em } else { 1.35em }, below: 0.67em,
         layout(size => heading(level: item.level, render-inline(item.runs, render-blocks, width: size.width))))
     } else if item.kind == "quote" {
       block(
@@ -91,7 +95,7 @@
         stroke: if book { none } else if study { (left: 1.4pt + accent) } else { (left: 0.8pt + hairline) },
         above: 0.9em, below: 0.95em,
         {
-          set par(justify: false, leading: 0.58em)
+          set par(justify: false, leading: if book { 0.69em } else { 0.74em })
           set text(style: "italic", size: if book { 11.8pt } else if study { 12.7pt } else { 14.8pt })
           render-blocks(item.blocks)
         },
@@ -140,12 +144,12 @@
   } else {
     layout(size => title-text(fit-text(doc.title, size.width)))
   }
-  v(if book { 3mm } else { 4mm })
-  for line-content in doc.metadata {
-    block(above: 3.2pt, below: 3.2pt,
-      layout(size => text(size: if book { 10.4pt } else { 10.9pt }, fill: muted,
-        render-inline(line-content, render-blocks, width: size.width))))
-  }
+  v(if book { 4.5mm } else { 4mm })
+  set text(size: if book { 10.4pt } else { 10.9pt }, fill: muted)
+  set par(justify: false, leading: 0.78em)
+  let metadata-rows = doc.metadata.map(row =>
+    layout(size => par(render-inline(row, render-blocks, width: size.width))))
+  stack(spacing: if book { 7.3pt } else if study { 8.3pt } else { 8.9pt }, ..metadata-rows)
   if book {
     v(4.5mm)
     line(length: 14mm, stroke: 0.48pt + hairline)
