@@ -2065,13 +2065,6 @@
 </section>
 
 <style>
-	.document-editor.app-embedded {
-		height: 100dvh;
-		max-height: 100dvh;
-		border: 0;
-		border-radius: 0;
-		box-shadow: none;
-	}
 	.app-embedded > header {
 		padding: 0.7rem 1rem;
 	}
@@ -2703,6 +2696,13 @@
 		border-radius: 0;
 		box-shadow: none;
 	}
+	.document-editor.app-embedded {
+		height: 100dvh;
+		max-height: 100dvh;
+		border: 0;
+		border-radius: 0;
+		box-shadow: none;
+	}
 	.document-editor.compact > header {
 		padding: 0.8rem 0.9rem;
 	}
@@ -2732,11 +2732,12 @@
 		padding: 0.4rem 0.6rem;
 	}
 	.document-editor .editor-host {
+		--editor-host-padding: 1rem;
 		display: flex;
 		min-height: 0;
 		flex: 1;
 		overflow-y: auto;
-		padding: 1rem;
+		padding: var(--editor-host-padding);
 	}
 	.document-editor.compact .editor-host :global(.document-prose) {
 		width: 100%;
@@ -2767,6 +2768,18 @@
 		.editor-host :global(.document-prose) {
 			min-height: 24rem;
 			font-size: var(--reader-prose-size);
+		}
+	}
+
+	@supports (height: 1cqh) {
+		.document-editor:not(.read-only) .editor-writing-area {
+			container-type: size;
+		}
+		.document-editor:not(.read-only) .editor-host :global(.document-prose) {
+			/* Let padding follow the last block without extending an empty writing area. */
+			align-self: flex-start;
+			min-height: 100%;
+			padding-bottom: max(0px, 50cqh - var(--editor-host-padding));
 		}
 	}
 </style>
