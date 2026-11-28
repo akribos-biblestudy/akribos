@@ -55,9 +55,11 @@ test('selection copies complete verses in the selected translation', async ({ pa
 	await selectText(page, first, second);
 	await page.keyboard.press('Control+c');
 	const copied = await page.evaluate(() => navigator.clipboard.readText());
-	expect(copied).toContain('Johannes 3,16');
-	expect(copied).toContain('Johannes 3,17');
-	expect(copied).not.toContain('Johannes 3,18');
+	expect(copied).toBe(
+		'Johannes 3,16-17\n' +
+			'Denn so sehr hat Gott die Welt geliebt, dass er seinen Sohn gab.\n' +
+			'Denn Gott hat seinen Sohn nicht in die Welt gesandt, damit er sie richte.'
+	);
 	// Ending exactly at the start of the next verse does not include that verse.
 	await page.evaluate(() => {
 		const first = document.querySelector(
@@ -78,6 +80,24 @@ test('selection copies complete verses in the selected translation', async ({ pa
 	const boundary = await page.evaluate(() => navigator.clipboard.readText());
 	expect(boundary).toContain('Johannes 3,16');
 	expect(boundary).not.toContain('Johannes 3,17');
+});
+
+test('a selection across adjacent chapters uses a single compact reference', async ({
+	page,
+	context
+}) => {
+	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+	await page.goto('/1Mo1?layout=single&tab=1.1:SEEDPLAIN:A:1Mo1&active=1.1&focus=1');
+	const column = '.flow-column[data-resource-id="SEEDPLAIN"]';
+	const first = `${column} [data-verse-key="1:1:3"] .verse-text`;
+	const last = `${column} [data-verse-key="1:2:1"] .verse-text`;
+	await expect(page.locator(first).first()).toBeVisible();
+	await expect(page.locator(last).first()).toBeAttached();
+	await selectText(page, first, last);
+	await page.keyboard.press('Control+c');
+	expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+		'1.Mose 1,3-2,1\nUnd Gott sprach: Es werde Licht.\nSo wurden Himmel und Erde vollendet.'
+	);
 });
 
 test('input and selection across different Bible columns retain normal copying', async ({

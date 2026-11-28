@@ -1,7 +1,7 @@
-export type SelectedBibleVerse = { reference: string; text: string; source: string };
+import type { CopiedVerse } from '$lib/bible/copy-verse';
 
 /** Leave mixed, non-Bible and cross-column selections to the browser's ordinary copy behavior. */
-export function selectedBibleVerses(selection: Selection | null): SelectedBibleVerse[] | null {
+export function selectedBibleVerses(selection: Selection | null): CopiedVerse[] | null {
 	if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return null;
 	const range = selection.getRangeAt(0);
 	const elementOf = (node: Node) => (node instanceof Element ? node : node.parentElement);
@@ -31,7 +31,10 @@ export function selectedBibleVerses(selection: Selection | null): SelectedBibleV
 	const verses = [...selected].map((verse) => ({
 		reference: verse.dataset.copyReference ?? '',
 		text: verse.dataset.copyText ?? '',
-		source
+		source,
+		// Chapter sections contain all verses of the resource. Use their final row rather than
+		// guessing from verse counts that may differ between translations.
+		endsChapter: verse.nextElementSibling === null
 	}));
 	return verses.length > 0 && verses.every((verse) => verse.reference && verse.text)
 		? verses

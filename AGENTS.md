@@ -124,8 +124,10 @@ Prüfsummen sichern die Übereinstimmung der Dateien, belegen aber nicht deren H
 ## Bibelverse kopieren
 
 Das Kopieren einer Textauswahl innerhalb einer Bibelspalte übernimmt die vollständigen betroffenen
-Verse aus den Segmentdaten einschließlich ihrer Stellenangaben. Auswahl über mehrere Spalten oder
-außerhalb von Bibelversen sowie Eingabefelder und Editoren behalten das native Kopierverhalten.
+Verse aus den Segmentdaten. Aufeinanderfolgende Verszeilen desselben Werks erhalten eine gemeinsame
+Bereichsangabe. Ein kapitelübergreifender Bereich verbindet die letzte Verszeile eines Kapitels
+mit Vers 1 des nächsten Kapitels. Auswahl über mehrere Spalten oder außerhalb von Bibelversen
+sowie Eingabefelder und Editoren behalten das native Kopierverhalten.
 Versmenü, Kontextmenü für Bibelstellen und Auswahl nutzen dieselbe Formatierung: Die persönliche
 Einstellung bestimmt, ob die Stellenangabe vor oder nach dem Text steht und ob das Werkkürzel
 ergänzt wird. Gäste verwenden Stellenangabe vor dem Text ohne Kürzel.
