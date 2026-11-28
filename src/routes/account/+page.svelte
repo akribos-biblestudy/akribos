@@ -515,25 +515,56 @@
 				</Card>
 			{:else}
 				<Card title={t('account.pdfExport')} description={t('account.pdfExport.hint')}>
-					<form
-						method="POST"
-						action="?tab=pdfExport&/pdfExport"
-						use:enhance
-						class="max-w-sm space-y-3"
-					>
-						<label for="pdf-template" class="block text-sm font-medium">
-							{t('account.pdfExport.template')}
-						</label>
-						<select
-							id="pdf-template"
-							name="pdfTemplate"
-							value={data.pdfTemplate}
-							class="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
-						>
-							{#each PDF_TEMPLATES as template (template)}
-								<option value={template}>{t(`account.pdfExport.template.${template}`)}</option>
-							{/each}
-						</select>
+					<form method="POST" action="?tab=pdfExport&/pdfExport" use:enhance class="space-y-4">
+						<fieldset class="min-w-0">
+							<legend class="mb-2 text-sm font-medium">{t('account.pdfExport.template')}</legend>
+							<div class="grid gap-3 md:grid-cols-3">
+								{#each PDF_TEMPLATES as template (template)}
+									{@const name = t(`account.pdfExport.template.${template}`)}
+									<div
+										class="dark:has-checked:bg-accent-950/30 rounded-lg border border-stone-200 p-3 has-checked:border-accent-500 has-checked:bg-accent-50 dark:border-stone-700 dark:has-checked:border-accent-500"
+									>
+										<label
+											class="flex cursor-pointer items-center gap-3 md:flex-col-reverse md:items-stretch"
+										>
+											<img
+												src="/pdf-layout-examples/{template}.webp"
+												alt=""
+												width="600"
+												height="849"
+												class="h-auto w-20 shrink-0 rounded-sm border border-stone-200 bg-white md:w-full dark:border-stone-700"
+											/>
+											<span class="flex items-center gap-2 text-sm font-medium">
+												<input
+													type="radio"
+													name="pdfTemplate"
+													value={template}
+													checked={template === data.pdfTemplate}
+													aria-describedby="pdf-template-{template}-description"
+													class="size-4 shrink-0 accent-accent-600"
+												/>
+												{name}
+											</span>
+										</label>
+										<p
+											id="pdf-template-{template}-description"
+											class="mt-2 text-xs text-stone-600 dark:text-stone-300"
+										>
+											{t(`account.pdfExport.description.${template}`)}
+										</p>
+										<a
+											href="/pdf-layout-examples/{template}.pdf"
+											target="_blank"
+											rel="noreferrer"
+											aria-label={t('account.pdfExport.openNamedExample', { name })}
+											class="mt-2 inline-block text-sm text-accent-700 underline underline-offset-2 dark:text-accent-300"
+										>
+											{t('account.pdfExport.openExample')}
+										</a>
+									</div>
+								{/each}
+							</div>
+						</fieldset>
 						<div class="flex items-center gap-3">
 							<Button type="submit">{t('action.save')}</Button>
 							{#if form?.pdfTemplateSaved}
