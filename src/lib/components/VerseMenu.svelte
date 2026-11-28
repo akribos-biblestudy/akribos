@@ -19,6 +19,7 @@
 	import { flushSync, tick } from 'svelte';
 	import Icon from './Icon.svelte';
 	import Menu from './Menu.svelte';
+	import NewVerseListForm from './NewVerseListForm.svelte';
 
 	/**
 	 * What a verse number does when you click it.
@@ -223,6 +224,15 @@
 				aria-label={t('lists.title')}
 				hidden={!collectionsOpen}
 			>
+				{#if collectionsOpen}
+					<NewVerseListForm
+						reference={context.reference}
+						onCreated={(listId) => {
+							mark(listId, true);
+							menu?.close();
+						}}
+					/>
+				{/if}
 				{#each recentLists as list (list.id)}
 					{@const present = marks.has(`${context.reference}:${list.id}`)}
 					<form
@@ -261,40 +271,12 @@
 						</button>
 					</form>
 				{/each}
-
-				<!-- The first verse a reader wants to keep is the moment they need a list, so the list is
-				     created here rather than on the settings page. -->
-				<form
-					method="POST"
-					action="?/addToList"
-					role="none"
-					use:enhance={() => {
-						menu?.close();
-						return async ({ update }) => update({ reset: false });
-					}}
-				>
-					<input type="hidden" name="listId" value="" />
-					<input type="hidden" name="reference" value={context.reference} />
-					<input type="hidden" name="title" value={context.label} />
-					<button type="submit" role="menuitem" class="new-list">
-						<Icon name="plus" class="size-4 shrink-0" />
-						{t('lists.newWithVerse')}
-					</button>
-				</form>
 			</div>
 		{/if}
 	{/if}
 </Menu>
 
 <style>
-	.new-list {
-		color: var(--color-accent-600);
-	}
-
-	:global(.dark) .new-list {
-		color: var(--color-accent-400);
-	}
-
 	.collections {
 		margin-inline-start: 0.65rem;
 		padding-inline-start: 0.25rem;

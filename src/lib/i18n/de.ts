@@ -700,7 +700,10 @@ export const de = {
 	'lists.overviewEmpty': 'Du hast noch keine Stellensammlung.',
 	'lists.overviewEmptyHint':
 		'Klicke im Bibeltext auf eine Versnummer, um einen Vers zu speichern — oder lege hier eine Liste an.',
-	'lists.newWithVerse': 'Neue Liste mit diesem Vers',
+	'lists.createWithVerse': 'Stellensammlung anlegen und Vers hinzufügen',
+	'lists.creatingWithVerse': 'Stellensammlung wird angelegt',
+	'lists.createWithVerseFailed': 'Die Stellensammlung konnte nicht angelegt werden.',
+	'lists.titleInvalid': 'Bitte gib einen Titel mit höchstens {max} Zeichen ein.',
 	'lists.backToOverview': 'Alle Stellensammlungen',
 	'lists.titleLabel': 'Titel der Stellensammlung',
 	'lists.invalidReference':
