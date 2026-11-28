@@ -47,9 +47,11 @@ async function readPdf(page: Page, url: string) {
 	}
 }
 
-async function saveTemplate(page: Page, template: 'buchsatz' | 'lesemanuskript') {
-	const form = page.locator('form').filter({ has: page.getByLabel('PDF-Vorlage') });
-	await form.getByLabel('PDF-Vorlage').selectOption(template);
+async function saveTemplate(page: Page, name: 'Buchsatz' | 'Lesemanuskript') {
+	const form = page
+		.locator('form')
+		.filter({ has: page.getByRole('group', { name: 'PDF-Vorlage' }) });
+	await form.getByRole('radio', { name, exact: true }).check();
 	const saved = page.waitForResponse(
 		(response) =>
 			response.request().method() === 'POST' &&
@@ -69,7 +71,25 @@ test('PDF export follows the account template and the chosen display name across
 	const email = `pdf-export-${randomUUID()}@example.com`;
 	await registerWithPassword(page, email, password, '');
 	await page.getByRole('button', { name: 'PDF-Export', exact: true }).click();
-	await expect(page.getByLabel('PDF-Vorlage')).toHaveValue('studienausgabe');
+	const templates = page.getByRole('group', { name: 'PDF-Vorlage' });
+	await expect(templates.getByRole('radio', { name: 'Studienausgabe' })).toBeChecked();
+	const thumbnails = templates.locator('img');
+	await expect(thumbnails).toHaveCount(3);
+	await expect
+		.poll(() =>
+			thumbnails.evaluateAll((images) =>
+				images.every((image) => image instanceof HTMLImageElement && image.naturalWidth > 0)
+			)
+		)
+		.toBe(true);
+	for (const name of ['Studienausgabe', 'Buchsatz', 'Lesemanuskript']) {
+		const link = templates.getByRole('link', { name: `Beispiel-PDF öffnen – ${name}` });
+		await expect(link).toBeVisible();
+		const url = await link.getAttribute('href');
+		const example = await page.request.get(new URL(url!, page.url()).toString());
+		expect(example.ok()).toBe(true);
+		expect(example.headers()['content-type']).toBe('application/pdf');
+	}
 
 	await page.goto('/notes');
 	await page.getByRole('button', { name: 'Neue Notiz', exact: true }).click();
@@ -98,7 +118,7 @@ test('PDF export follows the account template and the chosen display name across
 	await profile.getByRole('button', { name: 'Speichern', exact: true }).click();
 	await expect(profile.getByRole('status')).toBeVisible();
 	await page.getByRole('button', { name: 'PDF-Export', exact: true }).click();
-	await saveTemplate(page, 'buchsatz');
+	await saveTemplate(page, 'Buchsatz');
 
 	const book = await readPdf(page, exportPath);
 	expect(book.text).toContain(noteText);
@@ -107,7 +127,7 @@ test('PDF export follows the account template and the chosen display name across
 	expect(book.footer).toMatch(/^Mara Beispiel\s+1$/);
 	expect(book.author).toBe(pseudonym);
 
-	await saveTemplate(page, 'lesemanuskript');
+	await saveTemplate(page, 'Lesemanuskript');
 	const badTemplate = await page.request.post('/account?/pdfExport', {
 		headers: { accept: 'text/html', origin: new URL(page.url()).origin },
 		form: { pdfTemplate: 'unbekannt' }
@@ -119,7 +139,7 @@ test('PDF export follows the account template and the chosen display name across
 		const secondPage = await fresh.newPage();
 		await login(secondPage, { email, password });
 		await secondPage.getByRole('button', { name: 'PDF-Export', exact: true }).click();
-		await expect(secondPage.getByLabel('PDF-Vorlage')).toHaveValue('lesemanuskript');
+		await expect(secondPage.getByRole('radio', { name: 'Lesemanuskript' })).toBeChecked();
 		const manuscript = await readPdf(secondPage, exportPath);
 		expect(manuscript.text).toContain(noteText);
 		expect(manuscript.text).not.toContain('AKRIBOS');
@@ -144,7 +164,7 @@ test('an existing account has the default PDF template and exports only its own 
 
 	await login(page, SEED_READER);
 	await page.getByRole('button', { name: 'PDF-Export', exact: true }).click();
-	await expect(page.getByLabel('PDF-Vorlage')).toHaveValue('studienausgabe');
+	await expect(page.getByRole('radio', { name: 'Studienausgabe' })).toBeChecked();
 	const owned = await readPdf(page, ownedPath);
 	expect(owned.text).toContain('AKRIBOS');
 	const foreign = await page.request.get(`/notes/${SEED_DOCUMENT_IDS.publishedNote}/export.pdf`);

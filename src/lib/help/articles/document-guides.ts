@@ -688,7 +688,7 @@ Hier beginnt meine Notiz.</code></pre><p><code>type: note</code> legt eine Notiz
 			{
 				id: 'pdf-vorlage',
 				title: 'Die PDF-Vorlage ändern',
-				html: `<p>Öffne <a href="/account?tab=pdfExport">Einstellungen → PDF-Export</a>. Unter <strong>PDF-Vorlage</strong> stehen <strong>Studienausgabe</strong>, <strong>Buchsatz</strong> und <strong>Lesemanuskript</strong> zur Auswahl. Die Studienausgabe ist voreingestellt. Bestätige mit <strong>Speichern</strong>, damit die Auswahl für deine nächsten PDF-Exporte gilt.</p><p>Dein <strong>Anzeigename</strong> aus dem Profil erscheint in der Fußzeile und in den PDF-Dateieigenschaften. Lass das Feld im Profil leer, wenn du eine PDF ohne Autorenangabe exportieren möchtest.</p>`
+				html: `<p>Öffne <a href="/account?tab=pdfExport">Einstellungen → PDF-Export</a>. Unter <strong>PDF-Vorlage</strong> stehen <strong>Studienausgabe</strong>, <strong>Buchsatz</strong> und <strong>Lesemanuskript</strong> zur Auswahl. Die Studienausgabe ist voreingestellt. Jede Vorschau zeigt die erste Seite. Über <strong>Beispiel-PDF öffnen</strong> kannst du das vollständige Beispiel ansehen. Bestätige deine Auswahl mit <strong>Speichern</strong>, damit sie für deine nächsten PDF-Exporte gilt.</p><p>Dein <strong>Anzeigename</strong> aus dem Profil erscheint in der Fußzeile und in den PDF-Dateieigenschaften. Lass das Feld im Profil leer, wenn du eine PDF ohne Autorenangabe exportieren möchtest.</p>`
 			},
 			{
 				id: 'leselink',

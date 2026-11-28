@@ -4,6 +4,11 @@ The [issue #354 designs](planning/pdf-354/README.md) build on the Akribos Studie
 [issue #294](https://github.com/akribos-biblestudy/akribos/issues/294). The three A4 templates are
 selected in the account settings. Studienausgabe is the default.
 
+The account settings show the first page of each template alongside its full example PDF. Regenerate
+these static files after visual template or print font changes with
+`python3 scripts/generate-pdf-layout-examples.py` using Typst 0.15.1, Poppler and ImageMagick. The script
+renders the existing design fixture with the production template and fonts.
+
 ## Layout and content
 
 | Template       | Body text | Layout                                                                                                                      |
